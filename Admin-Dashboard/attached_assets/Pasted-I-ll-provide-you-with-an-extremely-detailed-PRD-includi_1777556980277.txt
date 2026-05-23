@@ -1,0 +1,2007 @@
+I'll provide you with an extremely detailed PRD including wireframe descriptions, workflows, flowcharts, and a complete React Native + JSX file structure. Since I cannot generate an actual PDF file, I'll give you everything you need to copy into a document and save as PDF.
+
+---
+
+COMPLETE PRD + TECHNICAL SPECIFICATION
+
+All-in-One Admin System (HR + Client + Project + Finance)
+
+React Native Expo + JSX + Firebase/Node.js Backend
+
+---
+
+DOCUMENT INDEX
+
+1. Executive Summary & Scope
+2. Complete System Architecture
+3. File Structure (React Native Expo)
+4. Database Schema (Firestore/PostgreSQL)
+5. Detailed Wireframe Descriptions (13 screens)
+6. User Workflows (Step-by-step)
+7. Flowcharts (Mermaid code + ASCII)
+8. Component Library (Reusable JSX)
+9. State Management (Redux Toolkit setup)
+10. API Endpoints (RESTful)
+11. Security & Role-Based Access Control (RBAC) Matrix
+12. Notification System Design
+13. Custom Fields Engine (Dynamic forms)
+14. Testing Strategy
+15. Deployment Checklist
+16. Full Appendix: Sample Code Block for each major screen
+
+---
+
+1. EXECUTIVE SUMMARY & SCOPE
+
+1.1 Product Name
+
+OmniAdmin Suite (working title)
+
+1.2 Platform
+
+· Frontend: React Native Expo (iOS + Android + Web via Expo Web)
+· Backend: Node.js + Express + Firebase Admin SDK (or PostgreSQL)
+· Authentication: Firebase Auth or Supabase Auth
+· Database: Firestore (NoSQL) or PostgreSQL (SQL)
+· State Management: Redux Toolkit + RTK Query
+· UI Library: React Native Paper + TailwindCSS (NativeWind)
+
+1.3 Development Timeline Estimate
+
+· Phase 1 (Auth + Roles): 2 weeks
+· Phase 2 (Employee/HR module): 3 weeks
+· Phase 3 (Client + Project module): 3 weeks
+· Phase 4 (Finance module): 3 weeks
+· Phase 5 (Dashboard + Notifications): 2 weeks
+· Phase 6 (Custom fields + Settings): 2 weeks
+· Phase 7 (Testing + Deployment): 2 weeks
+· Total: ~17 weeks (4 months)
+
+---
+
+2. COMPLETE SYSTEM ARCHITECTURE
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     CLIENT LAYER                             │
+│  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐        │
+│  │ iOS App │  │Android  │  │Web App  │  │ PWA     │        │
+│  └────┬────┘  └────┬────┘  └────┬────┘  └────┬────┘        │
+│       └────────────┴────────────┴────────────┘              │
+│                    React Native Expo                         │
+└─────────────────────────┬───────────────────────────────────┘
+                          │ HTTPS + JWT
+┌─────────────────────────▼───────────────────────────────────┐
+│                    API GATEWAY (Express)                     │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │  Middleware: Auth, RBAC, Rate Limiting, Logging      │   │
+│  └──────────────────────────────────────────────────────┘   │
+└─────────┬───────────────────────┬───────────────────────────┘
+          │                       │
+┌─────────▼──────────┐   ┌────────▼──────────┐
+│   Firebase Auth    │   │  Firestore/Postgres│
+│  (User Mgmt)       │   │  (Main Database)   │
+└────────────────────┘   └────────────────────┘
+          │                       │
+┌─────────▼───────────────────────▼───────────────────────────┐
+│                     SERVICES LAYER                           │
+│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐           │
+│  │Email svc│ │Notif svc│ │Export svc│ │Audit svc│           │
+│  └─────────┘ └─────────┘ └─────────┘ └─────────┘           │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+3. FILE STRUCTURE (React Native Expo + JSX)
+
+```
+omniadmin-suite/
+│
+├── app/                           # Expo Router (file-based routing)
+│   ├── (auth)/                    # Auth group (no header)
+│   │   ├── login.tsx
+│   │   ├── register.tsx
+│   │   └── forgot-password.tsx
+│   ├── (app)/                     # Main app group (with drawer)
+│   │   ├── _layout.tsx            # Drawer + Stack navigator
+│   │   ├── dashboard/
+│   │   │   └── index.tsx
+│   │   ├── employees/
+│   │   │   ├── index.tsx          # List
+│   │   │   ├── [id].tsx           # Detail
+│   │   │   ├── create.tsx
+│   │   │   └── edit.tsx
+│   │   ├── clients/
+│   │   │   ├── index.tsx
+│   │   │   ├── [id].tsx
+│   │   │   ├── create.tsx
+│   │   │   └── edit.tsx
+│   │   ├── projects/
+│   │   │   ├── index.tsx
+│   │   │   ├── [id].tsx
+│   │   │   ├── create.tsx
+│   │   │   └── edit.tsx
+│   │   ├── finances/
+│   │   │   ├── index.tsx
+│   │   │   ├── income/
+│   │   │   │   ├── index.tsx
+│   │   │   │   └── create.tsx
+│   │   │   ├── expenses/
+│   │   │   │   ├── index.tsx
+│   │   │   │   └── create.tsx
+│   │   │   └── reports/
+│   │   │       └── index.tsx
+│   │   ├── settings/
+│   │   │   ├── index.tsx
+│   │   │   ├── custom-fields.tsx
+│   │   │   ├── users.tsx          # Admin only
+│   │   │   └── roles.tsx
+│   │   └── notifications/
+│   │       └── index.tsx
+│   ├── _layout.tsx                # Root layout
+│   └── index.tsx                  # Splash/Redirect
+│
+├── components/                    # Reusable UI
+│   ├── common/
+│   │   ├── Button.tsx
+│   │   ├── Input.tsx
+│   │   ├── Card.tsx
+│   │   ├── Modal.tsx
+│   │   ├── LoadingSpinner.tsx
+│   │   ├── EmptyState.tsx
+│   │   └── SearchBar.tsx
+│   ├── layout/
+│   │   ├── Header.tsx
+│   │   ├── Sidebar.tsx (web) / Drawer.tsx (mobile)
+│   │   ├── TabBar.tsx
+│   │   └── NotificationBell.tsx
+│   ├── forms/
+│   │   ├── EmployeeForm.tsx
+│   │   ├── ClientForm.tsx
+│   │   ├── ProjectForm.tsx
+│   │   ├── FinanceForm.tsx
+│   │   └── DynamicField.tsx       # For custom fields
+│   ├── tables/
+│   │   ├── DataTable.tsx
+│   │   ├── EmployeeTable.tsx
+│   │   ├── ClientTable.tsx
+│   │   └── FinanceTable.tsx
+│   ├── charts/
+│   │   ├── ProfitLossChart.tsx
+│   │   ├── IncomeExpenseBar.tsx
+│   │   └── ProjectStatusPie.tsx
+│   └── modals/
+│       ├── ConfirmDelete.tsx
+│       ├── FilterModal.tsx
+│       └── NotificationModal.tsx
+│
+├── screens/                       # (Alternative if not using expo router)
+│   └── [same structure as app/(app)/]
+│
+├── services/                      # API & business logic
+│   ├── api/
+│   │   ├── client.ts              # Axios/Fetch instance
+│   │   ├── employees.ts
+│   │   ├── clients.ts
+│   │   ├── projects.ts
+│   │   ├── finances.ts
+│   │   ├── auth.ts
+│   │   └── settings.ts
+│   ├── firebase/
+│   │   ├── config.ts
+│   │   ├── auth.ts
+│   │   └── firestore.ts
+│   └── websocket/
+│       └── notificationSocket.ts
+│
+├── store/                         # Redux Toolkit
+│   ├── index.ts                   # Store configuration
+│   ├── slices/
+│   │   ├── authSlice.ts
+│   │   ├── employeeSlice.ts
+│   │   ├── clientSlice.ts
+│   │   ├── projectSlice.ts
+│   │   ├── financeSlice.ts
+│   │   ├── notificationSlice.ts
+│   │   ├── customFieldSlice.ts
+│   │   └── uiSlice.ts
+│   └── hooks/
+│       ├── useAppDispatch.ts
+│       └── useAppSelector.ts
+│
+├── hooks/                         # Custom React hooks
+│   ├── useRoleAccess.ts
+│   ├── useNotifications.ts
+│   ├── useDebounce.ts
+│   ├── usePagination.ts
+│   └── useCustomFields.ts
+│
+├── utils/                         # Helpers
+│   ├── constants/
+│   │   ├── roles.ts
+│   │   ├── permissions.ts
+│   │   └── config.ts
+│   ├── formatters/
+│   │   ├── dateFormatter.ts
+│   │   ├── currencyFormatter.ts
+│   │   └── numberFormatter.ts
+│   ├── validators/
+│   │   ├── employeeValidator.ts
+│   │   ├── clientValidator.ts
+│   │   ├── projectValidator.ts
+│   │   └── financeValidator.ts
+│   ├── helpers/
+│   │   ├── calculateNetProfit.ts
+│   │   ├── filterByRole.ts
+│   │   └── exportToCSV.ts
+│   └── storage/
+│       ├── secureStorage.ts
+│       └── asyncStorage.ts
+│
+├── types/                         # TypeScript definitions
+│   ├── employee.types.ts
+│   ├── client.types.ts
+│   ├── project.types.ts
+│   ├── finance.types.ts
+│   ├── user.types.ts
+│   ├── customField.types.ts
+│   └── notification.types.ts
+│
+├── assets/                        # Images, fonts, icons
+│   ├── images/
+│   ├── fonts/
+│   └── animations/
+│
+├── navigation/                    # (If not using expo router)
+│   ├── AppNavigator.tsx
+│   ├── AuthNavigator.tsx
+│   └── MainNavigator.tsx
+│
+├── styles/                        # Global styles
+│   ├── colors.ts
+│   ├── typography.ts
+│   ├── spacing.ts
+│   └── global.css (for NativeWind)
+│
+├── .env                           # Environment variables
+├── app.json
+├── package.json
+├── tailwind.config.js
+├── babel.config.js
+├── metro.config.js
+├── tsconfig.json
+└── README.md
+```
+
+---
+
+4. DATABASE SCHEMA (Firestore / PostgreSQL)
+
+4.1 Firestore Collections (NoSQL)
+
+```
+users (collection)
+  └─ {userId}
+      ├─ email: string
+      ├─ hashedPassword: string
+      ├─ role: "admin" | "manager" | "hr"
+      ├─ fullName: string
+      ├─ avatarUrl: string (optional)
+      ├─ createdAt: timestamp
+      ├─ lastLogin: timestamp
+      └─ isActive: boolean
+
+employees (collection)
+  └─ {employeeId}
+      ├─ name: string
+      ├─ address: string
+      ├─ salary: number
+      ├─ performance: number (1-5)
+      ├─ status: "active" | "on_leave" | "terminated"
+      ├─ department: string
+      ├─ hireDate: timestamp
+      ├─ customFields: map (dynamic key-value)
+      ├─ createdBy: userId (admin)
+      ├─ updatedBy: userId
+      ├─ createdAt: timestamp
+      └─ updatedAt: timestamp
+
+clients (collection)
+  └─ {clientId}
+      ├─ clientName: string
+      ├─ companyName: string
+      ├─ email: string
+      ├─ location: string
+      ├─ website: string
+      ├─ supportContact: string
+      ├─ totalPaid: number (calculated aggregate)
+      ├─ createdBy: userId
+      ├─ createdAt: timestamp
+      └─ updatedAt: timestamp
+
+projects (collection)
+  └─ {projectId}
+      ├─ name: string
+      ├─ specifications: string
+      ├─ location: string
+      ├─ startDate: timestamp
+      ├─ endDate: timestamp (nullable)
+      ├─ status: "planned" | "active" | "completed" | "on_hold"
+      ├─ clientId: reference (clients)
+      ├─ totalValue: number
+      ├─ amountPaid: number (calculated)
+      ├─ createdBy: userId (manager/admin)
+      ├─ createdAt: timestamp
+      └─ updatedAt: timestamp
+
+transactions (collection)  # Finance
+  └─ {transactionId}
+      ├─ type: "income" | "expense"
+      ├─ amount: number
+      ├─ date: timestamp
+      ├─ category: string
+      ├─ description: string
+      ├─ projectId: reference (nullable if non-project income)
+      ├─ employeeId: reference (nullable if salary expense)
+      ├─ paymentMethod: string (income only)
+      ├─ receivedBy: string (income only)
+      ├─ createdBy: userId (manager)
+      ├─ approvedBy: userId (admin, optional)
+      ├─ createdAt: timestamp
+      └─ updatedAt: timestamp
+
+customFields (collection)
+  └─ {fieldId}
+      ├─ module: "employee" | "project" | "finance"
+      ├─ fieldName: string
+      ├─ fieldType: "text" | "number" | "date" | "boolean" | "select"
+      ├─ options: array (for select type)
+      ├─ isRequired: boolean
+      ├─ createdBy: userId (admin)
+      ├─ createdAt: timestamp
+      └─ isActive: boolean
+
+notifications (collection)
+  └─ {notificationId}
+      ├─ userId: reference
+      ├─ type: "info" | "warning" | "success" | "error"
+      ├─ title: string
+      ├─ message: string
+      ├─ relatedId: string (employeeId, projectId, etc.)
+      ├─ isRead: boolean
+      ├─ createdAt: timestamp
+      └─ expiresAt: timestamp (7 days TTL)
+
+auditLogs (collection)
+  └─ {logId}
+      ├─ userId: reference
+      ├─ action: "CREATE" | "UPDATE" | "DELETE" | "VIEW" | "EXPORT"
+      ├─ module: "employee" | "client" | "project" | "finance" | "settings"
+      ├─ recordId: string
+      ├─ oldValues: map (optional)
+      ├─ newValues: map (optional)
+      ├─ ipAddress: string
+      ├─ userAgent: string
+      └─ timestamp: timestamp
+```
+
+4.2 PostgreSQL Schema (SQL Alternative)
+
+```sql
+-- Users table
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    role VARCHAR(20) CHECK (role IN ('admin', 'manager', 'hr')),
+    full_name VARCHAR(255),
+    avatar_url TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    last_login TIMESTAMP,
+    is_active BOOLEAN DEFAULT TRUE
+);
+
+-- Employees table
+CREATE TABLE employees (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL,
+    address TEXT,
+    salary DECIMAL(10,2),
+    performance INT CHECK (performance BETWEEN 1 AND 5),
+    status VARCHAR(20) CHECK (status IN ('active', 'on_leave', 'terminated')),
+    department VARCHAR(100),
+    hire_date DATE,
+    custom_fields JSONB,  -- For dynamic fields
+    created_by UUID REFERENCES users(id),
+    updated_by UUID REFERENCES users(id),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Clients table
+CREATE TABLE clients (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    client_name VARCHAR(255) NOT NULL,
+    company_name VARCHAR(255),
+    email VARCHAR(255),
+    location TEXT,
+    website VARCHAR(255),
+    support_contact VARCHAR(255),
+    total_paid DECIMAL(10,2) DEFAULT 0,
+    created_by UUID REFERENCES users(id),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Projects table
+CREATE TABLE projects (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL,
+    specifications TEXT,
+    location TEXT,
+    start_date DATE,
+    end_date DATE,
+    status VARCHAR(20) CHECK (status IN ('planned', 'active', 'completed', 'on_hold')),
+    client_id UUID REFERENCES clients(id) ON DELETE SET NULL,
+    total_value DECIMAL(10,2),
+    amount_paid DECIMAL(10,2) DEFAULT 0,
+    created_by UUID REFERENCES users(id),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Transactions table (Finance)
+CREATE TABLE transactions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    type VARCHAR(10) CHECK (type IN ('income', 'expense')),
+    amount DECIMAL(10,2) NOT NULL,
+    date DATE NOT NULL,
+    category VARCHAR(100),
+    description TEXT,
+    project_id UUID REFERENCES projects(id) ON DELETE SET NULL,
+    employee_id UUID REFERENCES employees(id) ON DELETE SET NULL,
+    payment_method VARCHAR(50),  -- for income
+    received_by VARCHAR(255),    -- for income
+    created_by UUID REFERENCES users(id),
+    approved_by UUID REFERENCES users(id),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Custom Fields definition
+CREATE TABLE custom_fields (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    module VARCHAR(20) CHECK (module IN ('employee', 'project', 'finance')),
+    field_name VARCHAR(100) NOT NULL,
+    field_type VARCHAR(20) CHECK (field_type IN ('text', 'number', 'date', 'boolean', 'select')),
+    options JSONB,  -- for select type: ["option1", "option2"]
+    is_required BOOLEAN DEFAULT FALSE,
+    created_by UUID REFERENCES users(id),
+    created_at TIMESTAMP DEFAULT NOW(),
+    is_active BOOLEAN DEFAULT TRUE
+);
+
+-- Notifications table
+CREATE TABLE notifications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    type VARCHAR(20),
+    title VARCHAR(255),
+    message TEXT,
+    related_id UUID,
+    is_read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    expires_at TIMESTAMP DEFAULT NOW() + INTERVAL '7 days'
+);
+
+-- Audit Logs
+CREATE TABLE audit_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id),
+    action VARCHAR(20),
+    module VARCHAR(50),
+    record_id UUID,
+    old_values JSONB,
+    new_values JSONB,
+    ip_address INET,
+    user_agent TEXT,
+    timestamp TIMESTAMP DEFAULT NOW()
+);
+
+-- Indexes for performance
+CREATE INDEX idx_users_role ON users(role);
+CREATE INDEX idx_employees_status ON employees(status);
+CREATE INDEX idx_projects_status ON projects(status);
+CREATE INDEX idx_projects_client ON projects(client_id);
+CREATE INDEX idx_transactions_date ON transactions(date);
+CREATE INDEX idx_transactions_type ON transactions(type);
+CREATE INDEX idx_notifications_user_read ON notifications(user_id, is_read);
+```
+
+---
+
+5. DETAILED WIREFRAME DESCRIPTIONS (13 Screens)
+
+Screen 1: Login Screen
+
+Layout:
+
+· Status bar (translucent)
+· App logo centered (top 30%)
+· Email input field with icon (person)
+· Password input field with icon (lock) + show/hide toggle
+· "Forgot Password?" link (right-aligned)
+· Login button (primary, full-width)
+· "Don't have an account? Sign Up" link (bottom)
+· Version number at very bottom
+
+Behavior:
+
+· Validation: email format, password non-empty
+· On success: redirect to dashboard based on role
+· On failure: show red toast error message
+· Loading spinner on button during API call
+
+Responsive:
+
+· Mobile: full-screen, padding 20px
+· Web: centered card max-width 400px
+
+---
+
+Screen 2: Dashboard (Role-based)
+
+Layout (Admin view):
+
+· Header: Greeting + date + notification bell + avatar
+· KPI Cards (horizontal scroll on mobile, grid on web):
+  · Total Employees (with icon)
+  · Active Projects (with icon)
+  · Total Clients (with icon)
+  · Net Profit (this month, green/red color)
+· Charts section (2 columns on web):
+  · Profit/Loss line chart (last 6 months)
+  · Income vs Expense bar chart (current month)
+· Recent Transactions table (last 5 rows):
+  · Columns: Date, Description, Type, Amount
+· Quick Actions buttons (floating on mobile / sidebar on web):
+  · Add Employee, Add Client, Add Expense
+· Live notifications ticker (top banner)
+
+Manager view:
+
+· Same but limited to Finance + Projects charts
+· No employee management UI
+
+HR view:
+
+· Employee KPIs (total, active, on leave)
+· Recent employee updates
+· Performance overview chart
+
+---
+
+Screen 3: Employee List
+
+Layout:
+
+· Header: "Employees" + + Add button (FAB on mobile)
+· Search bar with filter icon
+· Toggle between Cards (mobile) and Table (web)
+· Filter chips: All / Active / On Leave / Terminated
+· List items (each):
+  · Avatar (initials), Name, Department, Performance star rating, Status badge, 3-dot menu
+· Infinite scroll pagination
+
+Card view (mobile):
+
+```
+┌─────────────────────────────┐
+│ 👤 John Doe          ⋮      │
+│ Engineering ★★★★☆           │
+│ Active ●  $75,000           │
+└─────────────────────────────┘
+```
+
+Table view (web):
+
+Name Department Performance Status Salary Actions
+John Doe Engineering 4.2 Active $75k Edit/Delete
+
+---
+
+Screen 4: Employee Detail / Edit
+
+Layout (Form sections):
+
+1. Basic Info (name, address, department, hire date)
+2. Employment (salary, status, performance slider)
+3. Custom Fields (dynamic fields added by admin)
+4. Performance History (timeline of past ratings)
+5. Audit Log (who edited when)
+6. Danger Zone (Delete button, admin only)
+
+Components:
+
+· Form inputs with validation
+· Save button (floating bottom)
+· Cancel button (top-left back arrow)
+· Image picker for avatar
+
+---
+
+Screen 5: Client List
+
+Layout:
+
+· Similar to Employee List but with company-focused cards
+· Search: client name, company name, email
+· Each card shows: Logo placeholder, Client name, Company, Total paid amount, Project count badge
+· Sort options: by name, by total paid, by project count
+
+---
+
+Screen 6: Client Detail
+
+Layout:
+
+· Hero section: Client name, company, website link, support contact
+· Tabs: Overview / Projects / Payments / Notes
+· Overview: Contact info, location map (embed), total paid
+· Projects tab: List of associated projects (clickable)
+· Payments tab: Transaction history for this client
+· Edit button (pencil icon top-right)
+
+---
+
+Screen 7: Project List
+
+Layout:
+
+· Kanban board style (optional toggle) or Table
+· Status columns: Planned / Active / Completed / On Hold
+· Drag-and-drop between status columns (touch-friendly)
+· Each card: Project name, Client name, Total value, Start date
+· Search + filter by client, status, date range
+
+---
+
+Screen 8: Project Detail
+
+Layout:
+
+· Header with status badge and edit icon
+· Sections:
+  · Specifications (rich text)
+  · Location (map)
+  · Financials: Total value, Amount paid, Remaining
+  · Timeline (Gantt chart lightweight)
+  · Associated transactions list
+· Attachments (photos, PDFs) - future
+
+---
+
+Screen 9: Finance Dashboard
+
+Layout:
+
+· Date range selector (month, quarter, year)
+· Summary cards:
+  · Total Income (green)
+  · Total Expenses (red)
+  · Net Profit (large, with trend arrow)
+· Category breakdown (pie chart)
+· Recent transactions table (with type icons)
+· Two tabs: Income / Expenses (separate lists)
+· Floating Add button (opens form with type selection)
+
+---
+
+Screen 10: Add/Edit Transaction (Finance)
+
+Layout (Step form):
+Step 1: Select type (Income / Expense) – toggle switch
+Step 2: Basic info
+
+· Amount (number pad)
+· Date (date picker)
+· Category (dropdown: salary, rent, software, etc.)
+· Description (multi-line)
+  Step 3: Conditional fields
+· If Income: Project (dropdown), Payment method, Received by
+· If Expense: Project (optional), Employee (if salary)
+  Step 4: Preview & Submit
+
+---
+
+Screen 11: Settings
+
+Layout (List with sections):
+
+General
+
+· Profile (name, email, change password)
+· App preferences (dark mode, notifications)
+
+Custom Fields (Admin only)
+
+· List of existing custom fields per module
+·   · Add new field button
+· Field builder modal (name, type, required, options for select)
+
+User Management (Admin only)
+
+· List of all users (email, role, status, last login)
+· Invite new user (email + role selector)
+· Edit/Delete user
+
+Role Permissions (Admin only)
+
+· Matrix view (checkboxes): which role can do what
+
+Data Management
+
+· Export all data (CSV)
+· Backup/Restore (future)
+· Audit log viewer
+
+---
+
+Screen 12: Notifications Center
+
+Layout:
+
+· Header: "Notifications" + Mark all as read button
+· Tabs: All / Unread
+· List items:
+  · Icon (info, success, warning)
+  · Title + message
+  · Relative timestamp (2 hours ago)
+  · Unread indicator (blue dot)
+· Clicking a notification navigates to related record
+
+---
+
+Screen 13: User Profile
+
+Layout:
+
+· Avatar (with camera icon to change)
+· Name (editable)
+· Email (read-only)
+· Role badge
+· Change password button
+· App version
+· Logout button (red, with confirmation modal)
+
+---
+
+6. USER WORKFLOWS (Step-by-Step)
+
+Workflow 1: Admin creates a custom field
+
+```
+START
+  ↓
+Admin logs in → Settings screen
+  ↓
+Taps "Custom Fields" → "Employee" module
+  ↓
+Clicks "+ Add Field"
+  ↓
+Modal opens:
+  - Field Name: "Tax ID"
+  - Field Type: "Text"
+  - Required: Yes
+  - Click "Create"
+  ↓
+Field added to Firestore customFields collection
+  ↓
+EmployeeForm component re-renders with new field
+  ↓
+Notification sent to all HR users: "New custom field available"
+  ↓
+END
+```
+
+Workflow 2: Manager inputs a new expense
+
+```
+START
+  ↓
+Manager logs in → Finance tab
+  ↓
+Clicks floating "+" button
+  ↓
+Selects "Expense" toggle
+  ↓
+Fills form:
+  - Amount: $500
+  - Date: Today
+  - Category: "Software"
+  - Description: "Figma license renewal"
+  - Project: "Website Redesign" (optional)
+  ↓
+Clicks "Submit"
+  ↓
+Backend:
+  - Validates amount > 0
+  - Creates transaction record with type="expense"
+  - Recalculates net profit for dashboard
+  - Creates audit log entry
+  ↓
+Admin receives live notification: "Manager added expense $500"
+  ↓
+Dashboard refreshes → Net profit decreases by $500
+  ↓
+END
+```
+
+Workflow 3: HR updates employee performance
+
+```
+START
+  ↓
+HR logs in → Employee List
+  ↓
+Searches for "Jane Smith" → taps her card
+  ↓
+Scrolls to Performance section
+  ↓
+Moves slider from 3.5 to 4.2
+  ↓
+Adds note: "Great work on Q2 project"
+  ↓
+Clicks "Save"
+  ↓
+Backend:
+  - Updates employee.performance
+  - Adds performance history entry
+  - Logs change in auditLogs
+  ↓
+Admin dashboard shows updated performance in charts
+  ↓
+(Optional) Auto-notification to admin if performance drops below 2.5
+  ↓
+END
+```
+
+Workflow 4: Admin creates a new manager account
+
+```
+START
+  ↓
+Admin logs in → Settings → User Management
+  ↓
+Clicks "Invite User"
+  ↓
+Modal:
+  - Email: "john@company.com"
+  - Role: "Manager"
+  - Click "Send Invite"
+  ↓
+Backend:
+  - Creates user record with status="invited"
+  - Sends email invitation with signup link
+  - Assigns role="manager"
+  ↓
+John receives email → clicks link → sets password
+  ↓
+John logs in → sees Manager dashboard (no HR/Admin sections)
+  ↓
+END
+```
+
+---
+
+7. FLOWCHARTS
+
+Flowchart 1: Authentication & Role-Based Navigation
+
+```mermaid
+graph TD
+    A[Launch App] --> B{Has token?}
+    B -->|No| C[Login Screen]
+    B -->|Yes| D[Validate token]
+    D -->|Invalid| C
+    D -->|Valid| E{Check role}
+    E -->|admin| F[Admin Dashboard]
+    E -->|manager| G[Manager Dashboard]
+    E -->|hr| H[HR Dashboard]
+    F --> I[Access all modules]
+    G --> J[Access Finance + Projects only]
+    H --> K[Access Employees only]
+```
+
+Flowchart 2: Employee Management (HR + Admin)
+
+```mermaid
+graph TD
+    A[Employee List] --> B{Action}
+    B -->|Search/Filter| C[Display filtered results]
+    B -->|Add| D[Employee Form]
+    B -->|Edit| E[Load employee data]
+    B -->|Delete| F{Admin?}
+    F -->|Yes| G[Confirm delete modal]
+    F -->|No| H[Disable delete button]
+    G -->|Confirm| I[API call to delete]
+    I --> J[Remove from list]
+    G -->|Cancel| A
+    D --> K[Validate inputs]
+    K -->|Pass| L[API create/update]
+    K -->|Fail| M[Show validation errors]
+    L --> N[Refresh list + notification]
+```
+
+Flowchart 3: Financial Transaction Flow
+
+```mermaid
+graph TD
+    A[Finance Screen] --> B[Click + Add]
+    B --> C{Select type}
+    C -->|Income| D[Income Form]
+    C -->|Expense| E[Expense Form]
+    D --> F[Fill details: amount, date, category, project, payment method]
+    E --> G[Fill details: amount, date, category, project optional]
+    F --> H[Submit]
+    G --> H
+    H --> I{Validate}
+    I -->|Valid| J[API POST /transactions]
+    I -->|Invalid| K[Show error]
+    J --> L[Recalc net profit]
+    L --> M[Notify admin]
+    M --> N[Update dashboard charts]
+    N --> O[Redirect to finance list]
+```
+
+Flowchart 4: Custom Fields Creation (Admin only)
+
+```mermaid
+graph TD
+    A[Settings → Custom Fields] --> B[Select module]
+    B --> C[Click Add Field]
+    C --> D[Modal: Field Name, Type, Options, Required]
+    D --> E[Validate unique field name per module]
+    E -->|Pass| F[API POST /custom-fields]
+    E -->|Fail| G[Error: Field exists]
+    F --> H[Store in DB]
+    H --> I[Emit WebSocket event]
+    I --> J[All clients refresh form components]
+    J --> K[Show success toast]
+```
+
+Flowchart 5: Real-time Notification System
+
+```mermaid
+graph TD
+    A[User performs action] --> B[API endpoint]
+    B --> C[Create notification record]
+    C --> D{Target users}
+    D -->|Admin action| E[Notify all admins]
+    D -->|Manager input| F[Notify admin + relevant manager]
+    D -->|HR update| G[Notify admin]
+    E --> H[WebSocket push to clients]
+    F --> H
+    G --> H
+    H --> I[Client receives payload]
+    I --> J[Show banner + update bell count]
+    J --> K[Store in Redux]
+```
+
+---
+
+8. COMPONENT LIBRARY (Reusable JSX)
+
+Component 1: Button.tsx
+
+```tsx
+import React from 'react';
+import { TouchableOpacity, Text, ActivityIndicator, View } from 'react-native';
+
+interface ButtonProps {
+  title: string;
+  onPress: () => void;
+  variant?: 'primary' | 'secondary' | 'danger' | 'outline';
+  loading?: boolean;
+  disabled?: boolean;
+  fullWidth?: boolean;
+  icon?: React.ReactNode;
+}
+
+export const Button: React.FC<ButtonProps> = ({
+  title,
+  onPress,
+  variant = 'primary',
+  loading = false,
+  disabled = false,
+  fullWidth = false,
+  icon,
+}) => {
+  const getBgColor = () => {
+    if (disabled) return 'bg-gray-300';
+    switch (variant) {
+      case 'primary': return 'bg-blue-600';
+      case 'secondary': return 'bg-gray-600';
+      case 'danger': return 'bg-red-600';
+      case 'outline': return 'bg-transparent border-2 border-blue-600';
+      default: return 'bg-blue-600';
+    }
+  };
+
+  const getTextColor = () => {
+    if (disabled) return 'text-gray-500';
+    if (variant === 'outline') return 'text-blue-600';
+    return 'text-white';
+  };
+
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      disabled={disabled || loading}
+      className={`${getBgColor()} ${fullWidth ? 'w-full' : 'px-4'} py-3 rounded-lg flex-row justify-center items-center`}
+    >
+      {icon && <View className="mr-2">{icon}</View>}
+      {loading ? (
+        <ActivityIndicator color={variant === 'outline' ? '#2563EB' : 'white'} />
+      ) : (
+        <Text className={`${getTextColor()} font-semibold text-center`}>{title}</Text>
+      )}
+    </TouchableOpacity>
+  );
+};
+```
+
+Component 2: Input.tsx
+
+```tsx
+import React, { useState } from 'react';
+import { View, TextInput, Text, TouchableOpacity } from 'react-native';
+import { Feather } from '@expo/vector-icons';
+
+interface InputProps {
+  label: string;
+  value: string;
+  onChangeText: (text: string) => void;
+  placeholder?: string;
+  secureTextEntry?: boolean;
+  error?: string;
+  required?: boolean;
+  keyboardType?: 'default' | 'numeric' | 'email-address';
+  icon?: keyof typeof Feather.glyphMap;
+}
+
+export const Input: React.FC<InputProps> = ({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  secureTextEntry = false,
+  error,
+  required = false,
+  keyboardType = 'default',
+  icon,
+}) => {
+  const [showPassword, setShowPassword] = useState(false);
+  const isPassword = secureTextEntry;
+
+  return (
+    <View className="mb-4">
+      <Text className="text-gray-700 font-medium mb-1">
+        {label} {required && <Text className="text-red-500">*</Text>}
+      </Text>
+      <View className="flex-row items-center border border-gray-300 rounded-lg bg-white px-3">
+        {icon && <Feather name={icon} size={20} color="#9CA3AF" />}
+        <TextInput
+          className="flex-1 py-3 px-2 text-gray-800"
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          secureTextEntry={isPassword && !showPassword}
+          keyboardType={keyboardType}
+          autoCapitalize="none"
+        />
+        {isPassword && (
+          <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+            <Feather name={showPassword ? 'eye-off' : 'eye'} size={20} color="#9CA3AF" />
+          </TouchableOpacity>
+        )}
+      </View>
+      {error && <Text className="text-red-500 text-xs mt-1">{error}</Text>}
+    </View>
+  );
+};
+```
+
+Component 3: DataTable.tsx
+
+```tsx
+import React from 'react';
+import { View, Text, FlatList, TouchableOpacity } from 'react-native';
+
+interface Column {
+  key: string;
+  title: string;
+  width?: number;
+  render?: (item: any) => React.ReactNode;
+}
+
+interface DataTableProps {
+  columns: Column[];
+  data: any[];
+  onRowPress?: (item: any) => void;
+  loading?: boolean;
+}
+
+export const DataTable: React.FC<DataTableProps> = ({
+  columns,
+  data,
+  onRowPress,
+  loading,
+}) => {
+  const renderHeader = () => (
+    <View className="flex-row bg-gray-100 border-b border-gray-200 py-3 px-2">
+      {columns.map((col) => (
+        <Text
+          key={col.key}
+          style={{ width: col.width || 100 }}
+          className="font-semibold text-gray-700"
+        >
+          {col.title}
+        </Text>
+      ))}
+    </View>
+  );
+
+  const renderRow = ({ item }: { item: any }) => (
+    <TouchableOpacity
+      onPress={() => onRowPress?.(item)}
+      className="flex-row border-b border-gray-100 py-3 px-2 bg-white"
+    >
+      {columns.map((col) => (
+        <View key={col.key} style={{ width: col.width || 100 }}>
+          {col.render ? col.render(item) : (
+            <Text className="text-gray-800">{item[col.key]}</Text>
+          )}
+        </View>
+      ))}
+    </TouchableOpacity>
+  );
+
+  return (
+    <View className="overflow-x-auto">
+      {renderHeader()}
+      <FlatList
+        data={data}
+        renderItem={renderRow}
+        keyExtractor={(item, index) => index.toString()}
+        showsVerticalScrollIndicator={false}
+      />
+    </View>
+  );
+};
+```
+
+---
+
+9. STATE MANAGEMENT (Redux Toolkit Setup)
+
+store/index.ts
+
+```ts
+import { configureStore } from '@reduxjs/toolkit';
+import authReducer from './slices/authSlice';
+import employeeReducer from './slices/employeeSlice';
+import clientReducer from './slices/clientSlice';
+import projectReducer from './slices/projectSlice';
+import financeReducer from './slices/financeSlice';
+import notificationReducer from './slices/notificationSlice';
+import customFieldReducer from './slices/customFieldSlice';
+import uiReducer from './slices/uiSlice';
+
+export const store = configureStore({
+  reducer: {
+    auth: authReducer,
+    employees: employeeReducer,
+    clients: clientReducer,
+    projects: projectReducer,
+    finances: financeReducer,
+    notifications: notificationReducer,
+    customFields: customFieldReducer,
+    ui: uiReducer,
+  },
+  middleware: (getDefaultMiddleware) =>
+    getDefaultMiddleware({
+      serializableCheck: false, // Allow dates
+    }),
+});
+
+export type RootState = ReturnType<typeof store.getState>;
+export type AppDispatch = typeof store.dispatch;
+```
+
+slices/authSlice.ts
+
+```ts
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { loginApi, verifyTokenApi } from '../../services/api/auth';
+
+interface AuthState {
+  user: null | {
+    id: string;
+    email: string;
+    role: 'admin' | 'manager' | 'hr';
+    fullName: string;
+  };
+  token: string | null;
+  isLoading: boolean;
+  error: string | null;
+}
+
+const initialState: AuthState = {
+  user: null,
+  token: null,
+  isLoading: false,
+  error: null,
+};
+
+export const login = createAsyncThunk(
+  'auth/login',
+  async ({ email, password }: { email: string; password: string }) => {
+    const response = await loginApi(email, password);
+    await AsyncStorage.setItem('token', response.token);
+    return response;
+  }
+);
+
+export const verifyToken = createAsyncThunk('auth/verifyToken', async () => {
+  const token = await AsyncStorage.getItem('token');
+  if (!token) throw new Error('No token');
+  const user = await verifyTokenApi(token);
+  return { user, token };
+});
+
+const authSlice = createSlice({
+  name: 'auth',
+  initialState,
+  reducers: {
+    logout: (state) => {
+      state.user = null;
+      state.token = null;
+      AsyncStorage.removeItem('token');
+    },
+    clearError: (state) => {
+      state.error = null;
+    },
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(login.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(login.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.user = action.payload.user;
+        state.token = action.payload.token;
+      })
+      .addCase(login.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.error.message || 'Login failed';
+      })
+      .addCase(verifyToken.fulfilled, (state, action) => {
+        state.user = action.payload.user;
+        state.token = action.payload.token;
+      });
+  },
+});
+
+export const { logout, clearError } = authSlice.actions;
+export default authSlice.reducer;
+```
+
+---
+
+10. API ENDPOINTS (RESTful)
+
+Base URL: https://api.omniadmin.com/v1
+
+Authentication
+
+Method Endpoint Description Role
+POST /auth/login Login with email/password All
+POST /auth/register Register (invite token) All
+POST /auth/forgot-password Request reset All
+POST /auth/reset-password Reset with token All
+GET /auth/verify Verify JWT All
+
+Employees
+
+Method Endpoint Description Role
+GET /employees List employees (paginated, filterable) Admin, HR
+GET /employees/:id Get employee by ID Admin, HR
+POST /employees Create employee Admin, HR
+PUT /employees/:id Update employee Admin, HR
+DELETE /employees/:id Delete employee Admin only
+GET /employees/:id/performance-history Performance timeline Admin, HR
+
+Clients
+
+Method Endpoint Description Role
+GET /clients List clients Admin, Manager (read-only)
+GET /clients/:id Get client details Admin, Manager
+POST /clients Create client Admin only
+PUT /clients/:id Update client Admin only
+DELETE /clients/:id Soft delete Admin only
+
+Projects
+
+Method Endpoint Description Role
+GET /projects List projects Admin, Manager
+GET /projects/:id Get project Admin, Manager
+POST /projects Create project Admin, Manager
+PUT /projects/:id Update project Admin, Manager
+PATCH /projects/:id/status Update status only Admin, Manager
+DELETE /projects/:id Delete Admin only
+
+Finance (Transactions)
+
+Method Endpoint Description Role
+GET /transactions List transactions Admin, Manager
+GET /transactions/reports/summary Get totals (income/expense/profit) All
+POST /transactions Create transaction Manager only
+PUT /transactions/:id Update Admin only
+DELETE /transactions/:id Delete Admin only
+GET /transactions/export/csv Export data Admin, Manager
+
+Custom Fields
+
+Method Endpoint Description Role
+GET /custom-fields List all custom fields Admin only
+POST /custom-fields Create field Admin only
+PUT /custom-fields/:id Update field Admin only
+DELETE /custom-fields/:id Delete field Admin only
+
+Notifications
+
+Method Endpoint Description Role
+GET /notifications Get user notifications All
+PATCH /notifications/:id/read Mark as read All
+PATCH /notifications/read-all Mark all read All
+DELETE /notifications/:id Delete notification All
+
+Users (Admin only)
+
+Method Endpoint Description
+GET /users List all users
+POST /users/invite Invite new user
+PUT /users/:id/role Change user role
+DELETE /users/:id Delete user
+
+---
+
+11. SECURITY & RBAC MATRIX
+
+Permissions Matrix (Admin can configure via Settings)
+
+Module Action Admin Manager HR
+Employees View list ✅ ❌ ✅
+ View details ✅ ❌ ✅
+ Create ✅ ❌ ✅
+ Edit ✅ ❌ ✅
+ Delete ✅ ❌ ❌
+ Edit salary ✅ ❌ ❌
+Clients View ✅ ✅ (read) ❌
+ Create/Edit/Delete ✅ ❌ ❌
+Projects View ✅ ✅ ❌
+ Create/Edit ✅ ✅ ❌
+ Delete ✅ ❌ ❌
+Finance View transactions ✅ ✅ ❌
+ Create transactions ✅ ✅ (input) ❌
+ Edit/Delete ✅ ❌ ❌
+ View net profit ✅ ✅ ❌
+Custom Fields Create/Edit/Delete ✅ ❌ ❌
+User Management All actions ✅ ❌ ❌
+Audit Logs View ✅ ❌ ❌
+
+Security Implementation
+
+```ts
+// utils/permissions.ts
+export const PERMISSIONS = {
+  VIEW_EMPLOYEES: ['admin', 'hr'],
+  EDIT_EMPLOYEES: ['admin', 'hr'],
+  DELETE_EMPLOYEES: ['admin'],
+  VIEW_FINANCE: ['admin', 'manager'],
+  CREATE_TRANSACTIONS: ['admin', 'manager'],
+  MANAGE_USERS: ['admin'],
+  CREATE_CUSTOM_FIELDS: ['admin'],
+} as const;
+
+export const hasPermission = (
+  userRole: 'admin' | 'manager' | 'hr',
+  permission: keyof typeof PERMISSIONS
+): boolean => {
+  return PERMISSIONS[permission].includes(userRole);
+};
+```
+
+JWT Payload Structure
+
+```json
+{
+  "sub": "user_id_123",
+  "email": "admin@company.com",
+  "role": "admin",
+  "permissions": ["*"], // or explicit list
+  "iat": 1714089600,
+  "exp": 1714694400
+}
+```
+
+---
+
+12. NOTIFICATION SYSTEM DESIGN
+
+WebSocket Connection (React Native)
+
+```ts
+// services/websocket/notificationSocket.ts
+import io from 'socket.io-client';
+
+let socket: any;
+
+export const connectNotificationSocket = (token: string) => {
+  socket = io('wss://api.omniadmin.com', {
+    auth: { token },
+    transports: ['websocket'],
+  });
+
+  socket.on('connect', () => {
+    console.log('Notification socket connected');
+  });
+
+  socket.on('new_notification', (notification) => {
+    // Dispatch to Redux
+    store.dispatch(addNotification(notification));
+    // Show local push notification
+    showLocalNotification(notification.title, notification.message);
+  });
+
+  return socket;
+};
+```
+
+Notification Types & Triggers
+
+Event Trigger Recipients Priority
+employee_created HR adds employee Admin High
+employee_performance_dropped Performance < 2.5 Admin, HR High
+expense_added Manager adds expense > $1000 Admin Medium
+project_status_changed Manager changes project to completed Admin, relevant manager Medium
+custom_field_created Admin adds custom field All HR, managers Low
+user_invited Admin invites user Invited user High
+finance_report_ready Monthly report generated Admin, managers Low
+
+Database Trigger (Firebase Function Example)
+
+```ts
+// functions/src/triggers/onTransactionCreate.ts
+export const onTransactionCreate = functions.firestore
+  .document('transactions/{transactionId}')
+  .onCreate(async (snap, context) => {
+    const transaction = snap.data();
+    
+    if (transaction.type === 'expense' && transaction.amount > 1000) {
+      // Notify all admins
+      const adminUsers = await db.collection('users').where('role', '==', 'admin').get();
+      const notifications = adminUsers.docs.map(doc => ({
+        userId: doc.id,
+        title: 'Large Expense Added',
+        message: `$${transaction.amount} added by ${transaction.createdBy}`,
+        type: 'warning',
+        relatedId: transaction.id,
+        createdAt: new Date(),
+      }));
+      
+      await db.collection('notifications').add(notifications);
+      
+      // Send WebSocket event
+      await admin.messaging().sendEach(/* FCM tokens */);
+    }
+  });
+```
+
+---
+
+13. CUSTOM FIELDS ENGINE (Dynamic Forms)
+
+How it works
+
+1. Admin creates a custom field definition in customFields collection/table.
+2. Frontend fetches custom fields for each module on load.
+3. Forms dynamically render additional inputs based on field definitions.
+4. Values are stored as JSONB (PostgreSQL) or map (Firestore) in the main document.
+
+Implementation
+
+```tsx
+// components/forms/DynamicField.tsx
+import React from 'react';
+import { View, Text, TextInput, Switch } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
+
+interface CustomField {
+  id: string;
+  fieldName: string;
+  fieldType: 'text' | 'number' | 'date' | 'boolean' | 'select';
+  options?: string[];
+  isRequired: boolean;
+}
+
+interface DynamicFieldProps {
+  field: CustomField;
+  value: any;
+  onChange: (fieldId: string, value: any) => void;
+  error?: string;
+}
+
+export const DynamicField: React.FC<DynamicFieldProps> = ({
+  field,
+  value,
+  onChange,
+  error,
+}) => {
+  const renderInput = () => {
+    switch (field.fieldType) {
+      case 'text':
+        return (
+          <TextInput
+            value={value || ''}
+            onChangeText={(text) => onChange(field.id, text)}
+            className="border border-gray-300 rounded-lg p-3"
+            placeholder={`Enter ${field.fieldName}`}
+          />
+        );
+      case 'number':
+        return (
+          <TextInput
+            value={value?.toString() || ''}
+            onChangeText={(text) => onChange(field.id, parseFloat(text) || 0)}
+            keyboardType="numeric"
+            className="border border-gray-300 rounded-lg p-3"
+          />
+        );
+      case 'boolean':
+        return (
+          <Switch
+            value={value || false}
+            onValueChange={(val) => onChange(field.id, val)}
+          />
+        );
+      case 'select':
+        return (
+          <Picker
+            selectedValue={value || ''}
+            onValueChange={(itemValue) => onChange(field.id, itemValue)}
+            className="border border-gray-300 rounded-lg"
+          >
+            <Picker.Item label="Select..." value="" />
+            {field.options?.map((opt) => (
+              <Picker.Item key={opt} label={opt} value={opt} />
+            ))}
+          </Picker>
+        );
+      case 'date':
+        return (
+          <TouchableOpacity
+            onPress={() => {
+              // Show date picker modal
+            }}
+            className="border border-gray-300 rounded-lg p-3"
+          >
+            <Text>{value ? new Date(value).toDateString() : 'Select date'}</Text>
+          </TouchableOpacity>
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <View className="mb-4">
+      <Text className="text-gray-700 font-medium mb-1">
+        {field.fieldName} {field.isRequired && <Text className="text-red-500">*</Text>}
+      </Text>
+      {renderInput()}
+      {error && <Text className="text-red-500 text-xs mt-1">{error}</Text>}
+    </View>
+  );
+};
+```
+
+Fetching Custom Fields in EmployeeForm
+
+```tsx
+// components/forms/EmployeeForm.tsx (excerpt)
+const { customFields, loading } = useCustomFields('employee');
+
+// Inside form
+{customFields.map((field) => (
+  <DynamicField
+    key={field.id}
+    field={field}
+    value={formData.customFields?.[field.id]}
+    onChange={(fieldId, val) => {
+      setFormData(prev => ({
+        ...prev,
+        customFields: { ...prev.customFields, [fieldId]: val }
+      }));
+    }}
+  />
+))}
+```
+
+---
+
+14. TESTING STRATEGY
+
+Unit Tests (Jest)
+
+```ts
+// __tests__/utils/calculateNetProfit.test.ts
+import { calculateNetProfit } from '../../utils/helpers/calculateNetProfit';
+
+describe('calculateNetProfit', () => {
+  it('should return positive profit when income > expense', () => {
+    const result = calculateNetProfit(10000, 7000);
+    expect(result).toEqual({ profit: 3000, isProfit: true });
+  });
+
+  it('should return negative loss when expense > income', () => {
+    const result = calculateNetProfit(5000, 8000);
+    expect(result).toEqual({ loss: 3000, isProfit: false });
+  });
+});
+```
+
+Integration Tests (React Native Testing Library)
+
+```tsx
+// __tests__/screens/LoginScreen.test.tsx
+import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import { LoginScreen } from '../../app/(auth)/login';
+
+jest.mock('../../services/api/auth');
+
+test('shows error on invalid credentials', async () => {
+  const { getByPlaceholderText, getByText } = render(<LoginScreen />);
+  
+  fireEvent.changeText(getByPlaceholderText('Email'), 'wrong@email.com');
+  fireEvent.changeText(getByPlaceholderText('Password'), 'wrongpass');
+  fireEvent.press(getByText('Login'));
+  
+  await waitFor(() => {
+    expect(getByText('Invalid email or password')).toBeTruthy();
+  });
+});
+```
+
+E2E Tests (Detox)
+
+```ts
+// e2e/loginflow.spec.js
+describe('Login Flow', () => {
+  it('should log in as admin and see dashboard', async () => {
+    await device.reloadReactNative();
+    await element(by.id('email-input')).typeText('admin@test.com');
+    await element(by.id('password-input')).typeText('admin123');
+    await element(by.id('login-button')).tap();
+    
+    await expect(element(by.id('dashboard-kpi-total-employees'))).toBeVisible();
+  });
+});
+```
+
+---
+
+15. DEPLOYMENT CHECKLIST
+
+Pre-Launch
+
+· Environment variables set (API URL, Firebase keys, etc.)
+· Code signed for iOS (Apple Developer account)
+· Code signed for Android (Keystore generated)
+· Production API endpoints configured
+· Rate limiting enabled (100 req/min per user)
+· HTTPS enforced (SSL certificate)
+· Database indexes created for all queries
+· Backup schedule configured (daily)
+· WebSocket server ready for notifications
+· Email/SMTP configured for invites and password reset
+· Crash reporting (Sentry) integrated
+· Analytics (Firebase Analytics) integrated
+
+App Store (iOS)
+
+· App icon (1024x1024)
+· Screenshots (6.5", 5.5", 12.9")
+· Privacy policy URL
+· App description (keywords, category: Business)
+· TestFlight beta tested with 10+ users
+
+Google Play (Android)
+
+· Feature graphic (1024x500)
+· Privacy policy
+· Content rating questionnaire
+· Internal testing track with 20 testers
+
+Post-Launch
+
+· Monitor crash rates (<1%)
+· Set up error alerting (Slack/PagerDuty)
+· User feedback collection (in-app survey)
+· Monthly security audit
+· Backup restoration test quarterly
+
+---
+
+16. APPENDIX: SAMPLE CODE FOR EACH MAJOR SCREEN
+
+Appendix A: Dashboard Screen (index.tsx)
+
+```tsx
+import React, { useEffect } from 'react';
+import { View, Text, ScrollView, RefreshControl } from 'react-native';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { fetchDashboardSummary } from '../../store/slices/financeSlice';
+import { KpiCard } from '../../components/common/KpiCard';
+import { ProfitLossChart } from '../../components/charts/ProfitLossChart';
+import { RecentTransactions } from '../../components/tables/RecentTransactions';
+import { LoadingSpinner } from '../../components/common/LoadingSpinner';
+
+export default function DashboardScreen() {
+  const dispatch = useAppDispatch();
+  const { summary, loading, error } = useAppSelector((state) => state.finances);
+  const { user } = useAppSelector((state) => state.auth);
+
+  useEffect(() => {
+    dispatch(fetchDashboardSummary());
+  }, []);
+
+  if (loading) return <LoadingSpinner />;
+  if (error) return <Text>Error: {error}</Text>;
+
+  return (
+    <ScrollView className="flex-1 bg-gray-50 p-4">
+      <Text className="text-2xl font-bold mb-4">
+        Welcome back, {user?.fullName} 👋
+      </Text>
+      
+      {/* KPI Row */}
+      <View className="flex-row flex-wrap justify-between mb-6">
+        <KpiCard title="Total Employees" value={summary.totalEmployees} icon="users" />
+        <KpiCard title="Active Projects" value={summary.activeProjects} icon="briefcase" />
+        <KpiCard title="Total Clients" value={summary.totalClients} icon="building" />
+        <KpiCard 
+          title="Net Profit (MTD)" 
+          value={`$${summary.netProfit}`} 
+          trend={summary.profitTrend}
+          icon="trending-up" 
+        />
+      </View>
+
+      {/* Charts */}
+      <View className="bg-white rounded-xl p-4 mb-6 shadow-sm">
+        <Text className="font-semibold mb-3">Profit & Loss (Last 6 Months)</Text>
+        <ProfitLossChart data={summary.profitLossHistory} />
+      </View>
+
+      {/* Recent Transactions */}
+      <View className="bg-white rounded-xl p-4 shadow-sm">
+        <Text className="font-semibold mb-3">Recent Transactions</Text>
+        <RecentTransactions transactions={summary.recentTransactions} limit={5} />
+      </View>
+    </ScrollView>
+  );
+}
+```
+
+Appendix B: Employee List Screen with Search & Filter
+
+```tsx
+import React, { useState, useEffect } from 'react';
+import { View, Text, FlatList, TouchableOpacity, TextInput } from 'react-native';
+import { Feather } from '@expo/vector-icons';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { fetchEmployees, deleteEmployee } from '../../store/slices/employeeSlice';
+import { EmployeeCard } from '../../components/common/EmployeeCard';
+import { FilterModal } from '../../components/modals/FilterModal';
+
+export default function EmployeeListScreen({ navigation }) {
+  const dispatch = useAppDispatch();
+  const { employees, loading, totalPages } = useAppSelector((state) => state.employees);
+  const { user } = useAppSelector((state) => state.auth);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterVisible, setFilterVisible] = useState(false);
+  const [filters, setFilters] = useState({ status: '', department: '' });
+
+  useEffect(() => {
+    dispatch(fetchEmployees({ page: 1, search: searchQuery, ...filters }));
+  }, [searchQuery, filters]);
+
+  const handleDelete = (id: string) => {
+    Alert.alert('Delete Employee', 'Are you sure?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: () => dispatch(deleteEmployee(id)) },
+    ]);
+  };
+
+  return (
+    <View className="flex-1 bg-gray-50">
+      {/* Search Bar */}
+      <View className="flex-row items-center bg-white p-3 border-b border-gray-200">
+        <Feather name="search" size={20} color="#9CA3AF" />
+        <TextInput
+          className="flex-1 ml-2 text-base"
+          placeholder="Search by name or department..."
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+        <TouchableOpacity onPress={() => setFilterVisible(true)}>
+          <Feather name="filter" size={20} color="#6B7280" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Employee List */}
+      <FlatList
+        data={employees}
+        renderItem={({ item }) => (
+          <EmployeeCard
+            employee={item}
+            onPress={() => navigation.navigate('employee-detail', { id: item.id })}
+            onEdit={() => navigation.navigate('employee-edit', { id: item.id })}
+            onDelete={() => handleDelete(item.id)}
+            showActions={user?.role !== 'hr'} // Admin & HR can edit, only admin delete
+          />
+        )}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={{ padding: 16 }}
+        refreshing={loading}
+        onRefresh={() => dispatch(fetchEmployees({ page: 1 }))}
+      />
+
+      {/* FAB for adding */}
+      {(user?.role === 'admin' || user?.role === 'hr') && (
+        <TouchableOpacity
+          className="absolute bottom-6 right-6 bg-blue-600 w-14 h-14 rounded-full items-center justify-center shadow-lg"
+          onPress={() => navigation.navigate('employee-create')}
+        >
+          <Feather name="plus" size={24} color="white" />
+        </TouchableOpacity>
+      )}
+
+      <FilterModal
+        visible={filterVisible}
+        onClose={() => setFilterVisible(false)}
+        onApply={setFilters}
+        currentFilters={filters}
+      />
+    </View>
+  );
+}
+```
+
+Appendix C: Finance Form (Add Expense)
+
+```tsx
+import React, { useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, ScrollView } from 'react-native';
+import { useDispatch } from 'react-redux';
+import { createTransaction } from '../../store/slices/financeSlice';
+import { Input } from '../../components/common/Input';
+import { Button } from '../../components/common/Button';
+import { Picker } from '@react-native-picker/picker';
+
+export default function AddExpenseScreen({ navigation }) {
+  const dispatch = useDispatch();
+  const [form, setForm] = useState({
+    amount: '',
+    date: new Date().toISOString().split('T')[0],
+    category: 'Software',
+    description: '',
+    projectId: '',
+  });
+  const [errors, setErrors] = useState({});
+
+  const categories = ['Salary', 'Rent', 'Software', 'Office Supplies', 'Marketing', 'Travel', 'Other'];
+
+  const validate = () => {
+    const newErrors = {};
+    if (!form.amount || parseFloat(form.amount) <= 0) newErrors.amount = 'Amount must be > 0';
+    if (!form.description) newErrors.description = 'Description required';
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async () => {
+    if (!validate()) return;
+    await dispatch(createTransaction({ ...form, type: 'expense', amount: parseFloat(form.amount) }));
+    navigation.goBack();
+  };
+
+  return (
+    <ScrollView className="flex-1 bg-white p-4">
+      <Text className="text-2xl font-bold mb-6">Add Expense</Text>
+
+      <Input
+        label="Amount"
+        value={form.amount}
+        onChangeText={(text) => setForm({ ...form, amount: text })}
+        keyboardType="numeric"
+        error={errors.amount}
+        required
+      />
+
+      <View className="mb-4">
+        <Text className="text-gray-700 font-medium mb-1">Date *</Text>
+        <TouchableOpacity className="border border-gray-300 rounded-lg p-3">
+          <Text>{form.date}</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View className="mb-4">
+        <Text className="text-gray-700 font-medium mb-1">Category *</Text>
+        <View className="border border-gray-300 rounded-lg">
+          <Picker
+            selectedValue={form.category}
+            onValueChange={(itemValue) => setForm({ ...form, category: itemValue })}
+          >
+            {categories.map((cat) => (
+              <Picker.Item key={cat} label={cat} value={cat} />
+            ))}
+          </Picker>
+        </View>
+      </View>
+
+      <Input
+        label="Description"
+        value={form.description}
+        onChangeText={(text) => setForm({ ...form, description: text })}
+        multiline
+        numberOfLines={3}
+        error={errors.description}
+        required
+      />
+
+      <Input
+        label="Project (Optional)"
+        value={form.projectId}
+        onChangeText={(text) => setForm({ ...form, projectId: text })}
+        placeholder="Link to project ID"
+      />
+
+      <Button title="Submit Expense" onPress={handleSubmit} variant="primary" fullWidth />
+      
+      <Button title="Cancel" onPress={() => navigation.goBack()} variant="outline" fullWidth />
+    </ScrollView>
+  );
+}
+```
+
+---
+
+END OF DOCUMENT
+
+Total Pages Equivalent: ~45-50 pages of detailed specification.
+
+To create a PDF:
+
+1. Copy this entire document into Microsoft Word or Google Docs
+2. Format headings (use styles: Heading 1, Heading 2, etc.)
+3. Add page breaks between major sections
+4. Export as PDF (File → Download → PDF)
+
+Would you like me to expand any specific section further (e.g., complete backend code, Docker deployment, CI/CD pipeline)?

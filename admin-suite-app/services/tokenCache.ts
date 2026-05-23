@@ -1,0 +1,34 @@
+import * as SecureStore from "expo-secure-store";
+
+export interface TokenCache {
+  getToken: (key: string) => Promise<string | null>;
+  saveToken: (key: string, token: string) => Promise<void>;
+  clearToken?: (key: string) => Promise<void>;
+}
+
+export const tokenCache: TokenCache = {
+  async getToken(key: string) {
+    try {
+      const item = await SecureStore.getItemAsync(key);
+      return item;
+    } catch (error) {
+      console.error("Clerk TokenCache: SecureStore get item error: ", error);
+      await SecureStore.deleteItemAsync(key);
+      return null;
+    }
+  },
+  async saveToken(key: string, value: string) {
+    try {
+      await SecureStore.setItemAsync(key, value);
+    } catch (err) {
+      console.error("Clerk TokenCache: SecureStore save item error: ", err);
+    }
+  },
+  async clearToken(key: string) {
+    try {
+      await SecureStore.deleteItemAsync(key);
+    } catch (err) {
+      console.error("Clerk TokenCache: SecureStore delete item error: ", err);
+    }
+  }
+};

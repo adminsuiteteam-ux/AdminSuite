@@ -1,0 +1,255 @@
+You're referring to the first response I gave (the initial PRD without the wireframes and React Native file structure). Here it is again, regenerated exactly as before:
+
+---
+
+Product Requirements Document (PRD)
+
+All-in-One Admin System (HR + Client + Project + Finance)
+
+Version Date Author Status
+1.0 2026-04-25 AI Assistant Draft
+
+---
+
+1. Executive Summary
+
+1.1 Product Overview
+
+The proposed application is a centralized, role-based administrative platform that enables a company to manage employees, clients, projects, and finances within a single system. The admin oversees all activities, while managers input financial and project data, and HR staff handle employee-related records. The system provides dashboards, live notifications, custom fields, and role-specific views.
+
+1.2 Business Objectives
+
+· Eliminate spreadsheets and disconnected tools for HR, finance, and client tracking.
+· Provide real-time visibility into company performance (net profit, losses, project status).
+· Enable role-based access control (Admin, Manager, HR) with clear separation of duties.
+· Allow admins to dynamically add custom fields (tax, salary sections, to-do lists) without coding.
+
+1.3 Target Users
+
+· Super Admin – Full system control, user management, custom field creation.
+· Manager – Inputs calculations, records data, views projects & finances.
+· HR – Manages employee biodata, performance, status updates.
+· View-only roles (optional future) – e.g., CEO dashboard.
+
+---
+
+2. User Roles & Permissions (Detailed)
+
+Capability Admin Manager HR
+Manage employees (biodata, salary, performance) Full (create/edit/delete) View only Edit & add, but no delete without admin
+Manage clients (company, contact, website, projects, amount paid) Full View only View only
+Manage projects (name, spec, location, status) Full Create & edit View only
+Manage finances (expenditure, income, net profit/loss) Full (oversee) Input data (create records) View only
+Create custom fields (tax, to-do list, salary sections) Yes No No
+Manage other users (create admin, manager, HR accounts) Yes No No
+View dashboard with overview of all sections Yes Limited (finance + projects) Limited (HR + basic company)
+Receive live notifications Yes Yes (relevant updates) Yes (HR updates)
+
+Admin can override or review any input by Manager or HR.
+
+---
+
+3. Functional Requirements
+
+3.1 Authentication & Account Management
+
+· FR-01: Users can sign up/login with email/password.
+· FR-02: Account creation includes role selection (Admin, Manager, HR) – only existing Admin can approve/assign roles.
+· FR-03: Password recovery and 2FA (optional but recommended).
+· FR-04: Each user has a profile page showing their role and last activity.
+
+3.2 Employee (HR) Module
+
+· FR-05: Admin & HR can view, add, edit, delete employee records.
+· FR-06: Each employee record includes: full name, address, salary, performance rating (1–5), employment status (active, on leave, terminated), hire date, department.
+· FR-07: HR can update performance notes monthly.
+· FR-08: Admin can create custom fields (e.g., tax ID, bank account, emergency contact, to-do list per employee).
+· FR-09: Search and filter employees by name, status, performance.
+
+3.3 Client Module
+
+· FR-10: Admin manages all client records.
+· FR-11: Each client includes: client name, company name, email address, location (city/country), website URL, support contact info (phone/email).
+· FR-12: Each client has a list of associated projects and total paid amount (calculated automatically from project payments).
+· FR-13: Admin can add/remove clients. No client deletion if linked to active project (soft delete with archive).
+
+3.4 Project Module
+
+· FR-14: Admin & Manager can create, edit, view projects.
+· FR-15: Project fields: project name, specifications (text), location (address/city), start date, end date (or ongoing), status (planned, active, completed, on hold), associated client ID, total project value.
+· FR-16: Project page shows both current and past projects. Filter by client or status.
+· FR-17: Each project links to financial income records.
+
+3.5 Financial Module
+
+· FR-18: Manager inputs all financial transactions (income and expenditure).
+· FR-19: Income entries: source (project name or other), amount, date, payment method, received by (employee name).
+· FR-20: Expenditure entries: category (salary, software, rent, office supplies, etc.), amount, date, description.
+· FR-21: System automatically calculates:
+  · Total income (current month, year, all time)
+  · Total expenditure
+  · Net profit = Total income – Total expenditure
+  · Net loss displayed if negative
+· FR-22: Admin can view financial reports, export as CSV/PDF.
+· FR-23: Admin can add custom financial fields (e.g., tax percentage, deduction types).
+
+3.6 Dashboard & Overview
+
+· FR-24: Dashboard shows key metrics:
+  · Total employees
+  · Active projects
+  · Total clients
+  · Net profit (monthly)
+  · Recent 5 financial transactions
+  · Live notifications (e.g., "Manager added new expenditure")
+· FR-25: Admin dashboard includes links to all modules. Manager dashboard focuses on finance + projects. HR dashboard focuses on employee list & performance.
+
+3.7 Live Notifications
+
+· FR-26: Real-time in-app notifications for:
+  · New employee added
+  · Project status changed
+  · New financial entry by Manager
+  · Admin creates new custom field
+· FR-27: Notifications appear in a bell icon dropdown; unread count visible.
+
+3.8 Settings & Customization
+
+· FR-28: Admin can create new fields dynamically (e.g., "Tax Section", "Salary Advance", "To-Do List") for employees, projects, or finances.
+· FR-29: Admin can add new tools or modules via a "Custom Tools" interface (e.g., leave tracker, inventory).
+· FR-30: System logs all major actions (who created what, when).
+
+---
+
+4. Non-Functional Requirements
+
+4.1 Performance
+
+· Page load time < 2 seconds.
+· Dashboard refresh < 3 seconds for up to 10,000 records.
+
+4.2 Security
+
+· Passwords hashed (bcrypt).
+· Role-based access enforced on both frontend and API.
+· HTTPS only.
+· Session timeout after 30 minutes of inactivity.
+
+4.3 Usability
+
+· Responsive design (desktop first, tablet supported).
+· Intuitive navigation: top bar + left sidebar modules.
+· Confirmation dialogs for deletions.
+
+4.4 Availability
+
+· 99.9% uptime for core functions.
+· Daily database backup.
+
+4.5 Scalability
+
+· Designed to handle up to 500 employees, 1000 clients, 5000 projects.
+· Custom fields stored as JSON or EAV pattern.
+
+---
+
+5. Data Models (Simplified)
+
+Employee
+
+· id, name, address, salary, performance, status, department, hire_date, custom_fields (JSON)
+
+Client
+
+· id, client_name, company_name, email, location, website, support_contact
+
+Project
+
+· id, name, specifications, location, start_date, end_date, status, client_id (foreign key), total_value
+
+FinancialTransaction
+
+· id, type (income/expense), amount, date, category, description, project_id (nullable), employee_id (nullable), created_by (manager_id)
+
+User
+
+· id, email, password_hash, role (admin/manager/hr), created_at
+
+CustomField
+
+· id, module (employee/project/finance), field_name, field_type (text/number/date), created_by_admin_id
+
+Notification
+
+· id, user_id, message, is_read, created_at
+
+---
+
+6. User Flows (Critical Paths)
+
+Flow 1: Admin creates a new custom field
+
+· Admin logs in → Settings → Add Custom Field → Select module (e.g., Employee) → Enter field name (e.g., "Tax ID") → Select type → Save → Field appears in employee forms.
+
+Flow 2: Manager inputs financial data
+
+· Manager logs in → Financial Page → Add Income/Expense → Fill amount, date, category, description → Submit → Admin dashboard updates net profit; notification sent to Admin.
+
+Flow 3: HR updates employee performance
+
+· HR logs in → Employee List → Select employee → Edit performance rating & notes → Save → Admin sees change in audit log.
+
+---
+
+7. Constraints & Assumptions
+
+Constraints
+
+· Initial release will be web-based only (no mobile app).
+· No integration with external accounting software in v1.
+· Admin cannot delete a client with active projects until projects are archived.
+
+Assumptions
+
+· Company has one main admin who manages roles.
+· Internet connectivity is available for all users.
+· All financial data entered by Manager is accurate (no automated bank feed).
+
+---
+
+8. Future Enhancements (v2 ideas)
+
+· Inventory management module (as you mentioned: arrow/inventory).
+· Role for "Accountant" with limited finance edit.
+· Email notifications for key actions.
+· Bulk import/export (CSV) for employees and projects.
+· Visual charts for profit/loss trends.
+· Mobile responsive PWA.
+
+---
+
+9. Acceptance Criteria (Sample)
+
+· Admin can create an employee record with all fields and add a custom field.
+· Manager adds an expense → net profit decreases correctly on admin dashboard.
+· HR cannot delete an employee; only admin can.
+· Live notification appears when project status changes.
+· Client page shows total paid amount summed from linked projects.
+· Dashboard loads within 2 seconds with mock data of 500 employees.
+
+---
+
+10. Glossary
+
+Term Definition
+Admin Super user with full system access
+Manager Role responsible for inputting financial and project data
+HR Role responsible for employee biodata and performance
+Net profit Total income – total expenditure
+Custom field User-defined field added by admin without coding
+
+---
+
+End of PRD
+
+This is the original first response. Would you like me to expand any specific section of this version?

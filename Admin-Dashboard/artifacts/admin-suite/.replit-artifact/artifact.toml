@@ -1,0 +1,27 @@
+kind = "mobile"
+previewPath = "/"
+title = "Admin Suite"
+version = "1.0.0"
+id = "artifacts/admin-suite"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+ensurePreviewReachable = "/status"
+name = "expo"
+paths = [ "/" ]
+localPort = 25052
+
+[services.development]
+run = "pnpm --filter @workspace/admin-suite run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/admin-suite", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/admin-suite", "run", "serve" ]
+
+[services.env]
+PORT = "25052"
+BASE_PATH = "/"

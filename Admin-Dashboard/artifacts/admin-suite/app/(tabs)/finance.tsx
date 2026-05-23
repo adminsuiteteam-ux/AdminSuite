@@ -1,0 +1,863 @@
+import { Feather } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { router } from "expo-router";
+import React, { useState } from "react";
+import {
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { FloatInView } from "@/components/FloatInView";
+import { IncomeExpenseChart } from "@/components/IncomeExpenseChart";
+import { useCurrencyFmt } from "@/context/SettingsContext";
+import {
+  budgetCategories,
+  debts,
+  getMetrics,
+  getPayrollMetrics,
+  payrollMonths,
+  transactions,
+} from "@/data/mockData";
+import { useColors } from "@/hooks/useColors";
+
+export default function FinanceScreen() {
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+  const fmt = useCurrencyFmt();
+  const m = getMetrics();
+  const pr = getPayrollMetrics();
+  const [debtTab, setDebtTab] = useState("we_owe");
+
+  const tabBarPad = (Platform.OS === "web" ? 96 : 100) + 24;
+
+  const chartData = [
+    { label: "Jan", income: 612, expense: 430 },
+    { label: "Feb", income: 580, expense: 462 },
+    { label: "Mar", income: 690, expense: 488 },
+    { label: "Apr", income: 745, expense: 520 },
+    { label: "May", income: 812, expense: 502 },
+    { label: "Jun", income: 768, expense: 545 },
+    { label: "Jul", income: 850, expense: 538 },
+  ];
+
+  const totalWeOwe = debts.weOwe.reduce((s, d) => s + d.amount, 0);
+  const totalOwedUs = debts.owedToUs.reduce((s, d) => s + d.amount, 0);
+  const totalAlloc = budgetCategories.reduce((s, c) => s + c.allocated, 0);
+  const totalSpent = budgetCategories.reduce((s, c) => s + c.spent, 0);
+
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <ScrollView
+        contentContainerStyle={{
+          paddingBottom: tabBarPad,
+          paddingTop: insets.top + 12,
+        }}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={{ paddingHorizontal: 16 }}>
+          <FloatInView>
+            <View style={styles.headerRow}>
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={[
+                    styles.title,
+                    { color: colors.foreground, fontFamily: "Inter_700Bold" },
+                  ]}
+                >
+                  Finance
+                </Text>
+                <Text
+                  style={[
+                    styles.subtitle,
+                    {
+                      color: colors.mutedForeground,
+                      fontFamily: "Inter_500Medium",
+                    },
+                  ]}
+                >
+                  Track every cent in and out
+                </Text>
+              </View>
+              <Pressable
+                style={[
+                  styles.addBtn,
+                  {
+                    backgroundColor: colors.primary,
+                    borderRadius: colors.radius,
+                  },
+                ]}
+              >
+                <Feather name="plus" size={18} color="#fff" />
+              </Pressable>
+            </View>
+          </FloatInView>
+
+          <FloatInView delay={100}>
+            <View style={styles.profitCard}>
+              <LinearGradient
+                colors={["#000000", "#0a0a0a", "#0f172a"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={StyleSheet.absoluteFill}
+              />
+              <View style={styles.profitGlowA} />
+              <View style={styles.profitGlowB} />
+              <Text
+                style={[styles.profitLabel, { fontFamily: "Inter_600SemiBold" }]}
+              >
+                NET PROFIT · THIS MONTH
+              </Text>
+              <Text style={[styles.profitValue, { fontFamily: "Inter_700Bold" }]}>
+                {fmt(m.netProfit)}
+              </Text>
+              <View style={styles.deltaRow}>
+                <View style={styles.deltaPill}>
+                  <Feather name="trending-up" size={12} color="#22c55e" />
+                  <Text
+                    style={[styles.deltaText, { fontFamily: "Inter_700Bold" }]}
+                  >
+                    +18.2%
+                  </Text>
+                </View>
+                <Text
+                  style={[
+                    styles.deltaSub,
+                    { fontFamily: "Inter_500Medium" },
+                  ]}
+                >
+                  vs last month
+                </Text>
+              </View>
+            </View>
+          </FloatInView>
+
+          <FloatInView delay={160}>
+            <View style={styles.chartCard}>
+              <LinearGradient
+                colors={["#000000", "#0a0a0a", "#000000"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={StyleSheet.absoluteFill}
+              />
+              <View style={styles.chartGlow} />
+              <View style={styles.chartHeader}>
+                <View>
+                  <Text
+                    style={[styles.chartTitle, { fontFamily: "Inter_700Bold" }]}
+                  >
+                    Income vs Expense
+                  </Text>
+                  <Text
+                    style={[
+                      styles.chartSub,
+                      { fontFamily: "Inter_500Medium" },
+                    ]}
+                  >
+                    Last 7 months
+                  </Text>
+                </View>
+                <View style={styles.chartTotals}>
+                  <View>
+                    <Text
+                      style={[styles.totalIn, { fontFamily: "Inter_700Bold" }]}
+                    >
+                      {fmt(m.totalIncome)}
+                    </Text>
+                    <Text
+                      style={[styles.totalLab, { fontFamily: "Inter_500Medium" }]}
+                    >
+                      In
+                    </Text>
+                  </View>
+                  <View>
+                    <Text
+                      style={[styles.totalOut, { fontFamily: "Inter_700Bold" }]}
+                    >
+                      {fmt(m.totalExpense)}
+                    </Text>
+                    <Text
+                      style={[styles.totalLab, { fontFamily: "Inter_500Medium" }]}
+                    >
+                      Out
+                    </Text>
+                  </View>
+                </View>
+              </View>
+              <IncomeExpenseChart data={chartData} formatValue={fmt} />
+            </View>
+          </FloatInView>
+
+          <FloatInView delay={220}>
+            <SectionTitle title="Payroll status" />
+            <View
+              style={[
+                styles.payrollCard,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                  borderRadius: colors.radius,
+                },
+              ]}
+            >
+              <View style={styles.payrollHeader}>
+                <View style={styles.payrollKpi}>
+                  <Text
+                    style={[
+                      styles.payrollNum,
+                      { color: colors.foreground, fontFamily: "Inter_700Bold" },
+                    ]}
+                  >
+                    {pr.staffPaid}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.payrollLab,
+                      {
+                        color: colors.mutedForeground,
+                        fontFamily: "Inter_500Medium",
+                      },
+                    ]}
+                  >
+                    Staff paid
+                  </Text>
+                </View>
+                <View style={styles.payrollKpi}>
+                  <Text
+                    style={[
+                      styles.payrollNum,
+                      { color: "#22c55e", fontFamily: "Inter_700Bold" },
+                    ]}
+                  >
+                    {pr.paid}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.payrollLab,
+                      {
+                        color: colors.mutedForeground,
+                        fontFamily: "Inter_500Medium",
+                      },
+                    ]}
+                  >
+                    Months paid
+                  </Text>
+                </View>
+                <View style={styles.payrollKpi}>
+                  <Text
+                    style={[
+                      styles.payrollNum,
+                      { color: "#f97316", fontFamily: "Inter_700Bold" },
+                    ]}
+                  >
+                    {pr.unpaid}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.payrollLab,
+                      {
+                        color: colors.mutedForeground,
+                        fontFamily: "Inter_500Medium",
+                      },
+                    ]}
+                  >
+                    Pending
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.monthsRow}>
+                {payrollMonths.map((m) => (
+                  <View
+                    key={m.month}
+                    style={[
+                      styles.monthChip,
+                      {
+                        backgroundColor: m.paid
+                          ? "#22c55e1A"
+                          : colors.muted,
+                        borderColor: m.paid ? "#22c55e" : colors.border,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={{
+                        color: m.paid ? "#16a34a" : colors.mutedForeground,
+                        fontFamily: "Inter_600SemiBold",
+                        fontSize: 11,
+                      }}
+                    >
+                      {m.month}
+                    </Text>
+                    {m.paid ? (
+                      <Feather name="check" size={11} color="#16a34a" />
+                    ) : (
+                      <Feather name="clock" size={11} color={colors.mutedForeground} />
+                    )}
+                  </View>
+                ))}
+              </View>
+            </View>
+          </FloatInView>
+
+          <FloatInView delay={280}>
+            <SectionTitle title="Debts & receivables" />
+            <View
+              style={[
+                styles.debtCard,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                  borderRadius: colors.radius,
+                },
+              ]}
+            >
+              <View style={styles.debtTabs}>
+                <DebtTab
+                  active={debtTab === "we_owe"}
+                  label="We owe"
+                  total={fmt(totalWeOwe)}
+                  color="#ef4444"
+                  onPress={() => setDebtTab("we_owe")}
+                />
+                <DebtTab
+                  active={debtTab === "owed_us"}
+                  label="Owed to us"
+                  total={fmt(totalOwedUs)}
+                  color="#22c55e"
+                  onPress={() => setDebtTab("owed_us")}
+                />
+              </View>
+
+              <View style={{ marginTop: 14, gap: 10 }}>
+                {(debtTab === "we_owe" ? debts.weOwe : debts.owedToUs).map(
+                  (d) => (
+                    <View
+                      key={d.id}
+                      style={[
+                        styles.debtRow,
+                        { backgroundColor: colors.muted, borderRadius: 12 },
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.debtIcon,
+                          {
+                            backgroundColor:
+                              debtTab === "we_owe" ? "#ef44441A" : "#22c55e1A",
+                          },
+                        ]}
+                      >
+                        <Feather
+                          name={
+                            debtTab === "we_owe"
+                              ? "arrow-up-right"
+                              : "arrow-down-left"
+                          }
+                          size={14}
+                          color={debtTab === "we_owe" ? "#ef4444" : "#22c55e"}
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          style={{
+                            color: colors.foreground,
+                            fontFamily: "Inter_600SemiBold",
+                            fontSize: 13,
+                          }}
+                        >
+                          {debtTab === "we_owe" ? d.to : d.from}
+                        </Text>
+                        <Text
+                          style={{
+                            color: colors.mutedForeground,
+                            fontFamily: "Inter_500Medium",
+                            fontSize: 11,
+                          }}
+                        >
+                          Due {d.due}
+                        </Text>
+                      </View>
+                      <Text
+                        style={{
+                          color:
+                            debtTab === "we_owe" ? "#ef4444" : "#22c55e",
+                          fontFamily: "Inter_700Bold",
+                          fontSize: 14,
+                        }}
+                      >
+                        {fmt(d.amount)}
+                      </Text>
+                    </View>
+                  ),
+                )}
+              </View>
+            </View>
+          </FloatInView>
+
+          <FloatInView delay={340}>
+            <SectionTitle title="Budget" action="Manage" onPress={() => router.push("/budget" as any)} />
+            <Pressable onPress={() => router.push("/budget" as any)}>
+              <View
+                style={[
+                  styles.budgetCard,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                    borderRadius: colors.radius,
+                  },
+                ]}
+              >
+                <View style={styles.budgetTop}>
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={{
+                        color: colors.mutedForeground,
+                        fontFamily: "Inter_500Medium",
+                        fontSize: 11,
+                        letterSpacing: 0.5,
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      This month
+                    </Text>
+                    <Text
+                      style={{
+                        color: colors.foreground,
+                        fontFamily: "Inter_700Bold",
+                        fontSize: 22,
+                        letterSpacing: -0.4,
+                        marginTop: 4,
+                      }}
+                    >
+                      {fmt(totalSpent)}{" "}
+                      <Text
+                        style={{
+                          color: colors.mutedForeground,
+                          fontSize: 14,
+                          fontFamily: "Inter_500Medium",
+                        }}
+                      >
+                        / {fmt(totalAlloc)}
+                      </Text>
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.budgetIcon,
+                      { backgroundColor: colors.primary },
+                    ]}
+                  >
+                    <Feather name="pie-chart" size={18} color="#fff" />
+                  </View>
+                </View>
+                <View
+                  style={[styles.budgetBar, { backgroundColor: colors.muted }]}
+                >
+                  <View
+                    style={[
+                      styles.budgetFill,
+                      {
+                        width: `${Math.round((totalSpent / totalAlloc) * 100)}%`,
+                        backgroundColor:
+                          totalSpent / totalAlloc > 0.9 ? "#ef4444" : "#22c55e",
+                      },
+                    ]}
+                  />
+                </View>
+                <View style={styles.budgetCats}>
+                  {budgetCategories.slice(0, 3).map((c) => (
+                    <View key={c.id} style={styles.budgetCatRow}>
+                      <View
+                        style={[styles.budgetCatDot, { backgroundColor: c.color }]}
+                      />
+                      <Text
+                        style={{
+                          color: colors.foreground,
+                          fontFamily: "Inter_500Medium",
+                          fontSize: 12,
+                          flex: 1,
+                        }}
+                      >
+                        {c.name}
+                      </Text>
+                      <Text
+                        style={{
+                          color: colors.mutedForeground,
+                          fontFamily: "Inter_600SemiBold",
+                          fontSize: 12,
+                        }}
+                      >
+                        {fmt(c.spent)}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            </Pressable>
+          </FloatInView>
+
+          <FloatInView delay={400}>
+            <SectionTitle title="Recent transactions" />
+            <View
+              style={[
+                styles.txList,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                  borderRadius: colors.radius,
+                },
+              ]}
+            >
+              {transactions.map((t, i) => {
+                const income = t.type === "income";
+                return (
+                  <View
+                    key={t.id}
+                    style={[
+                      styles.txRow,
+                      i < transactions.length - 1 && {
+                        borderBottomWidth: StyleSheet.hairlineWidth,
+                        borderBottomColor: colors.border,
+                      },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.txIcon,
+                        {
+                          backgroundColor: income
+                            ? "#22c55e1A"
+                            : "#ef44441A",
+                        },
+                      ]}
+                    >
+                      <Feather
+                        name={income ? "arrow-down-left" : "arrow-up-right"}
+                        size={14}
+                        color={income ? "#22c55e" : "#ef4444"}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={[
+                          styles.txDesc,
+                          { color: colors.foreground, fontFamily: "Inter_600SemiBold" },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {t.description}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.txMeta,
+                          {
+                            color: colors.mutedForeground,
+                            fontFamily: "Inter_400Regular",
+                          },
+                        ]}
+                      >
+                        {t.category} · {t.date}
+                      </Text>
+                    </View>
+                    <Text
+                      style={[
+                        styles.txAmount,
+                        {
+                          color: income ? "#22c55e" : "#ef4444",
+                          fontFamily: "Inter_700Bold",
+                        },
+                      ]}
+                    >
+                      {income ? "+" : "-"}
+                      {fmt(t.amount)}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          </FloatInView>
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+function SectionTitle({ title, action, onPress }) {
+  const colors = useColors();
+  return (
+    <View style={styles.sectionTitleRow}>
+      <Text
+        style={{
+          color: colors.mutedForeground,
+          fontFamily: "Inter_600SemiBold",
+          fontSize: 11,
+          letterSpacing: 0.6,
+          textTransform: "uppercase",
+        }}
+      >
+        {title}
+      </Text>
+      {action ? (
+        <Pressable onPress={onPress} hitSlop={6}>
+          <Text
+            style={{
+              color: colors.accent,
+              fontFamily: "Inter_600SemiBold",
+              fontSize: 12,
+            }}
+          >
+            {action} →
+          </Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+function DebtTab({ active, label, total, color, onPress }) {
+  const colors = useColors();
+  return (
+    <Pressable onPress={onPress} style={{ flex: 1 }}>
+      <View
+        style={[
+          styles.debtTab,
+          {
+            backgroundColor: active ? color + "1A" : colors.muted,
+            borderColor: active ? color : "transparent",
+          },
+        ]}
+      >
+        <Text
+          style={{
+            color: active ? color : colors.foreground,
+            fontFamily: "Inter_600SemiBold",
+            fontSize: 11,
+            letterSpacing: 0.4,
+            textTransform: "uppercase",
+          }}
+        >
+          {label}
+        </Text>
+        <Text
+          style={{
+            color: active ? color : colors.foreground,
+            fontFamily: "Inter_700Bold",
+            fontSize: 16,
+            marginTop: 2,
+          }}
+        >
+          {total}
+        </Text>
+      </View>
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  headerRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  title: { fontSize: 28, letterSpacing: -0.5 },
+  subtitle: { fontSize: 13, marginTop: 4 },
+  addBtn: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  profitCard: {
+    marginTop: 18,
+    padding: 22,
+    borderRadius: 24,
+    overflow: "hidden",
+  },
+  profitGlowA: {
+    position: "absolute",
+    top: -40,
+    right: -40,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: "rgba(37,99,235,0.25)",
+  },
+  profitGlowB: {
+    position: "absolute",
+    bottom: -60,
+    left: -50,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: "rgba(34,197,94,0.18)",
+  },
+  profitLabel: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 10,
+    letterSpacing: 1,
+  },
+  profitValue: {
+    color: "#fff",
+    fontSize: 38,
+    letterSpacing: -1,
+    marginTop: 4,
+  },
+  deltaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 10,
+  },
+  deltaPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(34,197,94,0.18)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  deltaText: { color: "#22c55e", fontSize: 11 },
+  deltaSub: { color: "rgba(255,255,255,0.65)", fontSize: 12 },
+
+  chartCard: {
+    marginTop: 16,
+    borderRadius: 22,
+    overflow: "hidden",
+    paddingVertical: 16,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  chartGlow: {
+    position: "absolute",
+    top: -50,
+    right: -50,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: "rgba(249,115,22,0.12)",
+  },
+  chartHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    paddingHorizontal: 12,
+    marginBottom: 12,
+  },
+  chartTitle: { color: "#fff", fontSize: 16, letterSpacing: -0.3 },
+  chartSub: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 11,
+    marginTop: 2,
+  },
+  chartTotals: { flexDirection: "row", gap: 16 },
+  totalIn: { color: "#22c55e", fontSize: 13 },
+  totalOut: { color: "#ef4444", fontSize: 13 },
+  totalLab: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 9,
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    marginTop: 2,
+  },
+
+  sectionTitleRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 22,
+    marginBottom: 10,
+    paddingHorizontal: 4,
+  },
+
+  payrollCard: { padding: 16, borderWidth: 1 },
+  payrollHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingBottom: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(0,0,0,0.06)",
+  },
+  payrollKpi: { alignItems: "center", flex: 1 },
+  payrollNum: { fontSize: 22, letterSpacing: -0.4 },
+  payrollLab: {
+    fontSize: 11,
+    marginTop: 2,
+    letterSpacing: 0.3,
+  },
+  monthsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 14,
+  },
+  monthChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+
+  debtCard: { padding: 14, borderWidth: 1 },
+  debtTabs: { flexDirection: "row", gap: 10 },
+  debtTab: {
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    alignItems: "flex-start",
+  },
+  debtRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 12,
+  },
+  debtIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  budgetCard: { padding: 16, borderWidth: 1 },
+  budgetTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 14,
+  },
+  budgetIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  budgetBar: { height: 8, borderRadius: 999, overflow: "hidden" },
+  budgetFill: { height: "100%", borderRadius: 999 },
+  budgetCats: { marginTop: 14, gap: 8 },
+  budgetCatRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  budgetCatDot: { width: 8, height: 8, borderRadius: 4 },
+
+  txList: { borderWidth: 1, overflow: "hidden" },
+  txRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+  },
+  txIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  txDesc: { fontSize: 14 },
+  txMeta: { fontSize: 12, marginTop: 2 },
+  txAmount: { fontSize: 14 },
+});
