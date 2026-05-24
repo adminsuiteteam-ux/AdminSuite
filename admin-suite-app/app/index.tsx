@@ -81,7 +81,7 @@ export default function SplashGate() {
         }}
       >
         <View style={styles.markRing}>
-          <LogoMark size={160} tint="#000000" />
+          <LogoMark size={144} tint="#000000" />
         </View>
         <Text style={[styles.title, { fontFamily: "Inter_700Bold" }]}>
           Admin Suite
@@ -90,6 +90,7 @@ export default function SplashGate() {
           Run the entire company
         </Text>
       </Animated.View>
+
 
       <Animated.View
         style={[
@@ -142,9 +143,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
   },
   markRing: {
-    width: 240,
-    height: 240,
-    borderRadius: 60,
+    width: 176,
+    height: 176,
+    borderRadius: 36,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#f4f4f5",

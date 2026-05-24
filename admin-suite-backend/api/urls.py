@@ -4,7 +4,7 @@ from .views import (
     EmployeeViewSet, ClientViewSet, ProjectViewSet,
     TransactionViewSet, NotificationViewSet, DebtViewSet,
     BudgetCategoryViewSet, SavingsViewSet, metrics, client_metrics, payroll_metrics,
-    debts_grouped, me, register, google_login, send_otp, verify_otp,
+    debts_grouped, me, register, google_login, apple_login, send_otp, verify_otp,
     send_email_verification, verify_email
 )
 
@@ -28,6 +28,7 @@ urlpatterns = [
     path('debts-grouped/', debts_grouped, name='debts-grouped'),
     # Social / Phone auth
     path('auth/google/', google_login, name='google_login'),
+    path('auth/apple/', apple_login, name='apple_login'),
     path('auth/phone/send-otp/', send_otp, name='send_otp'),
     path('auth/phone/verify/', verify_otp, name='verify_otp'),
     path('auth/email/send-code/', send_email_verification, name='send_email_verification'),

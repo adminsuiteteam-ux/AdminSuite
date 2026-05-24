@@ -1,8 +1,9 @@
-import { Feather } from "@expo/vector-icons";
+import { Feather, AntDesign } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
+import * as LocalAuthentication from "expo-local-authentication";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   Image,
   KeyboardAvoidingView,
@@ -13,8 +14,8 @@ import {
   Text,
   TextInput,
   View,
-  Modal,
-  FlatList,
+  Dimensions,
+  Animated,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -22,85 +23,119 @@ import { LogoMark } from "@/components/Brand";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
+import { useSettings } from "@/context/SettingsContext";
 import { apiService } from "@/services/api";
 
-// ── Country codes list ────────────────────────────────────────────────────
-const COUNTRY_CODES = [
-  { code: "+1", flag: "🇺🇸", name: "United States" },
-  { code: "+1", flag: "🇨🇦", name: "Canada" },
-  { code: "+44", flag: "🇬🇧", name: "United Kingdom" },
-  { code: "+61", flag: "🇦🇺", name: "Australia" },
-  { code: "+91", flag: "🇮🇳", name: "India" },
-  { code: "+49", flag: "🇩🇪", name: "Germany" },
-  { code: "+33", flag: "🇫🇷", name: "France" },
-  { code: "+81", flag: "🇯🇵", name: "Japan" },
-  { code: "+86", flag: "🇨🇳", name: "China" },
-  { code: "+55", flag: "🇧🇷", name: "Brazil" },
-  { code: "+52", flag: "🇲🇽", name: "Mexico" },
-  { code: "+34", flag: "🇪🇸", name: "Spain" },
-  { code: "+39", flag: "🇮🇹", name: "Italy" },
-  { code: "+82", flag: "🇰🇷", name: "South Korea" },
-  { code: "+31", flag: "🇳🇱", name: "Netherlands" },
-  { code: "+46", flag: "🇸🇪", name: "Sweden" },
-  { code: "+47", flag: "🇳🇴", name: "Norway" },
-  { code: "+45", flag: "🇩🇰", name: "Denmark" },
-  { code: "+41", flag: "🇨🇭", name: "Switzerland" },
-  { code: "+48", flag: "🇵🇱", name: "Poland" },
-  { code: "+7", flag: "🇷🇺", name: "Russia" },
-  { code: "+90", flag: "🇹🇷", name: "Turkey" },
-  { code: "+966", flag: "🇸🇦", name: "Saudi Arabia" },
-  { code: "+971", flag: "🇦🇪", name: "UAE" },
-  { code: "+20", flag: "🇪🇬", name: "Egypt" },
-  { code: "+27", flag: "🇿🇦", name: "South Africa" },
-  { code: "+234", flag: "🇳🇬", name: "Nigeria" },
-  { code: "+254", flag: "🇰🇪", name: "Kenya" },
-  { code: "+233", flag: "🇬🇭", name: "Ghana" },
-  { code: "+63", flag: "🇵🇭", name: "Philippines" },
-  { code: "+62", flag: "🇮🇩", name: "Indonesia" },
-  { code: "+60", flag: "🇲🇾", name: "Malaysia" },
-  { code: "+66", flag: "🇹🇭", name: "Thailand" },
-  { code: "+84", flag: "🇻🇳", name: "Vietnam" },
-  { code: "+65", flag: "🇸🇬", name: "Singapore" },
-  { code: "+64", flag: "🇳🇿", name: "New Zealand" },
-  { code: "+353", flag: "🇮🇪", name: "Ireland" },
-  { code: "+351", flag: "🇵🇹", name: "Portugal" },
-  { code: "+43", flag: "🇦🇹", name: "Austria" },
-  { code: "+32", flag: "🇧🇪", name: "Belgium" },
-  { code: "+58", flag: "🇻🇪", name: "Venezuela" },
-  { code: "+57", flag: "🇨🇴", name: "Colombia" },
-  { code: "+56", flag: "🇨🇱", name: "Chile" },
-  { code: "+54", flag: "🇦🇷", name: "Argentina" },
-  { code: "+51", flag: "🇵🇪", name: "Peru" },
-];
+const { width } = Dimensions.get("window");
 
-// ── "Heard from" options ──────────────────────────────────────────────────
+// Discovery Sources
 const HEARD_FROM_OPTIONS = [
-  { value: "youtube", label: "YouTube", icon: "play-circle" },
-  { value: "tiktok", label: "TikTok", icon: "music" },
-  { value: "facebook", label: "Facebook", icon: "facebook" },
-  { value: "friend", label: "Friend", icon: "users" },
-  { value: "others", label: "Others", icon: "more-horizontal" },
+  { value: "youtube", label: "YouTube", icon: "youtube", color: "#ef4444" },
+  { value: "tiktok", label: "TikTok", icon: "music", color: "#00f2fe" },
+  { value: "facebook", label: "Facebook & Socials", icon: "facebook", color: "#1877f2" },
+  { value: "friend", label: "A Friend / Colleague", icon: "users", color: "#10b981" },
+  { value: "others", label: "Other Sources", icon: "more-horizontal", color: "#6366f1" },
+] as const;
+
+// Roles
+const ROLE_OPTIONS = [
+  {
+    value: "admin",
+    title: "Company Administrator",
+    desc: "Manage finances, assign budgets, set up integrations, and view full workspace metrics.",
+    icon: "shield",
+    gradient: ["#4f46e5", "#312e81"],
+  },
+  {
+    value: "hr",
+    title: "HR & People Manager",
+    desc: "Oversee employee onboarding, track leave requests, manage initials, performance and shares.",
+    icon: "users",
+    gradient: ["#10b981", "#064e3b"],
+  },
+  {
+    value: "manager",
+    title: "Project / Team Lead",
+    desc: "Manage client deliverables, track ongoing projects, assign tasks, and coordinate with clients.",
+    icon: "briefcase",
+    gradient: ["#f59e0b", "#78350f"],
+  },
 ] as const;
 
 export default function CompleteProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user, setUser } = useAuth();
+  const { setBiometricsEnabled } = useSettings();
 
-  const [avatarUri, setAvatarUri] = useState<string | null>(null);
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const slideProgress = useRef(new Animated.Value(0)).current;
+
+  // Form State
+  const [heardFrom, setHeardFrom] = useState<string>("");
+  const [role, setRole] = useState<string>("");
   const [location, setLocation] = useState("");
-  const [heardFrom, setHeardFrom] = useState("");
-  const [countryCode, setCountryCode] = useState(COUNTRY_CODES[0]);
-  const [phoneNumber, setPhoneNumber] = useState("");
+  const [phone, setPhone] = useState("");
   const [bio, setBio] = useState("");
   const [socialLink, setSocialLink] = useState("");
+  const [avatarUri, setAvatarUri] = useState<string | null>(null);
+  
+  // Toggles
+  const [biometricsActive, setBiometricsActive] = useState(false);
+  const [notificationsActive, setNotificationsActive] = useState(false);
+
+  // UI state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
-  const [showCountryPicker, setShowCountryPicker] = useState(false);
-  const [countrySearch, setCountrySearch] = useState("");
+  const totalSlides = 5;
 
-  // ── Pick avatar image ─────────────────────────────────────────────────
+  const animateToSlide = (index: number) => {
+    setCurrentSlide(index);
+    Animated.timing(slideProgress, {
+      toValue: index / (totalSlides - 1),
+      duration: 350,
+      useNativeDriver: false,
+    }).start();
+  };
+
+  const handleNext = () => {
+    setError("");
+    if (currentSlide === 0 && !heardFrom) {
+      setError("Please select how you heard about us.");
+      return;
+    }
+    if (currentSlide === 1 && !role) {
+      setError("Please select your primary role.");
+      return;
+    }
+    if (currentSlide === 2) {
+      if (!location.trim()) {
+        setError("Please enter your location.");
+        return;
+      }
+      if (!phone.trim()) {
+        setError("Please enter your phone number.");
+        return;
+      }
+    }
+
+    if (currentSlide < totalSlides - 1) {
+      animateToSlide(currentSlide + 1);
+    } else {
+      onSubmit();
+    }
+  };
+
+  const handleBack = () => {
+    setError("");
+    if (currentSlide > 0) {
+      animateToSlide(currentSlide - 1);
+    }
+  };
+
+  // Pick Avatar
   const pickAvatar = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -113,32 +148,57 @@ export default function CompleteProfileScreen() {
     }
   };
 
-  // ── Submit profile ────────────────────────────────────────────────────
+  // Trigger Local Auth to check biometrics
+  const enableBiometrics = async () => {
+    setError("");
+    try {
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+
+      if (!hasHardware || !isEnrolled) {
+        setError("Biometric authentication is not set up on this device.");
+        return;
+      }
+
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: "Enable quick access to Admin Suite",
+        fallbackLabel: "Use passcode",
+      });
+
+      if (result.success) {
+        setBiometricsActive(true);
+        await setBiometricsEnabled(true);
+        setSuccess("Biometric lock enabled successfully!");
+        setTimeout(() => setSuccess(""), 3000);
+      } else {
+        setError("Authentication failed.");
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to set up biometrics.");
+    }
+  };
+
+  // Simulated Push Notification Prompt
+  const enableNotifications = () => {
+    setNotificationsActive(true);
+    setSuccess("Notifications enabled successfully!");
+    setTimeout(() => setSuccess(""), 3000);
+  };
+
+  // Final Profile Submit to Backend DB
   const onSubmit = async () => {
     setError("");
-
-    if (!location.trim()) {
-      setError("Please enter your location.");
-      return;
-    }
-    if (!heardFrom) {
-      setError("Please select where you heard about the app.");
-      return;
-    }
-    if (!phoneNumber.trim()) {
-      setError("Please enter your phone number.");
-      return;
-    }
-
     setLoading(true);
     try {
-      const fullPhone = `${countryCode.code}${phoneNumber.trim()}`;
       const formData = new FormData();
       formData.append("location", location.trim());
       formData.append("heard_from", heardFrom);
-      formData.append("phone", fullPhone);
+      formData.append("role", role);
+      formData.append("phone", phone.trim());
       formData.append("bio", bio.trim());
       formData.append("social_link", socialLink.trim());
+      formData.append("biometrics_enabled", biometricsActive ? "true" : "false");
+      formData.append("notifications_enabled", notificationsActive ? "true" : "false");
 
       if (avatarUri) {
         const filename = avatarUri.split("/").pop() || "avatar.jpg";
@@ -153,7 +213,6 @@ export default function CompleteProfileScreen() {
 
       const res = await apiService.updateMe(formData);
 
-      // Update user in context with profile_complete = true
       if (user) {
         setUser({
           ...user,
@@ -163,8 +222,10 @@ export default function CompleteProfileScreen() {
         });
       }
 
-      router.replace("/tour");
+      // Finish Onboarding and redirect directly to Tabs
+      router.replace("/(tabs)");
     } catch (err: any) {
+      console.error("Profile submit error:", err);
       const backendErrors = err.response?.data;
       if (backendErrors) {
         const firstError = Object.values(backendErrors)[0];
@@ -177,14 +238,261 @@ export default function CompleteProfileScreen() {
     }
   };
 
-  // ── Filter countries for search ───────────────────────────────────────
-  const filteredCountries = countrySearch
-    ? COUNTRY_CODES.filter(
-        (c) =>
-          c.name.toLowerCase().includes(countrySearch.toLowerCase()) ||
-          c.code.includes(countrySearch)
-      )
-    : COUNTRY_CODES;
+  // Render slides dynamically
+  const renderSlideContent = () => {
+    switch (currentSlide) {
+      case 0:
+        return (
+          <View style={styles.slideContainer}>
+            <Text style={[styles.slideTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+              Where did you hear about us?
+            </Text>
+            <Text style={[styles.slideSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              Help us customize your workspace journey.
+            </Text>
+            <View style={styles.optionsList}>
+              {HEARD_FROM_OPTIONS.map((opt) => {
+                const isSelected = heardFrom === opt.value;
+                return (
+                  <Pressable
+                    key={opt.value}
+                    onPress={() => setHeardFrom(opt.value)}
+                    style={({ pressed }) => [
+                      styles.choiceCard,
+                      {
+                        backgroundColor: isSelected ? colors.primary + "12" : colors.muted,
+                        borderColor: isSelected ? colors.primary : colors.border,
+                        opacity: pressed ? 0.9 : 1,
+                      },
+                    ]}
+                  >
+                    <View style={[styles.iconCircle, { backgroundColor: opt.color + "18" }]}>
+                      <Feather name={opt.icon as any} size={18} color={opt.color} />
+                    </View>
+                    <Text style={[styles.choiceText, { color: colors.foreground, fontFamily: isSelected ? "Inter_600SemiBold" : "Inter_500Medium" }]}>
+                      {opt.label}
+                    </Text>
+                    {isSelected && (
+                      <View style={[styles.checkCircle, { backgroundColor: colors.primary }]}>
+                        <Feather name="check" size={12} color="#fff" />
+                      </View>
+                    )}
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        );
+
+      case 1:
+        return (
+          <View style={styles.slideContainer}>
+            <Text style={[styles.slideTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+              What is your primary role?
+            </Text>
+            <Text style={[styles.slideSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              We'll tailor your dashboard apps based on your choice.
+            </Text>
+            <View style={styles.optionsList}>
+              {ROLE_OPTIONS.map((opt) => {
+                const isSelected = role === opt.value;
+                return (
+                  <Pressable
+                    key={opt.value}
+                    onPress={() => setRole(opt.value)}
+                    style={({ pressed }) => [
+                      styles.roleCard,
+                      {
+                        backgroundColor: isSelected ? colors.primary + "06" : colors.muted,
+                        borderColor: isSelected ? colors.primary : colors.border,
+                        borderWidth: isSelected ? 2 : 1,
+                        opacity: pressed ? 0.95 : 1,
+                      },
+                    ]}
+                  >
+                    <LinearGradient
+                      colors={opt.gradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.roleGradient}
+                    >
+                      <Feather name={opt.icon as any} size={20} color="#fff" />
+                    </LinearGradient>
+                    <View style={styles.roleTextContainer}>
+                      <Text style={[styles.roleTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                        {opt.title}
+                      </Text>
+                      <Text style={[styles.roleDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                        {opt.desc}
+                      </Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        );
+
+      case 2:
+        return (
+          <View style={styles.slideContainer}>
+            <Text style={[styles.slideTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+              Tell us about yourself
+            </Text>
+            <Text style={[styles.slideSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              This will update your public profile workspace.
+            </Text>
+
+            {/* Avatar Section */}
+            <View style={styles.avatarWrap}>
+              <Pressable onPress={pickAvatar} style={styles.avatarCircle}>
+                {avatarUri ? (
+                  <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
+                ) : (
+                  <View style={[styles.avatarPlaceholder, { backgroundColor: colors.muted }]}>
+                    <Feather name="camera" size={32} color={colors.mutedForeground} />
+                  </View>
+                )}
+                <View style={[styles.avatarBadge, { backgroundColor: colors.primary }]}>
+                  <Feather name="plus" size={14} color="#fff" />
+                </View>
+              </Pressable>
+              <Text style={[styles.avatarSubtext, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+                Add Profile Photo
+              </Text>
+            </View>
+
+            {/* Fields */}
+            <Text style={[styles.inputLabel, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" }]}>
+              Location
+            </Text>
+            <View style={[styles.inputContainer, { borderColor: colors.border, borderRadius: colors.radius }]}>
+              <Feather name="map-pin" size={16} color={colors.mutedForeground} />
+              <TextInput
+                value={location}
+                onChangeText={setLocation}
+                placeholder="e.g. Lagos, Nigeria"
+                placeholderTextColor={colors.mutedForeground}
+                style={[styles.input, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}
+              />
+            </View>
+
+            <Text style={[styles.inputLabel, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold", marginTop: 16 }]}>
+              Phone Number
+            </Text>
+            <View style={[styles.inputContainer, { borderColor: colors.border, borderRadius: colors.radius }]}>
+              <Feather name="phone" size={16} color={colors.mutedForeground} />
+              <TextInput
+                value={phone}
+                onChangeText={setPhone}
+                placeholder="+234 80 1234 5678"
+                placeholderTextColor={colors.mutedForeground}
+                keyboardType="phone-pad"
+                style={[styles.input, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}
+              />
+            </View>
+
+            <Text style={[styles.inputLabel, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold", marginTop: 16 }]}>
+              Short Bio (Optional)
+            </Text>
+            <View style={[styles.inputContainer, { borderColor: colors.border, borderRadius: colors.radius, height: 70, alignItems: "flex-start", paddingVertical: 10 }]}>
+              <TextInput
+                value={bio}
+                onChangeText={setBio}
+                placeholder="Brief summary..."
+                placeholderTextColor={colors.mutedForeground}
+                multiline
+                numberOfLines={2}
+                style={[styles.input, { color: colors.foreground, fontFamily: "Inter_500Medium", height: "100%" }]}
+              />
+            </View>
+          </View>
+        );
+
+      case 3:
+        return (
+          <View style={styles.slideContainer}>
+            <Text style={[styles.slideTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+              Secure Your Workspace
+            </Text>
+            <Text style={[styles.slideSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              Keep employee details, shares, budgets, and transactions safe with biometrics.
+            </Text>
+
+            <View style={styles.heroCenter}>
+              <View style={styles.shieldRing}>
+                <Feather name="lock" size={64} color={biometricsActive ? "#10b981" : colors.primary} />
+              </View>
+              <Text style={[styles.heroHeading, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+                {biometricsActive ? "Biometrics Active" : "Instant Authentication"}
+              </Text>
+              <Text style={[styles.heroText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                Use your device's Touch ID or Face ID fingerprint lock for instant security verification.
+              </Text>
+
+              <Pressable
+                onPress={enableBiometrics}
+                style={({ pressed }) => [
+                  styles.actionBtn,
+                  {
+                    backgroundColor: biometricsActive ? "#10b981" : colors.primary,
+                    opacity: pressed ? 0.85 : 1,
+                  },
+                ]}
+              >
+                <Feather name={biometricsActive ? "check" : "smartphone"} size={20} color="#fff" style={{ marginRight: 8 }} />
+                <Text style={[styles.actionBtnText, { fontFamily: "Inter_600SemiBold" }]}>
+                  {biometricsActive ? "Enabled" : "Enable Biometrics"}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        );
+
+      case 4:
+        return (
+          <View style={styles.slideContainer}>
+            <Text style={[styles.slideTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+              Never Miss a Beat
+            </Text>
+            <Text style={[styles.slideSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              Stay updated with team requests, task completions, and budget notifications.
+            </Text>
+
+            <View style={styles.heroCenter}>
+              <View style={styles.shieldRing}>
+                <Feather name="bell" size={64} color={notificationsActive ? "#10b981" : colors.primary} />
+              </View>
+              <Text style={[styles.heroHeading, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+                {notificationsActive ? "Notifications Active" : "Stay Alerted"}
+              </Text>
+              <Text style={[styles.heroText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                Get real-time updates regarding company deliverables, payroll status, and net profits directly.
+              </Text>
+
+              <Pressable
+                onPress={enableNotifications}
+                style={({ pressed }) => [
+                  styles.actionBtn,
+                  {
+                    backgroundColor: notificationsActive ? "#10b981" : colors.primary,
+                    opacity: pressed ? 0.85 : 1,
+                  },
+                ]}
+              >
+                <Feather name={notificationsActive ? "check" : "bell-off"} size={20} color="#fff" style={{ marginRight: 8 }} />
+                <Text style={[styles.actionBtnText, { fontFamily: "Inter_600SemiBold" }]}>
+                  {notificationsActive ? "Enabled" : "Enable Push Notifications"}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        );
+
+      default:
+        return null;
+    }
+  };
 
   return (
     <KeyboardAvoidingView
@@ -192,403 +500,201 @@ export default function CompleteProfileScreen() {
       style={{ flex: 1, backgroundColor: colors.background }}
     >
       <ScrollView
-        contentContainerStyle={{ paddingBottom: 40 }}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: insets.bottom + 24 }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Header ───────────────────────────────────────────────────── */}
-        <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-          <LinearGradient
-            colors={["#312e81", "#4f46e5"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={StyleSheet.absoluteFill}
-          />
-          <View style={styles.headerInner}>
-            <View style={styles.logoChip}>
-              <LogoMark size={32} tint="#ffffff" />
+        {/* Onboarding Header */}
+        <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
+          <View style={styles.topRow}>
+            <Pressable onPress={handleBack} disabled={currentSlide === 0} style={{ opacity: currentSlide === 0 ? 0.2 : 1 }}>
+              <Feather name="arrow-left" size={24} color={colors.foreground} />
+            </Pressable>
+            <View style={styles.headerLogo}>
+              <LogoMark size={28} tint={colors.primary} />
+              <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+                Admin Suite
+              </Text>
             </View>
-            <Text style={[styles.welcome, { fontFamily: "Inter_700Bold" }]}>
-              Complete Your Profile
+            <Text style={[styles.stepIndicator, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" }]}>
+              {currentSlide + 1} / {totalSlides}
             </Text>
-            <Text style={[styles.sub, { fontFamily: "Inter_400Regular" }]}>
-              Tell us a bit about yourself to get started
-            </Text>
+          </View>
+
+          {/* Progress bar */}
+          <View style={[styles.progressBarBg, { backgroundColor: colors.muted }]}>
+            <Animated.View
+              style={[
+                styles.progressBarFill,
+                {
+                  backgroundColor: colors.primary,
+                  width: slideProgress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: ["20%", "100%"],
+                  }),
+                },
+              ]}
+            />
           </View>
         </View>
 
-        {/* ── Card ─────────────────────────────────────────────────────── */}
-        <View style={[styles.card, { backgroundColor: colors.background }]}>
-          {/* Avatar */}
-          <View style={styles.avatarSection}>
-            <Pressable onPress={pickAvatar} style={styles.avatarWrap}>
-              {avatarUri ? (
-                <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
-              ) : (
-                <View
-                  style={[
-                    styles.avatarPlaceholder,
-                    { backgroundColor: colors.muted },
-                  ]}
-                >
-                  <Feather name="camera" size={28} color={colors.mutedForeground} />
-                </View>
-              )}
-              <View
-                style={[
-                  styles.avatarBadge,
-                  { backgroundColor: colors.primary },
-                ]}
-              >
-                <Feather name="plus" size={12} color="#fff" />
-              </View>
-            </Pressable>
-            <Text
-              style={{
-                fontFamily: "Inter_500Medium",
-                fontSize: 13,
-                color: colors.mutedForeground,
-                marginTop: 8,
-              }}
-            >
-              Tap to add profile photo
-            </Text>
-          </View>
+        {/* Slide Content Card */}
+        <View style={styles.card}>
+          {renderSlideContent()}
 
-          {/* Location */}
-          <Text style={[styles.label, { color: colors.mutedForeground }]}>
-            Location
-          </Text>
-          <View style={[styles.inputWrap, { borderColor: colors.border, borderRadius: colors.radius }]}>
-            <Feather name="map-pin" size={16} color={colors.mutedForeground} />
-            <TextInput
-              value={location}
-              onChangeText={setLocation}
-              placeholder="e.g. New York, USA"
-              placeholderTextColor={colors.mutedForeground}
-              style={[styles.input, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}
-            />
-          </View>
-
-          {/* Heard From */}
-          <Text style={[styles.label, { color: colors.mutedForeground, marginTop: 16 }]}>
-            Where did you hear about us?
-          </Text>
-          <View style={styles.heardFromRow}>
-            {HEARD_FROM_OPTIONS.map((opt) => (
-              <Pressable
-                key={opt.value}
-                onPress={() => setHeardFrom(opt.value)}
-                style={[
-                  styles.heardFromChip,
-                  {
-                    backgroundColor:
-                      heardFrom === opt.value
-                        ? colors.primary + "18"
-                        : colors.muted,
-                    borderColor:
-                      heardFrom === opt.value
-                        ? colors.primary
-                        : colors.border,
-                  },
-                ]}
-              >
-                <Feather
-                  name={opt.icon as any}
-                  size={14}
-                  color={heardFrom === opt.value ? colors.primary : colors.mutedForeground}
-                />
-                <Text
-                  style={{
-                    fontFamily: "Inter_500Medium",
-                    fontSize: 12,
-                    color: heardFrom === opt.value ? colors.primary : colors.mutedForeground,
-                  }}
-                >
-                  {opt.label}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-
-          {/* Phone */}
-          <Text style={[styles.label, { color: colors.mutedForeground, marginTop: 16 }]}>
-            Phone Number
-          </Text>
-          <View style={styles.phoneRow}>
-            <Pressable
-              onPress={() => setShowCountryPicker(true)}
-              style={[
-                styles.countryCodeBtn,
-                { borderColor: colors.border, borderRadius: colors.radius, backgroundColor: colors.muted },
-              ]}
-            >
-              <Text style={{ fontSize: 18 }}>{countryCode.flag}</Text>
-              <Text
-                style={{
-                  fontFamily: "Inter_600SemiBold",
-                  fontSize: 14,
-                  color: colors.foreground,
-                }}
-              >
-                {countryCode.code}
-              </Text>
-              <Feather name="chevron-down" size={14} color={colors.mutedForeground} />
-            </Pressable>
-            <View
-              style={[
-                styles.inputWrap,
-                {
-                  flex: 1,
-                  borderColor: colors.border,
-                  borderRadius: colors.radius,
-                },
-              ]}
-            >
-              <TextInput
-                value={phoneNumber}
-                onChangeText={setPhoneNumber}
-                placeholder="Phone number"
-                placeholderTextColor={colors.mutedForeground}
-                keyboardType="phone-pad"
-                style={[styles.input, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}
-              />
-            </View>
-          </View>
-
-          {/* Bio */}
-          <Text style={[styles.label, { color: colors.mutedForeground, marginTop: 16 }]}>
-            Bio
-          </Text>
-          <View
-            style={[
-              styles.inputWrap,
-              {
-                borderColor: colors.border,
-                borderRadius: colors.radius,
-                height: 100,
-                alignItems: "flex-start",
-                paddingVertical: 12,
-              },
-            ]}
-          >
-            <TextInput
-              value={bio}
-              onChangeText={setBio}
-              placeholder="Tell us about yourself..."
-              placeholderTextColor={colors.mutedForeground}
-              multiline
-              textAlignVertical="top"
-              style={[
-                styles.input,
-                { color: colors.foreground, fontFamily: "Inter_500Medium", height: "100%" },
-              ]}
-            />
-          </View>
-
-          {/* Social Media Link */}
-          <Text style={[styles.label, { color: colors.mutedForeground, marginTop: 16 }]}>
-            Social Media Link
-          </Text>
-          <View style={[styles.inputWrap, { borderColor: colors.border, borderRadius: colors.radius }]}>
-            <Feather name="link" size={16} color={colors.mutedForeground} />
-            <TextInput
-              value={socialLink}
-              onChangeText={setSocialLink}
-              placeholder="https://linkedin.com/in/yourname"
-              placeholderTextColor={colors.mutedForeground}
-              autoCapitalize="none"
-              keyboardType="url"
-              style={[styles.input, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}
-            />
-          </View>
-
-          {/* Error */}
+          {/* Notification Messages */}
           {error ? (
-            <View style={[styles.errorWrap, { backgroundColor: colors.danger + "15" }]}>
-              <Feather name="alert-circle" size={14} color={colors.danger} />
-              <Text
-                style={{
-                  color: colors.danger,
-                  fontFamily: "Inter_500Medium",
-                  fontSize: 13,
-                  flex: 1,
-                }}
-              >
+            <View style={[styles.messageBox, { backgroundColor: colors.danger + "12" }]}>
+              <Feather name="alert-circle" size={14} color={colors.danger} style={{ marginRight: 6 }} />
+              <Text style={[styles.messageText, { color: colors.danger, fontFamily: "Inter_500Medium" }]}>
                 {error}
               </Text>
             </View>
           ) : null}
 
-          {/* Submit */}
-          <View style={{ marginTop: 22 }}>
-            <PrimaryButton
-              label="Complete Profile"
-              onPress={onSubmit}
-              loading={loading}
-            />
-          </View>
+          {success ? (
+            <View style={[styles.messageBox, { backgroundColor: "#10b98112" }]}>
+              <Feather name="check-circle" size={14} color="#10b981" style={{ marginRight: 6 }} />
+              <Text style={[styles.messageText, { color: "#10b981", fontFamily: "Inter_500Medium" }]}>
+                {success}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+
+        {/* Footer Navigation */}
+        <View style={styles.footer}>
+          <PrimaryButton
+            label={currentSlide === totalSlides - 1 ? "Finish Onboarding" : "Next Step"}
+            onPress={handleNext}
+            loading={loading}
+          />
         </View>
       </ScrollView>
-
-      {/* ── Country Picker Modal ─────────────────────────────────────── */}
-      <Modal
-        visible={showCountryPicker}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setShowCountryPicker(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View
-            style={[
-              styles.modalContent,
-              {
-                backgroundColor: colors.background,
-                paddingBottom: insets.bottom + 16,
-              },
-            ]}
-          >
-            <View style={styles.modalHeader}>
-              <Text
-                style={{
-                  fontFamily: "Inter_700Bold",
-                  fontSize: 18,
-                  color: colors.foreground,
-                }}
-              >
-                Select Country
-              </Text>
-              <Pressable onPress={() => setShowCountryPicker(false)} hitSlop={10}>
-                <Feather name="x" size={22} color={colors.mutedForeground} />
-              </Pressable>
-            </View>
-
-            <View
-              style={[
-                styles.searchWrap,
-                { borderColor: colors.border, backgroundColor: colors.muted },
-              ]}
-            >
-              <Feather name="search" size={16} color={colors.mutedForeground} />
-              <TextInput
-                value={countrySearch}
-                onChangeText={setCountrySearch}
-                placeholder="Search country..."
-                placeholderTextColor={colors.mutedForeground}
-                style={[
-                  styles.input,
-                  { color: colors.foreground, fontFamily: "Inter_500Medium" },
-                ]}
-              />
-            </View>
-
-            <FlatList
-              data={filteredCountries}
-              keyExtractor={(item, i) => `${item.code}-${item.name}-${i}`}
-              renderItem={({ item }) => (
-                <Pressable
-                  onPress={() => {
-                    setCountryCode(item);
-                    setShowCountryPicker(false);
-                    setCountrySearch("");
-                  }}
-                  style={[
-                    styles.countryRow,
-                    {
-                      backgroundColor:
-                        countryCode.name === item.name && countryCode.code === item.code
-                          ? colors.primary + "12"
-                          : "transparent",
-                    },
-                  ]}
-                >
-                  <Text style={{ fontSize: 22 }}>{item.flag}</Text>
-                  <View style={{ flex: 1 }}>
-                    <Text
-                      style={{
-                        fontFamily: "Inter_500Medium",
-                        fontSize: 15,
-                        color: colors.foreground,
-                      }}
-                    >
-                      {item.name}
-                    </Text>
-                    <Text
-                      style={{
-                        fontFamily: "Inter_400Regular",
-                        fontSize: 13,
-                        color: colors.mutedForeground,
-                      }}
-                    >
-                      {item.code}
-                    </Text>
-                  </View>
-                  {countryCode.name === item.name && countryCode.code === item.code && (
-                    <Feather name="check" size={18} color={colors.primary} />
-                  )}
-                </Pressable>
-              )}
-              showsVerticalScrollIndicator={false}
-              style={{ maxHeight: 400 }}
-            />
-          </View>
-        </View>
-      </Modal>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   header: {
-    paddingBottom: 80,
     paddingHorizontal: 24,
+    paddingBottom: 16,
+  },
+  topRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  headerLogo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  headerTitle: {
+    fontSize: 16,
+    letterSpacing: -0.4,
+  },
+  stepIndicator: {
+    fontSize: 13,
+  },
+  progressBarBg: {
+    height: 4,
+    borderRadius: 2,
+    marginTop: 18,
     overflow: "hidden",
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
   },
-  headerInner: { gap: 14 },
-  logoChip: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.15)",
+  progressBarFill: {
+    height: "100%",
+    borderRadius: 2,
   },
-  welcome: {
-    color: "#fff",
-    fontSize: 26,
-    letterSpacing: -0.5,
-    marginTop: 8,
-  },
-  sub: { color: "rgba(255,255,255,0.75)", fontSize: 14 },
   card: {
-    marginTop: -56,
-    marginHorizontal: 20,
-    padding: 24,
-    borderRadius: 24,
-    shadowColor: "#000",
-    shadowOpacity: 0.07,
-    shadowRadius: 30,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 6,
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingTop: 16,
   },
-  avatarSection: {
-    alignItems: "center",
+  slideContainer: {
+    flex: 1,
+  },
+  slideTitle: {
+    fontSize: 24,
+    letterSpacing: -0.6,
+    marginBottom: 8,
+  },
+  slideSub: {
+    fontSize: 14,
+    lineHeight: 20,
     marginBottom: 24,
   },
+  optionsList: {
+    gap: 12,
+  },
+  choiceCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  iconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  choiceText: {
+    fontSize: 15,
+    marginLeft: 14,
+    flex: 1,
+  },
+  checkCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  roleCard: {
+    flexDirection: "row",
+    padding: 18,
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 16,
+  },
+  roleGradient: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  roleTextContainer: {
+    flex: 1,
+  },
+  roleTitle: {
+    fontSize: 16,
+    marginBottom: 4,
+  },
+  roleDesc: {
+    fontSize: 12,
+    lineHeight: 18,
+  },
   avatarWrap: {
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  avatarCircle: {
     position: "relative",
   },
   avatarImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 90,
+    height: 90,
+    borderRadius: 45,
   },
   avatarPlaceholder: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 90,
+    height: 90,
+    borderRadius: 45,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -596,97 +702,94 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: 2,
     right: 2,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
     borderColor: "#fff",
   },
-  label: {
+  avatarSubtext: {
     fontSize: 12,
-    marginBottom: 6,
-    letterSpacing: 0.4,
+    marginTop: 8,
+  },
+  inputLabel: {
+    fontSize: 11,
     textTransform: "uppercase",
-    fontFamily: "Inter_500Medium",
+    marginBottom: 6,
+    letterSpacing: 0.5,
   },
-  inputWrap: {
+  inputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
     paddingHorizontal: 14,
-    height: 50,
+    height: 48,
     borderWidth: 1,
-  },
-  input: { flex: 1, fontSize: 15 },
-  heardFromRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  heardFromChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  phoneRow: {
-    flexDirection: "row",
     gap: 10,
   },
-  countryCodeBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    height: 50,
-    borderWidth: 1,
-  },
-  errorWrap: {
-    marginTop: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    padding: 12,
-    borderRadius: 10,
-  },
-  // ── Modal styles ────────────────────────────────────────────────────
-  modalOverlay: {
+  input: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
+    fontSize: 14,
   },
-  modalContent: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  heroCenter: {
     alignItems: "center",
-    marginBottom: 16,
+    paddingHorizontal: 16,
+    paddingTop: 12,
   },
-  searchWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 14,
-    height: 44,
+  shieldRing: {
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    backgroundColor: "#312e8110",
     borderWidth: 1,
-    borderRadius: 12,
-    marginBottom: 12,
+    borderColor: "#312e8118",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
   },
-  countryRow: {
+  heroHeading: {
+    fontSize: 20,
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  heroText: {
+    fontSize: 13,
+    lineHeight: 20,
+    textAlign: "center",
+    marginBottom: 28,
+    paddingHorizontal: 8,
+  },
+  actionBtn: {
+    flexDirection: "row",
+    height: 48,
+    borderRadius: 24,
+    paddingHorizontal: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  actionBtnText: {
+    color: "#fff",
+    fontSize: 14,
+  },
+  messageBox: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
+    padding: 12,
     borderRadius: 12,
+    marginTop: 18,
+  },
+  messageText: {
+    fontSize: 13,
+    flex: 1,
+  },
+  footer: {
+    paddingHorizontal: 24,
+    marginTop: 20,
   },
 });

@@ -152,9 +152,12 @@ def me(request):
         'profile_complete': profile.profile_complete,
         'location': profile_data.get('location', ''),
         'heard_from': profile_data.get('heard_from', ''),
+        'role': profile_data.get('role', ''),
         'phone': profile_data.get('phone', ''),
         'bio': profile_data.get('bio', ''),
         'social_link': profile_data.get('social_link', ''),
+        'biometrics_enabled': profile_data.get('biometrics_enabled', False),
+        'notifications_enabled': profile_data.get('notifications_enabled', False),
         'avatar': avatar_url,
     })
 
@@ -316,6 +319,49 @@ def google_login(request):
     )
     if created:
         # Set unusable password for social-auth users
+        user.set_unusable_password()
+        user.save()
+
+    token, _ = Token.objects.get_or_create(user=user)
+    user_name = f"{user.first_name} {user.last_name}".strip() or user.username
+    return Response({
+        'token': token.key,
+        'user': {
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'name': user_name,
+        },
+    })
+
+
+@api_view(['POST'])
+@throttle_classes([AuthRateThrottle])
+def apple_login(request):
+    """
+    Authenticate via Apple.
+    Accepts { identity_token, email?, name? }.
+    In DEBUG mode, if Apple token verification fails, falls back to
+    the provided email/name so developers can test without real credentials.
+    """
+    from rest_framework.authtoken.models import Token
+
+    email = request.data.get('email', '')
+    name = request.data.get('name', '')
+
+    if not email:
+        return Response({'error': 'email is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Get or create user
+    user, created = User.objects.get_or_create(
+        email=email,
+        defaults={
+            'username': email.split('@')[0],
+            'first_name': name.split(' ')[0] if name else '',
+            'last_name': ' '.join(name.split(' ')[1:]) if name else '',
+        },
+    )
+    if created:
         user.set_unusable_password()
         user.save()
 

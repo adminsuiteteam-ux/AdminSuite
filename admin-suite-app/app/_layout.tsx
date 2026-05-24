@@ -27,7 +27,11 @@ import { tokenCache } from "@/services/tokenCache";
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
-const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY || "pk_test_Zm9yLXByZXNlbnRhdGlvbi1wdXJwb3Nlcy1vbmx5LWNsZXJrLmFjY291bnRzLmRldiQ";
+const rawKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
+const isDemoKey = !rawKey || rawKey === "your_clerk_publishable_key_here" || !rawKey.startsWith("pk_");
+const publishableKey = isDemoKey
+  ? "pk_test_Zm9yLXByZXNlbnRhdGlvbi1wdXJwb3Nlcy1vbmx5LWNsZXJrLmFjY291bnRzLmRldiQ"
+  : rawKey;
 
 function RootLayoutNav() {
   return (

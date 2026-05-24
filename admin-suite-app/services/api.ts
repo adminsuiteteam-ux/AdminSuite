@@ -54,6 +54,8 @@ export const apiService = {
   // Social / Phone auth
   loginWithGoogle: (data: { id_token: string; email?: string; name?: string }) =>
     apiClient.post('auth/google/', data),
+  loginWithApple: (data: { identity_token: string; email?: string; name?: string }) =>
+    apiClient.post('auth/apple/', data),
   sendPhoneOTP: (data: { phone: string }) =>
     apiClient.post('auth/phone/send-otp/', data),
   verifyPhoneOTP: (data: { phone: string; otp: string }) =>

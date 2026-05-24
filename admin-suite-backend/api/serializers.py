@@ -142,8 +142,9 @@ class UserProfileSerializer(serializers.ModelSerializer):
         from .models import UserProfile
         model = UserProfile
         fields = [
-            'location', 'heard_from', 'phone', 'avatar',
-            'bio', 'social_link', 'profile_complete',
+            'location', 'heard_from', 'role', 'phone', 'avatar',
+            'bio', 'social_link', 'biometrics_enabled', 'notifications_enabled',
+            'profile_complete',
         ]
 
 

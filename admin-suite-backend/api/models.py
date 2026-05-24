@@ -184,10 +184,13 @@ class UserProfile(models.Model):
     user = models.OneToOneField('auth.User', on_delete=models.CASCADE, related_name='profile')
     location = models.CharField(max_length=255, blank=True, default='')
     heard_from = models.CharField(max_length=20, choices=HEARD_FROM_CHOICES, blank=True, default='')
+    role = models.CharField(max_length=50, blank=True, default='')
     phone = models.CharField(max_length=30, blank=True, default='')
     avatar = models.ImageField(upload_to='profile_avatars/', blank=True, null=True)
     bio = models.TextField(blank=True, default='')
     social_link = models.URLField(blank=True, default='')
+    biometrics_enabled = models.BooleanField(default=False)
+    notifications_enabled = models.BooleanField(default=False)
     profile_complete = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 

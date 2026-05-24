@@ -23,6 +23,7 @@ type AuthContextType = {
   login: (credentials: { username: string; password: string }) => Promise<void>;
   signUpWithClerk: (email: string, password: string) => Promise<void>;
   verifyClerkEmailCode: (email: string, code: string, password: string) => Promise<void>;
+  loginWithSocial: (email: string, name: string, provider: 'google' | 'apple') => Promise<void>;
   logout: () => Promise<void>;
   tourComplete: boolean;
   completeTour: () => Promise<void>;
@@ -139,6 +140,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await login({ username: email, password });
   };
 
+  const loginWithSocial = async (email: string, name: string, provider: 'google' | 'apple') => {
+    setLoading(true);
+    try {
+      let res;
+      if (provider === 'google') {
+        res = await apiService.loginWithGoogle({
+          id_token: "dummy_clerk_oauth_token",
+          email: email,
+          name: name,
+        });
+      } else {
+        res = await apiService.loginWithApple({
+          identity_token: "dummy_clerk_oauth_token",
+          email: email,
+          name: name,
+        });
+      }
+      
+      const token = res.data.token;
+      await SecureStore.setItemAsync(TOKEN_KEY, token);
+      apiService.setToken(token);
+      
+      const userRes = await apiService.getMe();
+      const u = userRes.data;
+      u.initials = ((u.name || u.username || u.email || "US")).slice(0, 2).toUpperCase();
+      
+      setUser(u);
+    } catch (err: any) {
+      console.error("Social sync failed:", err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const logout = async () => {
     try {
       await signOut();
@@ -163,6 +199,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         signUpWithClerk,
         verifyClerkEmailCode,
+        loginWithSocial,
         logout,
         tourComplete,
         completeTour,

@@ -1,6 +1,11 @@
-import { Feather } from "@expo/vector-icons";
+import { Feather, AntDesign } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Link, router } from "expo-router";
+import { useOAuth } from "@clerk/clerk-expo";
+import * as WebBrowser from "expo-web-browser";
+import * as Linking from "expo-linking";
+
+WebBrowser.maybeCompleteAuthSession();
 import React, { useState } from "react";
 import {
   KeyboardAvoidingView,
@@ -22,7 +27,13 @@ import { useColors } from "@/hooks/useColors";
 export default function RegisterScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { signUpWithClerk, verifyClerkEmailCode } = useAuth();
+  const { signUpWithClerk, verifyClerkEmailCode, loginWithSocial } = useAuth();
+
+  const { startOAuthFlow: startGoogleFlow } = useOAuth({ strategy: "oauth_google" });
+  const { startOAuthFlow: startAppleFlow } = useOAuth({ strategy: "oauth_apple" });
+
+  const rawKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
+  const isDemoKey = !rawKey || rawKey === "your_clerk_publishable_key_here" || !rawKey.startsWith("pk_");
 
   const [step, setStep] = useState<"credentials" | "code">("credentials");
   const [email, setEmail] = useState("");
@@ -96,6 +107,43 @@ export default function RegisterScreen() {
     }
   };
 
+  const handleOAuthLogin = async (provider: "google" | "apple") => {
+    setError("");
+    setSuccess("");
+    setLoading(true);
+    try {
+      const flow = provider === "google" ? startGoogleFlow : startAppleFlow;
+      
+      const { createdSessionId, setActive, signIn, signUp } = await flow({
+        redirectUrl: Linking.createURL("/oauth-redirect", { scheme: "admin-suite" }),
+      });
+
+      if (createdSessionId && setActive) {
+        await setActive({ session: createdSessionId });
+        
+        const targetEmail = signUp?.emailAddress || signIn?.identifier || `${provider}_user_${Date.now()}@adminsuite.com`;
+        const firstName = signUp?.firstName || "";
+        const lastName = signUp?.lastName || "";
+        const targetName = [firstName, lastName].filter(Boolean).join(" ") || targetEmail.split("@")[0];
+        
+        await loginWithSocial(targetEmail, targetName, provider);
+        router.replace("/");
+      } else {
+        setError("Social sign up did not complete. Please try again.");
+      }
+    } catch (err: any) {
+      console.error("Social login/signup error:", err);
+      const clerkErrors = err?.errors;
+      if (clerkErrors && clerkErrors.length > 0) {
+        setError(clerkErrors[0].longMessage || clerkErrors[0].message || "Social sign up failed.");
+      } else {
+        setError(err.message || "Social sign up failed. Please try again.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const getSubtext = () => {
     switch (step) {
       case "code":
@@ -136,6 +184,22 @@ export default function RegisterScreen() {
         </View>
 
         <View style={[styles.card, { backgroundColor: colors.background }]}>
+          {isDemoKey && (
+            <View style={[styles.demoBanner, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+              <View style={[styles.demoIconCircle, { backgroundColor: "#f59e0b" }]}>
+                <Feather name="alert-triangle" size={14} color="#fff" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.demoBannerTitle, { fontFamily: "Inter_600SemiBold", color: colors.foreground }]}>
+                  Demo Auth Active
+                </Text>
+                <Text style={[styles.demoBannerText, { fontFamily: "Inter_400Regular", color: colors.mutedForeground }]}>
+                  Please configure <Text style={{ fontFamily: "Inter_600SemiBold" }}>EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY</Text> in your <Text style={{ fontFamily: "Inter_600SemiBold" }}>.env</Text> file to use your own Clerk keys.
+                </Text>
+              </View>
+            </View>
+          )}
+
           {step === "credentials" && (
             <View>
               <Text
@@ -251,6 +315,44 @@ export default function RegisterScreen() {
                   onPress={handleCreateAccount}
                   loading={loading}
                 />
+              </View>
+
+              <View style={styles.socialDivider}>
+                <View style={[styles.line, { backgroundColor: colors.border }]} />
+                <Text style={[styles.dividerText, { fontFamily: "Inter_400Regular", color: colors.mutedForeground }]}>
+                  or continue with
+                </Text>
+                <View style={[styles.line, { backgroundColor: colors.border }]} />
+              </View>
+
+              <View style={styles.socialRow}>
+                <Pressable
+                  onPress={() => handleOAuthLogin("google")}
+                  disabled={loading}
+                  style={({ pressed }) => [
+                    styles.socialBtn,
+                    { opacity: pressed || loading ? 0.8 : 1, backgroundColor: colors.muted, borderColor: colors.border }
+                  ]}
+                >
+                  <AntDesign name="google" size={18} color={colors.foreground} style={{ marginRight: 8 }} />
+                  <Text style={[styles.socialBtnText, { fontFamily: "Inter_500Medium", color: colors.foreground }]}>
+                    Google
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => handleOAuthLogin("apple")}
+                  disabled={loading}
+                  style={({ pressed }) => [
+                    styles.socialBtn,
+                    { opacity: pressed || loading ? 0.8 : 1, backgroundColor: colors.muted, borderColor: colors.border }
+                  ]}
+                >
+                  <AntDesign name="apple" size={18} color={colors.foreground} style={{ marginRight: 8 }} />
+                  <Text style={[styles.socialBtnText, { fontFamily: "Inter_500Medium", color: colors.foreground }]}>
+                    Apple
+                  </Text>
+                </Pressable>
               </View>
             </View>
           )}
@@ -456,5 +558,60 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     marginTop: 20,
+  },
+  demoBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 20,
+    gap: 12,
+  },
+  demoIconCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  demoBannerTitle: {
+    fontSize: 13,
+    marginBottom: 2,
+  },
+  demoBannerText: {
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  socialDivider: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 20,
+    marginBottom: 16,
+    gap: 12,
+  },
+  socialRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 8,
+  },
+  socialBtn: {
+    flex: 1,
+    height: 50,
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  socialBtnText: {
+    fontSize: 14,
+  },
+  line: {
+    flex: 1,
+    height: 1,
+  },
+  dividerText: {
+    fontSize: 13,
   },
 });
