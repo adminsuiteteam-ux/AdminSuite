@@ -8,8 +8,6 @@ import { useAuth } from "@/context/AuthContext";
 import { useSettings } from "@/context/SettingsContext";
 import { useColors } from "@/hooks/useColors";
 
-let hasRedirectedFromSplash = false;
-
 export default function SplashGate() {
   const colors = useColors();
   const { user, tourComplete, loading } = useAuth();
@@ -18,6 +16,7 @@ export default function SplashGate() {
   const fade = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(0.85)).current;
   const dot = useRef(new Animated.Value(0)).current;
+  const hasRedirectedFromSplash = useRef(false);
 
   useEffect(() => {
     Animated.parallel([
@@ -53,9 +52,9 @@ export default function SplashGate() {
   }, [fade, scale, dot]);
 
   useEffect(() => {
-    if (loading || hasRedirectedFromSplash) return;
+    if (loading || hasRedirectedFromSplash.current) return;
     const t = setTimeout(() => {
-      hasRedirectedFromSplash = true;
+      hasRedirectedFromSplash.current = true;
       if (!user) {
         router.replace("/(auth)/login");
       } else if (!user.profile_complete) {
