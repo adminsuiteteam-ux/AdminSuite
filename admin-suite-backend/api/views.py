@@ -143,6 +143,9 @@ def me(request):
     avatar_url = None
     if profile.avatar:
         avatar_url = request.build_absolute_uri(profile.avatar.url)
+    company_logo_url = None
+    if profile.company_logo:
+        company_logo_url = request.build_absolute_uri(profile.company_logo.url)
 
     return Response({
         'id': user.id,
@@ -159,6 +162,17 @@ def me(request):
         'biometrics_enabled': profile_data.get('biometrics_enabled', False),
         'notifications_enabled': profile_data.get('notifications_enabled', False),
         'avatar': avatar_url,
+        'business_name': profile_data.get('business_name', ''),
+        'org_location': profile_data.get('org_location', ''),
+        'org_email': profile_data.get('org_email', ''),
+        'company_line': profile_data.get('company_line', ''),
+        'social_handles': profile_data.get('social_handles', ''),
+        'total_workers': profile_data.get('total_workers', ''),
+        'opening_time': profile_data.get('opening_time', ''),
+        'closing_time': profile_data.get('closing_time', ''),
+        'working_days': profile_data.get('working_days', ''),
+        'average_revenue': profile_data.get('average_revenue', ''),
+        'company_logo': company_logo_url,
     })
 
 
@@ -555,3 +569,115 @@ def verify_email(request):
     record.save()
 
     return Response({'message': 'Email verified successfully.', 'email': email})
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def export_data(request):
+    from .pdf_generator import build_pdf_report
+    import csv
+    from django.http import HttpResponse
+
+    export_format = request.GET.get('format', 'pdf').strip().lower()
+    export_type = request.GET.get('type', 'general').strip().lower()
+    time_filter = request.GET.get('time_filter')
+    individual_id = request.GET.get('id')
+
+    if export_format == 'pdf':
+        try:
+            pdf_data = build_pdf_report(request.user, export_type, time_filter=time_filter, individual_id=individual_id)
+            response = HttpResponse(pdf_data, content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="adminsuite_{export_type}_export.pdf"'
+            return response
+        except Exception as e:
+            return Response({'error': f'Failed to generate PDF: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    elif export_format == 'csv':
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="adminsuite_{export_type}_export.csv"'
+        writer = csv.writer(response)
+
+        if export_type == 'client':
+            from .models import Client
+            if individual_id:
+                try:
+                    c = Client.objects.get(user=request.user, id=individual_id)
+                    writer.writerow(["Field", "Value"])
+                    writer.writerow(["Company", c.company])
+                    writer.writerow(["Contact", c.contact])
+                    writer.writerow(["Email", c.email])
+                    writer.writerow(["Location", c.location])
+                    writer.writerow(["Website", c.website or "N/A"])
+                    writer.writerow(["Status", c.status])
+                    writer.writerow(["LTV", c.lifetime_value])
+                except Client.DoesNotExist:
+                    return Response({'error': 'Client not found'}, status=status.HTTP_404_NOT_FOUND)
+            else:
+                clients = Client.objects.filter(user=request.user)
+                writer.writerow(["Company", "Contact", "Email", "Location", "Website", "LTV", "Status"])
+                for c in clients:
+                    writer.writerow([c.company, c.contact, c.email, c.location, c.website or "N/A", c.lifetime_value, c.status])
+
+        elif export_type == 'employee':
+            from .models import Employee
+            if individual_id:
+                try:
+                    e = Employee.objects.get(user=request.user, id=individual_id)
+                    writer.writerow(["Field", "Value"])
+                    writer.writerow(["Name", e.name])
+                    writer.writerow(["Role", e.role])
+                    writer.writerow(["Department", e.department])
+                    writer.writerow(["Email", e.email])
+                    writer.writerow(["Salary", e.salary])
+                    writer.writerow(["Status", e.status])
+                except Employee.DoesNotExist:
+                    return Response({'error': 'Employee not found'}, status=status.HTTP_404_NOT_FOUND)
+            else:
+                emps = Employee.objects.filter(user=request.user)
+                writer.writerow(["Name", "Role", "Department", "Email", "Salary", "Status"])
+                for e in emps:
+                    writer.writerow([e.name, e.role, e.department, e.email, e.salary, e.status])
+
+        elif export_type == 'financials':
+            from .models import Transaction
+            from django.utils import timezone
+            from datetime import timedelta
+            txs = Transaction.objects.filter(user=request.user)
+            
+            now = timezone.now()
+            if time_filter == "24h":
+                txs = txs.filter(created_at__gte=now - timedelta(days=1)) if hasattr(Transaction, 'created_at') else txs
+            elif time_filter == "3d":
+                txs = txs.filter(created_at__gte=now - timedelta(days=3)) if hasattr(Transaction, 'created_at') else txs
+            elif time_filter == "1w":
+                txs = txs.filter(created_at__gte=now - timedelta(days=7)) if hasattr(Transaction, 'created_at') else txs
+            elif time_filter == "1m":
+                txs = txs.filter(created_at__gte=now - timedelta(days=30)) if hasattr(Transaction, 'created_at') else txs
+            elif time_filter == "3m":
+                txs = txs.filter(created_at__gte=now - timedelta(days=90)) if hasattr(Transaction, 'created_at') else txs
+            elif time_filter == "6m":
+                txs = txs.filter(created_at__gte=now - timedelta(days=180)) if hasattr(Transaction, 'created_at') else txs
+            elif time_filter == "12m":
+                txs = txs.filter(created_at__gte=now - timedelta(days=365)) if hasattr(Transaction, 'created_at') else txs
+                
+            writer.writerow(["Date", "Description", "Category", "Amount", "Type"])
+            for t in txs:
+                writer.writerow([t.date, t.description, t.category, t.amount, t.type])
+        else:
+            from .models import Employee, Client
+            writer.writerow(["Export Type", "General Workspace Data"])
+            writer.writerow([])
+            writer.writerow(["--- EMPLOYEES ---"])
+            writer.writerow(["Name", "Role", "Department", "Salary"])
+            for e in Employee.objects.filter(user=request.user):
+                writer.writerow([e.name, e.role, e.department, e.salary])
+
+            writer.writerow([])
+            writer.writerow(["--- CLIENTS ---"])
+            writer.writerow(["Company", "Contact", "Email", "LTV"])
+            for c in Client.objects.filter(user=request.user):
+                writer.writerow([c.company, c.contact, c.email, c.lifetime_value])
+
+        return response
+
+    return Response({'error': 'Unsupported format. Use format=pdf or format=csv.'}, status=status.HTTP_400_BAD_REQUEST)

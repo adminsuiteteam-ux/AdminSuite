@@ -5,7 +5,8 @@ from .views import (
     TransactionViewSet, NotificationViewSet, DebtViewSet,
     BudgetCategoryViewSet, SavingsViewSet, metrics, client_metrics, payroll_metrics,
     debts_grouped, me, register, google_login, apple_login, send_otp, verify_otp,
-    send_email_verification, verify_email
+    send_email_verification, verify_email, export_data,
+    ThrottledObtainAuthToken
 )
 
 router = DefaultRouter()
@@ -22,6 +23,7 @@ urlpatterns = [
     path('', include(router.urls)),
     path('me/', me, name='me'),
     path('register/', register, name='register'),
+    path('token-auth/', ThrottledObtainAuthToken.as_view(), name='api_token_auth'),
     path('metrics/', metrics, name='metrics'),
     path('client-metrics/', client_metrics, name='client-metrics'),
     path('payroll-metrics/', payroll_metrics, name='payroll-metrics'),
@@ -33,4 +35,5 @@ urlpatterns = [
     path('auth/phone/verify/', verify_otp, name='verify_otp'),
     path('auth/email/send-code/', send_email_verification, name='send_email_verification'),
     path('auth/email/verify/', verify_email, name='verify_email'),
+    path('export/', export_data, name='export-data'),
 ]

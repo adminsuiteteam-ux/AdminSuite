@@ -2,6 +2,7 @@ from django.contrib import admin
 from .models import (
     Employee, EmployeeFinance, PayHistory, Client, Project,
     Transaction, Notification, Debt, BudgetCategory, Savings,
+    UserProfile, PhoneOTP, EmailVerificationCode
 )
 
 
@@ -69,3 +70,19 @@ class BudgetCategoryAdmin(admin.ModelAdmin):
 class SavingsAdmin(admin.ModelAdmin):
     list_display = ('name', 'target', 'saved', 'purpose')
     search_fields = ('name',)
+
+
+@admin.register(UserProfile)
+class UserProfileAdmin(admin.ModelAdmin):
+    list_display = ('user', 'business_name', 'role', 'phone', 'profile_complete')
+    search_fields = ('user__username', 'business_name', 'org_email')
+
+
+@admin.register(PhoneOTP)
+class PhoneOTPAdmin(admin.ModelAdmin):
+    list_display = ('phone', 'otp', 'created_at')
+
+
+@admin.register(EmailVerificationCode)
+class EmailVerificationCodeAdmin(admin.ModelAdmin):
+    list_display = ('email', 'code', 'created_at')

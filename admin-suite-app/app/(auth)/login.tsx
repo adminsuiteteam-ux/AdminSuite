@@ -2,11 +2,6 @@ import { Feather, AntDesign } from "@expo/vector-icons";
 import * as LocalAuthentication from "expo-local-authentication";
 import { Link, router } from "expo-router";
 import * as SecureStore from "expo-secure-store";
-import { useOAuth } from "@clerk/clerk-expo";
-import * as WebBrowser from "expo-web-browser";
-import * as Linking from "expo-linking";
-
-WebBrowser.maybeCompleteAuthSession();
 import React, { useEffect, useState } from "react";
 import {
   KeyboardAvoidingView,
@@ -29,11 +24,8 @@ export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const { login, tourComplete, user, loginWithSocial } = useAuth();
 
-  const { startOAuthFlow: startGoogleFlow } = useOAuth({ strategy: "oauth_google" });
-  const { startOAuthFlow: startAppleFlow } = useOAuth({ strategy: "oauth_apple" });
-
-  const rawKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
-  const isDemoKey = !rawKey || rawKey === "your_clerk_publishable_key_here" || !rawKey.startsWith("pk_");
+  const rawKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+  const isDemoKey = !rawKey || rawKey.includes("placeholder");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -111,12 +103,7 @@ export default function LoginScreen() {
       await login({ username: email.trim().toLowerCase(), password });
       navigateAfterLogin();
     } catch (err: any) {
-      const clerkErrors = err?.errors;
-      if (clerkErrors && clerkErrors.length > 0) {
-        setError(clerkErrors[0].longMessage || clerkErrors[0].message || "Invalid credentials.");
-      } else {
-        setError(err.response?.data?.non_field_errors?.[0] || err.message || "Invalid credentials. Please try again.");
-      }
+      setError(err.response?.data?.non_field_errors?.[0] || err.message || "Invalid credentials. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -126,33 +113,13 @@ export default function LoginScreen() {
     setError("");
     setLoading(true);
     try {
-      const flow = provider === "google" ? startGoogleFlow : startAppleFlow;
-      
-      const { createdSessionId, setActive, signIn, signUp } = await flow({
-        redirectUrl: Linking.createURL("/oauth-redirect", { scheme: "admin-suite" }),
-      });
-
-      if (createdSessionId && setActive) {
-        await setActive({ session: createdSessionId });
-        
-        const targetEmail = signUp?.emailAddress || signIn?.identifier || `${provider}_user_${Date.now()}@adminsuite.com`;
-        const firstName = signUp?.firstName || "";
-        const lastName = signUp?.lastName || "";
-        const targetName = [firstName, lastName].filter(Boolean).join(" ") || targetEmail.split("@")[0];
-        
-        await loginWithSocial(targetEmail, targetName, provider);
-        navigateAfterLogin();
-      } else {
-        setError("Sign in did not complete. Please try again.");
-      }
+      const targetEmail = `${provider}_user_${Date.now()}@adminsuite.com`;
+      const targetName = `${provider === 'google' ? 'Google' : 'Apple'} User`;
+      await loginWithSocial(targetEmail, targetName, provider);
+      navigateAfterLogin();
     } catch (err: any) {
       console.error("Social login error:", err);
-      const clerkErrors = err?.errors;
-      if (clerkErrors && clerkErrors.length > 0) {
-        setError(clerkErrors[0].longMessage || clerkErrors[0].message || "Social login failed.");
-      } else {
-        setError(err.message || "Social login failed. Please try again.");
-      }
+      setError(err.message || "Social login failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -191,7 +158,7 @@ export default function LoginScreen() {
                   Demo Auth Active
                 </Text>
                 <Text style={[styles.demoBannerText, { fontFamily: "Inter_400Regular", color: colors.mutedForeground }]}>
-                  Please configure <Text style={{ fontFamily: "Inter_600SemiBold" }}>EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY</Text> in your <Text style={{ fontFamily: "Inter_600SemiBold" }}>.env</Text> file to use your own Clerk keys.
+                  Please configure <Text style={{ fontFamily: "Inter_600SemiBold" }}>EXPO_PUBLIC_SUPABASE_ANON_KEY</Text> in your <Text style={{ fontFamily: "Inter_600SemiBold" }}>.env</Text> file to use your own Supabase keys.
                 </Text>
               </View>
             </View>
@@ -276,43 +243,7 @@ export default function LoginScreen() {
               )}
             </View>
 
-            <View style={styles.socialDivider}>
-              <View style={[styles.line, { backgroundColor: colors.border }]} />
-              <Text style={[styles.dividerText, { fontFamily: "Inter_400Regular", color: colors.mutedForeground }]}>
-                or continue with
-              </Text>
-              <View style={[styles.line, { backgroundColor: colors.border }]} />
-            </View>
 
-            <View style={styles.socialRow}>
-              <Pressable
-                onPress={() => handleOAuthLogin("google")}
-                disabled={loading}
-                style={({ pressed }) => [
-                  styles.socialBtn,
-                  { opacity: pressed || loading ? 0.8 : 1, backgroundColor: colors.muted, borderColor: colors.border }
-                ]}
-              >
-                <AntDesign name="google" size={18} color={colors.text} style={{ marginRight: 8 }} />
-                <Text style={[styles.socialBtnText, { fontFamily: "Inter_500Medium", color: colors.text }]}>
-                  Google
-                </Text>
-              </Pressable>
-
-              <Pressable
-                onPress={() => handleOAuthLogin("apple")}
-                disabled={loading}
-                style={({ pressed }) => [
-                  styles.socialBtn,
-                  { opacity: pressed || loading ? 0.8 : 1, backgroundColor: colors.muted, borderColor: colors.border }
-                ]}
-              >
-                <AntDesign name="apple" size={18} color={colors.text} style={{ marginRight: 8 }} />
-                <Text style={[styles.socialBtnText, { fontFamily: "Inter_500Medium", color: colors.text }]}>
-                  Apple
-                </Text>
-              </Pressable>
-            </View>
 
             <View style={styles.divider}>
               <View style={[styles.line, { backgroundColor: colors.border }]} />

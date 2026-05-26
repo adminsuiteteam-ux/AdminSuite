@@ -92,9 +92,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
-  const fetchAll = useCallback(async () => {
+  const fetchAll = useCallback(async (background = false) => {
     try {
-      setLoading(true);
+      if (!background) setLoading(true);
       const [
         empRes, clientRes, projRes, txRes, notifRes, budgetRes,
         savingsRes, metricsRes, clientMetRes, payrollRes, debtsRes,
@@ -127,15 +127,22 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       setFetchError(null);
     } catch (err) {
       console.warn('Data fetch failed (Network/Server error):', err);
-      setFetchError('Connection to server failed. Please check if the backend is running.');
+      if (!background) {
+        setFetchError('Connection to server failed. Please check if the backend is running.');
+      }
     } finally {
-      setLoading(false);
+      if (!background) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
+    let intervalId: any;
     if (user) {
       fetchAll();
+      // Setup real-time polling every 10 seconds in the background
+      intervalId = setInterval(() => {
+        fetchAll(true);
+      }, 10000);
     } else {
       setEmployees([]);
       setClients([]);
@@ -152,6 +159,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       setFetchError(null);
       setLoading(false);
     }
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
   }, [user, fetchAll]);
 
   return (

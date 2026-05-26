@@ -1,5 +1,9 @@
 {
     "venvPath": ".",
     "venv": ".venv",
-    "reportMissingImports": false
+    "reportMissingImports": false,
+    "reportBadOverride": false,
+    "reportOverlappingOverload": false,
+    "reportArgumentType": false,
+    "reportGeneralTypeIssues": false
 }

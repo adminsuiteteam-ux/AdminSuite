@@ -19,8 +19,10 @@ import Svg, {
   Text as SvgText,
 } from "react-native-svg";
 
-import { chartRangeKeys, chartRanges } from "@/data/chartData";
+import { useData } from "@/context/DataContext";
 import { useColors } from "@/hooks/useColors";
+
+const chartRangeKeys = ["7D", "30D", "12M"];
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -57,18 +59,94 @@ export function FinancialChart({ formatValue }: { formatValue: (v: number) => st
   const [range, setRange] = useState("7D");
   const [size, setSize] = useState({ w: 0, h: 240 });
 
+  const { transactions } = useData();
+
   const data = useMemo(() => {
-    const r = chartRanges[range as keyof typeof chartRanges];
-    const profit = r.income.map((v: number, i: number) => v - r.expense[i]);
-    return { ...r, profit };
-  }, [range]);
+    const res = {
+      labels: [] as string[],
+      income: [] as number[],
+      expense: [] as number[],
+    };
+
+    if (range === "7D") {
+      res.labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+      res.income = [0, 0, 0, 0, 0, 0, 0];
+      res.expense = [0, 0, 0, 0, 0, 0, 0];
+
+      transactions.forEach((tx: any) => {
+        try {
+          const amt = parseFloat(tx.amount) || 0;
+          const d = new Date(Date.parse(tx.date + ", " + new Date().getFullYear()));
+          if (!isNaN(d.getTime())) {
+            const diffDays = (new Date().getTime() - d.getTime()) / (1000 * 60 * 60 * 24);
+            if (diffDays >= 0 && diffDays < 7) {
+              const dayIdx = (d.getDay() + 6) % 7; // Sunday=0 -> 6, Monday=1 -> 0
+              if (tx.type === "income") {
+                res.income[dayIdx] += amt;
+              } else {
+                res.expense[dayIdx] += amt;
+              }
+            }
+          }
+        } catch (e) {}
+      });
+    } else if (range === "30D") {
+      res.labels = ["W1", "W2", "W3", "W4"];
+      res.income = [0, 0, 0, 0];
+      res.expense = [0, 0, 0, 0];
+
+      transactions.forEach((tx: any) => {
+        try {
+          const amt = parseFloat(tx.amount) || 0;
+          const d = new Date(Date.parse(tx.date + ", " + new Date().getFullYear()));
+          if (!isNaN(d.getTime())) {
+            const diffDays = (new Date().getTime() - d.getTime()) / (1000 * 60 * 60 * 24);
+            if (diffDays >= 0 && diffDays < 30) {
+              const weekIdx = Math.min(3, Math.floor(diffDays / 7.5));
+              const mappedIdx = 3 - weekIdx;
+              if (tx.type === "income") {
+                res.income[mappedIdx] += amt;
+              } else {
+                res.expense[mappedIdx] += amt;
+              }
+            }
+          }
+        } catch (e) {}
+      });
+    } else {
+      // 12M
+      res.labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      res.income = Array(12).fill(0);
+      res.expense = Array(12).fill(0);
+
+      transactions.forEach((tx: any) => {
+        try {
+          const amt = parseFloat(tx.amount) || 0;
+          const d = new Date(Date.parse(tx.date + ", " + new Date().getFullYear()));
+          if (!isNaN(d.getTime())) {
+            const monthIdx = d.getMonth();
+            if (tx.type === "income") {
+              res.income[monthIdx] += amt;
+            } else {
+              res.expense[monthIdx] += amt;
+            }
+          }
+        } catch (e) {}
+      });
+    }
+
+    const profit = res.income.map((v, i) => v - res.expense[i]);
+    return { ...res, profit };
+  }, [transactions, range]);
 
   const allValues = useMemo(
     () => [...data.income, ...data.expense, ...data.profit],
     [data],
   );
-  const yMin = Math.floor(Math.min(...allValues, 0) / 10) * 10;
-  const yMax = Math.ceil(Math.max(...allValues) / 10) * 10;
+  const rawMin = Math.min(...allValues, 0);
+  const rawMax = Math.max(...allValues);
+  const yMin = Math.floor(rawMin / 10) * 10;
+  const yMax = rawMax === 0 ? 100 : Math.ceil(rawMax / 10) * 10;
 
   const innerW = Math.max(0, size.w - PADDING.left - PADDING.right);
   const innerH = Math.max(0, size.h - PADDING.top - PADDING.bottom);

@@ -11,7 +11,7 @@ const getHost = () => {
     const ip = hostUri.split(':')[0];
     if (ip) return ip;
   }
-  return '192.168.61.152'; // Current computer local IP
+  return '192.168.7.21'; // Current computer local IP
 };
 
 const HOST = getHost(); 
@@ -39,7 +39,7 @@ const apiClient = axios.create({
 
 export const apiService = {
   // Auth
-  login: (credentials: any) => apiClient.post('../api-token-auth/', credentials),
+  login: (credentials: any) => apiClient.post('token-auth/', credentials),
   signup: (data: any) => apiClient.post('register/', data),
   getMe: () => apiClient.get('me/'),
   updateMe: (data: any) => {

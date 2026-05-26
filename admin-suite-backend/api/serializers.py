@@ -1,8 +1,10 @@
+import json
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from .models import (
     Employee, EmployeeFinance, PayHistory, Client, Project, 
-    Transaction, Notification, Debt, BudgetCategory, Savings
+    Transaction, Notification, Debt, BudgetCategory, Savings,
+    UserProfile
 )
 
 from django.contrib.auth.password_validation import validate_password
@@ -24,7 +26,7 @@ class UserSerializer(serializers.ModelSerializer):
         return value
 
     def create(self, validated_data):
-        user = User.objects.create_user(**validated_data)
+        user = User.objects.create_user(**validated_data) # type: ignore
         return user
 
 class PayHistorySerializer(serializers.ModelSerializer):
@@ -54,22 +56,34 @@ class EmployeeSerializer(serializers.ModelSerializer):
             'phone', 'location', 'bio', 'socials', 'finance', 'finance_data'
         ]
         read_only_fields = ['user']
+        extra_kwargs = {
+            'office': {'required': False, 'allow_blank': True, 'default': ''},
+            'phone': {'required': False, 'allow_blank': True},
+            'location': {'required': False, 'allow_blank': True},
+            'bio': {'required': False, 'allow_blank': True},
+            'performance': {'required': False, 'default': 0},
+            'salary': {'required': False, 'default': 0},
+            'initials': {'required': False, 'default': ''},
+            'socials': {'required': False},
+        }
 
     def to_internal_value(self, data):
+        # Convert QueryDict to standard dict to prevent list-wrapping issues for complex fields
+        if hasattr(data, 'dict'):
+            data = data.dict()
+        else:
+            data = dict(data)
+
         # Handle FormData stringified JSON
         if isinstance(data.get('socials'), str):
-            import json
             try:
-                data = data.copy()
                 data['socials'] = json.loads(data['socials'])
-            except:
+            except Exception:
                 pass
         if isinstance(data.get('finance_data'), str):
-            import json
             try:
-                data = data.copy()
                 data['finance_data'] = json.loads(data['finance_data'])
-            except:
+            except Exception:
                 pass
         return super().to_internal_value(data)
 
@@ -77,17 +91,23 @@ class EmployeeSerializer(serializers.ModelSerializer):
         finance_data = validated_data.pop('finance_data', {})
         user = validated_data.get('user')
         
+        # Filter finance_data to only valid EmployeeFinance fields
+        valid_finance_fields = {f.name for f in EmployeeFinance._meta.get_fields() if hasattr(f, 'column')} # type: ignore
+        clean_finance = {k: v for k, v in finance_data.items() if k in valid_finance_fields and k != 'id'}
+        
         # Create finance record first
-        finance = EmployeeFinance.objects.create(user=user, **finance_data)
-        employee = Employee.objects.create(finance=finance, **validated_data)
+        finance = EmployeeFinance.objects.create(user=user, **clean_finance) # type: ignore
+        employee = Employee.objects.create(finance=finance, **validated_data) # type: ignore
         return employee
 
     def update(self, instance, validated_data):
         finance_data = validated_data.pop('finance_data', None)
         if finance_data:
+            valid_finance_fields = {f.name for f in EmployeeFinance._meta.get_fields() if hasattr(f, 'column')} # type: ignore
             for attr, value in finance_data.items():
-                setattr(instance.finance, attr, value)
-            instance.finance.save()
+                if attr in valid_finance_fields and attr != 'id':
+                    setattr(instance.finance, attr, value)
+            instance.finance.save() # type: ignore
             
         return super().update(instance, validated_data)
 
@@ -110,6 +130,19 @@ class ClientSerializer(serializers.ModelSerializer):
             'client_owes_company', 'company_owes_client'
         ]
         read_only_fields = ['user']
+        extra_kwargs = {
+            'location': {'required': False, 'allow_blank': True, 'default': ''},
+            'website': {'required': False, 'allow_blank': True, 'default': ''},
+            'description': {'required': False, 'allow_blank': True, 'default': ''},
+            'remark': {'required': False, 'allow_blank': True, 'default': ''},
+            'coords': {'required': False},
+            'paid': {'required': False, 'default': 0},
+            'projects_count': {'required': False, 'default': 0},
+            'lifetime_value': {'required': False, 'default': 0},
+            'pending_payments': {'required': False, 'default': 0},
+            'client_owes_company': {'required': False, 'default': 0},
+            'company_owes_client': {'required': False, 'default': 0},
+        }
 
 class TransactionSerializer(serializers.ModelSerializer):
     class Meta:
@@ -139,12 +172,14 @@ class SavingsSerializer(serializers.ModelSerializer):
 
 class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
-        from .models import UserProfile
         model = UserProfile
         fields = [
             'location', 'heard_from', 'role', 'phone', 'avatar',
             'bio', 'social_link', 'biometrics_enabled', 'notifications_enabled',
             'profile_complete',
+            'business_name', 'org_location', 'org_email', 'company_line',
+            'social_handles', 'total_workers', 'opening_time', 'closing_time',
+            'working_days', 'average_revenue', 'company_logo',
         ]
 
 
@@ -155,7 +190,7 @@ class RegisterSerializer(serializers.Serializer):
 
     def validate_email(self, value):
         value = value.strip().lower()
-        if User.objects.filter(email=value).exists():
+        if User.objects.filter(email=value).exists(): # type: ignore
             raise serializers.ValidationError("A user with this email already exists.")
         return value
 
@@ -172,7 +207,7 @@ class RegisterSerializer(serializers.Serializer):
         email = validated_data['email']
         password = validated_data['password']
         username = email  # Use email as username
-        user = User.objects.create_user(
+        user = User.objects.create_user( # type: ignore
             username=username,
             email=email,
             password=password,

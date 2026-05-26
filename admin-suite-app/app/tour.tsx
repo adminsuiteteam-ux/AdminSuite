@@ -40,13 +40,17 @@ const SLIDES = [
 
 export default function TourScreen() {
   const insets = useSafeAreaInsets();
-  const { completeTour } = useAuth();
+  const { completeTour, user } = useAuth();
   const listRef = useRef<FlatList>(null);
   const [index, setIndex] = useState(0);
 
   const finish = async () => {
     await completeTour();
-    router.replace("/(tabs)");
+    if (!user) {
+      router.replace("/(auth)/register");
+    } else {
+      router.replace("/(tabs)");
+    }
   };
 
   const next = () => {

@@ -26,20 +26,7 @@ const STATUS_COLOR: Record<string, string> = {
   completed: "#2563eb",
 };
 
-const MOCK_FINANCE = {
-  lifetimeValue: 124500,
-  pendingPayments: 4500,
-  clientOwesCompany: 4500,
-  companyOwesClient: 0,
-  tasksPending: 3,
-  tasksCompleted: 12,
-};
 
-const MOCK_DOCS = [
-  { id: "sla", name: "Service Level Agreement", icon: "file-text", date: "2024-01-15" },
-  { id: "contract", name: "Master Contract", icon: "file", date: "2024-01-10" },
-  { id: "brief_q1", name: "Q1 Campaign Brief", icon: "folder", date: "2024-03-01" },
-];
 
 export default function ClientDetailScreen() {
   const colors = useColors();
@@ -372,26 +359,7 @@ export default function ClientDetailScreen() {
             </Section>
           </FloatInView>
 
-          <FloatInView delay={480}>
-            <Section title="Documents & Files">
-              <View style={[styles.detailCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
-                {MOCK_DOCS.map((doc, i) => (
-                  <Pressable key={doc.id} onPress={() => {}}>
-                    <View style={[styles.docRow, i < MOCK_DOCS.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }]}>
-                      <View style={[styles.docIcon, { backgroundColor: colors.muted }]}>
-                        <Feather name={doc.icon as any} size={14} color={colors.foreground} />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 13 }}>{doc.name}</Text>
-                        <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 11, marginTop: 2 }}>Added {doc.date}</Text>
-                      </View>
-                      <Feather name="download" size={16} color={colors.mutedForeground} />
-                    </View>
-                  </Pressable>
-                ))}
-              </View>
-            </Section>
-          </FloatInView>
+
         </View>
       </ScrollView>
     </View>

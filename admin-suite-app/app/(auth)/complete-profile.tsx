@@ -79,6 +79,19 @@ export default function CompleteProfileScreen() {
   const [bio, setBio] = useState("");
   const [socialLink, setSocialLink] = useState("");
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
+
+  // Organisational details states
+  const [businessName, setBusinessName] = useState("");
+  const [orgLocation, setOrgLocation] = useState("");
+  const [orgEmail, setOrgEmail] = useState("");
+  const [companyLine, setCompanyLine] = useState("");
+  const [socialHandles, setSocialHandles] = useState("");
+  const [totalWorkers, setTotalWorkers] = useState("");
+  const [openingTime, setOpeningTime] = useState("");
+  const [closingTime, setClosingTime] = useState("");
+  const [workingDays, setWorkingDays] = useState<string[]>([]);
+  const [averageRevenue, setAverageRevenue] = useState("");
+  const [companyLogoUri, setCompanyLogoUri] = useState<string | null>(null);
   
   // Toggles
   const [biometricsActive, setBiometricsActive] = useState(false);
@@ -89,7 +102,7 @@ export default function CompleteProfileScreen() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const totalSlides = 5;
+  const totalSlides = 6;
 
   const animateToSlide = (index: number) => {
     setCurrentSlide(index);
@@ -120,6 +133,24 @@ export default function CompleteProfileScreen() {
         return;
       }
     }
+    if (currentSlide === 3) {
+      if (!businessName.trim()) {
+        setError("Please enter your business name.");
+        return;
+      }
+      if (!orgLocation.trim()) {
+        setError("Please enter your business location.");
+        return;
+      }
+      if (!orgEmail.trim()) {
+        setError("Please enter your business email.");
+        return;
+      }
+      if (!companyLogoUri) {
+        setError("Please upload your company logo.");
+        return;
+      }
+    }
 
     if (currentSlide < totalSlides - 1) {
       animateToSlide(currentSlide + 1);
@@ -145,6 +176,19 @@ export default function CompleteProfileScreen() {
     });
     if (!result.canceled && result.assets.length > 0) {
       setAvatarUri(result.assets[0].uri);
+    }
+  };
+
+  // Pick Company Logo
+  const pickCompanyLogo = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets.length > 0) {
+      setCompanyLogoUri(result.assets[0].uri);
     }
   };
 
@@ -199,6 +243,18 @@ export default function CompleteProfileScreen() {
       formData.append("social_link", socialLink.trim());
       formData.append("biometrics_enabled", biometricsActive ? "true" : "false");
       formData.append("notifications_enabled", notificationsActive ? "true" : "false");
+      
+      // Organisational details
+      formData.append("business_name", businessName.trim());
+      formData.append("org_location", orgLocation.trim());
+      formData.append("org_email", orgEmail.trim());
+      formData.append("company_line", companyLine.trim());
+      formData.append("social_handles", socialHandles.trim());
+      formData.append("total_workers", totalWorkers);
+      formData.append("opening_time", openingTime.trim());
+      formData.append("closing_time", closingTime.trim());
+      formData.append("working_days", workingDays.join(","));
+      formData.append("average_revenue", averageRevenue);
 
       if (avatarUri) {
         const filename = avatarUri.split("/").pop() || "avatar.jpg";
@@ -206,6 +262,17 @@ export default function CompleteProfileScreen() {
         const type = match ? `image/${match[1]}` : "image/jpeg";
         formData.append("avatar", {
           uri: avatarUri,
+          name: filename,
+          type,
+        } as any);
+      }
+
+      if (companyLogoUri) {
+        const filename = companyLogoUri.split("/").pop() || "company_logo.jpg";
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1]}` : "image/jpeg";
+        formData.append("company_logo", {
+          uri: companyLogoUri,
           name: filename,
           type,
         } as any);
@@ -353,8 +420,8 @@ export default function CompleteProfileScreen() {
                     <Feather name="camera" size={32} color={colors.mutedForeground} />
                   </View>
                 )}
-                <View style={[styles.avatarBadge, { backgroundColor: colors.primary }]}>
-                  <Feather name="plus" size={14} color="#fff" />
+                <View style={[styles.avatarBadge, { backgroundColor: colors.primary, borderColor: colors.card }]}>
+                  <Feather name="plus" size={14} color={colors.primaryForeground} />
                 </View>
               </Pressable>
               <Text style={[styles.avatarSubtext, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
@@ -413,6 +480,262 @@ export default function CompleteProfileScreen() {
         return (
           <View style={styles.slideContainer}>
             <Text style={[styles.slideTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+              Organisational Details
+            </Text>
+            <Text style={[styles.slideSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              Enter details about your organization or business.
+            </Text>
+
+            {/* Company Logo Section */}
+            <View style={styles.avatarWrap}>
+              <Pressable onPress={pickCompanyLogo} style={styles.avatarCircle}>
+                {companyLogoUri ? (
+                  <Image source={{ uri: companyLogoUri }} style={styles.avatarImage} />
+                ) : (
+                  <View style={[styles.avatarPlaceholder, { backgroundColor: colors.muted }]}>
+                    <Feather name="image" size={32} color={colors.mutedForeground} />
+                  </View>
+                )}
+                <View style={[styles.avatarBadge, { backgroundColor: colors.primary, borderColor: colors.card }]}>
+                  <Feather name="plus" size={14} color={colors.primaryForeground} />
+                </View>
+              </Pressable>
+              <Text style={[styles.avatarSubtext, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+                Upload Company Logo *
+              </Text>
+            </View>
+
+            {/* Business Name */}
+            <Text style={[styles.inputLabel, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" }]}>
+              Business Name
+            </Text>
+            <View style={[styles.inputContainer, { borderColor: colors.border, borderRadius: colors.radius, marginBottom: 12, backgroundColor: colors.card }]}>
+              <Feather name="briefcase" size={16} color={colors.mutedForeground} />
+              <TextInput
+                value={businessName}
+                onChangeText={setBusinessName}
+                placeholder="e.g. Acme Corp"
+                placeholderTextColor={colors.mutedForeground}
+                style={[styles.input, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}
+              />
+            </View>
+
+            {/* Business Location */}
+            <Text style={[styles.inputLabel, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" }]}>
+              Business Location
+            </Text>
+            <View style={[styles.inputContainer, { borderColor: colors.border, borderRadius: colors.radius, marginBottom: 12, backgroundColor: colors.card }]}>
+              <Feather name="map-pin" size={16} color={colors.mutedForeground} />
+              <TextInput
+                value={orgLocation}
+                onChangeText={setOrgLocation}
+                placeholder="e.g. New York, USA"
+                placeholderTextColor={colors.mutedForeground}
+                style={[styles.input, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}
+              />
+            </View>
+
+            {/* Business Email */}
+            <Text style={[styles.inputLabel, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" }]}>
+              Business Email
+            </Text>
+            <View style={[styles.inputContainer, { borderColor: colors.border, borderRadius: colors.radius, marginBottom: 12, backgroundColor: colors.card }]}>
+              <Feather name="mail" size={16} color={colors.mutedForeground} />
+              <TextInput
+                value={orgEmail}
+                onChangeText={setOrgEmail}
+                placeholder="e.g. contact@acme.com"
+                placeholderTextColor={colors.mutedForeground}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                style={[styles.input, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}
+              />
+            </View>
+
+            {/* Company Line & Social Handles in a row */}
+            <View style={{ flexDirection: "row", gap: 12, marginBottom: 12 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.inputLabel, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" }]}>
+                  Company Phone
+                </Text>
+                <View style={[styles.inputContainer, { borderColor: colors.border, borderRadius: colors.radius, backgroundColor: colors.card }]}>
+                  <Feather name="phone" size={16} color={colors.mutedForeground} />
+                  <TextInput
+                    value={companyLine}
+                    onChangeText={setCompanyLine}
+                    placeholder="+1 555 1234"
+                    placeholderTextColor={colors.mutedForeground}
+                    keyboardType="phone-pad"
+                    style={[styles.input, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}
+                  />
+                </View>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.inputLabel, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" }]}>
+                  Social Handles
+                </Text>
+                <View style={[styles.inputContainer, { borderColor: colors.border, borderRadius: colors.radius, backgroundColor: colors.card }]}>
+                  <Feather name="globe" size={16} color={colors.mutedForeground} />
+                  <TextInput
+                    value={socialHandles}
+                    onChangeText={setSocialHandles}
+                    placeholder="e.g. @acme_inc"
+                    placeholderTextColor={colors.mutedForeground}
+                    style={[styles.input, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}
+                  />
+                </View>
+              </View>
+            </View>
+
+            {/* Total Workers Selectable Cards */}
+            <Text style={[styles.inputLabel, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold", marginBottom: 8 }]}>
+              Total Workers
+            </Text>
+            <View style={{ flexDirection: "row", gap: 8, marginBottom: 16 }}>
+              {["1-5", "6-20", "21-100", "100+"].map((range) => {
+                const isSel = totalWorkers === range;
+                return (
+                  <Pressable
+                    key={range}
+                    onPress={() => setTotalWorkers(range)}
+                    style={{
+                      flex: 1,
+                      height: 44,
+                      borderWidth: 1.5,
+                      borderRadius: 10,
+                      borderColor: isSel ? colors.primary : colors.border,
+                      backgroundColor: isSel ? colors.primary + "12" : colors.card,
+                      justifyContent: "center",
+                      alignItems: "center",
+                    }}
+                  >
+                    <Text style={{
+                      color: colors.foreground,
+                      fontSize: 13,
+                      fontFamily: isSel ? "Inter_600SemiBold" : "Inter_500Medium",
+                    }}>
+                      {range}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* Operating Hours (Opening & Closing) in a row */}
+            <View style={{ flexDirection: "row", gap: 12, marginBottom: 16 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.inputLabel, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" }]}>
+                  Opening Time
+                </Text>
+                <View style={[styles.inputContainer, { borderColor: colors.border, borderRadius: colors.radius, backgroundColor: colors.card }]}>
+                  <Feather name="clock" size={16} color={colors.mutedForeground} />
+                  <TextInput
+                    value={openingTime}
+                    onChangeText={setOpeningTime}
+                    placeholder="e.g. 09:00 AM"
+                    placeholderTextColor={colors.mutedForeground}
+                    style={[styles.input, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}
+                  />
+                </View>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.inputLabel, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" }]}>
+                  Closing Time
+                </Text>
+                <View style={[styles.inputContainer, { borderColor: colors.border, borderRadius: colors.radius, backgroundColor: colors.card }]}>
+                  <Feather name="clock" size={16} color={colors.mutedForeground} />
+                  <TextInput
+                    value={closingTime}
+                    onChangeText={setClosingTime}
+                    placeholder="e.g. 05:00 PM"
+                    placeholderTextColor={colors.mutedForeground}
+                    style={[styles.input, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}
+                  />
+                </View>
+              </View>
+            </View>
+
+            {/* Working Days Selectable Tags */}
+            <Text style={[styles.inputLabel, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold", marginBottom: 8 }]}>
+              Working Days
+            </Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
+              {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => {
+                const isSel = workingDays.includes(day);
+                return (
+                  <Pressable
+                    key={day}
+                    onPress={() => {
+                      if (isSel) {
+                        setWorkingDays(workingDays.filter((d) => d !== day));
+                      } else {
+                        setWorkingDays([...workingDays, day]);
+                      }
+                    }}
+                    style={{
+                      paddingHorizontal: 12,
+                      height: 36,
+                      borderRadius: 18,
+                      borderWidth: 1.5,
+                      borderColor: isSel ? colors.primary : colors.border,
+                      backgroundColor: isSel ? colors.primary + "12" : colors.card,
+                      justifyContent: "center",
+                      alignItems: "center",
+                    }}
+                  >
+                    <Text style={{
+                      color: colors.foreground,
+                      fontSize: 12,
+                      fontFamily: isSel ? "Inter_600SemiBold" : "Inter_500Medium",
+                    }}>
+                      {day}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* Average Revenue Selectable Cards */}
+            <Text style={[styles.inputLabel, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold", marginBottom: 8 }]}>
+              Average Revenue (Annual)
+            </Text>
+            <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
+              {["< $50k", "$50k-$250k", "$250k-$1M", "$1M+"].map((rev) => {
+                const isSel = averageRevenue === rev;
+                return (
+                  <Pressable
+                    key={rev}
+                    onPress={() => setAverageRevenue(rev)}
+                    style={{
+                      flex: 1,
+                      height: 44,
+                      borderWidth: 1.5,
+                      borderRadius: 10,
+                      borderColor: isSel ? colors.primary : colors.border,
+                      backgroundColor: isSel ? colors.primary + "12" : colors.card,
+                      justifyContent: "center",
+                      alignItems: "center",
+                    }}
+                  >
+                    <Text style={{
+                      color: colors.foreground,
+                      fontSize: 12,
+                      textAlign: "center",
+                      fontFamily: isSel ? "Inter_600SemiBold" : "Inter_500Medium",
+                    }}>
+                      {rev}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        );
+
+      case 4:
+        return (
+          <View style={styles.slideContainer}>
+            <Text style={[styles.slideTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
               Secure Your Workspace
             </Text>
             <Text style={[styles.slideSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
@@ -420,8 +743,14 @@ export default function CompleteProfileScreen() {
             </Text>
 
             <View style={styles.heroCenter}>
-              <View style={styles.shieldRing}>
-                <Feather name="lock" size={64} color={biometricsActive ? "#10b981" : colors.primary} />
+              <View style={[
+                styles.shieldRing,
+                {
+                  backgroundColor: (biometricsActive ? "#10b981" : "#3b82f6") + "12",
+                  borderColor: (biometricsActive ? "#10b981" : "#3b82f6") + "24",
+                }
+              ]}>
+                <Feather name="lock" size={64} color={biometricsActive ? "#10b981" : "#3b82f6"} />
               </View>
               <Text style={[styles.heroHeading, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
                 {biometricsActive ? "Biometrics Active" : "Instant Authentication"}
@@ -435,13 +764,24 @@ export default function CompleteProfileScreen() {
                 style={({ pressed }) => [
                   styles.actionBtn,
                   {
-                    backgroundColor: biometricsActive ? "#10b981" : colors.primary,
+                    backgroundColor: biometricsActive ? "#10b981" : "#3b82f6",
                     opacity: pressed ? 0.85 : 1,
                   },
                 ]}
               >
-                <Feather name={biometricsActive ? "check" : "smartphone"} size={20} color="#fff" style={{ marginRight: 8 }} />
-                <Text style={[styles.actionBtnText, { fontFamily: "Inter_600SemiBold" }]}>
+                <Feather
+                  name={biometricsActive ? "check" : "smartphone"}
+                  size={20}
+                  color="#fff"
+                  style={{ marginRight: 8 }}
+                />
+                <Text style={[
+                  styles.actionBtnText,
+                  {
+                    fontFamily: "Inter_600SemiBold",
+                    color: "#fff",
+                  }
+                ]}>
                   {biometricsActive ? "Enabled" : "Enable Biometrics"}
                 </Text>
               </Pressable>
@@ -449,7 +789,7 @@ export default function CompleteProfileScreen() {
           </View>
         );
 
-      case 4:
+      case 5:
         return (
           <View style={styles.slideContainer}>
             <Text style={[styles.slideTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
@@ -460,8 +800,14 @@ export default function CompleteProfileScreen() {
             </Text>
 
             <View style={styles.heroCenter}>
-              <View style={styles.shieldRing}>
-                <Feather name="bell" size={64} color={notificationsActive ? "#10b981" : colors.primary} />
+              <View style={[
+                styles.shieldRing,
+                {
+                  backgroundColor: (notificationsActive ? "#10b981" : "#3b82f6") + "12",
+                  borderColor: (notificationsActive ? "#10b981" : "#3b82f6") + "24",
+                }
+              ]}>
+                <Feather name="bell" size={64} color={notificationsActive ? "#10b981" : "#3b82f6"} />
               </View>
               <Text style={[styles.heroHeading, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
                 {notificationsActive ? "Notifications Active" : "Stay Alerted"}
@@ -475,13 +821,24 @@ export default function CompleteProfileScreen() {
                 style={({ pressed }) => [
                   styles.actionBtn,
                   {
-                    backgroundColor: notificationsActive ? "#10b981" : colors.primary,
+                    backgroundColor: notificationsActive ? "#10b981" : "#3b82f6",
                     opacity: pressed ? 0.85 : 1,
                   },
                 ]}
               >
-                <Feather name={notificationsActive ? "check" : "bell-off"} size={20} color="#fff" style={{ marginRight: 8 }} />
-                <Text style={[styles.actionBtnText, { fontFamily: "Inter_600SemiBold" }]}>
+                <Feather
+                  name={notificationsActive ? "check" : "bell-off"}
+                  size={20}
+                  color="#fff"
+                  style={{ marginRight: 8 }}
+                />
+                <Text style={[
+                  styles.actionBtnText,
+                  {
+                    fontFamily: "Inter_600SemiBold",
+                    color: "#fff",
+                  }
+                ]}>
                   {notificationsActive ? "Enabled" : "Enable Push Notifications"}
                 </Text>
               </Pressable>

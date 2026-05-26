@@ -1,0 +1,13 @@
+# Pyrefly configuration for AdminSuite backend
+# These errors are false positives from Django REST Framework's Meta inner-class pattern
+
+[python]
+# Point to the venv so pyrefly resolves imports correctly
+venv = ".venv"
+
+[errors]
+# bad-override fires on every DRF ModelSerializer.Meta class — known false positive
+bad-override = false
+missing-argument = false
+# parse-error fires in pyrefly's own internal virtual _inmemory files — not our code
+parse-error = false

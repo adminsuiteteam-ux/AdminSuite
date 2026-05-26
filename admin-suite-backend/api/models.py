@@ -11,7 +11,10 @@ class EmployeeFinance(models.Model):
 
     def __str__(self):
         try:
-            return f"Finance for {self.employee.name}"
+            emp = getattr(self, 'employee', None)
+            if emp:
+                return f"Finance for {emp.name}"
+            return f"EmployeeFinance #{self.pk}"
         except Exception:
             return f"EmployeeFinance #{self.pk}"
 
@@ -40,7 +43,7 @@ class Employee(models.Model):
     initials = models.CharField(max_length=5)
     avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
     user = models.ForeignKey('auth.User', on_delete=models.CASCADE, null=True, blank=True)
-    email = models.EmailField(unique=True)
+    email = models.EmailField()
     phone = models.CharField(max_length=50, blank=True, null=True)
     location = models.CharField(max_length=255, blank=True, null=True)
     bio = models.TextField(blank=True, null=True)
@@ -192,6 +195,20 @@ class UserProfile(models.Model):
     biometrics_enabled = models.BooleanField(default=False)
     notifications_enabled = models.BooleanField(default=False)
     profile_complete = models.BooleanField(default=False)
+    
+    # Organisational details
+    business_name = models.CharField(max_length=255, blank=True, default='')
+    org_location = models.CharField(max_length=255, blank=True, default='')
+    org_email = models.EmailField(blank=True, default='')
+    company_line = models.CharField(max_length=50, blank=True, default='')
+    social_handles = models.CharField(max_length=255, blank=True, default='')
+    total_workers = models.CharField(max_length=50, blank=True, default='')
+    opening_time = models.CharField(max_length=20, blank=True, default='')
+    closing_time = models.CharField(max_length=20, blank=True, default='')
+    working_days = models.CharField(max_length=100, blank=True, default='')
+    average_revenue = models.CharField(max_length=50, blank=True, default='')
+    company_logo = models.ImageField(upload_to='company_logos/', blank=True, null=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

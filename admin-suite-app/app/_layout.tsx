@@ -21,17 +21,9 @@ import { AuthProvider } from "@/context/AuthContext";
 import { DataProvider } from "@/context/DataContext";
 import { SettingsProvider } from "@/context/SettingsContext";
 
-import { ClerkProvider } from "@clerk/clerk-expo";
-import { tokenCache } from "@/services/tokenCache";
-
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
-const rawKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
-const isDemoKey = !rawKey || rawKey === "your_clerk_publishable_key_here" || !rawKey.startsWith("pk_");
-const publishableKey = isDemoKey
-  ? "pk_test_Zm9yLXByZXNlbnRhdGlvbi1wdXJwb3Nlcy1vbmx5LWNsZXJrLmFjY291bnRzLmRldiQ"
-  : rawKey;
 
 function RootLayoutNav() {
   return (
@@ -62,27 +54,25 @@ export default function RootLayout() {
   if (!fontsLoaded && !fontError) return null;
 
   return (
-    <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
-      <SafeAreaProvider>
-        <ErrorBoundary>
-          <QueryClientProvider client={queryClient}>
-            <GestureHandlerRootView style={{ flex: 1 }}>
-              <KeyboardProvider>
-                <AuthProvider>
-                  <DataProvider>
-                    <SettingsProvider>
-                      <StatusBar style="auto" />
-                      <RootLayoutNav />
-                      <ConnectionBanner />
-                    </SettingsProvider>
-                  </DataProvider>
-                </AuthProvider>
-              </KeyboardProvider>
-            </GestureHandlerRootView>
-          </QueryClientProvider>
-        </ErrorBoundary>
-      </SafeAreaProvider>
-    </ClerkProvider>
+    <SafeAreaProvider>
+      <ErrorBoundary>
+        <QueryClientProvider client={queryClient}>
+          <GestureHandlerRootView style={{ flex: 1 }}>
+            <KeyboardProvider>
+              <AuthProvider>
+                <DataProvider>
+                  <SettingsProvider>
+                    <StatusBar style="auto" />
+                    <RootLayoutNav />
+                    <ConnectionBanner />
+                  </SettingsProvider>
+                </DataProvider>
+              </AuthProvider>
+            </KeyboardProvider>
+          </GestureHandlerRootView>
+        </QueryClientProvider>
+      </ErrorBoundary>
+    </SafeAreaProvider>
   );
 }
 

@@ -55,12 +55,12 @@ export default function SplashGate() {
     if (loading || hasRedirectedFromSplash.current) return;
     const t = setTimeout(() => {
       hasRedirectedFromSplash.current = true;
-      if (!user) {
+      if (!tourComplete) {
+        router.replace("/tour");
+      } else if (!user) {
         router.replace("/(auth)/login");
       } else if (!user.profile_complete) {
         router.replace("/(auth)/complete-profile");
-      } else if (!tourComplete) {
-        router.replace("/tour");
       } else if (biometricsEnabled) {
         router.replace("/lock");
       } else {

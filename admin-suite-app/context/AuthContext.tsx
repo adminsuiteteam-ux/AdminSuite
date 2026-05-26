@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { useSignIn, useSignUp, useAuth as useClerkAuth } from "@clerk/clerk-expo";
+import { supabase } from "@/services/supabase";
 import { apiService } from "@/services/api";
 
 const TOKEN_KEY = "admin-suite.token";
@@ -15,14 +15,31 @@ export type User = {
   role: string;
   initials: string;
   profile_complete: boolean;
+  location?: string;
+  phone?: string;
+  bio?: string;
+  social_link?: string;
+  avatar?: string | null;
+  business_name?: string;
+  org_location?: string;
+  org_email?: string;
+  company_line?: string;
+  social_handles?: string;
+  total_workers?: string;
+  opening_time?: string;
+  closing_time?: string;
+  working_days?: string;
+  average_revenue?: string;
+  company_logo?: string | null;
 };
 
 type AuthContextType = {
   user: User | null;
   loading: boolean;
   login: (credentials: { username: string; password: string }) => Promise<void>;
-  signUpWithClerk: (email: string, password: string) => Promise<void>;
-  verifyClerkEmailCode: (email: string, code: string, password: string) => Promise<void>;
+  signUpWithSupabase: (email: string, password: string) => Promise<void>;
+  resendSupabaseOTP: (email: string) => Promise<void>;
+  verifySupabaseOTP: (email: string, code: string, password: string) => Promise<void>;
   loginWithSocial: (email: string, name: string, provider: 'google' | 'apple') => Promise<void>;
   logout: () => Promise<void>;
   tourComplete: boolean;
@@ -36,10 +53,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [tourComplete, setTourComplete] = useState(false);
   const [loading, setLoading] = useState(true);
-
-  const { signIn, setActive: setSignInActive, isLoaded: isSignInLoaded } = useSignIn();
-  const { signUp, setActive: setSignUpActive, isLoaded: isSignUpLoaded } = useSignUp();
-  const { signOut } = useClerkAuth();
 
   useEffect(() => {
     (async () => {
@@ -68,19 +81,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (credentials: { username: string; password: string }) => {
-    if (!isSignInLoaded) throw new Error("Authentication service is loading. Please try again.");
-
-    // 1. Sign in with Clerk
-    const completeSignIn = await signIn.create({
-      identifier: credentials.username,
-      password: credentials.password,
-    });
-    
-    if (completeSignIn.status !== "complete") {
-      throw new Error("Clerk sign in not completed.");
+    // 1. Sign in with Supabase Auth (resilient session checking)
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData?.session) {
+        const { error: authError } = await supabase.auth.signInWithPassword({
+          email: credentials.username,
+          password: credentials.password,
+        });
+        if (authError) {
+          console.warn("Supabase auth login warning:", authError.message);
+        }
+      }
+    } catch (e: any) {
+      console.warn("Failed to check or establish Supabase session:", e?.message);
     }
-    
-    await setSignInActive({ session: completeSignIn.createdSessionId });
 
     // 2. Log in with Django backend
     const res = await apiService.login({
@@ -105,36 +120,70 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(u);
   };
 
-  const signUpWithClerk = async (email: string, password: string) => {
-    if (!isSignUpLoaded) throw new Error("Authentication service is loading. Please try again.");
-    
-    await signUp.create({
-      emailAddress: email,
-      password: password,
-    });
-    
-    await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
-  };
-
-  const verifyClerkEmailCode = async (email: string, code: string, password: string) => {
-    if (!isSignUpLoaded) throw new Error("Authentication service is loading. Please try again.");
-    
-    const completeSignUp = await signUp.attemptEmailAddressVerification({
-      code,
-    });
-    
-    if (completeSignUp.status !== "complete") {
-      throw new Error("Invalid verification code. Please try again.");
-    }
-    
-    await setSignUpActive({ session: completeSignUp.createdSessionId });
-    
-    // Register the user on the Django backend
-    await apiService.signup({
+  const signUpWithSupabase = async (email: string, password: string) => {
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      confirm_password: password,
     });
+    
+    if (error) {
+      console.error("Supabase signUp error:", error.message, error.status);
+      throw new Error(error.message);
+    }
+
+    // Supabase returns an empty identities array when user already exists
+    // (security measure — it won't reveal existing emails via error)
+    if (data?.user?.identities?.length === 0) {
+      throw new Error("An account with this email already exists. Please sign in instead.");
+    }
+
+    // If no session and no confirmed user, OTP was sent successfully
+    if (!data?.user) {
+      throw new Error("Sign up failed. Please check your email and try again.");
+    }
+  };
+
+  const resendSupabaseOTP = async (email: string) => {
+    const { data, error } = await supabase.auth.resend({
+      type: 'signup',
+      email: email.trim().toLowerCase(),
+    });
+    
+    if (error) {
+      throw new Error(error.message);
+    }
+  };
+
+  const verifySupabaseOTP = async (email: string, code: string, password: string) => {
+    const { data, error } = await supabase.auth.verifyOtp({
+      email,
+      token: code.trim(),
+      type: 'signup',
+    });
+    
+    if (error) {
+      throw new Error(error.message);
+    }
+    
+    try {
+      // Register the user on the Django backend
+      await apiService.signup({
+        email,
+        password,
+        confirm_password: password,
+      });
+    } catch (signupErr: any) {
+      console.warn("Django signup warning:", signupErr);
+      const errorData = signupErr.response?.data;
+      const isAlreadyExists = 
+        errorData?.email?.[0]?.includes("already exists") || 
+        (errorData && JSON.stringify(errorData).includes("already exists"));
+      
+      // If it's a validation error that is NOT 'already exists', throw it
+      if (!isAlreadyExists) {
+        throw new Error(signupErr.response?.data?.email?.[0] || signupErr.message || "Failed to register on backend.");
+      }
+    }
     
     // Log in to get Django token
     await login({ username: email, password });
@@ -146,13 +195,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       let res;
       if (provider === 'google') {
         res = await apiService.loginWithGoogle({
-          id_token: "dummy_clerk_oauth_token",
+          id_token: "dummy_supabase_oauth_token",
           email: email,
           name: name,
         });
       } else {
         res = await apiService.loginWithApple({
-          identity_token: "dummy_clerk_oauth_token",
+          identity_token: "dummy_supabase_oauth_token",
           email: email,
           name: name,
         });
@@ -177,9 +226,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
-      await signOut();
+      await supabase.auth.signOut();
     } catch (e) {
-      console.warn("Clerk sign out error:", e);
+      console.warn("Supabase sign out error:", e);
     }
     await SecureStore.deleteItemAsync(TOKEN_KEY);
     apiService.setToken(null);
@@ -197,8 +246,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         loading,
         login,
-        signUpWithClerk,
-        verifyClerkEmailCode,
+        signUpWithSupabase,
+        resendSupabaseOTP,
+        verifySupabaseOTP,
         loginWithSocial,
         logout,
         tourComplete,
