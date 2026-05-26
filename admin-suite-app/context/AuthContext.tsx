@@ -230,13 +230,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       console.warn("Supabase sign out error:", e);
     }
-    try {
-      await AsyncStorage.removeItem(TOUR_KEY);
-      setTourComplete(false);
-    } catch (e) {
-      console.warn("Error clearing tour state:", e);
-    }
-    await SecureStore.deleteItemAsync(TOKEN_KEY);
+    // Note: We DO NOT clear the TOUR_KEY here because the onboarding tour should only be seen by new users.
+    
+    // Clear active auth token and saved biometric login credentials
+    await Promise.all([
+      SecureStore.deleteItemAsync(TOKEN_KEY),
+      SecureStore.deleteItemAsync("admin-suite.username"),
+      SecureStore.deleteItemAsync("admin-suite.password")
+    ]);
+    
     apiService.setToken(null);
     setUser(null);
   };
