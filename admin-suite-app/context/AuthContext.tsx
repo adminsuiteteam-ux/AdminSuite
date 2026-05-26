@@ -230,6 +230,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       console.warn("Supabase sign out error:", e);
     }
+    try {
+      await AsyncStorage.removeItem(TOUR_KEY);
+      setTourComplete(false);
+    } catch (e) {
+      console.warn("Error clearing tour state:", e);
+    }
     await SecureStore.deleteItemAsync(TOKEN_KEY);
     apiService.setToken(null);
     setUser(null);

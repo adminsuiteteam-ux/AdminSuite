@@ -21,6 +21,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as SecureStore from "expo-secure-store";
 import * as FileSystem from "expo-file-system";
 import * as Sharing from "expo-sharing";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { useAuth } from "@/context/AuthContext";
 import { useData } from "@/context/DataContext";
@@ -252,6 +253,15 @@ export default function ProfileScreen() {
               label="Organisation Details"
               hint="View & edit business information"
               onPress={() => router.push("/settings/organisation" as any)}
+            />
+            <Row
+              icon="help-circle"
+              label="Replay App Tour"
+              hint="See the onboarding walkthrough slides"
+              onPress={async () => {
+                await AsyncStorage.removeItem("admin-suite.tour-complete");
+                router.push("/tour");
+              }}
             />
             <Row
               icon="globe"
