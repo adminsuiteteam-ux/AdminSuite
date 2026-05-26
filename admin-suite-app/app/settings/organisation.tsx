@@ -26,6 +26,9 @@ export default function OrganisationSettingsScreen() {
   const insets = useSafeAreaInsets();
   const { user, setUser } = useAuth();
 
+  const isCreated = !!user?.business_name;
+  const [isEditing, setIsEditing] = useState(!isCreated);
+
   // Form Fields
   const [businessName, setBusinessName] = useState(user?.business_name || "");
   const [orgLocation, setOrgLocation] = useState(user?.org_location || "");
@@ -62,6 +65,12 @@ export default function OrganisationSettingsScreen() {
   const handleSave = async () => {
     if (saving) return;
     setError("");
+
+    if (!businessName.trim()) {
+      setError("Business Name is required.");
+      return;
+    }
+
     setSaving(true);
 
     try {
@@ -98,10 +107,10 @@ export default function OrganisationSettingsScreen() {
 
       if (Platform.OS === "web") {
         alert("Organisation details updated successfully!");
-        router.back();
+        setIsEditing(false);
       } else {
         Alert.alert("Success", "Organisation details updated successfully!", [
-          { text: "OK", onPress: () => router.back() },
+          { text: "OK", onPress: () => setIsEditing(false) },
         ]);
       }
     } catch (err: any) {
@@ -112,6 +121,89 @@ export default function OrganisationSettingsScreen() {
     }
   };
 
+  if (!isEditing) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        {/* Header */}
+        <View style={[styles.header, { paddingTop: insets.top + 12, borderBottomColor: colors.border }]}>
+          <Pressable
+            onPress={() => router.back()}
+            style={[styles.backBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+            hitSlop={10}
+          >
+            <Feather name="chevron-left" size={22} color={colors.foreground} />
+          </Pressable>
+          <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+            Organisation Profile
+          </Text>
+          <Pressable
+            onPress={() => setIsEditing(true)}
+            style={[styles.backBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+            hitSlop={10}
+          >
+            <Feather name="edit-2" size={16} color={colors.primary} />
+          </Pressable>
+        </View>
+
+        <ScrollView
+          contentContainerStyle={{ padding: 20, paddingBottom: 60 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Logo & Company Name Card */}
+          <View style={[profileStyles.heroCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[profileStyles.logoContainer, { borderColor: colors.primary }]}>
+              {user?.company_logo ? (
+                <Image source={{ uri: getMediaUrl(user.company_logo) }} style={profileStyles.logoImg} />
+              ) : (
+                <View style={[profileStyles.logoPlaceholder, { backgroundColor: colors.muted }]}>
+                  <Feather name="briefcase" size={36} color={colors.mutedForeground} />
+                </View>
+              )}
+            </View>
+            <Text style={[profileStyles.businessName, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+              {user?.business_name || "Your Business Name"}
+            </Text>
+            {user?.org_email ? (
+              <Text style={[profileStyles.businessEmail, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+                {user.org_email}
+              </Text>
+            ) : null}
+          </View>
+
+          {/* Details Section */}
+          <Text style={[profileStyles.sectionTitle, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" }]}>
+            BUSINESS DIRECTORY
+          </Text>
+          <View style={[profileStyles.detailsGrid, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <InfoRow icon="map-pin" label="Location / Address" value={user?.org_location || "Not set"} colors={colors} />
+            <InfoRow icon="phone" label="Company Phone" value={user?.company_line || "Not set"} colors={colors} />
+            <InfoRow icon="instagram" label="Social Handles" value={user?.social_handles || "Not set"} colors={colors} />
+            <InfoRow icon="users" label="Total Workers" value={user?.total_workers || "Not set"} colors={colors} />
+            <InfoRow icon="dollar-sign" label="Average Annual Revenue" value={user?.average_revenue || "Not set"} colors={colors} />
+          </View>
+
+          <Text style={[profileStyles.sectionTitle, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold", marginTop: 24 }]}>
+            OPERATING HOURS
+          </Text>
+          <View style={[profileStyles.detailsGrid, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <InfoRow icon="clock" label="Opening Time" value={user?.opening_time || "Not set"} colors={colors} />
+            <InfoRow icon="clock" label="Closing Time" value={user?.closing_time || "Not set"} colors={colors} />
+            <InfoRow icon="calendar" label="Working Days" value={user?.working_days || "Not set"} colors={colors} />
+          </View>
+
+          {/* Edit Button */}
+          <Pressable
+            style={[styles.saveBtn, { backgroundColor: colors.primary, marginTop: 32 }]}
+            onPress={() => setIsEditing(true)}
+          >
+            <Feather name="edit" size={18} color="#fff" />
+            <Text style={styles.saveBtnText}>Edit Organisation Details</Text>
+          </Pressable>
+        </ScrollView>
+      </View>
+    );
+  }
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -120,14 +212,20 @@ export default function OrganisationSettingsScreen() {
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 12, borderBottomColor: colors.border }]}>
         <Pressable
-          onPress={() => router.back()}
+          onPress={() => {
+            if (isCreated) {
+              setIsEditing(false);
+            } else {
+              router.back();
+            }
+          }}
           style={[styles.backBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
           hitSlop={10}
         >
           <Feather name="chevron-left" size={22} color={colors.foreground} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-          Organisation Details
+          {isCreated ? "Edit Organisation" : "Create Organisation"}
         </Text>
         <View style={{ width: 38 }} />
       </View>
@@ -141,7 +239,7 @@ export default function OrganisationSettingsScreen() {
         <View style={styles.logoSection}>
           <Pressable onPress={pickLogo} style={[styles.logoOutline, { borderColor: colors.primary }]}>
             {logoUri ? (
-              <Image source={{ uri: getMediaUrl(logoUri) }} style={styles.logoImg} />
+              <Image source={{ uri: logoUri.startsWith("http") ? logoUri : logoUri }} style={styles.logoImg} />
             ) : (
               <View style={[styles.logoPlaceholder, { backgroundColor: colors.muted }]}>
                 <Feather name="camera" size={24} color={colors.mutedForeground} />
@@ -157,7 +255,7 @@ export default function OrganisationSettingsScreen() {
         {/* Form Container */}
         <View style={styles.formContainer}>
           <FormInput
-            label="Business Name"
+            label="Business Name *"
             value={businessName}
             onChangeText={setBusinessName}
             icon="briefcase"
@@ -273,7 +371,7 @@ export default function OrganisationSettingsScreen() {
           ) : (
             <>
               <Feather name="check" size={18} color="#fff" />
-              <Text style={styles.saveBtnText}>Save Changes</Text>
+              <Text style={styles.saveBtnText}>{isCreated ? "Save Changes" : "Create Organisation"}</Text>
             </>
           )}
         </Pressable>
@@ -316,6 +414,105 @@ function FormInput({
     </View>
   );
 }
+
+function InfoRow({ icon, label, value, colors }: { icon: keyof typeof Feather.glyphMap; label: string; value: string; colors: any }) {
+  return (
+    <View style={profileStyles.infoRow}>
+      <View style={[profileStyles.infoIconWrap, { backgroundColor: colors.muted }]}>
+        <Feather name={icon} size={16} color={colors.primary} />
+      </View>
+      <View style={profileStyles.infoTextWrap}>
+        <Text style={[profileStyles.infoLabel, { color: colors.mutedForeground }]}>{label}</Text>
+        <Text style={[profileStyles.infoValue, { color: colors.foreground }]}>{value}</Text>
+      </View>
+    </View>
+  );
+}
+
+const profileStyles = StyleSheet.create({
+  heroCard: {
+    padding: 24,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignItems: "center",
+    marginBottom: 24,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 1,
+  },
+  logoContainer: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    borderWidth: 2.5,
+    padding: 3,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+    marginBottom: 16,
+  },
+  logoImg: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 45,
+  },
+  logoPlaceholder: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 45,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  businessName: {
+    fontSize: 22,
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  businessEmail: {
+    fontSize: 14,
+    textAlign: "center",
+  },
+  sectionTitle: {
+    fontSize: 11,
+    letterSpacing: 0.8,
+    paddingLeft: 4,
+    marginBottom: 8,
+  },
+  detailsGrid: {
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 8,
+  },
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+  },
+  infoIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 14,
+  },
+  infoTextWrap: {
+    flex: 1,
+  },
+  infoLabel: {
+    fontSize: 11,
+    fontFamily: "Inter_500Medium",
+    textTransform: "uppercase",
+    marginBottom: 2,
+    letterSpacing: 0.3,
+  },
+  infoValue: {
+    fontSize: 14,
+    fontFamily: "Inter_600SemiBold",
+  },
+});
 
 const styles = StyleSheet.create({
   header: {

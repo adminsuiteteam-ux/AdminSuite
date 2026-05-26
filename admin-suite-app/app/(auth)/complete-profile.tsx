@@ -133,24 +133,7 @@ export default function CompleteProfileScreen() {
         return;
       }
     }
-    if (currentSlide === 3) {
-      if (!businessName.trim()) {
-        setError("Please enter your business name.");
-        return;
-      }
-      if (!orgLocation.trim()) {
-        setError("Please enter your business location.");
-        return;
-      }
-      if (!orgEmail.trim()) {
-        setError("Please enter your business email.");
-        return;
-      }
-      if (!companyLogoUri) {
-        setError("Please upload your company logo.");
-        return;
-      }
-    }
+    // Organisational details are optional, so we do not validate them.
 
     if (currentSlide < totalSlides - 1) {
       animateToSlide(currentSlide + 1);
@@ -480,10 +463,10 @@ export default function CompleteProfileScreen() {
         return (
           <View style={styles.slideContainer}>
             <Text style={[styles.slideTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-              Organisational Details
+              Organisational Details (Optional)
             </Text>
             <Text style={[styles.slideSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Enter details about your organization or business.
+              Enter details about your organization or business. You can skip this step.
             </Text>
 
             {/* Company Logo Section */}
@@ -501,7 +484,7 @@ export default function CompleteProfileScreen() {
                 </View>
               </Pressable>
               <Text style={[styles.avatarSubtext, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-                Upload Company Logo *
+                Upload Company Logo (Optional)
               </Text>
             </View>
 
