@@ -77,8 +77,17 @@ export default function ClientsScreen() {
               </View>
               <Pressable
                 onPress={() => router.push("/client/create" as any)}
-                style={[
-                  { width: 44, height: 44, alignItems: "center", justifyContent: "center", backgroundColor: colors.primary, borderRadius: colors.radius },
+                style={({ pressed }) => [
+                  {
+                    width: 44,
+                    height: 44,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: colors.primary,
+                    borderRadius: colors.radius,
+                    transform: [{ scale: pressed ? 0.92 : 1 }],
+                    opacity: pressed ? 0.85 : 1,
+                  },
                 ]}
               >
               <Feather name="plus" size={18} color={colors.primaryForeground} />
@@ -101,7 +110,7 @@ export default function ClientsScreen() {
                 <Text style={[styles.heroLabel, { fontFamily: "Inter_600SemiBold" }]}>
                   TOTAL CLIENTS
                 </Text>
-                <Text style={[styles.heroNum, { fontFamily: "Inter_700Bold" }]}>
+                <Text style={[styles.heroNum, { fontFamily: "Inter_700Bold", fontVariant: ["tabular-nums"] }]}>
                   {cm.total}
                 </Text>
                 <View style={{ gap: 8, marginTop: 16 }}>
@@ -146,11 +155,13 @@ export default function ClientsScreen() {
                   <Pressable
                     key={t.id}
                     onPress={() => setFilter(t.id)}
-                    style={[
+                    style={({ pressed }) => [
                       styles.tabChip,
                       {
                         backgroundColor: active ? colors.primary : colors.muted,
                         borderRadius: 999,
+                        transform: [{ scale: pressed ? 0.94 : 1 }],
+                        opacity: pressed ? 0.9 : 1,
                       },
                     ]}
                   >
@@ -183,8 +194,8 @@ export default function ClientsScreen() {
                           backgroundColor: colors.card,
                           borderColor: colors.border,
                           borderRadius: colors.radius,
-                          opacity: pressed ? 0.85 : 1,
-                          transform: [{ scale: pressed ? 0.99 : 1 }],
+                          opacity: pressed ? 0.9 : 1,
+                          transform: [{ scale: pressed ? 0.98 : 1 }],
                         },
                       ]}
                     >
@@ -270,6 +281,7 @@ export default function ClientsScreen() {
                               {
                                 color: colors.foreground,
                                 fontFamily: "Inter_700Bold",
+                                fontVariant: ["tabular-nums"],
                               },
                             ]}
                           >
@@ -307,7 +319,7 @@ function Bullet({ color, label, value }: { color: string; label: string; value: 
       <Text style={[styles.bulletLabel, { fontFamily: "Inter_500Medium" }]}>
         {label}
       </Text>
-      <Text style={[styles.bulletValue, { fontFamily: "Inter_700Bold" }]}>
+      <Text style={[styles.bulletValue, { fontFamily: "Inter_700Bold", fontVariant: ["tabular-nums"] }]}>
         {value}
       </Text>
     </View>

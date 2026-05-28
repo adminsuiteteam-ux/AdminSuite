@@ -66,11 +66,13 @@ export default function ProjectsScreen() {
           </View>
           <Pressable
             onPress={() => router.push("/project/create" as any)}
-            style={[
+            style={({ pressed }) => [
               styles.addBtn,
               {
                 backgroundColor: colors.primary,
                 borderRadius: colors.radius,
+                transform: [{ scale: pressed ? 0.92 : 1 }],
+                opacity: pressed ? 0.85 : 1,
               },
             ]}
           >
@@ -89,11 +91,13 @@ export default function ProjectsScreen() {
               <Pressable
                 key={s.id}
                 onPress={() => setFilter(s.id)}
-                style={[
+                style={({ pressed }) => [
                   styles.filterChip,
                   {
                     borderColor: active ? colors.primary : colors.border,
                     backgroundColor: active ? colors.primary : colors.background,
+                    transform: [{ scale: pressed ? 0.94 : 1 }],
+                    opacity: pressed ? 0.9 : 1,
                   },
                 ]}
               >
@@ -124,143 +128,152 @@ export default function ProjectsScreen() {
           <EmptyState text="No projects in this status" />
         ) : (
           filtered.map((p) => (
-            <View
+            <Pressable
               key={p.id}
-              style={[
-                styles.card,
-                {
-                  backgroundColor: colors.card,
-                  borderColor: colors.border,
-                  borderRadius: colors.radius,
-                },
-              ]}
+              onPress={() => router.push(`/project/${p.id}` as any)}
             >
-              <View style={styles.cardHead}>
+              {({ pressed }) => (
                 <View
                   style={[
-                    styles.iconBox,
+                    styles.card,
                     {
-                      backgroundColor: statusColor(p.status, colors) + "1A",
+                      backgroundColor: colors.card,
+                      borderColor: colors.border,
+                      borderRadius: colors.radius,
+                      transform: [{ scale: pressed ? 0.98 : 1 }],
+                      opacity: pressed ? 0.9 : 1,
                     },
                   ]}
                 >
-                  <Feather
-                    name="layers"
-                    size={18}
-                    color={statusColor(p.status, colors)}
-                  />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={[
-                      styles.name,
-                      {
-                        color: colors.foreground,
-                        fontFamily: "Inter_700Bold",
-                      },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {p.name}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.client,
-                      {
-                        color: colors.mutedForeground,
-                        fontFamily: "Inter_500Medium",
-                      },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {p.client_name}
-                  </Text>
-                </View>
-                <View
-                  style={[
-                    styles.statusPill,
-                    { backgroundColor: statusColor(p.status, colors) + "1A" },
-                  ]}
-                >
-                  <Text
-                    style={{
-                      color: statusColor(p.status, colors),
-                      fontFamily: "Inter_600SemiBold",
-                      fontSize: 10,
-                      letterSpacing: 0.4,
-                    }}
-                  >
-                    {p.status.replace("_", " ").toUpperCase()}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.metaRow}>
-                <View>
-                  <Text
-                    style={[
-                      styles.metaLabel,
-                      {
-                        color: colors.mutedForeground,
-                        fontFamily: "Inter_500Medium",
-                      },
-                    ]}
-                  >
-                    Value
-                  </Text>
-                  <Text
-                    style={[
-                      styles.metaValue,
-                      { color: colors.foreground, fontFamily: "Inter_700Bold" },
-                    ]}
-                  >
-                    {fmt(p.value)}
-                  </Text>
-                </View>
-                <View style={{ flex: 1, marginLeft: 24 }}>
-                  <View style={styles.progressHeader}>
-                    <Text
-                      style={[
-                        styles.metaLabel,
-                        {
-                          color: colors.mutedForeground,
-                          fontFamily: "Inter_500Medium",
-                        },
-                      ]}
-                    >
-                      Progress
-                    </Text>
-                    <Text
-                      style={[
-                        styles.progressNum,
-                        {
-                          color: colors.foreground,
-                          fontFamily: "Inter_600SemiBold",
-                        },
-                      ]}
-                    >
-                      {p.progress}%
-                    </Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.progressBg,
-                      { backgroundColor: colors.border },
-                    ]}
-                  >
+                  <View style={styles.cardHead}>
                     <View
                       style={[
-                        styles.progressFill,
+                        styles.iconBox,
                         {
-                          width: `${p.progress}%` as import("react-native").DimensionValue,
-                          backgroundColor: statusColor(p.status, colors),
+                          backgroundColor: statusColor(p.status, colors) + "1A",
                         },
                       ]}
-                    />
+                    >
+                      <Feather
+                        name="layers"
+                        size={18}
+                        color={statusColor(p.status, colors)}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={[
+                          styles.name,
+                          {
+                            color: colors.foreground,
+                            fontFamily: "Inter_700Bold",
+                          },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {p.name}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.client,
+                          {
+                            color: colors.mutedForeground,
+                            fontFamily: "Inter_500Medium",
+                          },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {p.client_name}
+                      </Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.statusPill,
+                        { backgroundColor: statusColor(p.status, colors) + "1A" },
+                      ]}
+                    >
+                      <Text
+                        style={{
+                          color: statusColor(p.status, colors),
+                          fontFamily: "Inter_600SemiBold",
+                          fontSize: 10,
+                          letterSpacing: 0.4,
+                        }}
+                      >
+                        {p.status.replace("_", " ").toUpperCase()}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.metaRow}>
+                    <View>
+                      <Text
+                        style={[
+                          styles.metaLabel,
+                          {
+                            color: colors.mutedForeground,
+                            fontFamily: "Inter_500Medium",
+                          },
+                        ]}
+                      >
+                        Value
+                      </Text>
+                      <Text
+                        style={[
+                          styles.metaValue,
+                          { color: colors.foreground, fontFamily: "Inter_700Bold", fontVariant: ["tabular-nums"] },
+                        ]}
+                      >
+                        {fmt(p.value)}
+                      </Text>
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 24 }}>
+                      <View style={styles.progressHeader}>
+                        <Text
+                          style={[
+                            styles.metaLabel,
+                            {
+                              color: colors.mutedForeground,
+                              fontFamily: "Inter_500Medium",
+                            },
+                          ]}
+                        >
+                          Progress
+                        </Text>
+                        <Text
+                          style={[
+                            styles.progressNum,
+                            {
+                              color: colors.foreground,
+                              fontFamily: "Inter_600SemiBold",
+                              fontVariant: ["tabular-nums"],
+                            },
+                          ]}
+                        >
+                          {p.progress}%
+                        </Text>
+                      </View>
+                      <View
+                        style={[
+                          styles.progressBg,
+                          { backgroundColor: colors.border },
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.progressFill,
+                            {
+                              width: `${p.progress}%` as import("react-native").DimensionValue,
+                              backgroundColor: statusColor(p.status, colors),
+                            },
+                          ]}
+                        />
+                      </View>
+                    </View>
                   </View>
                 </View>
-              </View>
-            </View>
+              )}
+            </Pressable>
           ))
         )}
       </ScrollView>

@@ -106,8 +106,8 @@ export default function TourScreen() {
                   style={[
                     styles.dot,
                     {
-                      backgroundColor: i === index ? "#000000" : "#d4d4d8",
-                      width: i === index ? 8 : 8,
+                      backgroundColor: i === index ? "#000000" : "#e4e4e7",
+                      width: i === index ? 20 : 8,
                     },
                   ]}
                 />
@@ -125,7 +125,16 @@ export default function TourScreen() {
       />
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 32 }]}>
-        <Pressable onPress={finish} hitSlop={10}>
+        <Pressable
+          onPress={finish}
+          hitSlop={10}
+          style={({ pressed }) => [
+            {
+              transform: [{ scale: pressed ? 0.95 : 1 }],
+              opacity: pressed ? 0.6 : 1,
+            },
+          ]}
+        >
           <Text style={[styles.skipBtn, { fontFamily: "Inter_600SemiBold" }]}>
             SKIP
           </Text>
@@ -134,7 +143,10 @@ export default function TourScreen() {
           onPress={next}
           style={({ pressed }) => [
             styles.nextBtn,
-            { opacity: pressed ? 0.8 : 1 },
+            {
+              transform: [{ scale: pressed ? 0.96 : 1 }],
+              opacity: pressed ? 0.9 : 1,
+            },
           ]}
         >
           <Text style={[styles.nextBtnText, { fontFamily: "Inter_600SemiBold" }]}>

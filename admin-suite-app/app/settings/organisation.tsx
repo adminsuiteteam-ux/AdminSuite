@@ -196,8 +196,8 @@ export default function OrganisationSettingsScreen() {
             style={[styles.saveBtn, { backgroundColor: colors.primary, marginTop: 32 }]}
             onPress={() => setIsEditing(true)}
           >
-            <Feather name="edit" size={18} color="#fff" />
-            <Text style={styles.saveBtnText}>Edit Organisation Details</Text>
+            <Feather name="edit" size={18} color={colors.primaryForeground} />
+            <Text style={[styles.saveBtnText, { color: colors.primaryForeground }]}>Edit Organisation Details</Text>
           </Pressable>
         </ScrollView>
       </View>
@@ -367,11 +367,11 @@ export default function OrganisationSettingsScreen() {
           disabled={saving}
         >
           {saving ? (
-            <ActivityIndicator size="small" color="#fff" />
+            <ActivityIndicator size="small" color={colors.primaryForeground} />
           ) : (
             <>
-              <Feather name="check" size={18} color="#fff" />
-              <Text style={styles.saveBtnText}>{isCreated ? "Save Changes" : "Create Organisation"}</Text>
+              <Feather name="check" size={18} color={colors.primaryForeground} />
+              <Text style={[styles.saveBtnText, { color: colors.primaryForeground }]}>{isCreated ? "Save Changes" : "Create Organisation"}</Text>
             </>
           )}
         </Pressable>

@@ -128,7 +128,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.warn('Data fetch failed (Network/Server error):', err);
       if (!background) {
-        setFetchError('Connection to server failed. Please check if the backend is running.');
+        setFetchError('Unable to connect to the server. Please check your internet connection or try again later.');
       }
     } finally {
       if (!background) setLoading(false);

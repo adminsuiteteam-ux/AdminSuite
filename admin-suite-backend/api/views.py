@@ -524,7 +524,8 @@ def send_email_verification(request):
     # TODO(security): In production, integrate an email service (e.g. SendGrid, Amazon SES)
     # to deliver the verification code instead of returning it in the response.
     # For local dev/debugging we print it to console and return in response if settings.DEBUG is True.
-    print(f"--- EMAIL VERIFICATION CODE FOR {email}: {code} ---")
+    from core.safe_logger import safe_log, mask_email
+    safe_log("info", "Verification code generated", extra={"email": mask_email(email), "code": "***"})
 
     response_data = {'message': 'Verification code sent successfully.', 'email': email}
     if settings.DEBUG:
@@ -590,7 +591,9 @@ def export_data(request):
             response['Content-Disposition'] = f'attachment; filename="adminsuite_{export_type}_export.pdf"'
             return response
         except Exception as e:
-            return Response({'error': f'Failed to generate PDF: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            from core.safe_logger import safe_log
+            safe_log("error", "PDF generation failed", extra={"error": str(e)})
+            return Response({'error': 'Failed to generate PDF due to an internal error.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     elif export_format == 'csv':
         response = HttpResponse(content_type='text/csv')

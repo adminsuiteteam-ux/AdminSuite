@@ -33,10 +33,11 @@ if not DEBUG:
         raise ValueError("DJANGO_SECRET_KEY environment variable must be set in production.")
     SECRET_KEY = os.environ['DJANGO_SECRET_KEY']
 else:
-    SECRET_KEY = os.environ.get(
-        'DJANGO_SECRET_KEY',
-        'django-insecure-j#$k!=hb_9o70=3k$1jb7j=x2ym3)e_)7zf3ty=ma+z&9%m^_-'  # Dev fallback only
-    )
+    if 'DJANGO_SECRET_KEY' in os.environ:
+        SECRET_KEY = os.environ['DJANGO_SECRET_KEY']
+    else:
+        import secrets
+        SECRET_KEY = secrets.token_urlsafe(50)
 
 # SECURITY: Set ALLOWED_HOSTS via comma-separated env var in production
 if DEBUG:
@@ -132,7 +133,8 @@ if db_url and (db_url.startswith('postgres://') or db_url.startswith('postgresql
         conn.close()
     except Exception as e:
         import sys
-        print(f"⚠️ Warning: Supabase primary database unreachable. Falling back to SQLite. Error: {e}", file=sys.stderr)
+        # Mask exception to prevent raw credential leaks in console/logs
+        print("⚠️ Warning: Supabase primary database unreachable. Falling back to SQLite.", file=sys.stderr)
         DATABASES['default'] = DATABASES['backup']
 
 
@@ -213,4 +215,44 @@ if not DEBUG:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_BROWSER_XSS_FILTER = True
-    SECURE_CONTENT_TYPE_NOSNIFF = True
+
+# SECURITY: Security headers for all environments (Control 6)
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+
+# SECURITY: Structured logging configuration (Control 2)
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'standard': {
+            'format': '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+        },
+    },
+    'handlers': {
+        'file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'backend.log'),
+            'formatter': 'standard',
+        },
+        'console': {
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
+            'formatter': 'standard',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['file', 'console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'adminsuite': {
+            'handlers': ['file', 'console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+    },
+}

@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { FontAwesome6, Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useState } from "react";
@@ -28,7 +28,7 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 const PRIMARY_SOCIALS = [
-  { key: "whatsapp", icon: "message-circle", color: "#25D366", url: (v: string) => `https://wa.me/${v.replace(/\D/g, "")}` },
+  { key: "whatsapp", icon: "whatsapp", color: "#25D366", url: (v: string) => `https://wa.me/${v.replace(/\D/g, "")}` },
   { key: "facebook", icon: "facebook", color: "#1877F2", url: (v: string) => `https://facebook.com/${v}` },
   { key: "phone", icon: "phone", color: "#0ea5e9", url: (v: string) => `tel:${v}` },
   { key: "instagram", icon: "instagram", color: "#E4405F", url: (v: string) => `https://instagram.com/${v.replace("@", "")}` },
@@ -36,7 +36,7 @@ const PRIMARY_SOCIALS = [
 
 const EXTRA_SOCIALS = [
   { key: "linkedin", icon: "linkedin", color: "#0A66C2", url: (v: string) => `https://linkedin.com/in/${v}` },
-  { key: "discord", icon: "message-square", color: "#5865F2", url: (v: string) => `https://discord.com/users/${v}` },
+  { key: "discord", icon: "discord", color: "#5865F2", url: (v: string) => `https://discord.com/users/${v}` },
   { key: "twitter", icon: "twitter", color: "#1DA1F2", url: (v: string) => `https://twitter.com/${v.replace("@", "")}` },
 ];
 
@@ -194,7 +194,7 @@ export default function EmployeeDetailScreen() {
               {socialButtons.map((btn, idx) => (
                 <SocialIconBtn
                   key={idx}
-                  icon={btn.icon as keyof typeof Feather.glyphMap}
+                  icon={btn.icon}
                   color={btn.color}
                   onPress={btn.onPress}
                 />
@@ -318,10 +318,10 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function SocialIconBtn({ icon, color, onPress }: { icon: keyof typeof Feather.glyphMap; color: string; onPress: () => void }) {
+function SocialIconBtn({ icon, color, onPress }: { icon: string; color: string; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.socialIconBtn, { backgroundColor: color + "1A", opacity: pressed ? 0.7 : 1 }]}>
-      <Feather name={icon} size={18} color={color} />
+      <FontAwesome6 name={icon} size={18} color={color} />
     </Pressable>
   );
 }

@@ -45,10 +45,76 @@ function getAppName() {
   }
 }
 
+function setSecurityHeaders(res) {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("Permissions-Policy", "geolocation=(), microphone=(), camera=()");
+  res.setHeader("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;");
+}
+
+function escapeHTML(str) {
+  if (!str) return "";
+  return str.replace(/[&<>'"]/g, 
+    tag => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      "'": '&#39;',
+      '"': '&quot;'
+    }[tag] || tag)
+  );
+}
+
+function verifyAdminToken(token, callback) {
+  if (!token) {
+    return callback(false);
+  }
+
+  const options = {
+    hostname: "127.0.0.1",
+    port: 8000,
+    path: "/api/me/",
+    method: "GET",
+    headers: {
+      "Authorization": `Token ${token}`,
+      "Accept": "application/json"
+    }
+  };
+
+  const req = http.request(options, (res) => {
+    let data = "";
+    res.on("data", (chunk) => {
+      data += chunk;
+    });
+    res.on("end", () => {
+      if (res.statusCode === 200) {
+        try {
+          const user = JSON.parse(data);
+          if (user && user.role === "admin") {
+            return callback(true);
+          }
+        } catch (e) {
+          // JSON parse failed
+        }
+      }
+      callback(false);
+    });
+  });
+
+  req.on("error", (e) => {
+    console.error("Auth check request failed:", e.message);
+    callback(false);
+  });
+
+  req.end();
+}
+
 function serveManifest(platform, res) {
   const manifestPath = path.join(STATIC_ROOT, platform, "manifest.json");
 
   if (!fs.existsSync(manifestPath)) {
+    setSecurityHeaders(res);
     res.writeHead(404, { "content-type": "application/json" });
     res.end(
       JSON.stringify({ error: `Manifest not found for platform: ${platform}` }),
@@ -57,6 +123,7 @@ function serveManifest(platform, res) {
   }
 
   const manifest = fs.readFileSync(manifestPath, "utf-8");
+  setSecurityHeaders(res);
   res.writeHead(200, {
     "content-type": "application/json",
     "expo-protocol-version": "1",
@@ -77,6 +144,7 @@ function serveLandingPage(req, res, landingPageTemplate, appName) {
     .replace(/EXPS_URL_PLACEHOLDER/g, expsUrl)
     .replace(/APP_NAME_PLACEHOLDER/g, appName);
 
+  setSecurityHeaders(res);
   res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
   res.end(html);
 }
@@ -86,12 +154,14 @@ function serveStaticFile(urlPath, res) {
   const filePath = path.join(STATIC_ROOT, safePath);
 
   if (!filePath.startsWith(STATIC_ROOT)) {
+    setSecurityHeaders(res);
     res.writeHead(403);
     res.end("Forbidden");
     return;
   }
 
   if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+    setSecurityHeaders(res);
     res.writeHead(404);
     res.end("Not Found");
     return;
@@ -100,6 +170,7 @@ function serveStaticFile(urlPath, res) {
   const ext = path.extname(filePath).toLowerCase();
   const contentType = MIME_TYPES[ext] || "application/octet-stream";
   const content = fs.readFileSync(filePath);
+  setSecurityHeaders(res);
   res.writeHead(200, { "content-type": contentType });
   res.end(content);
 }
@@ -124,6 +195,59 @@ const server = http.createServer((req, res) => {
     if (pathname === "/") {
       return serveLandingPage(req, res, landingPageTemplate, appName);
     }
+  }
+
+  if (pathname === "/admin/logs") {
+    let token = "";
+    const authHeader = req.headers["authorization"];
+    if (authHeader && authHeader.startsWith("Token ")) {
+      token = authHeader.substring(6).trim();
+    } else if (authHeader && authHeader.startsWith("Bearer ")) {
+      token = authHeader.substring(7).trim();
+    } else {
+      token = url.searchParams.get("token") || "";
+    }
+
+    setSecurityHeaders(res);
+
+    verifyAdminToken(token, (isAdmin) => {
+      if (!isAdmin) {
+        res.writeHead(403, { "content-type": "text/html; charset=utf-8" });
+        res.end("<h1>403 Forbidden</h1><p>Unauthorized access to log viewer.</p>");
+        return;
+      }
+
+      // Read log file from backend
+      const logFilePath = path.resolve(__dirname, "..", "..", "..", "..", "admin-suite-backend", "backend.log");
+      fs.readFile(logFilePath, "utf8", (err, data) => {
+        if (err) {
+          res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+          res.end("<h1>Admin Logs</h1><p>No logs found or unable to read backend.log.</p>");
+          return;
+        }
+
+        const escapedLogs = escapeHTML(data);
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+        res.end(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>Admin Suite System Logs</title>
+            <style>
+              body { font-family: monospace; background: #121214; color: #e1e1e6; padding: 20px; }
+              pre { background: #1a1a1e; padding: 15px; border-radius: 8px; border: 1px solid #29292e; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; }
+              h1 { color: #4f46e5; border-bottom: 1px solid #29292e; padding-bottom: 10px; }
+            </style>
+          </head>
+          <body>
+            <h1>Admin Suite System Logs</h1>
+            <pre>${escapedLogs}</pre>
+          </body>
+          </html>
+        `);
+      });
+    });
+    return;
   }
 
   serveStaticFile(pathname, res);

@@ -346,4 +346,4 @@ def build_pdf_report(user, export_type, time_filter=None, individual_id=None):
         tx_rows = [[t.date, t.description, t.category, f"${t.amount}", t.type.upper()] for t in txs]
         render_pdf_table(pdf, "Detailed Transaction Ledger", tx_headers, tx_rows, tx_widths)
         
-    return pdf.output(dest="S")
+    return bytes(pdf.output())

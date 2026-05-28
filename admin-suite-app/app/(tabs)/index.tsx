@@ -75,14 +75,26 @@ export default function DashboardScreen() {
             <View style={{ flexDirection: "row", gap: 8 }}>
               <Pressable
                 onPress={() => router.push("/settings" as any)}
-                style={styles.bellBtn}
+                style={({ pressed }) => [
+                  styles.bellBtn,
+                  {
+                    transform: [{ scale: pressed ? 0.92 : 1 }],
+                    opacity: pressed ? 0.8 : 1,
+                  }
+                ]}
                 hitSlop={8}
               >
                 <Feather name="settings" size={19} color="#fff" />
               </Pressable>
               <Pressable
                 onPress={() => setNotifOpen(true)}
-                style={styles.bellBtn}
+                style={({ pressed }) => [
+                  styles.bellBtn,
+                  {
+                    transform: [{ scale: pressed ? 0.92 : 1 }],
+                    opacity: pressed ? 0.8 : 1,
+                  }
+                ]}
                 hitSlop={8}
               >
                 <Feather name="bell" size={20} color="#fff" />
@@ -101,7 +113,7 @@ export default function DashboardScreen() {
             <Text style={[styles.profitLabel, { fontFamily: "Inter_500Medium" }]}>
               Net Profit · This Month
             </Text>
-            <Text style={[styles.profitValue, { fontFamily: "Inter_700Bold" }]}>
+            <Text style={[styles.profitValue, { fontFamily: "Inter_700Bold", fontVariant: ["tabular-nums"] }]}>
               {fmt(m.netProfit)}
             </Text>
             <View style={styles.profitRow}>
@@ -110,7 +122,7 @@ export default function DashboardScreen() {
                 <Text
                   style={[
                     styles.miniLabel,
-                    { fontFamily: "Inter_500Medium" },
+                    { fontFamily: "Inter_500Medium", fontVariant: ["tabular-nums"] },
                   ]}
                 >
                   Income {fmt(m.totalIncome)}
@@ -121,7 +133,7 @@ export default function DashboardScreen() {
                 <Text
                   style={[
                     styles.miniLabel,
-                    { fontFamily: "Inter_500Medium" },
+                    { fontFamily: "Inter_500Medium", fontVariant: ["tabular-nums"] },
                   ]}
                 >
                   Expense {fmt(m.totalExpense)}
@@ -208,14 +220,17 @@ export default function DashboardScreen() {
           />
           <View style={{ gap: 10 }}>
             {activeProjects.map((p) => (
-              <View
+              <Pressable
                 key={p.id}
-                style={[
+                onPress={() => router.push("/(tabs)/projects")}
+                style={({ pressed }) => [
                   styles.projCard,
                   {
                     backgroundColor: colors.card,
                     borderColor: colors.border,
                     borderRadius: colors.radius,
+                    transform: [{ scale: pressed ? 0.98 : 1 }],
+                    opacity: pressed ? 0.9 : 1,
                   },
                 ]}
               >
@@ -262,7 +277,7 @@ export default function DashboardScreen() {
                   <Text
                     style={[
                       styles.projValue,
-                      { color: colors.foreground, fontFamily: "Inter_700Bold" },
+                      { color: colors.foreground, fontFamily: "Inter_700Bold", fontVariant: ["tabular-nums"] },
                     ]}
                   >
                     {fmt(p.value)}
@@ -273,13 +288,14 @@ export default function DashboardScreen() {
                       {
                         color: colors.mutedForeground,
                         fontFamily: "Inter_500Medium",
+                        fontVariant: ["tabular-nums"],
                       },
                     ]}
                   >
                     {p.progress}%
                   </Text>
                 </View>
-              </View>
+              </Pressable>
             ))}
           </View>
         </View>
@@ -305,13 +321,18 @@ export default function DashboardScreen() {
             {recent.map((t, i) => {
               const income = t.type === "income";
               return (
-                <View
+                <Pressable
                   key={t.id}
-                  style={[
+                  onPress={() => router.push("/(tabs)/finance")}
+                  style={({ pressed }) => [
                     styles.txRow,
                     i < recent.length - 1 && {
                       borderBottomWidth: StyleSheet.hairlineWidth,
                       borderBottomColor: colors.border,
+                    },
+                    {
+                      transform: [{ scale: pressed ? 0.985 : 1 }],
+                      opacity: pressed ? 0.9 : 1,
                     },
                   ]}
                 >
@@ -359,13 +380,14 @@ export default function DashboardScreen() {
                       {
                         color: income ? colors.success : colors.danger,
                         fontFamily: "Inter_700Bold",
+                        fontVariant: ["tabular-nums"],
                       },
                     ]}
                   >
                     {income ? "+" : ""}
                     {fmt(t.amount)}
                   </Text>
-                </View>
+                </Pressable>
               );
             })}
           </View>
@@ -400,7 +422,8 @@ function QuickAction({ icon, label, color, onPress }: QuickActionProps) {
           backgroundColor: colors.card,
           borderColor: colors.border,
           borderRadius: colors.radius,
-          opacity: pressed ? 0.7 : 1,
+          transform: [{ scale: pressed ? 0.96 : 1 }],
+          opacity: pressed ? 0.9 : 1,
         },
       ]}
     >

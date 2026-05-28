@@ -76,6 +76,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await SecureStore.deleteItemAsync(TOKEN_KEY);
         apiService.setToken(null);
       }
+
+      // Check and handle stale/invalid Supabase session quietly
+      try {
+        const { data: supabaseSession, error: supabaseError } = await supabase.auth.getSession();
+        if (supabaseError && supabaseError.message.includes("Refresh Token")) {
+          console.warn("Clearing stale Supabase refresh token session...");
+          await supabase.auth.signOut();
+        }
+      } catch (supabaseErr: any) {
+        console.warn("Failed to check Supabase session during init:", supabaseErr?.message);
+      }
+
       setLoading(false);
     })();
   }, []);
@@ -83,8 +95,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (credentials: { username: string; password: string }) => {
     // 1. Sign in with Supabase Auth (resilient session checking)
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData?.session) {
+      const { data: sessionData, error: sessionErr } = await supabase.auth.getSession();
+      if (sessionErr) {
+        console.warn("Supabase getSession error during login:", sessionErr.message);
+        if (sessionErr.message.includes("Refresh Token")) {
+          await supabase.auth.signOut();
+        }
+      }
+      
+      const { data: currentSession } = await supabase.auth.getSession();
+      if (!currentSession?.session) {
         const { error: authError } = await supabase.auth.signInWithPassword({
           email: credentials.username,
           password: credentials.password,
@@ -111,11 +131,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const u = userRes.data;
     u.initials = ((u.name || u.username || u.email || "US")).slice(0, 2).toUpperCase();
     
-    // Store credentials for biometric quick login
-    await Promise.all([
-      SecureStore.setItemAsync("admin-suite.username", credentials.username),
-      SecureStore.setItemAsync("admin-suite.password", credentials.password),
-    ]);
+    // Store username for autocomplete/prefilling (no raw password stored)
+    await SecureStore.setItemAsync("admin-suite.username", credentials.username);
 
     setUser(u);
   };
@@ -167,11 +184,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     try {
       // Register the user on the Django backend
-      await apiService.signup({
+      const signupRes = await apiService.signup({
         email,
         password,
         confirm_password: password,
       });
+      
+      const token = signupRes.data.token;
+      const u = signupRes.data.user;
+      u.initials = ((u.name || u.username || u.email || "US")).slice(0, 2).toUpperCase();
+      
+      await SecureStore.setItemAsync(TOKEN_KEY, token);
+      apiService.setToken(token);
+      
+      // Store email for autocomplete/prefilling (no raw password stored)
+      await SecureStore.setItemAsync("admin-suite.username", email);
+      
+      setUser(u);
+      return;
     } catch (signupErr: any) {
       console.warn("Django signup warning:", signupErr);
       const errorData = signupErr.response?.data;
@@ -179,13 +209,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         errorData?.email?.[0]?.includes("already exists") || 
         (errorData && JSON.stringify(errorData).includes("already exists"));
       
-      // If it's a validation error that is NOT 'already exists', throw it
       if (!isAlreadyExists) {
         throw new Error(signupErr.response?.data?.email?.[0] || signupErr.message || "Failed to register on backend.");
       }
     }
     
-    // Log in to get Django token
+    // Fallback: If user already exists on Django, log in to get Django token
     await login({ username: email, password });
   };
 
@@ -232,11 +261,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     // Note: We DO NOT clear the TOUR_KEY here because the onboarding tour should only be seen by new users.
     
-    // Clear active auth token and saved biometric login credentials
+    // Clear active auth token (username kept for login email prefill)
     await Promise.all([
       SecureStore.deleteItemAsync(TOKEN_KEY),
       SecureStore.deleteItemAsync("admin-suite.username"),
-      SecureStore.deleteItemAsync("admin-suite.password")
     ]);
     
     apiService.setToken(null);

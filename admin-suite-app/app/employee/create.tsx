@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { FontAwesome6, Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -30,7 +30,19 @@ const STEPS = [
   { title: "Photo", subtitle: "Upload a profile photo (optional)" },
 ];
 
-const DEPARTMENTS = ["Engineering", "Product", "Design", "People", "Finance", "Sales", "Marketing", "Operations"];
+const DEPARTMENTS = [
+  "Human Resources",
+  "Finance",
+  "Customer Service",
+  "Legal",
+  "Marketing",
+  "Sales",
+  "Operations",
+  "Product Development",
+  "Procurement",
+  "IT Support",
+  "Other"
+];
 const STATUSES = [
   { id: "active", label: "Active", color: "#22c55e" },
   { id: "on_leave", label: "On Leave", color: "#f97316" },
@@ -49,6 +61,7 @@ export default function CreateEmployeeScreen() {
   const [name, setName] = useState("");
   const [role, setRole] = useState("");
   const [department, setDepartment] = useState("");
+  const [customDepartment, setCustomDepartment] = useState("");
   const [office, setOffice] = useState("");
   const [status, setStatus] = useState("active");
 
@@ -86,7 +99,18 @@ export default function CreateEmployeeScreen() {
       if (emp) {
         setName(emp.name || "");
         setRole(emp.role || "");
-        setDepartment(emp.department || "");
+        
+        if (DEPARTMENTS.includes(emp.department || "")) {
+          setDepartment(emp.department || "");
+          setCustomDepartment("");
+        } else if (emp.department) {
+          setDepartment("Other");
+          setCustomDepartment(emp.department);
+        } else {
+          setDepartment("");
+          setCustomDepartment("");
+        }
+
         setOffice(emp.office || "");
         setStatus(emp.status || "active");
         setEmail(emp.email || "");
@@ -118,7 +142,10 @@ export default function CreateEmployeeScreen() {
   }, [editId, employees]);
 
   const canNext = () => {
-    if (step === 0) return name.trim().length > 0 && role.trim().length > 0 && department.length > 0;
+    if (step === 0) {
+      const depValid = department === "Other" ? customDepartment.trim().length > 0 : department.length > 0;
+      return name.trim().length > 0 && role.trim().length > 0 && depValid;
+    }
     if (step === 1) return email.includes("@");
     return true;
   };
@@ -155,7 +182,8 @@ export default function CreateEmployeeScreen() {
     const formData = new FormData();
     formData.append("name", name);
     formData.append("role", role);
-    formData.append("department", department);
+    const finalDepartment = department === "Other" ? customDepartment.trim() : department;
+    formData.append("department", finalDepartment);
     formData.append("office", office);
     formData.append("status", status);
     formData.append("email", email);
@@ -285,6 +313,9 @@ export default function CreateEmployeeScreen() {
                 </Pressable>
               ))}
             </View>
+            {department === "Other" && (
+              <Field label="Specify Department" value={customDepartment} onChangeText={setCustomDepartment} placeholder="e.g. Research & Development" colors={colors} />
+            )}
             <Field label="Office" value={office} onChangeText={setOffice} placeholder="e.g. Lagos HQ" colors={colors} />
             <Text style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Status</Text>
             <View style={{ flexDirection: "row", gap: 10 }}>
@@ -359,7 +390,7 @@ export default function CreateEmployeeScreen() {
             <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13, marginBottom: 4 }}>
               Add social media handles. Only filled handles will appear on the profile.
             </Text>
-            <SocialField icon="message-circle" iconColor="#25D366" label="WhatsApp" value={whatsapp} onChangeText={setWhatsapp} placeholder="+234..." colors={colors} />
+            <SocialField icon="whatsapp" iconColor="#25D366" label="WhatsApp" value={whatsapp} onChangeText={setWhatsapp} placeholder="+234..." colors={colors} />
             <SocialField icon="facebook" iconColor="#1877F2" label="Facebook" value={facebook} onChangeText={setFacebook} placeholder="username" colors={colors} />
             <SocialField icon="instagram" iconColor="#E4405F" label="Instagram" value={instagram} onChangeText={setInstagram} placeholder="@handle" colors={colors} />
             <SocialField icon="phone" iconColor="#0ea5e9" label="Phone" value={phoneHandle} onChangeText={setPhoneHandle} placeholder="+234..." colors={colors} />
@@ -368,7 +399,7 @@ export default function CreateEmployeeScreen() {
               Additional (optional)
             </Text>
             <SocialField icon="linkedin" iconColor="#0A66C2" label="LinkedIn" value={linkedin} onChangeText={setLinkedin} placeholder="profile URL" colors={colors} />
-            <SocialField icon="message-square" iconColor="#5865F2" label="Discord" value={discord} onChangeText={setDiscord} placeholder="user#1234" colors={colors} />
+            <SocialField icon="discord" iconColor="#5865F2" label="Discord" value={discord} onChangeText={setDiscord} placeholder="username" colors={colors} />
             <SocialField icon="twitter" iconColor="#1DA1F2" label="X / Twitter" value={twitter} onChangeText={setTwitter} placeholder="@handle" colors={colors} />
           </View>
         )}
@@ -455,7 +486,7 @@ function SocialField({ icon, iconColor, label, value, onChangeText, placeholder,
   return (
     <View style={[styles.socialFieldRow, { borderColor: colors.border, borderRadius: colors.radius, backgroundColor: colors.card }]}>
       <View style={[styles.socialIconWrap, { backgroundColor: iconColor + "1A" }]}>
-        <Feather name={icon} size={16} color={iconColor} />
+        <FontAwesome6 name={icon} size={16} color={iconColor} />
       </View>
       <TextInput
         value={value}

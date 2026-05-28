@@ -11,7 +11,7 @@ const getHost = () => {
     const ip = hostUri.split(':')[0];
     if (ip) return ip;
   }
-  return '192.168.7.21'; // Current computer local IP
+  return '192.168.148.152'; // Current computer local IP
 };
 
 const HOST = getHost(); 

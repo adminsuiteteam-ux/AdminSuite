@@ -1,4 +1,4 @@
-import { Feather, AntDesign } from "@expo/vector-icons";
+import { FontAwesome6, Feather, AntDesign } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
 import * as LocalAuthentication from "expo-local-authentication";
@@ -31,10 +31,10 @@ const { width } = Dimensions.get("window");
 // Discovery Sources
 const HEARD_FROM_OPTIONS = [
   { value: "youtube", label: "YouTube", icon: "youtube", color: "#ef4444" },
-  { value: "tiktok", label: "TikTok", icon: "music", color: "#00f2fe" },
+  { value: "tiktok", label: "TikTok", icon: "tiktok", color: "#00f2fe" },
   { value: "facebook", label: "Facebook & Socials", icon: "facebook", color: "#1877f2" },
-  { value: "friend", label: "A Friend / Colleague", icon: "users", color: "#10b981" },
-  { value: "others", label: "Other Sources", icon: "more-horizontal", color: "#6366f1" },
+  { value: "friend", label: "A Friend / Colleague", icon: "user-group", color: "#10b981" },
+  { value: "others", label: "Other Sources", icon: "ellipsis", color: "#6366f1" },
 ] as const;
 
 // Roles
@@ -62,6 +62,20 @@ const ROLE_OPTIONS = [
   },
 ] as const;
 
+function PreviewRow({ icon, label, value, colors }: { icon: keyof typeof Feather.glyphMap; label: string; value: string; colors: any }) {
+  return (
+    <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10, paddingVertical: 4 }}>
+      <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: colors.muted, alignItems: "center", justifyContent: "center", marginTop: 2 }}>
+        <Feather name={icon} size={14} color={colors.primary} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontSize: 10, color: colors.mutedForeground, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 2 }}>{label}</Text>
+        <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: "Inter_500Medium" }}>{value}</Text>
+      </View>
+    </View>
+  );
+}
+
 export default function CompleteProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -72,6 +86,7 @@ export default function CompleteProfileScreen() {
   const slideProgress = useRef(new Animated.Value(0)).current;
 
   // Form State
+  const [name, setName] = useState(user?.name || "");
   const [heardFrom, setHeardFrom] = useState<string>("");
   const [role, setRole] = useState<string>("");
   const [location, setLocation] = useState("");
@@ -102,7 +117,7 @@ export default function CompleteProfileScreen() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const totalSlides = 6;
+  const totalSlides = 7;
 
   const animateToSlide = (index: number) => {
     setCurrentSlide(index);
@@ -124,6 +139,10 @@ export default function CompleteProfileScreen() {
       return;
     }
     if (currentSlide === 2) {
+      if (!name.trim()) {
+        setError("Please enter your full name.");
+        return;
+      }
       if (!location.trim()) {
         setError("Please enter your location.");
         return;
@@ -218,6 +237,7 @@ export default function CompleteProfileScreen() {
     setLoading(true);
     try {
       const formData = new FormData();
+      formData.append("first_name", name.trim());
       formData.append("location", location.trim());
       formData.append("heard_from", heardFrom);
       formData.append("role", role);
@@ -268,7 +288,8 @@ export default function CompleteProfileScreen() {
           ...user,
           profile_complete: true,
           ...res.data,
-          initials: ((res.data.name || user.name || user.username || user.email || "US")).slice(0, 2).toUpperCase(),
+          name: name.trim(),
+          initials: (name.trim() || res.data.name || user.name || user.username || user.email || "US").slice(0, 2).toUpperCase(),
         });
       }
 
@@ -312,12 +333,13 @@ export default function CompleteProfileScreen() {
                       {
                         backgroundColor: isSelected ? colors.primary + "12" : colors.muted,
                         borderColor: isSelected ? colors.primary : colors.border,
-                        opacity: pressed ? 0.9 : 1,
+                        opacity: pressed ? 0.92 : 1,
+                        transform: [{ scale: pressed ? 0.97 : 1 }],
                       },
                     ]}
                   >
                     <View style={[styles.iconCircle, { backgroundColor: opt.color + "18" }]}>
-                      <Feather name={opt.icon as any} size={18} color={opt.color} />
+                      <FontAwesome6 name={opt.icon} size={18} color={opt.color} />
                     </View>
                     <Text style={[styles.choiceText, { color: colors.foreground, fontFamily: isSelected ? "Inter_600SemiBold" : "Inter_500Medium" }]}>
                       {opt.label}
@@ -356,7 +378,8 @@ export default function CompleteProfileScreen() {
                         backgroundColor: isSelected ? colors.primary + "06" : colors.muted,
                         borderColor: isSelected ? colors.primary : colors.border,
                         borderWidth: isSelected ? 2 : 1,
-                        opacity: pressed ? 0.95 : 1,
+                        opacity: pressed ? 0.92 : 1,
+                        transform: [{ scale: pressed ? 0.97 : 1 }],
                       },
                     ]}
                   >
@@ -407,17 +430,32 @@ export default function CompleteProfileScreen() {
                   <Feather name="plus" size={14} color={colors.primaryForeground} />
                 </View>
               </Pressable>
-              <Text style={[styles.avatarSubtext, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-                Add Profile Photo
+              <Text style={[styles.avatarSubtext, { color: colors.mutedForeground, fontFamily: "Inter_500Medium", textAlign: "center" }]}>
+                Add Profile Photo{"\n"}
+                <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular" }}>(Tap circle to select & crop photo)</Text>
               </Text>
             </View>
 
             {/* Fields */}
             <Text style={[styles.inputLabel, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" }]}>
+              Full Name
+            </Text>
+            <View style={[styles.inputContainer, { borderColor: colors.border, borderRadius: colors.radius, marginBottom: 12 }]}>
+              <Feather name="user" size={16} color={colors.mutedForeground} style={{ marginRight: 8 }} />
+              <TextInput
+                value={name}
+                onChangeText={setName}
+                placeholder="e.g. John Doe"
+                placeholderTextColor={colors.mutedForeground}
+                style={[styles.input, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}
+              />
+            </View>
+
+            <Text style={[styles.inputLabel, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" }]}>
               Location
             </Text>
             <View style={[styles.inputContainer, { borderColor: colors.border, borderRadius: colors.radius }]}>
-              <Feather name="map-pin" size={16} color={colors.mutedForeground} />
+              <Feather name="map-pin" size={16} color={colors.mutedForeground} style={{ marginRight: 8 }} />
               <TextInput
                 value={location}
                 onChangeText={setLocation}
@@ -581,19 +619,21 @@ export default function CompleteProfileScreen() {
                   <Pressable
                     key={range}
                     onPress={() => setTotalWorkers(range)}
-                    style={{
+                    style={({ pressed }) => ({
                       flex: 1,
-                      height: 44,
+                      height: 46,
                       borderWidth: 1.5,
-                      borderRadius: 10,
+                      borderRadius: 12,
                       borderColor: isSel ? colors.primary : colors.border,
                       backgroundColor: isSel ? colors.primary + "12" : colors.card,
                       justifyContent: "center",
                       alignItems: "center",
-                    }}
+                      transform: [{ scale: pressed ? 0.95 : 1 }],
+                      opacity: pressed ? 0.85 : 1,
+                    })}
                   >
                     <Text style={{
-                      color: colors.foreground,
+                      color: isSel ? colors.primary : colors.foreground,
                       fontSize: 13,
                       fontFamily: isSel ? "Inter_600SemiBold" : "Inter_500Medium",
                     }}>
@@ -655,19 +695,21 @@ export default function CompleteProfileScreen() {
                         setWorkingDays([...workingDays, day]);
                       }
                     }}
-                    style={{
-                      paddingHorizontal: 12,
-                      height: 36,
-                      borderRadius: 18,
+                    style={({ pressed }) => ({
+                      paddingHorizontal: 14,
+                      height: 38,
+                      borderRadius: 19,
                       borderWidth: 1.5,
                       borderColor: isSel ? colors.primary : colors.border,
                       backgroundColor: isSel ? colors.primary + "12" : colors.card,
                       justifyContent: "center",
                       alignItems: "center",
-                    }}
+                      transform: [{ scale: pressed ? 0.93 : 1 }],
+                      opacity: pressed ? 0.85 : 1,
+                    })}
                   >
                     <Text style={{
-                      color: colors.foreground,
+                      color: isSel ? colors.primary : colors.foreground,
                       fontSize: 12,
                       fontFamily: isSel ? "Inter_600SemiBold" : "Inter_500Medium",
                     }}>
@@ -689,19 +731,21 @@ export default function CompleteProfileScreen() {
                   <Pressable
                     key={rev}
                     onPress={() => setAverageRevenue(rev)}
-                    style={{
+                    style={({ pressed }) => ({
                       flex: 1,
-                      height: 44,
+                      height: 46,
                       borderWidth: 1.5,
-                      borderRadius: 10,
+                      borderRadius: 12,
                       borderColor: isSel ? colors.primary : colors.border,
                       backgroundColor: isSel ? colors.primary + "12" : colors.card,
                       justifyContent: "center",
                       alignItems: "center",
-                    }}
+                      transform: [{ scale: pressed ? 0.95 : 1 }],
+                      opacity: pressed ? 0.85 : 1,
+                    })}
                   >
                     <Text style={{
-                      color: colors.foreground,
+                      color: isSel ? colors.primary : colors.foreground,
                       fontSize: 12,
                       textAlign: "center",
                       fontFamily: isSel ? "Inter_600SemiBold" : "Inter_500Medium",
@@ -829,6 +873,111 @@ export default function CompleteProfileScreen() {
           </View>
         );
 
+      case 6:
+        return (
+          <View style={styles.slideContainer}>
+            <Text style={[styles.slideTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+              Verify Profile Details
+            </Text>
+            <Text style={[styles.slideSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              Do you like your profile like this, or do you want to make changes?
+            </Text>
+
+            <ScrollView style={{ flex: 1, maxHeight: 380 }} showsVerticalScrollIndicator={false}>
+              <View style={[styles.choiceCard, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, padding: 18, borderRadius: 20, flexDirection: "column", gap: 14, alignItems: "stretch" }]}>
+                
+                {/* Header Summary */}
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
+                  <View>
+                    {avatarUri ? (
+                      <Image source={{ uri: avatarUri }} style={{ width: 64, height: 64, borderRadius: 32 }} />
+                    ) : (
+                      <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: colors.muted, alignItems: "center", justifyContent: "center" }}>
+                        <Feather name="user" size={28} color={colors.mutedForeground} />
+                      </View>
+                    )}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 18, color: colors.foreground, fontFamily: "Inter_700Bold" }}>
+                      {name || "Your Name"}
+                    </Text>
+                    <Text style={{ fontSize: 13, color: colors.primary, fontFamily: "Inter_600SemiBold", textTransform: "capitalize" }}>
+                      {role === "admin" ? "Company Administrator" : role === "hr" ? "HR & People Manager" : role === "manager" ? "Project / Team Lead" : "Team Member"}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={{ height: 1, backgroundColor: colors.border }} />
+
+                {/* Details Grid */}
+                <View style={{ gap: 12 }}>
+                  <PreviewRow icon="map-pin" label="Location" value={location || "Not specified"} colors={colors} />
+                  <PreviewRow icon="phone" label="Phone" value={phone || "Not specified"} colors={colors} />
+                  <PreviewRow icon="file-text" label="Bio" value={bio || "No bio added"} colors={colors} />
+                  <PreviewRow icon="info" label="Heard From" value={heardFrom || "Not specified"} colors={colors} />
+                </View>
+
+                {/* Org details if filled */}
+                {(businessName || orgLocation || orgEmail) && (
+                  <>
+                    <View style={{ height: 1, backgroundColor: colors.border }} />
+                    <Text style={{ fontSize: 11, fontFamily: "Inter_700Bold", color: colors.mutedForeground, letterSpacing: 0.5 }}>ORGANISATION DETAILS</Text>
+                    <View style={{ gap: 12 }}>
+                      {businessName ? <PreviewRow icon="briefcase" label="Business Name" value={businessName} colors={colors} /> : null}
+                      {orgLocation ? <PreviewRow icon="map-pin" label="Business Location" value={orgLocation} colors={colors} /> : null}
+                      {orgEmail ? <PreviewRow icon="mail" label="Business Email" value={orgEmail} colors={colors} /> : null}
+                      {companyLine ? <PreviewRow icon="phone" label="Company Phone" value={companyLine} colors={colors} /> : null}
+                      {totalWorkers ? <PreviewRow icon="users" label="Workers Count" value={totalWorkers} colors={colors} /> : null}
+                    </View>
+                  </>
+                )}
+
+                <View style={{ height: 1, backgroundColor: colors.border }} />
+                
+                {/* Security choices */}
+                <View style={{ flexDirection: "row", gap: 16 }}>
+                  <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Feather name="shield" size={16} color={biometricsActive ? colors.success : colors.mutedForeground} />
+                    <Text style={{ color: colors.foreground, fontSize: 12, fontFamily: "Inter_500Medium" }}>
+                      Biometrics: {biometricsActive ? "Enabled" : "Disabled"}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Feather name="bell" size={16} color={notificationsActive ? colors.success : colors.mutedForeground} />
+                    <Text style={{ color: colors.foreground, fontSize: 12, fontFamily: "Inter_500Medium" }}>
+                      Notifications: {notificationsActive ? "Enabled" : "Disabled"}
+                    </Text>
+                  </View>
+                </View>
+
+              </View>
+
+              <Pressable
+                onPress={() => animateToSlide(2)}
+                style={({ pressed }) => [
+                  {
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    paddingVertical: 12,
+                    borderRadius: 12,
+                    borderWidth: 1.5,
+                    borderColor: colors.border,
+                    marginTop: 14,
+                    backgroundColor: colors.card,
+                    opacity: pressed ? 0.8 : 1
+                  }
+                ]}
+              >
+                <Feather name="edit-2" size={14} color={colors.primary} style={{ marginRight: 6 }} />
+                <Text style={{ color: colors.primary, fontFamily: "Inter_600SemiBold", fontSize: 14 }}>
+                  Make Changes
+                </Text>
+              </Pressable>
+            </ScrollView>
+          </View>
+        );
+
       default:
         return null;
     }
@@ -938,14 +1087,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   progressBarBg: {
-    height: 4,
-    borderRadius: 2,
+    height: 5,
+    borderRadius: 3,
     marginTop: 18,
     overflow: "hidden",
   },
   progressBarFill: {
     height: "100%",
-    borderRadius: 2,
+    borderRadius: 3,
   },
   card: {
     flex: 1,
@@ -956,13 +1105,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   slideTitle: {
-    fontSize: 24,
-    letterSpacing: -0.6,
-    marginBottom: 8,
+    fontSize: 26,
+    letterSpacing: -0.7,
+    marginBottom: 10,
   },
   slideSub: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 15,
+    lineHeight: 22,
     marginBottom: 24,
   },
   optionsList: {
@@ -1027,14 +1176,14 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   avatarImage: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
   },
   avatarPlaceholder: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1064,13 +1213,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 14,
-    height: 48,
+    height: 52,
     borderWidth: 1,
     gap: 10,
   },
   input: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 15,
   },
   heroCenter: {
     alignItems: "center",

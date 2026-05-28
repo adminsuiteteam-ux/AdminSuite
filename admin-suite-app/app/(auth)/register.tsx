@@ -186,6 +186,7 @@ export default function RegisterScreen() {
   const tickScale = useRef(new Animated.Value(0)).current;
   const tickOpacity = useRef(new Animated.Value(0)).current;
   const inputRefs = useRef<(TextInput | null)[]>([]);
+  const isVerifyingRef = useRef(false);
 
   const [showPwd, setShowPwd] = useState(false);
   const [showConfirmPwd, setShowConfirmPwd] = useState(false);
@@ -194,7 +195,7 @@ export default function RegisterScreen() {
   const [success, setSuccess] = useState("");
 
   const isTablet = width >= 768;
-  const boxWidth = Math.min(36, Math.floor((width - (isTablet ? 140 : 80)) / 9));
+  const boxWidth = Math.min(36, Math.floor((width - (isTablet ? 140 : 80)) / 11));
   const [mobileIntro, setMobileIntro] = useState(!isTablet);
 
   const introOpacity = useRef(new Animated.Value(1)).current;
@@ -292,6 +293,9 @@ export default function RegisterScreen() {
   };
 
   const handleVerifyCode = async (codeToVerify?: string) => {
+    if (isVerifyingRef.current || isVerified) return;
+    isVerifyingRef.current = true;
+
     setError("");
     setSuccess("");
     setHasOtpError(false);
@@ -300,6 +304,7 @@ export default function RegisterScreen() {
     if (codeString.length !== 8) {
       setError("Please enter the 8-digit verification code.");
       setHasOtpError(true);
+      isVerifyingRef.current = false;
       return;
     }
 
@@ -332,6 +337,7 @@ export default function RegisterScreen() {
       setError(err.message || "Invalid or expired verification code.");
     } finally {
       setLoading(false);
+      isVerifyingRef.current = false;
     }
   };
 
@@ -397,10 +403,10 @@ export default function RegisterScreen() {
     if (step === "credentials") {
       return (
         <View style={styles.formContainer}>
-          <Text style={styles.formTitle}>
+          <Text style={[styles.formTitle, { color: colors.foreground }]}>
             Create Account
           </Text>
-          <Text style={styles.formSubtitle}>
+          <Text style={[styles.formSubtitle, { color: colors.mutedForeground }]}>
             Sign up to start managing your business with ease.
           </Text>
 
@@ -420,52 +426,52 @@ export default function RegisterScreen() {
             </View>
           )}
 
-          <Text style={styles.fieldLabel}>
+          <Text style={[styles.fieldLabel, { color: colors.foreground }]}>
             Email
           </Text>
-          <View style={styles.inputContainer}>
+          <View style={[styles.inputContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <TextInput
               value={email}
               onChangeText={setEmail}
               placeholder="Input your email"
-              placeholderTextColor="#8e8e93"
+              placeholderTextColor={colors.mutedForeground}
               autoCapitalize="none"
               keyboardType="email-address"
-              style={styles.textInput}
+              style={[styles.textInput, { color: colors.foreground }]}
             />
           </View>
 
-          <Text style={styles.fieldLabel}>
+          <Text style={[styles.fieldLabel, { color: colors.foreground }]}>
             Password
           </Text>
-          <View style={styles.inputContainer}>
+          <View style={[styles.inputContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <TextInput
               value={password}
               onChangeText={setPassword}
               placeholder="Input your password"
-              placeholderTextColor="#8e8e93"
+              placeholderTextColor={colors.mutedForeground}
               secureTextEntry={!showPwd}
-              style={styles.textInput}
+              style={[styles.textInput, { color: colors.foreground }]}
             />
             <Pressable onPress={() => setShowPwd((s) => !s)} hitSlop={10} style={styles.eyeBtn}>
-              <Feather name={showPwd ? "eye-off" : "eye"} size={16} color="#8e8e93" />
+              <Feather name={showPwd ? "eye-off" : "eye"} size={16} color={colors.mutedForeground} />
             </Pressable>
           </View>
 
-          <Text style={styles.fieldLabel}>
+          <Text style={[styles.fieldLabel, { color: colors.foreground }]}>
             Confirm Password
           </Text>
-          <View style={styles.inputContainer}>
+          <View style={[styles.inputContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <TextInput
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               placeholder="Input your password name"
-              placeholderTextColor="#8e8e93"
+              placeholderTextColor={colors.mutedForeground}
               secureTextEntry={!showConfirmPwd}
-              style={styles.textInput}
+              style={[styles.textInput, { color: colors.foreground }]}
             />
             <Pressable onPress={() => setShowConfirmPwd((s) => !s)} hitSlop={10} style={styles.eyeBtn}>
-              <Feather name={showConfirmPwd ? "eye-off" : "eye"} size={16} color="#8e8e93" />
+              <Feather name={showConfirmPwd ? "eye-off" : "eye"} size={16} color={colors.mutedForeground} />
             </Pressable>
           </View>
 
@@ -492,10 +498,14 @@ export default function RegisterScreen() {
             disabled={loading}
             style={({ pressed }) => [
               styles.submitButton,
-              { opacity: pressed || loading ? 0.9 : 1 }
+              {
+                backgroundColor: colors.primary,
+                opacity: pressed || loading ? 0.85 : 1,
+                transform: [{ scale: pressed && !loading ? 0.96 : 1 }],
+              }
             ]}
           >
-            <Text style={styles.submitButtonText}>
+            <Text style={[styles.submitButtonText, { color: colors.primaryForeground }]}>
               {loading ? "Creating..." : "Sign up"}
             </Text>
           </Pressable>
@@ -503,12 +513,12 @@ export default function RegisterScreen() {
 
 
           <View style={styles.footerLinkRow}>
-            <Text style={styles.footerText}>
+            <Text style={[styles.footerText, { color: colors.mutedForeground }]}>
               Already have an account?{" "}
             </Text>
             <Link href="/(auth)/login" asChild>
               <Pressable hitSlop={6}>
-                <Text style={styles.footerLinkText}>
+                <Text style={[styles.footerLinkText, { color: colors.primary }]}>
                   Sign in here
                 </Text>
               </Pressable>
@@ -526,14 +536,14 @@ export default function RegisterScreen() {
 
     return (
       <View style={styles.formContainer}>
-        <Text style={styles.formTitle}>
+        <Text style={[styles.formTitle, { color: colors.foreground }]}>
           Verify Your Email
         </Text>
-        <Text style={styles.formSubtitle}>
+        <Text style={[styles.formSubtitle, { color: colors.mutedForeground }]}>
           We've sent an 8-digit code to {email}
         </Text>
 
-        <Text style={styles.fieldLabel}>
+        <Text style={[styles.fieldLabel, { color: colors.foreground }]}>
           Verification Code
         </Text>
 
@@ -636,10 +646,14 @@ export default function RegisterScreen() {
           disabled={loading || isVerified}
           style={({ pressed }) => [
             styles.submitButton,
-            { opacity: pressed || loading || isVerified ? 0.9 : 1 }
+            {
+              backgroundColor: colors.primary,
+              opacity: pressed || loading || isVerified ? 0.85 : 1,
+              transform: [{ scale: pressed && !loading && !isVerified ? 0.96 : 1 }],
+            }
           ]}
         >
-          <Text style={styles.submitButtonText}>
+          <Text style={[styles.submitButtonText, { color: colors.primaryForeground }]}>
             {loading ? "Verifying..." : "Verify & Create Account"}
           </Text>
         </Pressable>
@@ -648,7 +662,7 @@ export default function RegisterScreen() {
           onPress={() => {
             setError("");
             setSuccess("");
-            setOtpValues(Array(8).fill(""));
+            setOtpValues(Array(6).fill(""));
             setStep("credentials");
           }}
           disabled={loading || isVerified}
@@ -703,7 +717,7 @@ export default function RegisterScreen() {
         showsVerticalScrollIndicator={false}
       >
         {isTablet ? (
-          <View style={styles.splitFrame}>
+          <View style={[styles.splitFrame, { borderColor: colors.border, backgroundColor: colors.card }]}>
             {/* Left Panel */}
             <View style={styles.leftPanel}>
               <GeometricBackground />
@@ -731,7 +745,7 @@ export default function RegisterScreen() {
             </View>
 
             {/* Right Panel containing the form */}
-            <View style={styles.rightPanel}>
+            <View style={[styles.rightPanel, { backgroundColor: colors.card }]}>
               {renderFormContent()}
             </View>
           </View>

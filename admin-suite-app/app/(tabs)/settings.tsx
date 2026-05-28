@@ -19,7 +19,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as SecureStore from "expo-secure-store";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -194,7 +194,14 @@ export default function ProfileScreen() {
                 )}
               </View>
               <Pressable
-                style={[styles.editBtn, { backgroundColor: "rgba(255,255,255,0.15)" }]}
+                style={({ pressed }) => [
+                  styles.editBtn,
+                  {
+                    backgroundColor: "rgba(255,255,255,0.15)",
+                    transform: [{ scale: pressed ? 0.94 : 1 }],
+                    opacity: pressed ? 0.8 : 1,
+                  }
+                ]}
                 onPress={() => {
                   setEditName(user?.name || "");
                   setEditLocation(user?.location || "");
@@ -326,18 +333,34 @@ export default function ProfileScreen() {
             ) : null}
 
             <View style={modalStyles.footer}>
-              <Pressable style={[modalStyles.cancelBtn, { borderColor: colors.border }]} onPress={() => setEditOpen(false)}>
+              <Pressable
+                style={({ pressed }) => [
+                  modalStyles.cancelBtn,
+                  {
+                    borderColor: colors.border,
+                    transform: [{ scale: pressed ? 0.96 : 1 }],
+                  }
+                ]}
+                onPress={() => setEditOpen(false)}
+              >
                 <Text style={[modalStyles.cancelText, { color: colors.foreground }]}>Cancel</Text>
               </Pressable>
               <Pressable
-                style={[modalStyles.saveBtn, { backgroundColor: colors.primary, opacity: editLoading ? 0.6 : 1 }]}
+                style={({ pressed }) => [
+                  modalStyles.saveBtn,
+                  {
+                    backgroundColor: colors.primary,
+                    opacity: editLoading ? 0.6 : pressed ? 0.9 : 1,
+                    transform: [{ scale: pressed && !editLoading ? 0.96 : 1 }],
+                  }
+                ]}
                 onPress={handleUpdateProfile}
                 disabled={editLoading}
               >
-                {editLoading ? <ActivityIndicator size="small" color="#fff" /> : (
+                {editLoading ? <ActivityIndicator size="small" color={colors.primaryForeground} /> : (
                   <>
-                    <Feather name="check" size={16} color="#fff" />
-                    <Text style={modalStyles.saveBtnText}>Save Changes</Text>
+                    <Feather name="check" size={16} color={colors.primaryForeground} />
+                    <Text style={[modalStyles.saveBtnText, { color: colors.primaryForeground }]}>Save Changes</Text>
                   </>
                 )}
               </Pressable>
@@ -371,9 +394,14 @@ export default function ProfileScreen() {
                     {(["pdf", "csv"] as const).map((f) => (
                       <Pressable
                         key={f}
-                        style={[
+                        style={({ pressed }) => [
                           modalStyles.chip,
-                          { borderColor: exportFormat === f ? colors.primary : colors.border, backgroundColor: exportFormat === f ? colors.primary + "1A" : "transparent" },
+                          {
+                            borderColor: exportFormat === f ? colors.primary : colors.border,
+                            backgroundColor: exportFormat === f ? colors.primary + "1A" : "transparent",
+                            transform: [{ scale: pressed ? 0.94 : 1 }],
+                            opacity: pressed ? 0.9 : 1,
+                          },
                         ]}
                         onPress={() => setExportFormat(f)}
                       >
@@ -391,9 +419,14 @@ export default function ProfileScreen() {
                     {(["general", "client", "employee", "financials"] as const).map((t) => (
                       <Pressable
                         key={t}
-                        style={[
+                        style={({ pressed }) => [
                           modalStyles.chip,
-                          { borderColor: exportType === t ? colors.primary : colors.border, backgroundColor: exportType === t ? colors.primary + "1A" : "transparent" },
+                          {
+                            borderColor: exportType === t ? colors.primary : colors.border,
+                            backgroundColor: exportType === t ? colors.primary + "1A" : "transparent",
+                            transform: [{ scale: pressed ? 0.94 : 1 }],
+                            opacity: pressed ? 0.9 : 1,
+                          },
                         ]}
                         onPress={() => setExportType(t)}
                       >
@@ -419,9 +452,14 @@ export default function ProfileScreen() {
                     ].map(({ key, label }) => (
                       <Pressable
                         key={key}
-                        style={[
+                        style={({ pressed }) => [
                           modalStyles.chip,
-                          { borderColor: exportTimeFilter === key ? colors.primary : colors.border, backgroundColor: exportTimeFilter === key ? colors.primary + "1A" : "transparent" },
+                          {
+                            borderColor: exportTimeFilter === key ? colors.primary : colors.border,
+                            backgroundColor: exportTimeFilter === key ? colors.primary + "1A" : "transparent",
+                            transform: [{ scale: pressed ? 0.94 : 1 }],
+                            opacity: pressed ? 0.9 : 1,
+                          },
                         ]}
                         onPress={() => setExportTimeFilter(key)}
                       >
@@ -441,11 +479,27 @@ export default function ProfileScreen() {
             ) : null}
 
             <View style={modalStyles.footer}>
-              <Pressable style={[modalStyles.cancelBtn, { borderColor: colors.border }]} onPress={() => setExportOpen(false)}>
+              <Pressable
+                style={({ pressed }) => [
+                  modalStyles.cancelBtn,
+                  {
+                    borderColor: colors.border,
+                    transform: [{ scale: pressed ? 0.96 : 1 }],
+                  }
+                ]}
+                onPress={() => setExportOpen(false)}
+              >
                 <Text style={[modalStyles.cancelText, { color: colors.foreground }]}>Cancel</Text>
               </Pressable>
               <Pressable
-                style={[modalStyles.saveBtn, { backgroundColor: "#10b981", opacity: exportLoading ? 0.6 : 1 }]}
+                style={({ pressed }) => [
+                  modalStyles.saveBtn,
+                  {
+                    backgroundColor: "#10b981",
+                    opacity: exportLoading ? 0.6 : pressed ? 0.9 : 1,
+                    transform: [{ scale: pressed && !exportLoading ? 0.96 : 1 }],
+                  }
+                ]}
                 onPress={handleTriggerExport}
                 disabled={exportLoading}
               >
@@ -482,13 +536,28 @@ export default function ProfileScreen() {
 
             <View style={[modalStyles.footer, { marginTop: 20, gap: 10 }]}>
               <Pressable
-                style={[modalStyles.cancelBtn, { borderColor: colors.border, flex: 1 }]}
+                style={({ pressed }) => [
+                  modalStyles.cancelBtn,
+                  {
+                    borderColor: colors.border,
+                    flex: 1,
+                    transform: [{ scale: pressed ? 0.96 : 1 }],
+                  }
+                ]}
                 onPress={() => setSignOutOpen(false)}
               >
                 <Text style={[modalStyles.cancelText, { color: colors.foreground }]}>Cancel</Text>
               </Pressable>
               <Pressable
-                style={[modalStyles.saveBtn, { backgroundColor: "#ef4444", flex: 1, opacity: signOutLoading ? 0.6 : 1 }]}
+                style={({ pressed }) => [
+                  modalStyles.saveBtn,
+                  {
+                    backgroundColor: "#ef4444",
+                    flex: 1,
+                    opacity: signOutLoading ? 0.6 : pressed ? 0.9 : 1,
+                    transform: [{ scale: pressed && !signOutLoading ? 0.96 : 1 }],
+                  }
+                ]}
                 onPress={async () => {
                   setSignOutLoading(true);
                   try {
@@ -602,49 +671,54 @@ function Row({ icon, label, hint, onPress }: { icon: keyof typeof Feather.glyphM
   const colors = useColors();
   return (
     <Pressable onPress={onPress}>
-      <View
-        style={[
-          styles.row,
-          {
-            backgroundColor: colors.card,
-            borderColor: colors.border,
-            borderRadius: colors.radius,
-          },
-        ]}
-      >
+      {({ pressed }) => (
         <View
           style={[
-            styles.rowIcon,
-            { backgroundColor: colors.primary + "1A" },
+            styles.row,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              borderRadius: colors.radius,
+              transform: [{ scale: pressed ? 0.98 : 1 }],
+              opacity: pressed ? 0.9 : 1,
+            },
           ]}
         >
-          <Feather name={icon} size={16} color={colors.primary} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text
+          <View
             style={[
-              styles.rowLabel,
-              { color: colors.foreground, fontFamily: "Inter_600SemiBold" },
+              styles.rowIcon,
+              { backgroundColor: colors.primary + "1A" },
             ]}
           >
-            {label}
-          </Text>
-          {hint ? (
+            <Feather name={icon} size={16} color={colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
             <Text
               style={[
-                styles.rowHint,
-                {
-                  color: colors.mutedForeground,
-                  fontFamily: "Inter_400Regular",
-                },
+                styles.rowLabel,
+                { color: colors.foreground, fontFamily: "Inter_600SemiBold" },
               ]}
             >
-              {hint}
+              {label}
             </Text>
-          ) : null}
+            {hint ? (
+              <Text
+                style={[
+                  styles.rowHint,
+                  {
+                    color: colors.mutedForeground,
+                    fontFamily: "Inter_400Regular",
+                    fontVariant: hint.includes("companies") || hint.includes("CSV") ? ["tabular-nums"] : undefined,
+                  },
+                ]}
+              >
+                {hint}
+              </Text>
+            ) : null}
+          </View>
+          <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
         </View>
-        <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
-      </View>
+      )}
     </Pressable>
   );
 }

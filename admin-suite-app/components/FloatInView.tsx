@@ -26,14 +26,14 @@ export function FloatInView({
         duration,
         delay,
         useNativeDriver: true,
-        easing: Easing.out(Easing.cubic),
+        easing: Easing.bezier(0.16, 1, 0.3, 1),
       }),
       Animated.timing(ty, {
         toValue: 0,
         duration,
         delay,
         useNativeDriver: true,
-        easing: Easing.out(Easing.cubic),
+        easing: Easing.bezier(0.16, 1, 0.3, 1),
       }),
     ]).start();
   }, [delay, duration, opacity, ty]);

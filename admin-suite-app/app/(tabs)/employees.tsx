@@ -88,13 +88,15 @@ export default function EmployeesScreen() {
                 {filtered.length} of {employees.length} people
               </Text>
             </View>
-            <Pressable
+             <Pressable
               onPress={() => router.push("/employee/create" as any)}
-              style={[
+              style={({ pressed }) => [
                 styles.addBtn,
                 {
                   backgroundColor: colors.primary,
                   borderRadius: colors.radius,
+                  transform: [{ scale: pressed ? 0.92 : 1 }],
+                  opacity: pressed ? 0.85 : 1,
                 },
               ]}
             >
@@ -136,15 +138,17 @@ export default function EmployeesScreen() {
           {FILTERS.map((f) => {
             const active = filter === f.id;
             return (
-              <Pressable
+               <Pressable
                 key={f.id}
                 onPress={() => setFilter(f.id)}
-                style={[
+                style={({ pressed }) => [
                   styles.filterChip,
                   {
                     borderColor: active ? colors.primary : colors.border,
                     backgroundColor: active ? colors.primary : colors.card,
                     borderRadius: 999,
+                    transform: [{ scale: pressed ? 0.94 : 1 }],
+                    opacity: pressed ? 0.9 : 1,
                   },
                 ]}
               >
@@ -178,15 +182,15 @@ export default function EmployeesScreen() {
             <FloatInView key={e.id} delay={i * 50}>
               <Pressable onPress={() => router.push(`/employee/${e.id}` as any)}>
                 {({ pressed }) => (
-                  <View
+                   <View
                     style={[
                       styles.row,
                       {
                         backgroundColor: colors.card,
                         borderColor: colors.border,
                         borderRadius: colors.radius,
-                        opacity: pressed ? 0.85 : 1,
-                        transform: [{ scale: pressed ? 0.99 : 1 }],
+                        opacity: pressed ? 0.9 : 1,
+                        transform: [{ scale: pressed ? 0.98 : 1 }],
                       },
                     ]}
                   >
@@ -236,12 +240,13 @@ export default function EmployeesScreen() {
                       </View>
                     </View>
                     <View style={{ alignItems: "flex-end" }}>
-                      <Text
+                       <Text
                         style={[
                           styles.salary,
                           {
                             color: colors.foreground,
                             fontFamily: "Inter_700Bold",
+                            fontVariant: ["tabular-nums"],
                           },
                         ]}
                       >

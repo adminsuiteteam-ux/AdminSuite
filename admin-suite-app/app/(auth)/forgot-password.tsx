@@ -38,7 +38,15 @@ export default function ForgotPasswordScreen() {
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <Pressable
           onPress={() => router.back()}
-          style={[styles.backBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+          style={({ pressed }) => [
+            styles.backBtn,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              transform: [{ scale: pressed ? 0.92 : 1 }],
+              opacity: pressed ? 0.8 : 1,
+            },
+          ]}
           hitSlop={10}
         >
           <Feather name="chevron-left" size={22} color={colors.foreground} />
@@ -79,7 +87,10 @@ export default function ForgotPasswordScreen() {
             <Pressable
               style={({ pressed }) => [
                 styles.primaryBtn,
-                { opacity: pressed || loading ? 0.8 : 1 },
+                {
+                  opacity: pressed || loading ? 0.85 : 1,
+                  transform: [{ scale: pressed && !loading ? 0.96 : 1 }],
+                },
               ]}
               onPress={onSubmit}
               disabled={loading || !email}
@@ -94,7 +105,10 @@ export default function ForgotPasswordScreen() {
             <Pressable
               style={({ pressed }) => [
                 styles.primaryBtn,
-                { opacity: pressed ? 0.8 : 1 },
+                {
+                  opacity: pressed ? 0.85 : 1,
+                  transform: [{ scale: pressed ? 0.96 : 1 }],
+                },
               ]}
               onPress={() => router.replace("/(auth)/login")}
             >
@@ -139,11 +153,12 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
+    letterSpacing: -0.5,
     marginBottom: 12,
   },
   subtitle: {
     fontSize: 15,
-    lineHeight: 22,
+    lineHeight: 23,
     marginBottom: 32,
   },
   form: {

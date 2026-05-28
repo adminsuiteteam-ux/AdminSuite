@@ -99,7 +99,8 @@ export default function LockScreen() {
                 {
                   backgroundColor: colors.card,
                   borderColor: errorMsg ? colors.danger : colors.border,
-                  opacity: pressed ? 0.8 : 1,
+                  transform: [{ scale: pressed ? 0.94 : 1 }],
+                  opacity: pressed ? 0.9 : 1,
                 },
               ]}
             >
@@ -133,7 +134,12 @@ export default function LockScreen() {
           onPress={handleUsePassword}
           style={({ pressed }) => [
             styles.usePasswordBtn,
-            { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.8 : 1 },
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              transform: [{ scale: pressed ? 0.97 : 1 }],
+              opacity: pressed ? 0.9 : 1,
+            },
           ]}
         >
           <Text style={[styles.usePasswordText, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>

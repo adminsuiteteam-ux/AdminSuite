@@ -71,9 +71,14 @@ export default function ClientDetailScreen() {
           <View style={styles.topRow}>
             <Pressable
               onPress={() => router.back()}
-              style={[
+              style={({ pressed }) => [
                 styles.iconBtn,
-                { backgroundColor: colors.card, borderColor: colors.border },
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                  transform: [{ scale: pressed ? 0.92 : 1 }],
+                  opacity: pressed ? 0.8 : 1,
+                },
               ]}
               hitSlop={10}
             >
@@ -89,9 +94,14 @@ export default function ClientDetailScreen() {
             </Text>
             <Pressable
               onPress={() => onAction("Edit")}
-              style={[
+              style={({ pressed }) => [
                 styles.iconBtn,
-                { backgroundColor: colors.card, borderColor: colors.border },
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                  transform: [{ scale: pressed ? 0.92 : 1 }],
+                  opacity: pressed ? 0.8 : 1,
+                },
               ]}
               hitSlop={10}
             >
@@ -144,7 +154,7 @@ export default function ClientDetailScreen() {
 
               <View style={styles.heroStats}>
                 <View style={styles.heroStat}>
-                  <Text style={[styles.heroStatValue, { fontFamily: "Inter_700Bold" }]}>
+                  <Text style={[styles.heroStatValue, { fontFamily: "Inter_700Bold", fontVariant: ["tabular-nums"] }]}>
                     {fmt(client.paid)}
                   </Text>
                   <Text style={[styles.heroStatLabel, { fontFamily: "Inter_500Medium" }]}>
@@ -153,7 +163,7 @@ export default function ClientDetailScreen() {
                 </View>
                 <View style={styles.vline} />
                 <View style={styles.heroStat}>
-                  <Text style={[styles.heroStatValue, { fontFamily: "Inter_700Bold" }]}>
+                  <Text style={[styles.heroStatValue, { fontFamily: "Inter_700Bold", fontVariant: ["tabular-nums"] }]}>
                     {client.projects?.length ?? 0}
                   </Text>
                   <Text style={[styles.heroStatLabel, { fontFamily: "Inter_500Medium" }]}>
@@ -230,7 +240,7 @@ export default function ClientDetailScreen() {
                           <Text style={[styles.mapLoc, { fontFamily: "Inter_700Bold" }]}>
                             {client.location}
                           </Text>
-                          <Text style={[styles.mapCoord, { fontFamily: "Inter_500Medium" }]}>
+                          <Text style={[styles.mapCoord, { fontFamily: "Inter_500Medium", fontVariant: ["tabular-nums"] }]}>
                             {client.coords.lat.toFixed(4)}°, {client.coords.lng.toFixed(4)}°
                           </Text>
                         </View>
@@ -430,7 +440,11 @@ function ActionChip({ icon, label, color, onPress }: { icon: keyof typeof Feathe
       onPress={onPress}
       style={({ pressed }) => [
         styles.actionChip,
-        { backgroundColor: color + "1A", opacity: pressed ? 0.7 : 1 },
+        {
+          backgroundColor: color + "1A",
+          transform: [{ scale: pressed ? 0.94 : 1 }],
+          opacity: pressed ? 0.8 : 1,
+        },
       ]}
     >
       <Feather name={icon} size={16} color={color} />
@@ -477,6 +491,7 @@ function DetailRow({ icon, label, value, last }: { icon: keyof typeof Feather.gl
           color: colors.foreground,
           fontFamily: "Inter_600SemiBold",
           fontSize: 13,
+          fontVariant: ["tabular-nums"],
         }}
         numberOfLines={1}
       >

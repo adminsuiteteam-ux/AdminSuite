@@ -1,5 +1,5 @@
 import { Feather, AntDesign } from "@expo/vector-icons";
-import * as LocalAuthentication from "expo-local-authentication";
+
 import { Link, router } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import React, { useEffect, useState } from "react";
@@ -32,54 +32,22 @@ export default function LoginScreen() {
   const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [emailFocused, setEmailFocused] = useState(false);
+  const [passFocused, setPassFocused] = useState(false);
 
-  const [isBiometricSupported, setIsBiometricSupported] = useState(false);
-  const [hasStoredCredentials, setHasStoredCredentials] = useState(false);
-
+  // Prefill email from last successful login
   useEffect(() => {
     (async () => {
       try {
-        const hasHardware = await LocalAuthentication.hasHardwareAsync();
-        const isEnrolled = await LocalAuthentication.isEnrolledAsync();
-        setIsBiometricSupported(hasHardware && isEnrolled);
-        
         const storedUser = await SecureStore.getItemAsync("admin-suite.username");
-        const storedPass = await SecureStore.getItemAsync("admin-suite.password");
-        setHasStoredCredentials(!!(storedUser && storedPass));
+        if (storedUser && !email) {
+          setEmail(storedUser);
+        }
       } catch (e) {
-        // Biometric check unavailable
+        // SecureStore unavailable
       }
     })();
   }, []);
-
-  const handleBiometricLogin = async () => {
-    setError("");
-    setLoading(true);
-    try {
-      const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: "Sign in with Biometrics",
-        fallbackLabel: "Use Password",
-        disableDeviceFallback: false,
-      });
-
-      if (result.success) {
-        const u = await SecureStore.getItemAsync("admin-suite.username");
-        const p = await SecureStore.getItemAsync("admin-suite.password");
-        if (u && p) {
-          await login({ username: u, password: p });
-          navigateAfterLogin();
-        } else {
-          setError("No credentials found. Please sign in with password first.");
-        }
-      } else {
-        setError("Biometric authentication failed.");
-      }
-    } catch (err: any) {
-      setError("Biometric sign-in failed. Please use your password.");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const navigateAfterLogin = () => {
     // user object may not be updated yet — rely on the freshest state from context
@@ -165,13 +133,22 @@ export default function LoginScreen() {
           )}
 
           <View style={styles.form}>
-            <View style={[styles.inputWrap, { backgroundColor: colors.muted }]}>
+            <View style={[
+              styles.inputWrap,
+              {
+                backgroundColor: colors.muted,
+                borderWidth: 1.5,
+                borderColor: emailFocused ? colors.primary : "transparent",
+              }
+            ]}>
               <View style={[styles.iconCircle, { backgroundColor: colors.primary }]}>
                 <Feather name="mail" size={14} color={colors.primaryForeground} />
               </View>
               <TextInput
                 value={email}
                 onChangeText={setEmail}
+                onFocus={() => setEmailFocused(true)}
+                onBlur={() => setEmailFocused(false)}
                 placeholder="Email address"
                 placeholderTextColor={colors.mutedForeground}
                 autoCapitalize="none"
@@ -180,13 +157,23 @@ export default function LoginScreen() {
               />
             </View>
 
-            <View style={[styles.inputWrap, { marginTop: 12, backgroundColor: colors.muted }]}>
+            <View style={[
+              styles.inputWrap,
+              {
+                marginTop: 12,
+                backgroundColor: colors.muted,
+                borderWidth: 1.5,
+                borderColor: passFocused ? colors.primary : "transparent",
+              }
+            ]}>
               <View style={[styles.iconCircle, { backgroundColor: colors.primary }]}>
                 <Feather name="lock" size={14} color={colors.primaryForeground} />
               </View>
               <TextInput
                 value={password}
                 onChangeText={setPassword}
+                onFocus={() => setPassFocused(true)}
+                onBlur={() => setPassFocused(false)}
                 placeholder="Password"
                 placeholderTextColor={colors.mutedForeground}
                 secureTextEntry={!showPwd}
@@ -219,7 +206,12 @@ export default function LoginScreen() {
               <Pressable
                 style={({ pressed }) => [
                   styles.primaryBtn,
-                  { flex: 1, opacity: pressed || loading ? 0.8 : 1, backgroundColor: colors.primary },
+                  {
+                    flex: 1,
+                    opacity: pressed || loading ? 0.85 : 1,
+                    backgroundColor: colors.primary,
+                    transform: [{ scale: pressed && !loading ? 0.96 : 1 }]
+                  },
                 ]}
                 onPress={onSubmit}
                 disabled={loading}
@@ -229,18 +221,7 @@ export default function LoginScreen() {
                 </Text>
               </Pressable>
 
-              {isBiometricSupported && hasStoredCredentials && (
-                <Pressable
-                  onPress={handleBiometricLogin}
-                  disabled={loading}
-                  style={({ pressed }) => [
-                    styles.biometricBtn,
-                    { opacity: pressed || loading ? 0.7 : 1, backgroundColor: colors.muted, borderColor: colors.border },
-                  ]}
-                >
-                  <Feather name="shield" size={24} color={colors.text} />
-                </Pressable>
-              )}
+
             </View>
 
 
@@ -254,7 +235,16 @@ export default function LoginScreen() {
             </View>
 
             <Link href="/(auth)/register" asChild>
-              <Pressable style={[styles.secondaryBtn, { backgroundColor: colors.muted }]}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.secondaryBtn,
+                  {
+                    backgroundColor: colors.muted,
+                    transform: [{ scale: pressed ? 0.97 : 1 }],
+                    opacity: pressed ? 0.85 : 1
+                  }
+                ]}
+              >
                 <Text style={[styles.secondaryBtnText, { fontFamily: "Inter_500Medium", color: colors.text }]}>
                   Create an account
                 </Text>

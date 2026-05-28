@@ -89,11 +89,13 @@ export default function FinanceScreen() {
               </View>
               <Pressable
                 onPress={() => setAddMenuOpen(true)}
-                style={[
+                style={({ pressed }) => [
                   styles.addBtn,
                   {
                     backgroundColor: colors.primary,
                     borderRadius: colors.radius,
+                    transform: [{ scale: pressed ? 0.92 : 1 }],
+                    opacity: pressed ? 0.85 : 1,
                   },
                 ]}
               >
@@ -117,7 +119,7 @@ export default function FinanceScreen() {
               >
                 NET PROFIT · THIS MONTH
               </Text>
-              <Text style={[styles.profitValue, { fontFamily: "Inter_700Bold" }]}>
+              <Text style={[styles.profitValue, { fontFamily: "Inter_700Bold", fontVariant: ["tabular-nums"] }]}>
                 {fmt(m.netProfit)}
               </Text>
               <View style={styles.deltaRow}>
@@ -169,7 +171,7 @@ export default function FinanceScreen() {
                 <View style={styles.chartTotals}>
                   <View>
                     <Text
-                      style={[styles.totalIn, { fontFamily: "Inter_700Bold" }]}
+                      style={[styles.totalIn, { fontFamily: "Inter_700Bold", fontVariant: ["tabular-nums"] }]}
                     >
                       {fmt(m.totalIncome)}
                     </Text>
@@ -181,7 +183,7 @@ export default function FinanceScreen() {
                   </View>
                   <View>
                     <Text
-                      style={[styles.totalOut, { fontFamily: "Inter_700Bold" }]}
+                      style={[styles.totalOut, { fontFamily: "Inter_700Bold", fontVariant: ["tabular-nums"] }]}
                     >
                       {fmt(m.totalExpense)}
                     </Text>
@@ -214,7 +216,7 @@ export default function FinanceScreen() {
                   <Text
                     style={[
                       styles.payrollNum,
-                      { color: colors.foreground, fontFamily: "Inter_700Bold" },
+                      { color: colors.foreground, fontFamily: "Inter_700Bold", fontVariant: ["tabular-nums"] },
                     ]}
                   >
                     {pr.staffPaid}
@@ -235,7 +237,7 @@ export default function FinanceScreen() {
                   <Text
                     style={[
                       styles.payrollNum,
-                      { color: "#22c55e", fontFamily: "Inter_700Bold" },
+                      { color: "#22c55e", fontFamily: "Inter_700Bold", fontVariant: ["tabular-nums"] },
                     ]}
                   >
                     {pr.paid}
@@ -256,7 +258,7 @@ export default function FinanceScreen() {
                   <Text
                     style={[
                       styles.payrollNum,
-                      { color: "#f97316", fontFamily: "Inter_700Bold" },
+                      { color: "#f97316", fontFamily: "Inter_700Bold", fontVariant: ["tabular-nums"] },
                     ]}
                   >
                     {pr.unpaid}
@@ -392,6 +394,7 @@ export default function FinanceScreen() {
                             debtTab === "we_owe" ? "#ef4444" : "#22c55e",
                           fontFamily: "Inter_700Bold",
                           fontSize: 14,
+                          fontVariant: ["tabular-nums"],
                         }}
                       >
                         {fmt(d.amount)}
@@ -406,102 +409,108 @@ export default function FinanceScreen() {
           <FloatInView delay={340}>
             <SectionTitle title="Budget" action="Manage" onPress={() => router.push("/budget" as any)} />
             <Pressable onPress={() => router.push("/budget" as any)}>
-              <View
-                style={[
-                  styles.budgetCard,
-                  {
-                    backgroundColor: colors.card,
-                    borderColor: colors.border,
-                    borderRadius: colors.radius,
-                  },
-                ]}
-              >
-                <View style={styles.budgetTop}>
-                  <View style={{ flex: 1 }}>
-                    <Text
-                      style={{
-                        color: colors.mutedForeground,
-                        fontFamily: "Inter_500Medium",
-                        fontSize: 11,
-                        letterSpacing: 0.5,
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      This month
-                    </Text>
-                    <Text
-                      style={{
-                        color: colors.foreground,
-                        fontFamily: "Inter_700Bold",
-                        fontSize: 22,
-                        letterSpacing: -0.4,
-                        marginTop: 4,
-                      }}
-                    >
-                      {fmt(totalSpent)}{" "}
+              {({ pressed }) => (
+                <View
+                  style={[
+                    styles.budgetCard,
+                    {
+                      backgroundColor: colors.card,
+                      borderColor: colors.border,
+                      borderRadius: colors.radius,
+                      transform: [{ scale: pressed ? 0.98 : 1 }],
+                      opacity: pressed ? 0.9 : 1,
+                    },
+                  ]}
+                >
+                  <View style={styles.budgetTop}>
+                    <View style={{ flex: 1 }}>
                       <Text
                         style={{
                           color: colors.mutedForeground,
-                          fontSize: 14,
                           fontFamily: "Inter_500Medium",
+                          fontSize: 11,
+                          letterSpacing: 0.5,
+                          textTransform: "uppercase",
                         }}
                       >
-                        / {fmt(totalAlloc)}
+                        This month
                       </Text>
-                    </Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.budgetIcon,
-                      { backgroundColor: colors.primary },
-                    ]}
-                  >
-                    <Feather name="pie-chart" size={18} color={colors.primaryForeground} />
-                  </View>
-                </View>
-                <View
-                  style={[styles.budgetBar, { backgroundColor: colors.muted }]}
-                >
-                  <View
-                    style={[
-                      styles.budgetFill,
-                      {
-                        width: `${Math.round((totalSpent / totalAlloc) * 100)}%`,
-                        backgroundColor:
-                          totalSpent / totalAlloc > 0.9 ? "#ef4444" : "#22c55e",
-                      },
-                    ]}
-                  />
-                </View>
-                <View style={styles.budgetCats}>
-                  {budgetCategories.slice(0, 3).map((c) => (
-                    <View key={c.id} style={styles.budgetCatRow}>
-                      <View
-                        style={[styles.budgetCatDot, { backgroundColor: c.color }]}
-                      />
                       <Text
                         style={{
                           color: colors.foreground,
-                          fontFamily: "Inter_500Medium",
-                          fontSize: 12,
-                          flex: 1,
+                          fontFamily: "Inter_700Bold",
+                          fontSize: 22,
+                          letterSpacing: -0.4,
+                          marginTop: 4,
+                          fontVariant: ["tabular-nums"],
                         }}
                       >
-                        {c.name}
-                      </Text>
-                      <Text
-                        style={{
-                          color: colors.mutedForeground,
-                          fontFamily: "Inter_600SemiBold",
-                          fontSize: 12,
-                        }}
-                      >
-                        {fmt(c.spent)}
+                        {fmt(totalSpent)}{" "}
+                        <Text
+                          style={{
+                            color: colors.mutedForeground,
+                            fontSize: 14,
+                            fontFamily: "Inter_500Medium",
+                          }}
+                        >
+                          / {fmt(totalAlloc)}
+                        </Text>
                       </Text>
                     </View>
-                  ))}
+                    <View
+                      style={[
+                        styles.budgetIcon,
+                        { backgroundColor: colors.primary },
+                      ]}
+                    >
+                      <Feather name="pie-chart" size={18} color={colors.primaryForeground} />
+                    </View>
+                  </View>
+                  <View
+                    style={[styles.budgetBar, { backgroundColor: colors.muted }]}
+                  >
+                    <View
+                      style={[
+                        styles.budgetFill,
+                        {
+                          width: `${Math.round((totalSpent / totalAlloc) * 100)}%`,
+                          backgroundColor:
+                            totalSpent / totalAlloc > 0.9 ? "#ef4444" : "#22c55e",
+                        },
+                      ]}
+                    />
+                  </View>
+                  <View style={styles.budgetCats}>
+                    {budgetCategories.slice(0, 3).map((c) => (
+                      <View key={c.id} style={styles.budgetCatRow}>
+                        <View
+                          style={[styles.budgetCatDot, { backgroundColor: c.color }]}
+                        />
+                        <Text
+                          style={{
+                            color: colors.foreground,
+                            fontFamily: "Inter_500Medium",
+                            fontSize: 12,
+                            flex: 1,
+                          }}
+                        >
+                          {c.name}
+                        </Text>
+                        <Text
+                          style={{
+                            color: colors.mutedForeground,
+                            fontFamily: "Inter_600SemiBold",
+                            fontSize: 12,
+                            fontVariant: ["tabular-nums"],
+                          }}
+                        >
+                          {fmt(c.spent)}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
                 </View>
-              </View>
+              )}
             </Pressable>
           </FloatInView>
 
@@ -520,13 +529,18 @@ export default function FinanceScreen() {
               {transactions.map((t, i) => {
                 const income = t.type === "income";
                 return (
-                  <View
+                  <Pressable
                     key={t.id}
-                    style={[
+                    onPress={() => {}}
+                    style={({ pressed }) => [
                       styles.txRow,
                       i < transactions.length - 1 && {
                         borderBottomWidth: StyleSheet.hairlineWidth,
                         borderBottomColor: colors.border,
+                      },
+                      {
+                        transform: [{ scale: pressed ? 0.985 : 1 }],
+                        opacity: pressed ? 0.9 : 1,
                       },
                     ]}
                   >
@@ -574,13 +588,14 @@ export default function FinanceScreen() {
                         {
                           color: income ? "#22c55e" : "#ef4444",
                           fontFamily: "Inter_700Bold",
+                          fontVariant: ["tabular-nums"],
                         },
                       ]}
                     >
                       {income ? "+" : "-"}
                       {fmt(t.amount)}
                     </Text>
-                  </View>
+                  </Pressable>
                 );
               })}
             </View>
@@ -609,7 +624,12 @@ export default function FinanceScreen() {
                 if (item.label === "Income") router.push("/transaction/create?type=income" as any);
                 if (item.label === "Expenditure") router.push("/transaction/create?type=expense" as any);
               }}
-              style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
+              style={({ pressed }) => [
+                {
+                  transform: [{ scale: pressed ? 0.97 : 1 }],
+                  opacity: pressed ? 0.9 : 1,
+                }
+              ]}
             >
               <View style={[styles.addMenuItem, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
                 <View style={[styles.addMenuIcon, { backgroundColor: item.color + "1A" }]}>
@@ -665,37 +685,42 @@ function DebtTab({ active, label, total, color, onPress }: { active: boolean; la
   const colors = useColors();
   return (
     <Pressable onPress={onPress} style={{ flex: 1 }}>
-      <View
-        style={[
-          styles.debtTab,
-          {
-            backgroundColor: active ? color + "1A" : colors.muted,
-            borderColor: active ? color : "transparent",
-          },
-        ]}
-      >
-        <Text
-          style={{
-            color: active ? color : colors.foreground,
-            fontFamily: "Inter_600SemiBold",
-            fontSize: 11,
-            letterSpacing: 0.4,
-            textTransform: "uppercase",
-          }}
+      {({ pressed }) => (
+        <View
+          style={[
+            styles.debtTab,
+            {
+              backgroundColor: active ? color + "1A" : colors.muted,
+              borderColor: active ? color : "transparent",
+              transform: [{ scale: pressed ? 0.96 : 1 }],
+              opacity: pressed ? 0.9 : 1,
+            },
+          ]}
         >
-          {label}
-        </Text>
-        <Text
-          style={{
-            color: active ? color : colors.foreground,
-            fontFamily: "Inter_700Bold",
-            fontSize: 16,
-            marginTop: 2,
-          }}
-        >
-          {total}
-        </Text>
-      </View>
+          <Text
+            style={{
+              color: active ? color : colors.foreground,
+              fontFamily: "Inter_600SemiBold",
+              fontSize: 11,
+              letterSpacing: 0.4,
+              textTransform: "uppercase",
+            }}
+          >
+            {label}
+          </Text>
+          <Text
+            style={{
+              color: active ? color : colors.foreground,
+              fontFamily: "Inter_700Bold",
+              fontSize: 16,
+              marginTop: 2,
+              fontVariant: ["tabular-nums"],
+            }}
+          >
+            {total}
+          </Text>
+        </View>
+      )}
     </Pressable>
   );
 }
