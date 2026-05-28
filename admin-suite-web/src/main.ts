@@ -1,4 +1,18 @@
 import './index.css';
+import { parsePhoneNumberFromString } from 'libphonenumber-js';
+import type { CountryCode } from 'libphonenumber-js';
+
+function validateAndFormatPhone(phoneNumber: string, defaultCountry: CountryCode = 'US'): { isValid: boolean; formatted: string } {
+  try {
+    const parsed = parsePhoneNumberFromString(phoneNumber, defaultCountry);
+    if (parsed && parsed.isValid()) {
+      return { isValid: true, formatted: parsed.format('E.164') };
+    }
+    return { isValid: false, formatted: phoneNumber };
+  } catch (err) {
+    return { isValid: false, formatted: phoneNumber };
+  }
+}
 
 // ============================================================
 // TYPE & INTERFACES DEFINITIONS
@@ -1534,6 +1548,12 @@ function bindCompleteProfileEvents() {
           showToast('Please complete all required personal info fields', 'error');
           return;
         }
+        const phoneCheck = validateAndFormatPhone(d.phone, 'US');
+        if (!phoneCheck.isValid) {
+          showToast('Please enter a valid phone number', 'error');
+          return;
+        }
+        d.phone = phoneCheck.formatted;
       }
 
       if (state.completeProfileSlide < 6) {
@@ -2475,6 +2495,14 @@ function openAddEmployeeModal() {
     submitBtn.disabled = true;
     submitBtn.innerText = 'Saving...';
 
+    const phoneCheck = validateAndFormatPhone(phone, 'US');
+    if (!phoneCheck.isValid) {
+      showToast('Please enter a valid phone number', 'error');
+      submitBtn.disabled = false;
+      submitBtn.innerText = 'Save Member';
+      return;
+    }
+
     try {
       await apiRequest('employees/', {
         method: 'POST',
@@ -2484,7 +2512,7 @@ function openAddEmployeeModal() {
           role,
           department,
           salary,
-          phone,
+          phone: phoneCheck.formatted,
           status: 'active'
         })
       });
@@ -3068,12 +3096,20 @@ function bindSettingsEvents() {
       submitBtn.disabled = true;
       submitBtn.innerText = 'Updating...';
 
+      const phoneCheck = validateAndFormatPhone(phone, 'US');
+      if (!phoneCheck.isValid) {
+        showToast('Please enter a valid phone number', 'error');
+        submitBtn.disabled = false;
+        submitBtn.innerText = 'Update Admin Profile';
+        return;
+      }
+
       try {
         const patchRes = await apiRequest('me/', {
           method: 'PATCH',
           body: JSON.stringify({
             first_name: name.split(' ')[0] || name,
-            phone,
+            phone: phoneCheck.formatted,
             location,
             bio
           })
