@@ -1635,6 +1635,17 @@ input, select, textarea { font-family: inherit; }
   box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
 }
 
+@media (max-width: 480px) {
+  .otp-container {
+    gap: 4px;
+  }
+  .otp-box {
+    width: 34px;
+    height: 42px;
+    font-size: 16px;
+  }
+}
+
 /* Complete Profile Wizard */
 .wizard-container {
   min-height: 100vh;
