@@ -27,6 +27,24 @@ class AuthRateThrottle(AnonRateThrottle):
 class ThrottledObtainAuthToken(ObtainAuthToken):
     throttle_classes = [AuthRateThrottle]
 
+    def post(self, request, *args, **kwargs):
+        # Allow email as username
+        data = request.data.copy() if hasattr(request.data, 'copy') else dict(request.data)
+        username = data.get('username')
+        if username and '@' in username:
+            try:
+                from django.contrib.auth.models import User
+                user = User.objects.get(email__iexact=username.strip())
+                data['username'] = user.username
+            except User.DoesNotExist:
+                pass
+        serializer = self.serializer_class(data=data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        user = serializer.validated_data['user']
+        from rest_framework.authtoken.models import Token
+        token, created = Token.objects.get_or_create(user=user)
+        return Response({'token': token.key})
+
 
 
 class EmployeeViewSet(viewsets.ModelViewSet):
@@ -182,13 +200,27 @@ def register(request):
     """Simplified user registration: email + password + confirm_password.
     Returns an auth token immediately on success."""
     from rest_framework.authtoken.models import Token
-    from .models import UserProfile
+    from .models import UserProfile, EmailVerificationCode
+
+    email = request.data.get('email', '').strip().lower()
+    
+    # Enforce that email verification has been completed
+    try:
+        verification = EmailVerificationCode.objects.get(email=email)
+        if verification.code != 'VERIFIED':
+            return Response({'error': 'Email verification has not been completed.'}, status=status.HTTP_400_BAD_REQUEST)
+    except EmailVerificationCode.DoesNotExist:
+        return Response({'error': 'Email verification has not been completed.'}, status=status.HTTP_400_BAD_REQUEST)
 
     serializer = RegisterSerializer(data=request.data)
     if not serializer.is_valid():
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     user = serializer.save()
+    
+    # Delete the verification record after successful registration
+    verification.delete()
+    
     # Create a blank profile for the new user
     UserProfile.objects.get_or_create(user=user)
     token, _ = Token.objects.get_or_create(user=user)

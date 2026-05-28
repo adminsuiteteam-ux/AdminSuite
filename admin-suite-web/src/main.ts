@@ -185,7 +185,7 @@ const state: AppState = {
   otpPassword: '',
   otpCountdown: 90,
   otpTimer: null,
-  otpValues: Array(8).fill(''),
+  otpValues: Array(6).fill(''),
   
   isLockScreenActive: false,
   isScanning: false,
@@ -208,61 +208,42 @@ const state: AppState = {
 document.documentElement.setAttribute('data-theme', state.theme);
 
 // ============================================================
-// SUPABASE AUTH CONFIGURATION (REST VIA FETCH)
+// DJANGO VERIFICATION SERVICE (LOCAL API)
 // ============================================================
 
-const SUPABASE_URL = 'https://whjxjqsxrnjpkoknfixo.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndoanhqcXN4cm5qcGtva25maXhvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzMjIxMTMsImV4cCI6MjA5NDg5ODExM30.sw6ac1XgIGZbXs9PJVhyliUSDGrkI1Cv6k4x02BcsE4';
-
-async function supabaseSignUp(email: string, password: string) {
-  const response = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
+async function djangoSendVerificationCode(email: string) {
+  const response = await fetch(`${API_BASE}auth/email/send-code/`, {
     method: 'POST',
     headers: {
-      'apikey': SUPABASE_KEY,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({ email, password })
+    body: JSON.stringify({ email })
   });
   if (!response.ok) {
-    const err = await response.json();
-    throw new Error(err.msg || err.message || 'Supabase account creation failed.');
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || err.detail || err.message || 'Failed to send verification code.');
   }
   const data = await response.json();
-  if (data?.user?.identities?.length === 0) {
-    throw new Error('An account with this email already exists.');
+  // In development, if code is returned, print to console for ease of access
+  if (data.code) {
+    console.log(`[DEV ONLY] Email verification code: ${data.code}`);
   }
   return data;
 }
 
-async function supabaseVerifyOTP(email: string, code: string) {
-  const response = await fetch(`${SUPABASE_URL}/auth/v1/verify`, {
+async function djangoVerifyEmailCode(email: string, code: string) {
+  const response = await fetch(`${API_BASE}auth/email/verify/`, {
     method: 'POST',
     headers: {
-      'apikey': SUPABASE_KEY,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({ email, token: code, type: 'signup' })
+    body: JSON.stringify({ email, code })
   });
   if (!response.ok) {
-    const err = await response.json();
-    throw new Error(err.msg || err.message || 'Verification code is invalid or expired.');
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || err.detail || err.message || 'Verification code is invalid or expired.');
   }
   return response.json();
-}
-
-async function supabaseResendOTP(email: string) {
-  const response = await fetch(`${SUPABASE_URL}/auth/v1/resend`, {
-    method: 'POST',
-    headers: {
-      'apikey': SUPABASE_KEY,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ email, type: 'signup' })
-  });
-  if (!response.ok) {
-    const err = await response.json();
-    throw new Error(err.msg || err.message || 'Failed to resend code.');
-  }
 }
 
 // ============================================================
@@ -761,7 +742,7 @@ function drawLogin(): string {
                 <span style="position: absolute; left: 12px; display: flex; color: var(--muted-foreground);">
                   ${getIconSvg('mail', 'form-icon')}
                 </span>
-                <input class="form-input" type="email" id="login-email" required placeholder="Email address" style="padding-left: 38px;" value="admin@adminsuite.com">
+                <input class="form-input" type="email" id="login-email" required placeholder="Email address" style="padding-left: 38px;" value="admin@adminsuite.app">
               </div>
             </div>
             
@@ -938,8 +919,8 @@ function drawRegister(): string {
       </div>
     `;
   } else {
-    // OTP entry view (8 boxes)
-    const boxes = Array(8).fill(0).map((_, i) => `
+    // OTP entry view (6 boxes)
+    const boxes = Array(6).fill(0).map((_, i) => `
       <input type="text" maxlength="1" class="otp-box" data-index="${i}" value="${state.otpValues[i]}" pattern="[0-9]*" inputmode="numeric">
     `).join('');
 
@@ -954,7 +935,7 @@ function drawRegister(): string {
           <div class="split-right-panel" style="text-align: center;">
             <div class="login-logo" style="text-align: center; margin-bottom: 24px;">
               <h1 style="font-size: 28px; font-weight: 800; letter-spacing: -0.5px;">Verify OTP</h1>
-              <p style="color: var(--muted-foreground); font-size: 14px; margin-top: 4px;">Enter the 8-digit verification code sent to<br/><strong>${state.otpEmail}</strong></p>
+              <p style="color: var(--muted-foreground); font-size: 14px; margin-top: 4px;">Enter the 6-digit verification code sent to<br/><strong>${state.otpEmail}</strong></p>
             </div>
             
             <div class="otp-container">
@@ -1023,14 +1004,14 @@ function bindRegisterEvents() {
         submitBtn.innerHTML = '<span class="dot-loader" style="margin: 0; gap: 4px;"><span style="width:6px;height:6px;"></span><span style="width:6px;height:6px;"></span><span style="width:6px;height:6px;"></span></span>';
 
         try {
-          // 1. SignUp with Supabase to trigger OTP verification email
-          await supabaseSignUp(email, pwd);
+          // 1. Send verification email via Django backend
+          await djangoSendVerificationCode(email);
 
           state.otpEmail = email;
           state.otpPassword = pwd;
           state.registerStep = 'otp';
           state.otpCountdown = 90;
-          state.otpValues = Array(8).fill('');
+          state.otpValues = Array(6).fill('');
           
           startOTPTimer();
           renderApp();
@@ -1062,7 +1043,7 @@ function bindRegisterEvents() {
         
         state.otpValues[idx] = val;
 
-        if (val && idx < 7) {
+        if (val && idx < 5) {
           const next = document.querySelector(`.otp-box[data-index="${idx + 1}"]`) as HTMLInputElement;
           if (next) next.focus();
         }
@@ -1094,7 +1075,7 @@ function bindRegisterEvents() {
     if (resendBtn) {
       resendBtn.addEventListener('click', async () => {
         try {
-          await supabaseResendOTP(state.otpEmail);
+          await djangoSendVerificationCode(state.otpEmail);
           state.otpCountdown = 90;
           startOTPTimer();
           renderApp();
@@ -1108,8 +1089,8 @@ function bindRegisterEvents() {
     if (verifyBtn) {
       verifyBtn.addEventListener('click', async () => {
         const code = state.otpValues.join('');
-        if (code.length < 8) {
-          showToast('Please enter the complete 8-digit code', 'error');
+        if (code.length < 6) {
+          showToast('Please enter the complete 6-digit code', 'error');
           return;
         }
 
@@ -1117,8 +1098,8 @@ function bindRegisterEvents() {
         verifyBtn.innerText = 'Verifying...';
 
         try {
-          // 2. Verify code on Supabase
-          await supabaseVerifyOTP(state.otpEmail, code);
+          // 2. Verify code on Django backend
+          await djangoVerifyEmailCode(state.otpEmail, code);
 
           // 3. Register user on Django backend
           const signupRes = await apiRequest('register/', {
