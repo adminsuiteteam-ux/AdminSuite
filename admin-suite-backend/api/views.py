@@ -204,13 +204,15 @@ def register(request):
 
     email = request.data.get('email', '').strip().lower()
     
-    # Enforce that email verification has been completed
+    # Enforce that email verification has been completed (optional for external Supabase validation)
+    verification = None
     try:
         verification = EmailVerificationCode.objects.get(email=email)
         if verification.code != 'VERIFIED':
             return Response({'error': 'Email verification has not been completed.'}, status=status.HTTP_400_BAD_REQUEST)
     except EmailVerificationCode.DoesNotExist:
-        return Response({'error': 'Email verification has not been completed.'}, status=status.HTTP_400_BAD_REQUEST)
+        # Bypassed for external Supabase registration flow
+        pass
 
     serializer = RegisterSerializer(data=request.data)
     if not serializer.is_valid():
@@ -218,8 +220,9 @@ def register(request):
 
     user = serializer.save()
     
-    # Delete the verification record after successful registration
-    verification.delete()
+    # Delete the verification record after successful registration if it exists
+    if verification:
+        verification.delete()
     
     # Create a blank profile for the new user
     UserProfile.objects.get_or_create(user=user)
