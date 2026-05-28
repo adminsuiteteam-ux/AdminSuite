@@ -353,6 +353,73 @@ const TOUR_SLIDES = [
 ];
 
 // ============================================================
+// DASHBOARD INTERACTIVE TOUR STEPS
+// ============================================================
+
+const DASHBOARD_TOUR_STEPS = [
+  {
+    target: '[data-tab="dashboard"]',
+    title: 'Dashboard',
+    body: 'Your command center. View key business metrics, financial trends, and recent activity all in one glance.',
+    position: 'right'
+  },
+  {
+    target: '#tour-net-profit',
+    title: 'Net Profit Overview',
+    body: 'Track your monthly net profit in real-time. See income vs expenses at a glance, updated live from your records.',
+    position: 'bottom'
+  },
+  {
+    target: '#tour-stats-grid',
+    title: 'Key Performance Metrics',
+    body: 'Monitor your headcount, client portfolio, active projects, and income flow synced live with your database.',
+    position: 'bottom'
+  },
+  {
+    target: '[data-tab="employees"]',
+    title: 'Employee Management',
+    body: 'Manage your entire workforce. Add, edit, and track employee records, roles, departments, and compensation.',
+    position: 'right'
+  },
+  {
+    target: '[data-tab="clients"]',
+    title: 'Client Portfolio',
+    body: 'Your client relationship hub. Track retainer values, project assignments, and manage client statuses.',
+    position: 'right'
+  },
+  {
+    target: '[data-tab="finance"]',
+    title: 'Financial Control',
+    body: 'Complete financial oversight. Monitor transactions, manage budgets, track debts, and export reports.',
+    position: 'right'
+  },
+  {
+    target: '#tour-quick-actions',
+    title: 'Quick Operations',
+    body: 'Instantly add new staff, onboard clients, log expenses, or jump to settings with a single click.',
+    position: 'top'
+  },
+  {
+    target: '#theme-toggle-btn',
+    title: 'Theme Toggle',
+    body: 'Switch between light and dark modes for comfortable viewing. Your preference is saved automatically.',
+    position: 'bottom'
+  },
+  {
+    target: '#notification-dropdown-btn',
+    title: 'Notifications Center',
+    body: 'Stay informed with real-time announcements, system alerts, and important workspace updates.',
+    position: 'bottom'
+  },
+  {
+    target: '[data-tab="settings"]',
+    title: 'Profile & Settings',
+    body: 'Personalize your workspace. Update your admin profile, enable biometric security, and manage data exports.',
+    position: 'right'
+  }
+];
+
+// ============================================================
 // WIZARD CONFIG
 // ============================================================
 
@@ -497,6 +564,10 @@ function formatCurrency(amount: number): string {
 // ============================================================
 
 function navigateToTab(tab: typeof state.activeTab) {
+  // End dashboard tour if navigating away
+  if (dashboardTourStep >= 0 && tab !== 'dashboard') {
+    endDashboardTour();
+  }
   state.activeTab = tab;
   state.isMobileSidebarOpen = false;
   
@@ -523,6 +594,10 @@ export function renderApp() {
 
   // Global theme check
   document.documentElement.setAttribute('data-theme', state.theme);
+
+  // Clean up dashboard tour overlay on re-render (appended to body, not root)
+  const tourOverlayCleanup = document.getElementById('dashboard-tour-overlay');
+  if (tourOverlayCleanup) tourOverlayCleanup.remove();
 
   switch (state.view) {
     case 'splash':
@@ -1878,7 +1953,7 @@ function drawDashboardTab(): string {
     </div>
 
     <!-- Live Net profit banner -->
-    <div class="card" style="margin-bottom: 24px; padding: 24px; background:linear-gradient(135deg, #09090b 0%, #1e3a8a 100%); color:#fff; border:none;">
+    <div id="tour-net-profit" class="card" style="margin-bottom: 24px; padding: 24px; background:linear-gradient(135deg, #09090b 0%, #1e3a8a 100%); color:#fff; border:none;">
       <div style="font-size:14px; font-weight:500; opacity:0.8; margin-bottom:4px;">Net Profit · This Month</div>
       <div style="font-size:36px; font-weight:800; font-variant-numeric:tabular-nums; margin-bottom:12px;">${formatCurrency(m.netProfit)}</div>
       <div style="display:flex; gap:16px; font-size:12px; font-weight:600;">
@@ -1887,7 +1962,7 @@ function drawDashboardTab(): string {
       </div>
     </div>
 
-    <div class="stats-grid">
+    <div class="stats-grid" id="tour-stats-grid">
       <div class="stat-card blue">
         <div class="stat-card-header">
           <div class="stat-card-icon blue">${getIconSvg('users')}</div>
@@ -1959,7 +2034,7 @@ function drawDashboardTab(): string {
         </div>
       </div>
 
-      <div class="card">
+      <div class="card" id="tour-quick-actions">
         <div class="card-header">
           <div class="card-title">Quick Operations</div>
         </div>
@@ -2073,6 +2148,15 @@ function bindDashboardEvents() {
       if (tooltip) tooltip.style.display = 'none';
     });
   });
+
+  // Dashboard Interactive Tour — triggers on first dashboard visit
+  if (dashboardTourStep >= 0) {
+    // Tour in progress, re-render current step after DOM settles
+    setTimeout(() => renderDashboardTourStep(), 150);
+  } else if (shouldShowDashboardTour()) {
+    // First visit — start tour after UI settles
+    setTimeout(() => startDashboardTour(), 800);
+  }
 }
 
 // ------------------------------------------------------------
@@ -3047,6 +3131,204 @@ function bindSettingsEvents() {
       }
     });
   }
+}
+
+// ============================================================
+// DASHBOARD INTERACTIVE TOUR SYSTEM
+// ============================================================
+
+let dashboardTourStep = -1; // -1 = inactive
+
+function shouldShowDashboardTour(): boolean {
+  return !localStorage.getItem('admin-suite.dashboard-tour-complete');
+}
+
+function startDashboardTour() {
+  dashboardTourStep = 0;
+  renderDashboardTourStep();
+}
+
+function endDashboardTour() {
+  dashboardTourStep = -1;
+  localStorage.setItem('admin-suite.dashboard-tour-complete', 'true');
+  cleanupDashboardTour();
+}
+
+function advanceDashboardTour() {
+  dashboardTourStep++;
+  if (dashboardTourStep >= DASHBOARD_TOUR_STEPS.length) {
+    endDashboardTour();
+    showToast('Tour complete! You are all set to use Admin Suite.', 'success');
+    return;
+  }
+  renderDashboardTourStep();
+}
+
+function cleanupDashboardTour() {
+  const overlay = document.getElementById('dashboard-tour-overlay');
+  if (overlay) overlay.remove();
+}
+
+function renderDashboardTourStep() {
+  cleanupDashboardTour();
+
+  if (dashboardTourStep < 0 || dashboardTourStep >= DASHBOARD_TOUR_STEPS.length) return;
+
+  const step = DASHBOARD_TOUR_STEPS[dashboardTourStep];
+  const targetEl = document.querySelector(step.target) as HTMLElement;
+
+  if (!targetEl) {
+    // Target not found (e.g., sidebar hidden on mobile), skip to next
+    advanceDashboardTour();
+    return;
+  }
+
+  const targetRect = targetEl.getBoundingClientRect();
+
+  // Skip if element is not visible (zero dimensions)
+  if (targetRect.width === 0 && targetRect.height === 0) {
+    advanceDashboardTour();
+    return;
+  }
+
+  // Scroll target into view if needed
+  targetEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  // Allow scroll to settle before positioning overlay
+  requestAnimationFrame(() => {
+    const rect = targetEl.getBoundingClientRect();
+    const pad = 8;
+
+    // Create overlay container
+    const overlay = document.createElement('div');
+    overlay.id = 'dashboard-tour-overlay';
+    overlay.className = 'dashboard-tour-overlay';
+
+    // Create spotlight cutout around target element
+    const spotlight = document.createElement('div');
+    spotlight.className = 'dashboard-tour-spotlight';
+    spotlight.style.top = `${rect.top - pad}px`;
+    spotlight.style.left = `${rect.left - pad}px`;
+    spotlight.style.width = `${rect.width + pad * 2}px`;
+    spotlight.style.height = `${rect.height + pad * 2}px`;
+
+    // Build progress dots markup
+    let dotsMarkup = '';
+    for (let i = 0; i < DASHBOARD_TOUR_STEPS.length; i++) {
+      const dotCls = i === dashboardTourStep ? 'active' : i < dashboardTourStep ? 'completed' : '';
+      dotsMarkup += `<span class="tour-dot ${dotCls}"></span>`;
+    }
+
+    const isLastStep = dashboardTourStep === DASHBOARD_TOUR_STEPS.length - 1;
+    const stepNum = dashboardTourStep + 1;
+    const totalSteps = DASHBOARD_TOUR_STEPS.length;
+
+    // Build tooltip element
+    // NOTE(security): All content is developer-defined static strings, no user input.
+    const tooltip = document.createElement('div');
+    tooltip.className = 'dashboard-tour-tooltip';
+    tooltip.innerHTML = `
+      <div class="tour-step-badge">
+        <span>Step ${stepNum} of ${totalSteps}</span>
+      </div>
+      <div class="tour-step-title">${step.title}</div>
+      <div class="tour-step-body">${step.body}</div>
+      <div class="tour-progress-dots">${dotsMarkup}</div>
+      <div class="tour-btn-row">
+        <button class="tour-btn-gotit" id="tour-btn-gotit">Got it</button>
+        ${isLastStep
+          ? '<button class="tour-btn-continue" id="tour-btn-finish">Finish Tour \u2713</button>'
+          : '<button class="tour-btn-continue" id="tour-btn-continue">Continue \u2192</button>'
+        }
+      </div>
+    `;
+
+    // Position tooltip relative to target
+    positionTourTooltip(tooltip, rect, step.position);
+
+    overlay.appendChild(spotlight);
+    overlay.appendChild(tooltip);
+    document.body.appendChild(overlay);
+
+    // Bind navigation events
+    const gotItBtn = document.getElementById('tour-btn-gotit');
+    const nextBtn = document.getElementById('tour-btn-continue') || document.getElementById('tour-btn-finish');
+
+    if (gotItBtn) {
+      gotItBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        endDashboardTour();
+      });
+    }
+
+    if (nextBtn) {
+      nextBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (isLastStep) {
+          endDashboardTour();
+          showToast('Tour complete! You are all set to use Admin Suite.', 'success');
+        } else {
+          advanceDashboardTour();
+        }
+      });
+    }
+
+    // Click overlay backdrop to dismiss tour
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) endDashboardTour();
+    });
+  });
+}
+
+function positionTourTooltip(tooltip: HTMLElement, targetRect: DOMRect, position: string) {
+  const gap = 16;
+  const tooltipWidth = 320;
+
+  switch (position) {
+    case 'right':
+      tooltip.style.top = `${targetRect.top}px`;
+      tooltip.style.left = `${targetRect.right + gap}px`;
+      break;
+    case 'bottom':
+      tooltip.style.top = `${targetRect.bottom + gap}px`;
+      tooltip.style.left = `${Math.max(12, targetRect.left + targetRect.width / 2 - tooltipWidth / 2)}px`;
+      break;
+    case 'top':
+      tooltip.style.left = `${Math.max(12, targetRect.left + targetRect.width / 2 - tooltipWidth / 2)}px`;
+      tooltip.style.top = `${Math.max(12, targetRect.top - gap - 280)}px`;
+      break;
+    case 'left':
+      tooltip.style.top = `${targetRect.top}px`;
+      tooltip.style.left = `${targetRect.left - tooltipWidth - gap}px`;
+      break;
+  }
+
+  // Ensure tooltip stays within viewport bounds
+  requestAnimationFrame(() => {
+    const tr = tooltip.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    if (position === 'top') {
+      // Recalculate with actual measured height
+      const actualHeight = tr.height;
+      tooltip.style.top = `${Math.max(12, targetRect.top - gap - actualHeight)}px`;
+    }
+
+    const updatedRect = tooltip.getBoundingClientRect();
+    if (updatedRect.right > vw - 12) {
+      tooltip.style.left = `${vw - tooltipWidth - 20}px`;
+    }
+    if (updatedRect.bottom > vh - 12) {
+      tooltip.style.top = `${vh - updatedRect.height - 20}px`;
+    }
+    if (updatedRect.left < 12) {
+      tooltip.style.left = '20px';
+    }
+    if (updatedRect.top < 12) {
+      tooltip.style.top = '20px';
+    }
+  });
 }
 
 // ============================================================
