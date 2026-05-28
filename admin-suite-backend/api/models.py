@@ -168,7 +168,7 @@ class PhoneOTP(models.Model):
 class EmailVerificationCode(models.Model):
     """Stores one-time verification codes for email-based registration verification."""
     email = models.EmailField(unique=True)
-    code = models.CharField(max_length=6)
+    code = models.CharField(max_length=8)
     created_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):

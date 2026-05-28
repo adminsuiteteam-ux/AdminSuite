@@ -817,7 +817,7 @@ function drawLogin(): string {
                 <span style="position: absolute; left: 12px; display: flex; color: var(--muted-foreground);">
                   ${getIconSvg('mail', 'form-icon')}
                 </span>
-                <input class="form-input" type="email" id="login-email" required placeholder="Email address" style="padding-left: 38px;" value="admin@adminsuite.app">
+                <input class="form-input" type="email" id="login-email" required placeholder="Email address" style="padding-left: 38px;">
               </div>
             </div>
             
@@ -827,7 +827,7 @@ function drawLogin(): string {
                 <span style="position: absolute; left: 12px; display: flex; color: var(--muted-foreground);">
                   ${getIconSvg('lock', 'form-icon')}
                 </span>
-                <input class="form-input" type="password" id="login-password" required placeholder="Password" style="padding-left: 38px; padding-right: 40px;" value="admin123">
+                <input class="form-input" type="password" id="login-password" required placeholder="Password" style="padding-left: 38px; padding-right: 40px;">
                 <button type="button" id="login-pwd-toggle" style="position: absolute; right: 12px; background: none; border: none; color: var(--muted-foreground); display: flex;">
                   ${getIconSvg('eye')}
                 </button>
