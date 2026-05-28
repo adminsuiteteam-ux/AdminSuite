@@ -333,22 +333,22 @@ const TOUR_SLIDES = [
   {
     title: 'One workspace<br/>for everything',
     body: 'All your tools and apps unified in a single, seamless environment.',
-    icon: 'grid'
+    image: '/slide1.png'
   },
   {
     title: 'Real-time<br/>financial clarity',
     body: 'Keep track of your finances with instant insights and metrics.',
-    icon: 'trending-up'
+    image: '/slide2.png'
   },
   {
     title: 'Roles built for<br/>real teams',
     body: 'Empower collaboration and assign responsibilities effortlessly.',
-    icon: 'users'
+    image: '/slide3.png'
   },
   {
     title: 'Customize<br/>without code',
     body: 'Adapt your workflow with ease using simple drag-and-drop tools.',
-    icon: 'settings'
+    image: '/slide4.png'
   }
 ];
 
@@ -651,7 +651,7 @@ function drawTour(): string {
     <div class="tour-container">
       <div class="tour-card">
         <div class="tour-illustration">
-          ${getIconSvg(slide.icon)}
+          <img src="${slide.image}" alt="Tour Onboarding illustration" />
         </div>
         
         <div class="tour-dots">
