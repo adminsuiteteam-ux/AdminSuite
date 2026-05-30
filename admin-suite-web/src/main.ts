@@ -15,6 +15,381 @@ function validateAndFormatPhone(phoneNumber: string, defaultCountry: CountryCode
 }
 
 // ============================================================
+// COUNTRY DATA FOR PHONE INPUT COMPONENT
+// ============================================================
+
+interface CountryEntry {
+  code: CountryCode;
+  name: string;
+  dial: string;
+  flag: string;
+}
+
+const COUNTRIES: CountryEntry[] = [
+  { code: 'AF', name: 'Afghanistan', dial: '+93', flag: '🇦🇫' },
+  { code: 'AL', name: 'Albania', dial: '+355', flag: '🇦🇱' },
+  { code: 'DZ', name: 'Algeria', dial: '+213', flag: '🇩🇿' },
+  { code: 'AD', name: 'Andorra', dial: '+376', flag: '🇦🇩' },
+  { code: 'AO', name: 'Angola', dial: '+244', flag: '🇦🇴' },
+  { code: 'AG', name: 'Antigua & Barbuda', dial: '+1268', flag: '🇦🇬' },
+  { code: 'AR', name: 'Argentina', dial: '+54', flag: '🇦🇷' },
+  { code: 'AM', name: 'Armenia', dial: '+374', flag: '🇦🇲' },
+  { code: 'AU', name: 'Australia', dial: '+61', flag: '🇦🇺' },
+  { code: 'AT', name: 'Austria', dial: '+43', flag: '🇦🇹' },
+  { code: 'AZ', name: 'Azerbaijan', dial: '+994', flag: '🇦🇿' },
+  { code: 'BS', name: 'Bahamas', dial: '+1242', flag: '🇧🇸' },
+  { code: 'BH', name: 'Bahrain', dial: '+973', flag: '🇧🇭' },
+  { code: 'BD', name: 'Bangladesh', dial: '+880', flag: '🇧🇩' },
+  { code: 'BB', name: 'Barbados', dial: '+1246', flag: '🇧🇧' },
+  { code: 'BY', name: 'Belarus', dial: '+375', flag: '🇧🇾' },
+  { code: 'BE', name: 'Belgium', dial: '+32', flag: '🇧🇪' },
+  { code: 'BZ', name: 'Belize', dial: '+501', flag: '🇧🇿' },
+  { code: 'BJ', name: 'Benin', dial: '+229', flag: '🇧🇯' },
+  { code: 'BT', name: 'Bhutan', dial: '+975', flag: '🇧🇹' },
+  { code: 'BO', name: 'Bolivia', dial: '+591', flag: '🇧🇴' },
+  { code: 'BA', name: 'Bosnia & Herzegovina', dial: '+387', flag: '🇧🇦' },
+  { code: 'BW', name: 'Botswana', dial: '+267', flag: '🇧🇼' },
+  { code: 'BR', name: 'Brazil', dial: '+55', flag: '🇧🇷' },
+  { code: 'BN', name: 'Brunei', dial: '+673', flag: '🇧🇳' },
+  { code: 'BG', name: 'Bulgaria', dial: '+359', flag: '🇧🇬' },
+  { code: 'BF', name: 'Burkina Faso', dial: '+226', flag: '🇧🇫' },
+  { code: 'BI', name: 'Burundi', dial: '+257', flag: '🇧🇮' },
+  { code: 'KH', name: 'Cambodia', dial: '+855', flag: '🇰🇭' },
+  { code: 'CM', name: 'Cameroon', dial: '+237', flag: '🇨🇲' },
+  { code: 'CA', name: 'Canada', dial: '+1', flag: '🇨🇦' },
+  { code: 'CV', name: 'Cape Verde', dial: '+238', flag: '🇨🇻' },
+  { code: 'CF', name: 'Central African Republic', dial: '+236', flag: '🇨🇫' },
+  { code: 'TD', name: 'Chad', dial: '+235', flag: '🇹🇩' },
+  { code: 'CL', name: 'Chile', dial: '+56', flag: '🇨🇱' },
+  { code: 'CN', name: 'China', dial: '+86', flag: '🇨🇳' },
+  { code: 'CO', name: 'Colombia', dial: '+57', flag: '🇨🇴' },
+  { code: 'KM', name: 'Comoros', dial: '+269', flag: '🇰🇲' },
+  { code: 'CG', name: 'Congo', dial: '+242', flag: '🇨🇬' },
+  { code: 'CD', name: 'Congo (DRC)', dial: '+243', flag: '🇨🇩' },
+  { code: 'CR', name: 'Costa Rica', dial: '+506', flag: '🇨🇷' },
+  { code: 'CI', name: "Côte d'Ivoire", dial: '+225', flag: '🇨🇮' },
+  { code: 'HR', name: 'Croatia', dial: '+385', flag: '🇭🇷' },
+  { code: 'CU', name: 'Cuba', dial: '+53', flag: '🇨🇺' },
+  { code: 'CY', name: 'Cyprus', dial: '+357', flag: '🇨🇾' },
+  { code: 'CZ', name: 'Czech Republic', dial: '+420', flag: '🇨🇿' },
+  { code: 'DK', name: 'Denmark', dial: '+45', flag: '🇩🇰' },
+  { code: 'DJ', name: 'Djibouti', dial: '+253', flag: '🇩🇯' },
+  { code: 'DM', name: 'Dominica', dial: '+1767', flag: '🇩🇲' },
+  { code: 'DO', name: 'Dominican Republic', dial: '+1809', flag: '🇩🇴' },
+  { code: 'EC', name: 'Ecuador', dial: '+593', flag: '🇪🇨' },
+  { code: 'EG', name: 'Egypt', dial: '+20', flag: '🇪🇬' },
+  { code: 'SV', name: 'El Salvador', dial: '+503', flag: '🇸🇻' },
+  { code: 'GQ', name: 'Equatorial Guinea', dial: '+240', flag: '🇬🇶' },
+  { code: 'ER', name: 'Eritrea', dial: '+291', flag: '🇪🇷' },
+  { code: 'EE', name: 'Estonia', dial: '+372', flag: '🇪🇪' },
+  { code: 'SZ', name: 'Eswatini', dial: '+268', flag: '🇸🇿' },
+  { code: 'ET', name: 'Ethiopia', dial: '+251', flag: '🇪🇹' },
+  { code: 'FJ', name: 'Fiji', dial: '+679', flag: '🇫🇯' },
+  { code: 'FI', name: 'Finland', dial: '+358', flag: '🇫🇮' },
+  { code: 'FR', name: 'France', dial: '+33', flag: '🇫🇷' },
+  { code: 'GA', name: 'Gabon', dial: '+241', flag: '🇬🇦' },
+  { code: 'GM', name: 'Gambia', dial: '+220', flag: '🇬🇲' },
+  { code: 'GE', name: 'Georgia', dial: '+995', flag: '🇬🇪' },
+  { code: 'DE', name: 'Germany', dial: '+49', flag: '🇩🇪' },
+  { code: 'GH', name: 'Ghana', dial: '+233', flag: '🇬🇭' },
+  { code: 'GR', name: 'Greece', dial: '+30', flag: '🇬🇷' },
+  { code: 'GD', name: 'Grenada', dial: '+1473', flag: '🇬🇩' },
+  { code: 'GT', name: 'Guatemala', dial: '+502', flag: '🇬🇹' },
+  { code: 'GN', name: 'Guinea', dial: '+224', flag: '🇬🇳' },
+  { code: 'GW', name: 'Guinea-Bissau', dial: '+245', flag: '🇬🇼' },
+  { code: 'GY', name: 'Guyana', dial: '+592', flag: '🇬🇾' },
+  { code: 'HT', name: 'Haiti', dial: '+509', flag: '🇭🇹' },
+  { code: 'HN', name: 'Honduras', dial: '+504', flag: '🇭🇳' },
+  { code: 'HU', name: 'Hungary', dial: '+36', flag: '🇭🇺' },
+  { code: 'IS', name: 'Iceland', dial: '+354', flag: '🇮🇸' },
+  { code: 'IN', name: 'India', dial: '+91', flag: '🇮🇳' },
+  { code: 'ID', name: 'Indonesia', dial: '+62', flag: '🇮🇩' },
+  { code: 'IR', name: 'Iran', dial: '+98', flag: '🇮🇷' },
+  { code: 'IQ', name: 'Iraq', dial: '+964', flag: '🇮🇶' },
+  { code: 'IE', name: 'Ireland', dial: '+353', flag: '🇮🇪' },
+  { code: 'IL', name: 'Israel', dial: '+972', flag: '🇮🇱' },
+  { code: 'IT', name: 'Italy', dial: '+39', flag: '🇮🇹' },
+  { code: 'JM', name: 'Jamaica', dial: '+1876', flag: '🇯🇲' },
+  { code: 'JP', name: 'Japan', dial: '+81', flag: '🇯🇵' },
+  { code: 'JO', name: 'Jordan', dial: '+962', flag: '🇯🇴' },
+  { code: 'KZ', name: 'Kazakhstan', dial: '+7', flag: '🇰🇿' },
+  { code: 'KE', name: 'Kenya', dial: '+254', flag: '🇰🇪' },
+  { code: 'KI', name: 'Kiribati', dial: '+686', flag: '🇰🇮' },
+  { code: 'KW', name: 'Kuwait', dial: '+965', flag: '🇰🇼' },
+  { code: 'KG', name: 'Kyrgyzstan', dial: '+996', flag: '🇰🇬' },
+  { code: 'LA', name: 'Laos', dial: '+856', flag: '🇱🇦' },
+  { code: 'LV', name: 'Latvia', dial: '+371', flag: '🇱🇻' },
+  { code: 'LB', name: 'Lebanon', dial: '+961', flag: '🇱🇧' },
+  { code: 'LS', name: 'Lesotho', dial: '+266', flag: '🇱🇸' },
+  { code: 'LR', name: 'Liberia', dial: '+231', flag: '🇱🇷' },
+  { code: 'LY', name: 'Libya', dial: '+218', flag: '🇱🇾' },
+  { code: 'LI', name: 'Liechtenstein', dial: '+423', flag: '🇱🇮' },
+  { code: 'LT', name: 'Lithuania', dial: '+370', flag: '🇱🇹' },
+  { code: 'LU', name: 'Luxembourg', dial: '+352', flag: '🇱🇺' },
+  { code: 'MG', name: 'Madagascar', dial: '+261', flag: '🇲🇬' },
+  { code: 'MW', name: 'Malawi', dial: '+265', flag: '🇲🇼' },
+  { code: 'MY', name: 'Malaysia', dial: '+60', flag: '🇲🇾' },
+  { code: 'MV', name: 'Maldives', dial: '+960', flag: '🇲🇻' },
+  { code: 'ML', name: 'Mali', dial: '+223', flag: '🇲🇱' },
+  { code: 'MT', name: 'Malta', dial: '+356', flag: '🇲🇹' },
+  { code: 'MR', name: 'Mauritania', dial: '+222', flag: '🇲🇷' },
+  { code: 'MU', name: 'Mauritius', dial: '+230', flag: '🇲🇺' },
+  { code: 'MX', name: 'Mexico', dial: '+52', flag: '🇲🇽' },
+  { code: 'MD', name: 'Moldova', dial: '+373', flag: '🇲🇩' },
+  { code: 'MC', name: 'Monaco', dial: '+377', flag: '🇲🇨' },
+  { code: 'MN', name: 'Mongolia', dial: '+976', flag: '🇲🇳' },
+  { code: 'ME', name: 'Montenegro', dial: '+382', flag: '🇲🇪' },
+  { code: 'MA', name: 'Morocco', dial: '+212', flag: '🇲🇦' },
+  { code: 'MZ', name: 'Mozambique', dial: '+258', flag: '🇲🇿' },
+  { code: 'MM', name: 'Myanmar', dial: '+95', flag: '🇲🇲' },
+  { code: 'NA', name: 'Namibia', dial: '+264', flag: '🇳🇦' },
+  { code: 'NR', name: 'Nauru', dial: '+674', flag: '🇳🇷' },
+  { code: 'NP', name: 'Nepal', dial: '+977', flag: '🇳🇵' },
+  { code: 'NL', name: 'Netherlands', dial: '+31', flag: '🇳🇱' },
+  { code: 'NZ', name: 'New Zealand', dial: '+64', flag: '🇳🇿' },
+  { code: 'NI', name: 'Nicaragua', dial: '+505', flag: '🇳🇮' },
+  { code: 'NE', name: 'Niger', dial: '+227', flag: '🇳🇪' },
+  { code: 'NG', name: 'Nigeria', dial: '+234', flag: '🇳🇬' },
+  { code: 'KP', name: 'North Korea', dial: '+850', flag: '🇰🇵' },
+  { code: 'MK', name: 'North Macedonia', dial: '+389', flag: '🇲🇰' },
+  { code: 'NO', name: 'Norway', dial: '+47', flag: '🇳🇴' },
+  { code: 'OM', name: 'Oman', dial: '+968', flag: '🇴🇲' },
+  { code: 'PK', name: 'Pakistan', dial: '+92', flag: '🇵🇰' },
+  { code: 'PA', name: 'Panama', dial: '+507', flag: '🇵🇦' },
+  { code: 'PG', name: 'Papua New Guinea', dial: '+675', flag: '🇵🇬' },
+  { code: 'PY', name: 'Paraguay', dial: '+595', flag: '🇵🇾' },
+  { code: 'PE', name: 'Peru', dial: '+51', flag: '🇵🇪' },
+  { code: 'PH', name: 'Philippines', dial: '+63', flag: '🇵🇭' },
+  { code: 'PL', name: 'Poland', dial: '+48', flag: '🇵🇱' },
+  { code: 'PT', name: 'Portugal', dial: '+351', flag: '🇵🇹' },
+  { code: 'QA', name: 'Qatar', dial: '+974', flag: '🇶🇦' },
+  { code: 'RO', name: 'Romania', dial: '+40', flag: '🇷🇴' },
+  { code: 'RU', name: 'Russia', dial: '+7', flag: '🇷🇺' },
+  { code: 'RW', name: 'Rwanda', dial: '+250', flag: '🇷🇼' },
+  { code: 'KN', name: 'Saint Kitts & Nevis', dial: '+1869', flag: '🇰🇳' },
+  { code: 'LC', name: 'Saint Lucia', dial: '+1758', flag: '🇱🇨' },
+  { code: 'VC', name: 'Saint Vincent', dial: '+1784', flag: '🇻🇨' },
+  { code: 'WS', name: 'Samoa', dial: '+685', flag: '🇼🇸' },
+  { code: 'SM', name: 'San Marino', dial: '+378', flag: '🇸🇲' },
+  { code: 'SA', name: 'Saudi Arabia', dial: '+966', flag: '🇸🇦' },
+  { code: 'SN', name: 'Senegal', dial: '+221', flag: '🇸🇳' },
+  { code: 'RS', name: 'Serbia', dial: '+381', flag: '🇷🇸' },
+  { code: 'SC', name: 'Seychelles', dial: '+248', flag: '🇸🇨' },
+  { code: 'SL', name: 'Sierra Leone', dial: '+232', flag: '🇸🇱' },
+  { code: 'SG', name: 'Singapore', dial: '+65', flag: '🇸🇬' },
+  { code: 'SK', name: 'Slovakia', dial: '+421', flag: '🇸🇰' },
+  { code: 'SI', name: 'Slovenia', dial: '+386', flag: '🇸🇮' },
+  { code: 'SB', name: 'Solomon Islands', dial: '+677', flag: '🇸🇧' },
+  { code: 'SO', name: 'Somalia', dial: '+252', flag: '🇸🇴' },
+  { code: 'ZA', name: 'South Africa', dial: '+27', flag: '🇿🇦' },
+  { code: 'KR', name: 'South Korea', dial: '+82', flag: '🇰🇷' },
+  { code: 'SS', name: 'South Sudan', dial: '+211', flag: '🇸🇸' },
+  { code: 'ES', name: 'Spain', dial: '+34', flag: '🇪🇸' },
+  { code: 'LK', name: 'Sri Lanka', dial: '+94', flag: '🇱🇰' },
+  { code: 'SD', name: 'Sudan', dial: '+249', flag: '🇸🇩' },
+  { code: 'SR', name: 'Suriname', dial: '+597', flag: '🇸🇷' },
+  { code: 'SE', name: 'Sweden', dial: '+46', flag: '🇸🇪' },
+  { code: 'CH', name: 'Switzerland', dial: '+41', flag: '🇨🇭' },
+  { code: 'SY', name: 'Syria', dial: '+963', flag: '🇸🇾' },
+  { code: 'TW', name: 'Taiwan', dial: '+886', flag: '🇹🇼' },
+  { code: 'TJ', name: 'Tajikistan', dial: '+992', flag: '🇹🇯' },
+  { code: 'TZ', name: 'Tanzania', dial: '+255', flag: '🇹🇿' },
+  { code: 'TH', name: 'Thailand', dial: '+66', flag: '🇹🇭' },
+  { code: 'TL', name: 'Timor-Leste', dial: '+670', flag: '🇹🇱' },
+  { code: 'TG', name: 'Togo', dial: '+228', flag: '🇹🇬' },
+  { code: 'TO', name: 'Tonga', dial: '+676', flag: '🇹🇴' },
+  { code: 'TT', name: 'Trinidad & Tobago', dial: '+1868', flag: '🇹🇹' },
+  { code: 'TN', name: 'Tunisia', dial: '+216', flag: '🇹🇳' },
+  { code: 'TR', name: 'Turkey', dial: '+90', flag: '🇹🇷' },
+  { code: 'TM', name: 'Turkmenistan', dial: '+993', flag: '🇹🇲' },
+  { code: 'TV', name: 'Tuvalu', dial: '+688', flag: '🇹🇻' },
+  { code: 'UG', name: 'Uganda', dial: '+256', flag: '🇺🇬' },
+  { code: 'UA', name: 'Ukraine', dial: '+380', flag: '🇺🇦' },
+  { code: 'AE', name: 'United Arab Emirates', dial: '+971', flag: '🇦🇪' },
+  { code: 'GB', name: 'United Kingdom', dial: '+44', flag: '🇬🇧' },
+  { code: 'US', name: 'United States', dial: '+1', flag: '🇺🇸' },
+  { code: 'UY', name: 'Uruguay', dial: '+598', flag: '🇺🇾' },
+  { code: 'UZ', name: 'Uzbekistan', dial: '+998', flag: '🇺🇿' },
+  { code: 'VU', name: 'Vanuatu', dial: '+678', flag: '🇻🇺' },
+  { code: 'VE', name: 'Venezuela', dial: '+58', flag: '🇻🇪' },
+  { code: 'VN', name: 'Vietnam', dial: '+84', flag: '🇻🇳' },
+  { code: 'YE', name: 'Yemen', dial: '+967', flag: '🇾🇪' },
+  { code: 'ZM', name: 'Zambia', dial: '+260', flag: '🇿🇲' },
+  { code: 'ZW', name: 'Zimbabwe', dial: '+263', flag: '🇿🇼' }
+];
+
+// Per-instance state for which country is selected on each phone input
+const _phoneCountryState: Record<string, CountryCode> = {};
+
+function getSelectedCountry(inputId: string): CountryEntry {
+  const code = _phoneCountryState[inputId] || 'US';
+  return COUNTRIES.find(c => c.code === code) || COUNTRIES.find(c => c.code === 'US')!;
+}
+
+function parseInitialPhone(value: string, defaultCountry: CountryCode = 'US'): { country: CountryCode; nationalNumber: string } {
+  if (!value) return { country: defaultCountry, nationalNumber: '' };
+  try {
+    const parsed = parsePhoneNumberFromString(value);
+    if (parsed && parsed.country) {
+      return { country: parsed.country, nationalNumber: parsed.nationalNumber as string };
+    }
+    const parsedDefault = parsePhoneNumberFromString(value, defaultCountry);
+    if (parsedDefault && parsedDefault.isValid()) {
+      return { country: defaultCountry, nationalNumber: parsedDefault.nationalNumber as string };
+    }
+  } catch (err) {
+    // ignore
+  }
+  if (value.startsWith('+')) {
+    for (const c of COUNTRIES) {
+      if (value.startsWith(c.dial)) {
+        return { country: c.code, nationalNumber: value.slice(c.dial.length).trim() };
+      }
+    }
+  }
+  return { country: defaultCountry, nationalNumber: value };
+}
+
+/**
+ * Draws a premium phone input with a clickable flag + dial code button
+ * that opens a searchable country dropdown.
+ */
+function drawPhoneInput(inputId: string, value: string = '', placeholder: string = 'Mobile number'): string {
+  const parsed = parseInitialPhone(value, _phoneCountryState[inputId] || 'US');
+  _phoneCountryState[inputId] = parsed.country;
+  const displayValue = parsed.nationalNumber;
+  const country = getSelectedCountry(inputId);
+
+  return `
+    <div class="phone-input-wrapper" id="${inputId}-wrapper">
+      <button type="button" class="phone-country-btn" id="${inputId}-country-btn" aria-label="Select country code">
+        <span class="phone-flag">${country.flag}</span>
+        <span class="phone-dial-code">${country.dial}</span>
+        <svg class="phone-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </button>
+      <input type="tel" class="phone-number-input" id="${inputId}" value="${displayValue}" placeholder="${placeholder}" autocomplete="tel">
+      <div class="phone-dropdown" id="${inputId}-dropdown">
+        <div class="phone-dropdown-search-box">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input type="text" class="phone-dropdown-search" id="${inputId}-search" placeholder="Search countries..." autocomplete="off">
+        </div>
+        <div class="phone-dropdown-list" id="${inputId}-list">
+          ${COUNTRIES.map(c => `
+            <button type="button" class="phone-dropdown-item ${c.code === country.code ? 'selected' : ''}" data-code="${c.code}">
+              <span class="phone-dropdown-flag">${c.flag}</span>
+              <span class="phone-dropdown-name">${c.name}</span>
+              <span class="phone-dropdown-dial">${c.dial}</span>
+            </button>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Binds interactive events for a phone input instance:
+ * - Toggle dropdown on country button click
+ * - Search/filter countries
+ * - Select a country and close dropdown
+ * - Close dropdown on outside click
+ */
+function bindPhoneInputEvents(inputId: string, onChange?: (fullNumber: string) => void) {
+  const wrapper = document.getElementById(`${inputId}-wrapper`);
+  const countryBtn = document.getElementById(`${inputId}-country-btn`);
+  const dropdown = document.getElementById(`${inputId}-dropdown`);
+  const searchInput = document.getElementById(`${inputId}-search`) as HTMLInputElement;
+  const listContainer = document.getElementById(`${inputId}-list`);
+  const phoneInput = document.getElementById(inputId) as HTMLInputElement;
+
+  if (!wrapper || !countryBtn || !dropdown || !searchInput || !listContainer || !phoneInput) return;
+
+  // Toggle dropdown
+  countryBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const isOpen = dropdown.classList.contains('open');
+    // Close all other open dropdowns first
+    document.querySelectorAll('.phone-dropdown.open').forEach(d => d.classList.remove('open'));
+    if (!isOpen) {
+      dropdown.classList.add('open');
+      searchInput.value = '';
+      _filterPhoneList(listContainer, '');
+      setTimeout(() => searchInput.focus(), 50);
+    }
+  });
+
+  // Search filter
+  searchInput.addEventListener('input', () => {
+    _filterPhoneList(listContainer, searchInput.value);
+  });
+
+  // Prevent search input click from closing dropdown
+  searchInput.addEventListener('click', (e) => e.stopPropagation());
+
+  // Select country
+  listContainer.addEventListener('click', (e) => {
+    const item = (e.target as HTMLElement).closest('.phone-dropdown-item') as HTMLElement;
+    if (!item) return;
+    e.stopPropagation();
+
+    const code = item.dataset.code as CountryCode;
+    _phoneCountryState[inputId] = code;
+
+    const country = getSelectedCountry(inputId);
+
+    // Update button display
+    const flagEl = countryBtn.querySelector('.phone-flag');
+    const dialEl = countryBtn.querySelector('.phone-dial-code');
+    if (flagEl) flagEl.textContent = country.flag;
+    if (dialEl) dialEl.textContent = country.dial;
+
+    // Update selected state in list
+    listContainer.querySelectorAll('.phone-dropdown-item').forEach(btn => btn.classList.remove('selected'));
+    item.classList.add('selected');
+
+    // Close dropdown
+    dropdown.classList.remove('open');
+
+    // Focus the phone input
+    phoneInput.focus();
+
+    if (onChange) onChange(country.dial + phoneInput.value);
+  });
+
+  // Close dropdown on outside click
+  const outsideClickHandler = (e: MouseEvent) => {
+    if (!wrapper.contains(e.target as Node)) {
+      dropdown.classList.remove('open');
+    }
+  };
+  document.addEventListener('click', outsideClickHandler);
+
+  // Fire onChange on phone input
+  if (onChange) {
+    phoneInput.addEventListener('input', () => {
+      const country = getSelectedCountry(inputId);
+      onChange(country.dial + phoneInput.value);
+    });
+  }
+}
+
+function _filterPhoneList(listContainer: HTMLElement, query: string) {
+  const q = query.toLowerCase().trim();
+  const items = listContainer.querySelectorAll('.phone-dropdown-item');
+  items.forEach(item => {
+    const el = item as HTMLElement;
+    const name = (el.querySelector('.phone-dropdown-name')?.textContent || '').toLowerCase();
+    const dial = (el.querySelector('.phone-dropdown-dial')?.textContent || '').toLowerCase();
+    if (!q || name.includes(q) || dial.includes(q)) {
+      el.style.display = '';
+    } else {
+      el.style.display = 'none';
+    }
+  });
+}
+
+// ============================================================
 // TYPE & INTERFACES DEFINITIONS
 // ============================================================
 
@@ -88,7 +463,7 @@ interface AppNotification {
 }
 
 interface AppState {
-  view: 'splash' | 'tour' | 'login' | 'register' | 'complete-profile' | 'lock' | 'app' | 'offline';
+  view: 'splash' | 'tour' | 'login' | 'register' | 'complete-profile' | 'lock' | 'app' | 'offline' | 'forgot-password';
   isAuthenticated: boolean;
   user: {
     id: number;
@@ -133,6 +508,12 @@ interface AppState {
   otpCountdown: number;
   otpTimer: any | null;
   otpValues: string[];
+  
+  // Forgot password & lockout suspension
+  suspendedUntil: string | null;
+  forgotStep: 'email' | 'otp' | 'new-password';
+  forgotEmail: string;
+  forgotCode: string;
   
   // Biometrics & lock screens
   isLockScreenActive: boolean;
@@ -197,9 +578,14 @@ const state: AppState = {
   registerStep: 'credentials',
   otpEmail: '',
   otpPassword: '',
-  otpCountdown: 90,
+  otpCountdown: 30,
   otpTimer: null,
   otpValues: Array(8).fill(''),
+  
+  suspendedUntil: localStorage.getItem('admin-suite.suspended-until'),
+  forgotStep: 'email',
+  forgotEmail: '',
+  forgotCode: '',
   
   isLockScreenActive: false,
   isScanning: false,
@@ -352,8 +738,11 @@ async function syncAppData() {
     state.isAuthenticated = true;
 
     return true;
-  } catch (err) {
+  } catch (err: any) {
     console.error('Failed to sync backend:', err);
+    if (err.message && err.message.includes('Session expired')) {
+      return false;
+    }
     state.view = 'offline';
     renderApp();
     return false;
@@ -623,9 +1012,18 @@ window.addEventListener('hashchange', () => {
 // SCREEN TEMPLATE DRAWERS
 // ============================================================
 
+// Track previous view so we can do partial updates when staying in the same view
+let _prevView: AppState['view'] | null = null;
+
 export function renderApp() {
   const root = document.getElementById('root');
   if (!root) return;
+
+  if (state.suspendedUntil && new Date(state.suspendedUntil) > new Date()) {
+    root.innerHTML = drawSuspended();
+    bindSuspendedEvents();
+    return;
+  }
 
   // Global theme check
   document.documentElement.setAttribute('data-theme', state.theme);
@@ -634,7 +1032,17 @@ export function renderApp() {
   const tourOverlayCleanup = document.getElementById('dashboard-tour-overlay');
   if (tourOverlayCleanup) tourOverlayCleanup.remove();
 
-  switch (state.view) {
+  // ── PARTIAL UPDATE: If we're already in the 'app' view and the view
+  //    hasn't changed, selectively update only the parts that changed
+  //    instead of nuking the entire DOM (which causes visible flashing). ──
+  if (state.view === 'app' && _prevView === 'app') {
+    _patchAppView();
+    return;
+  }
+
+  _prevView = state.view;
+
+  switch (state.view as string) {
     case 'splash':
       root.innerHTML = drawSplashGate();
       bindSplashEvents();
@@ -646,6 +1054,10 @@ export function renderApp() {
     case 'login':
       root.innerHTML = drawLogin();
       bindLoginEvents();
+      break;
+    case 'forgot-password':
+      root.innerHTML = drawForgotPassword();
+      bindForgotPasswordEvents();
       break;
     case 'register':
       root.innerHTML = drawRegister();
@@ -670,7 +1082,7 @@ export function renderApp() {
           ${drawSidebar()}
           <div class="main-content">
             ${drawTopbar()}
-            <main class="page-content">
+            <main class="page-content page-content-animate">
               ${drawTabContent()}
             </main>
           </div>
@@ -681,6 +1093,82 @@ export function renderApp() {
       bindTabSpecificEvents();
       break;
   }
+}
+
+/**
+ * Performs an in-place partial DOM update when already in the 'app' view.
+ * Instead of replacing the entire root.innerHTML (which tears down and
+ * rebuilds the whole DOM causing a visible blink), this only patches:
+ *   1. Sidebar active-tab highlights
+ *   2. The page-content area (the main tab body)
+ *   3. The topbar notification dropdown state
+ *   4. The sidebar overlay for mobile
+ */
+function _patchAppView() {
+  // 1. Update page content (the main area that changes on tab switch)
+  const pageContent = document.querySelector('.page-content');
+  if (pageContent) {
+    pageContent.innerHTML = drawTabContent();
+    // 3D Spring View Switch Animation Reset
+    pageContent.classList.remove('page-content-animate');
+    void (pageContent as HTMLElement).offsetWidth; // Trigger layout reflow
+    pageContent.classList.add('page-content-animate');
+  }
+
+  // 2. Update sidebar active states
+  document.querySelectorAll('.nav-item').forEach(btn => {
+    const tab = (btn as HTMLElement).dataset.tab;
+    if (tab === state.activeTab) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+
+  // 3. Update sidebar overlay (mobile)
+  const overlay = document.getElementById('sidebar-overlay');
+  if (overlay) {
+    if (state.isMobileSidebarOpen) {
+      overlay.classList.add('open');
+    } else {
+      overlay.classList.remove('open');
+    }
+  }
+
+  // 4. Update sidebar mobile open/close
+  const sidebar = document.querySelector('.sidebar');
+  if (sidebar) {
+    if (state.isMobileSidebarOpen) {
+      sidebar.classList.add('open');
+    } else {
+      sidebar.classList.remove('open');
+    }
+  }
+
+  // 5. Update notification dropdown
+  const notifPanel = document.querySelector('.notification-panel');
+  if (notifPanel) {
+    if (state.isNotificationsOpen) {
+      notifPanel.classList.add('show');
+    } else {
+      notifPanel.classList.remove('show');
+    }
+  }
+
+  // 6. Update topbar (for notification badge, theme icon, etc.)
+  const topbar = document.querySelector('.topbar');
+  if (topbar && topbar.parentElement) {
+    const temp = document.createElement('div');
+    temp.innerHTML = drawTopbar();
+    const newTopbar = temp.firstElementChild;
+    if (newTopbar) {
+      topbar.parentElement.replaceChild(newTopbar, topbar);
+    }
+  }
+
+  // Re-bind events since inner content changed
+  bindNavigationEvents();
+  bindTabSpecificEvents();
 }
 
 // ------------------------------------------------------------
@@ -852,7 +1340,7 @@ function drawLogin(): string {
                 <span style="position: absolute; left: 12px; display: flex; color: var(--muted-foreground);">
                   ${getIconSvg('mail', 'form-icon')}
                 </span>
-                <input class="form-input" type="email" id="login-email" required placeholder="Email address" style="padding-left: 38px;">
+                <input class="form-input" type="email" id="login-email" required placeholder="Email address" style="padding-left: 38px;" value="admin@adminsuite.app">
               </div>
             </div>
             
@@ -915,7 +1403,9 @@ function bindLoginEvents() {
   if (forgotLink) {
     forgotLink.addEventListener('click', (e) => {
       e.preventDefault();
-      showToast('Password recovery OTP sent to email if registered', 'info');
+      state.view = 'forgot-password';
+      state.forgotStep = 'email';
+      renderApp();
     });
   }
 
@@ -937,7 +1427,23 @@ function bindLoginEvents() {
         });
 
         if (!response.ok) {
-          throw new Error('Invalid login credentials. Please try again.');
+          let errMsg = 'Invalid login credentials. Please try again.';
+          try {
+            const errData = await response.json();
+            if (response.status === 423 || errData.error === 'suspended') {
+              state.suspendedUntil = errData.suspended_until;
+              if (errData.suspended_until) {
+                localStorage.setItem('admin-suite.suspended-until', errData.suspended_until);
+              }
+              showToast(errData.message || 'Account suspended.', 'error');
+              renderApp();
+              return;
+            }
+            if (errData.message) {
+              errMsg = errData.message;
+            }
+          } catch (_) {}
+          throw new Error(errMsg);
         }
 
         const authData = await response.json();
@@ -954,6 +1460,10 @@ function bindLoginEvents() {
           } else {
             state.view = 'app';
           }
+          renderApp();
+        } else {
+          submitBtn.disabled = false;
+          submitBtn.innerText = 'Continue';
         }
       } catch (err: any) {
         showToast(err.message || 'Login failed', 'error');
@@ -1120,7 +1630,7 @@ function bindRegisterEvents() {
           state.otpEmail = email;
           state.otpPassword = pwd;
           state.registerStep = 'otp';
-          state.otpCountdown = 90;
+          state.otpCountdown = 30;
           state.otpValues = Array(8).fill('');
           
           startOTPTimer();
@@ -1186,7 +1696,7 @@ function bindRegisterEvents() {
       resendBtn.addEventListener('click', async () => {
         try {
           await supabaseResendOTP(state.otpEmail);
-          state.otpCountdown = 90;
+          state.otpCountdown = 30;
           startOTPTimer();
           renderApp();
           showToast('Verification code resent!', 'success');
@@ -1217,7 +1727,8 @@ function bindRegisterEvents() {
             body: JSON.stringify({
               email: state.otpEmail,
               password: state.otpPassword,
-              confirm_password: state.otpPassword
+              confirm_password: state.otpPassword,
+              supabase_verified: true
             })
           });
 
@@ -1225,11 +1736,16 @@ function bindRegisterEvents() {
           localStorage.setItem('admin-suite.token', signupRes.token);
           state.authToken = signupRes.token;
 
-          await syncAppData();
-          showToast('Registration verified & completed!', 'success');
-          state.view = 'complete-profile';
-          state.completeProfileSlide = 0;
-          renderApp();
+          const synced = await syncAppData();
+          if (synced) {
+            showToast('Registration verified & completed!', 'success');
+            state.view = 'complete-profile';
+            state.completeProfileSlide = 0;
+            renderApp();
+          } else {
+            verifyBtn.removeAttribute('disabled');
+            verifyBtn.innerText = 'Verify Code';
+          }
         } catch (err: any) {
           showToast(err.message || 'Verification failed', 'error');
           verifyBtn.removeAttribute('disabled');
@@ -1349,7 +1865,7 @@ function drawCompleteProfileSlideBody(): string {
         
         <div class="form-group">
           <label class="form-label" for="cp-phone">Contact Phone</label>
-          <input type="text" class="form-input" id="cp-phone" value="${d.phone || ''}" placeholder="+44 7911 123456" required>
+          ${drawPhoneInput('cp-phone', d.phone || '', 'e.g. 7911 123456')}
         </div>
 
         <div class="form-group">
@@ -1495,13 +2011,17 @@ function bindCompleteProfileEvents() {
   // Track inputs on step 2
   const nameIn = document.getElementById('cp-name') as HTMLInputElement;
   const locIn = document.getElementById('cp-location') as HTMLInputElement;
-  const phoneIn = document.getElementById('cp-phone') as HTMLInputElement;
   const bioIn = document.getElementById('cp-bio') as HTMLTextAreaElement;
 
   if (nameIn) nameIn.addEventListener('input', () => d.name = nameIn.value);
   if (locIn) locIn.addEventListener('input', () => d.location = locIn.value);
-  if (phoneIn) phoneIn.addEventListener('input', () => d.phone = phoneIn.value);
   if (bioIn) bioIn.addEventListener('input', () => d.bio = bioIn.value);
+
+  if (state.completeProfileSlide === 2) {
+    bindPhoneInputEvents('cp-phone', (val) => {
+      d.phone = val;
+    });
+  }
 
   // Track inputs on step 3
   const bizIn = document.getElementById('cp-biz-name') as HTMLInputElement;
@@ -1548,7 +2068,8 @@ function bindCompleteProfileEvents() {
           showToast('Please complete all required personal info fields', 'error');
           return;
         }
-        const phoneCheck = validateAndFormatPhone(d.phone, 'US');
+        const selectedCountry = _phoneCountryState['cp-phone'] || 'US';
+        const phoneCheck = validateAndFormatPhone(d.phone, selectedCountry);
         if (!phoneCheck.isValid) {
           showToast('Please enter a valid phone number', 'error');
           return;
@@ -2462,7 +2983,7 @@ function openAddEmployeeModal() {
               </div>
               <div class="form-group">
                 <label class="form-label" for="emp-phone">Phone Number</label>
-                <input type="text" class="form-input" id="emp-phone" required placeholder="+1 (555) 124-1199">
+                ${drawPhoneInput('emp-phone', '', 'e.g. 555-0199')}
               </div>
             </div>
           </div>
@@ -2480,6 +3001,14 @@ function openAddEmployeeModal() {
   document.getElementById('modal-close-btn')?.addEventListener('click', close);
   document.getElementById('modal-cancel-btn')?.addEventListener('click', close);
 
+  // Bind phone input events
+  const empPhoneInput = document.getElementById('emp-phone') as HTMLInputElement;
+  const initialCountry = getSelectedCountry('emp-phone');
+  let empPhoneVal = initialCountry.dial + (empPhoneInput?.value || '');
+  bindPhoneInputEvents('emp-phone', (fullVal) => {
+    empPhoneVal = fullVal;
+  });
+
   const form = document.getElementById('add-employee-form') as HTMLFormElement;
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -2490,12 +3019,12 @@ function openAddEmployeeModal() {
     const role = (document.getElementById('emp-role') as HTMLInputElement).value;
     const department = (document.getElementById('emp-dept') as HTMLSelectElement).value;
     const salary = parseFloat((document.getElementById('emp-salary') as HTMLInputElement).value);
-    const phone = (document.getElementById('emp-phone') as HTMLInputElement).value;
 
     submitBtn.disabled = true;
     submitBtn.innerText = 'Saving...';
 
-    const phoneCheck = validateAndFormatPhone(phone, 'US');
+    const selectedCountry = _phoneCountryState['emp-phone'] || 'US';
+    const phoneCheck = validateAndFormatPhone(empPhoneVal, selectedCountry);
     if (!phoneCheck.isValid) {
       showToast('Please enter a valid phone number', 'error');
       submitBtn.disabled = false;
@@ -3018,7 +3547,7 @@ function drawSettingsTab(): string {
             <div class="form-row">
               <div class="form-group">
                 <label class="form-label" for="set-phone">Contact Phone</label>
-                <input type="text" class="form-input" id="set-phone" required value="${u.phone || ''}">
+                ${drawPhoneInput('set-phone', u.phone || '', 'e.g. 555-0199')}
               </div>
               <div class="form-group">
                 <label class="form-label" for="set-location">Location</label>
@@ -3083,20 +3612,29 @@ function drawSettingsTab(): string {
 
 function bindSettingsEvents() {
   const profileForm = document.getElementById('settings-profile-form') as HTMLFormElement;
+  
+  // Bind phone input events
+  const setPhoneInput = document.getElementById('set-phone') as HTMLInputElement;
+  const initialCountry = getSelectedCountry('set-phone');
+  let setPhoneVal = initialCountry.dial + (setPhoneInput?.value || '');
+  bindPhoneInputEvents('set-phone', (fullVal) => {
+    setPhoneVal = fullVal;
+  });
+
   if (profileForm) {
     profileForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const submitBtn = document.getElementById('set-submit-btn') as HTMLButtonElement;
 
       const name = (document.getElementById('set-name') as HTMLInputElement).value;
-      const phone = (document.getElementById('set-phone') as HTMLInputElement).value;
       const location = (document.getElementById('set-location') as HTMLInputElement).value;
       const bio = (document.getElementById('set-bio') as HTMLTextAreaElement).value;
 
       submitBtn.disabled = true;
       submitBtn.innerText = 'Updating...';
 
-      const phoneCheck = validateAndFormatPhone(phone, 'US');
+      const selectedCountry = _phoneCountryState['set-phone'] || 'US';
+      const phoneCheck = validateAndFormatPhone(setPhoneVal, selectedCountry);
       if (!phoneCheck.isValid) {
         showToast('Please enter a valid phone number', 'error');
         submitBtn.disabled = false;
@@ -3386,6 +3924,390 @@ function positionTourTooltip(tooltip: HTMLElement, targetRect: DOMRect, position
       tooltip.style.top = '20px';
     }
   });
+}
+
+// ------------------------------------------------------------
+// SUSPENDED & LOCKOUT VIEWS
+// ------------------------------------------------------------
+
+function drawSuspended(): string {
+  const until = state.suspendedUntil ? new Date(state.suspendedUntil).getTime() : 0;
+  const now = new Date().getTime();
+  const secondsLeft = Math.max(0, Math.floor((until - now) / 1000));
+  const mins = Math.floor(secondsLeft / 60);
+  const secs = secondsLeft % 60;
+  const padZero = (n: number) => n.toString().padStart(2, '0');
+
+  return `
+    <div class="login-page">
+      <div class="split-container">
+        ${drawAuthLeftPanel()}
+        <div class="split-right-panel" style="display:flex; flex-direction:column; justify-content:center; align-items:center;">
+          <div style="background: rgba(239, 68, 68, 0.08); border: 1.5px solid rgba(239, 68, 68, 0.2); padding: 28px; border-radius: 20px; text-align: center; width: 100%; max-width: 420px; box-shadow: var(--shadow-xl);">
+            <div style="width: 56px; height: 56px; border-radius: 16px; background: rgba(239, 68, 68, 0.15); display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; color: #ef4444;">
+              ${getIconSvg('alert')}
+            </div>
+            <h1 style="font-size: 24px; font-weight: 800; color: var(--foreground); margin-bottom: 10px;">Account Locked</h1>
+            <p style="color: var(--muted-foreground); font-size: 14px; line-height: 22px; margin-bottom: 24px;">
+              Your account has been temporarily suspended due to 7 consecutive failed login attempts. To safeguard your workspace data, security lock has been activated.
+            </p>
+            
+            <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 24px;">
+              <span style="font-size: 10px; font-weight: 700; color: var(--muted-foreground); letter-spacing: 1.5px; display: block; margin-bottom: 6px; text-transform: uppercase;">Access Restores In</span>
+              <span id="suspended-countdown-val" style="font-size: 32px; font-weight: 700; font-family: monospace; color: var(--foreground);">${padZero(mins)}:${padZero(secs)}</span>
+            </div>
+
+            <button class="login-btn" id="suspended-retry-btn" ${secondsLeft > 0 ? 'disabled style="background: var(--muted); color: var(--muted-foreground); cursor: not-allowed;"' : ''}>Try Logging In</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+let suspendedTimerInterval: any = null;
+
+function bindSuspendedEvents() {
+  const retryBtn = document.getElementById('suspended-retry-btn') as HTMLButtonElement;
+  const countdownVal = document.getElementById('suspended-countdown-val');
+  
+  if (suspendedTimerInterval) {
+    clearInterval(suspendedTimerInterval);
+  }
+
+  const updateTimer = () => {
+    const until = state.suspendedUntil ? new Date(state.suspendedUntil).getTime() : 0;
+    const now = new Date().getTime();
+    const secondsLeft = Math.max(0, Math.floor((until - now) / 1000));
+    
+    if (secondsLeft <= 0) {
+      clearInterval(suspendedTimerInterval);
+      state.suspendedUntil = null;
+      localStorage.removeItem('admin-suite.suspended-until');
+      if (retryBtn) {
+        retryBtn.disabled = false;
+        retryBtn.style.background = '';
+        retryBtn.style.color = '';
+        retryBtn.style.cursor = '';
+      }
+      if (countdownVal) {
+        countdownVal.innerText = '00:00';
+      }
+      showToast('Suspension lifted. You can try logging in again.', 'success');
+      state.view = 'login';
+      renderApp();
+      return;
+    }
+
+    const mins = Math.floor(secondsLeft / 60);
+    const secs = secondsLeft % 60;
+    const padZero = (n: number) => n.toString().padStart(2, '0');
+    if (countdownVal) {
+      countdownVal.innerText = `${padZero(mins)}:${padZero(secs)}`;
+    }
+  };
+
+  suspendedTimerInterval = setInterval(updateTimer, 1000);
+
+  if (retryBtn) {
+    retryBtn.addEventListener('click', () => {
+      state.suspendedUntil = null;
+      localStorage.removeItem('admin-suite.suspended-until');
+      state.view = 'login';
+      renderApp();
+    });
+  }
+}
+
+// ------------------------------------------------------------
+// FORGOT PASSWORD FLOW
+// ------------------------------------------------------------
+
+function drawForgotPassword(): string {
+  let content = '';
+
+  if (!state.forgotStep) {
+    state.forgotStep = 'email';
+  }
+
+  if (state.forgotStep === 'email') {
+    content = `
+      <div class="login-logo" style="text-align: left; margin-bottom: 24px;">
+        <h1 style="font-size: 28px; font-weight: 800; letter-spacing: -0.5px;">Password Recovery</h1>
+        <p style="color: var(--muted-foreground); font-size: 14px; margin-top: 4px;">Enter the email you registered with to receive a 6-digit verification code.</p>
+      </div>
+      
+      <form id="forgot-email-form">
+        <div class="form-group" style="position: relative; margin-bottom: 24px;">
+          <label class="form-label" for="forgot-email">Email Address</label>
+          <div style="position: relative; display: flex; align-items: center;">
+            <span style="position: absolute; left: 12px; display: flex; color: var(--muted-foreground);">
+              ${getIconSvg('mail', 'form-icon')}
+            </span>
+            <input class="form-input" type="email" id="forgot-email" required placeholder="Email address" style="padding-left: 38px;" value="${state.forgotEmail || ''}">
+          </div>
+        </div>
+        
+        <button type="submit" class="login-btn" id="forgot-email-btn">Send Code</button>
+      </form>
+      
+      <div style="text-align: center; margin-top: 24px;">
+        <a href="#" id="forgot-back-to-login" style="font-size: 13px; font-weight: 600; color: var(--accent); text-decoration: underline;">Back to Sign In</a>
+      </div>
+    `;
+  } else if (state.forgotStep === 'otp') {
+    content = `
+      <div class="login-logo" style="text-align: left; margin-bottom: 24px;">
+        <h1 style="font-size: 28px; font-weight: 800; letter-spacing: -0.5px;">Enter OTP</h1>
+        <p style="color: var(--muted-foreground); font-size: 14px; margin-top: 4px;">A 6-digit verification code was sent to <strong style="color:var(--foreground);">${state.forgotEmail}</strong>.</p>
+      </div>
+      
+      <form id="forgot-otp-form">
+        <div class="form-group" style="position: relative; margin-bottom: 24px;">
+          <label class="form-label" for="forgot-code">6-Digit Code</label>
+          <div style="position: relative; display: flex; align-items: center;">
+            <span style="position: absolute; left: 12px; display: flex; color: var(--muted-foreground);">
+              ${getIconSvg('lock', 'form-icon')}
+            </span>
+            <input class="form-input" type="text" id="forgot-code" required placeholder="6-digit code" maxlength="6" style="padding-left: 38px; letter-spacing: 4px; font-weight: 600;" value="${state.forgotCode || ''}">
+          </div>
+        </div>
+        
+        <button type="submit" class="login-btn" id="forgot-otp-btn">Verify Code</button>
+      </form>
+      
+      <div style="text-align: center; margin-top: 24px; display: flex; justify-content: space-between; padding: 0 10px;">
+        <a href="#" id="forgot-change-email" style="font-size: 13px; font-weight: 600; color: var(--muted-foreground); text-decoration: underline;">Change email</a>
+        <a href="#" id="forgot-resend-otp" style="font-size: 13px; font-weight: 600; color: var(--accent); text-decoration: underline;">Resend code</a>
+      </div>
+    `;
+  } else if (state.forgotStep === 'new-password') {
+    content = `
+      <div class="login-logo" style="text-align: left; margin-bottom: 24px;">
+        <h1 style="font-size: 28px; font-weight: 800; letter-spacing: -0.5px;">New Password</h1>
+        <p style="color: var(--muted-foreground); font-size: 14px; margin-top: 4px;">Set a new secure password for your account.</p>
+      </div>
+      
+      <form id="forgot-reset-form">
+        <div class="form-group" style="position: relative; margin-bottom: 16px;">
+          <label class="form-label" for="forgot-password">New Password</label>
+          <div style="position: relative; display: flex; align-items: center;">
+            <span style="position: absolute; left: 12px; display: flex; color: var(--muted-foreground);">
+              ${getIconSvg('lock', 'form-icon')}
+            </span>
+            <input class="form-input" type="password" id="forgot-password" required placeholder="New password (min 8 chars)" style="padding-left: 38px;">
+          </div>
+        </div>
+
+        <div class="form-group" style="position: relative; margin-bottom: 24px;">
+          <label class="form-label" for="forgot-confirm">Confirm Password</label>
+          <div style="position: relative; display: flex; align-items: center;">
+            <span style="position: absolute; left: 12px; display: flex; color: var(--muted-foreground);">
+              ${getIconSvg('check', 'form-icon')}
+            </span>
+            <input class="form-input" type="password" id="forgot-confirm" required placeholder="Confirm new password" style="padding-left: 38px;">
+          </div>
+        </div>
+        
+        <button type="submit" class="login-btn" id="forgot-reset-btn">Reset Password</button>
+      </form>
+    `;
+  }
+
+  return `
+    <div class="login-page">
+      <div class="split-container">
+        ${drawAuthLeftPanel()}
+        <div class="split-right-panel">
+          ${content}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function bindForgotPasswordEvents() {
+  const backToLogin = document.getElementById('forgot-back-to-login');
+  const changeEmail = document.getElementById('forgot-change-email');
+  const resendOtp = document.getElementById('forgot-resend-otp');
+
+  const emailForm = document.getElementById('forgot-email-form') as HTMLFormElement;
+  const otpForm = document.getElementById('forgot-otp-form') as HTMLFormElement;
+  const resetForm = document.getElementById('forgot-reset-form') as HTMLFormElement;
+
+  if (backToLogin) {
+    backToLogin.addEventListener('click', (e) => {
+      e.preventDefault();
+      state.view = 'login';
+      renderApp();
+    });
+  }
+
+  if (changeEmail) {
+    changeEmail.addEventListener('click', (e) => {
+      e.preventDefault();
+      state.forgotStep = 'email';
+      renderApp();
+    });
+  }
+
+  if (resendOtp) {
+    resendOtp.addEventListener('click', async (e) => {
+      e.preventDefault();
+      try {
+        const response = await fetch(`${API_BASE}auth/password-reset/send-code/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: state.forgotEmail.trim().toLowerCase() })
+        });
+        const data = await response.json();
+        if (response.ok) {
+          showToast('Verification code resent successfully.', 'success');
+          if (data.code) {
+            console.log("DEV RESET CODE:", data.code);
+            showToast(`[DEV MODE] OTP is: ${data.code}`, 'info');
+          }
+        } else {
+          showToast(data.error || 'Failed to send code.', 'error');
+        }
+      } catch (err: any) {
+        showToast(err.message || 'Error occurred.', 'error');
+      }
+    });
+  }
+
+  if (emailForm) {
+    emailForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const emailInput = document.getElementById('forgot-email') as HTMLInputElement;
+      const email = emailInput.value.trim().toLowerCase();
+      const submitBtn = document.getElementById('forgot-email-btn') as HTMLButtonElement;
+
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span class="dot-loader" style="margin:0; gap:4px;"><span></span><span></span><span></span></span>';
+
+      try {
+        const response = await fetch(`${API_BASE}auth/password-reset/send-code/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+
+        const data = await response.json();
+        submitBtn.disabled = false;
+        submitBtn.innerText = 'Send Code';
+
+        if (response.ok) {
+          state.forgotEmail = email;
+          state.forgotStep = 'otp';
+          showToast(data.message || 'OTP code sent successfully.', 'success');
+          if (data.code) {
+            console.log("DEV RESET CODE:", data.code);
+            showToast(`[DEV MODE] OTP is: ${data.code}`, 'info');
+          }
+          renderApp();
+        } else {
+          showToast(data.error || 'No account found with this email.', 'error');
+        }
+      } catch (err: any) {
+        submitBtn.disabled = false;
+        submitBtn.innerText = 'Send Code';
+        showToast(err.message || 'Network error.', 'error');
+      }
+    });
+  }
+
+  if (otpForm) {
+    otpForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const codeInput = document.getElementById('forgot-code') as HTMLInputElement;
+      const code = codeInput.value.trim();
+      const submitBtn = document.getElementById('forgot-otp-btn') as HTMLButtonElement;
+
+      if (code.length !== 6) {
+        showToast('OTP must be exactly 6 digits.', 'error');
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span class="dot-loader" style="margin:0; gap:4px;"><span></span><span></span><span></span></span>';
+
+      try {
+        const response = await fetch(`${API_BASE}auth/password-reset/verify/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: state.forgotEmail, code })
+        });
+
+        const data = await response.json();
+        submitBtn.disabled = false;
+        submitBtn.innerText = 'Verify Code';
+
+        if (response.ok) {
+          state.forgotCode = code;
+          state.forgotStep = 'new-password';
+          showToast(data.message || 'Code verified successfully.', 'success');
+          renderApp();
+        } else {
+          showToast(data.error || 'Invalid or expired OTP code.', 'error');
+        }
+      } catch (err: any) {
+        submitBtn.disabled = false;
+        submitBtn.innerText = 'Verify Code';
+        showToast(err.message || 'Network error.', 'error');
+      }
+    });
+  }
+
+  if (resetForm) {
+    resetForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const pwdInput = document.getElementById('forgot-password') as HTMLInputElement;
+      const confirmInput = document.getElementById('forgot-confirm') as HTMLInputElement;
+      const new_password = pwdInput.value;
+      const confirm = confirmInput.value;
+      const submitBtn = document.getElementById('forgot-reset-btn') as HTMLButtonElement;
+
+      if (new_password.length < 8) {
+        showToast('Password must be at least 8 characters long.', 'error');
+        return;
+      }
+      if (new_password !== confirm) {
+        showToast('Passwords do not match.', 'error');
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span class="dot-loader" style="margin:0; gap:4px;"><span></span><span></span><span></span></span>';
+
+      try {
+        const response = await fetch(`${API_BASE}auth/password-reset/confirm/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: state.forgotEmail, code: state.forgotCode, new_password })
+        });
+
+        const data = await response.json();
+        submitBtn.disabled = false;
+        submitBtn.innerText = 'Reset Password';
+
+        if (response.ok) {
+          showToast(data.message || 'Password reset successfully! You can now sign in.', 'success');
+          state.view = 'login';
+          state.forgotStep = 'email';
+          state.forgotEmail = '';
+          state.forgotCode = '';
+          renderApp();
+        } else {
+          showToast(data.error || 'Failed to reset password.', 'error');
+        }
+      } catch (err: any) {
+        submitBtn.disabled = false;
+        submitBtn.innerText = 'Reset Password';
+        showToast(err.message || 'Network error.', 'error');
+      }
+    });
+  }
 }
 
 // ============================================================

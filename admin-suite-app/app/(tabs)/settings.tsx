@@ -26,6 +26,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@/context/AuthContext";
 import { useData } from "@/context/DataContext";
 import { useColors } from "@/hooks/useColors";
+import { useToast } from "@/context/ToastContext";
 import { apiService, BASE_URL } from "@/services/api";
 
 export default function ProfileScreen() {
@@ -33,6 +34,7 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { user, logout, setUser } = useAuth();
   const { employees, clients } = useData();
+  const { showToast } = useToast();
 
   // Profile Edit State
   const [editOpen, setEditOpen] = useState(false);
@@ -79,7 +81,11 @@ export default function ProfileScreen() {
         });
       }
       setEditOpen(false);
-      Alert.alert("Success", "Profile updated successfully!");
+      showToast({
+        title: "Success",
+        message: "Profile updated successfully!",
+        type: "success",
+      });
     } catch (err: any) {
       console.error(err);
       setEditError(err.message || "Failed to update profile.");

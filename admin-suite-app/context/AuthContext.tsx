@@ -36,6 +36,8 @@ export type User = {
 type AuthContextType = {
   user: User | null;
   loading: boolean;
+  suspendedUntil: string | null;
+  setSuspendedUntil: (val: string | null) => Promise<void>;
   login: (credentials: { username: string; password: string }) => Promise<void>;
   signUpWithSupabase: (email: string, password: string) => Promise<void>;
   resendSupabaseOTP: (email: string) => Promise<void>;
@@ -53,14 +55,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [tourComplete, setTourComplete] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [suspendedUntil, setSuspendedUntilState] = useState<string | null>(null);
+
+  const setSuspendedUntil = async (val: string | null) => {
+    setSuspendedUntilState(val);
+    if (val) {
+      await AsyncStorage.setItem("admin-suite.suspended-until", val);
+    } else {
+      await AsyncStorage.removeItem("admin-suite.suspended-until");
+    }
+  };
 
   useEffect(() => {
     (async () => {
       try {
-        const [token, tourRaw] = await Promise.all([
+        const [token, tourRaw, suspendedUntilRaw] = await Promise.all([
           SecureStore.getItemAsync(TOKEN_KEY),
           AsyncStorage.getItem(TOUR_KEY),
+          AsyncStorage.getItem("admin-suite.suspended-until"),
         ]);
+        
+        if (suspendedUntilRaw) {
+          const date = new Date(suspendedUntilRaw);
+          if (date > new Date()) {
+            setSuspendedUntilState(suspendedUntilRaw);
+          } else {
+            await AsyncStorage.removeItem("admin-suite.suspended-until");
+          }
+        }
         
         if (token) {
           apiService.setToken(token);
@@ -77,64 +99,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         apiService.setToken(null);
       }
 
-      // Check and handle stale/invalid Supabase session quietly
-      try {
-        const { data: supabaseSession, error: supabaseError } = await supabase.auth.getSession();
-        if (supabaseError && supabaseError.message.includes("Refresh Token")) {
-          console.warn("Clearing stale Supabase refresh token session...");
-          await supabase.auth.signOut();
-        }
-      } catch (supabaseErr: any) {
-        console.warn("Failed to check Supabase session during init:", supabaseErr?.message);
-      }
-
       setLoading(false);
     })();
   }, []);
 
   const login = async (credentials: { username: string; password: string }) => {
-    // 1. Sign in with Supabase Auth (resilient session checking)
+    // 1. Attempt Supabase signIn (non-blocking; session is not persisted)
     try {
-      const { data: sessionData, error: sessionErr } = await supabase.auth.getSession();
-      if (sessionErr) {
-        console.warn("Supabase getSession error during login:", sessionErr.message);
-        if (sessionErr.message.includes("Refresh Token")) {
-          await supabase.auth.signOut();
-        }
-      }
-      
-      const { data: currentSession } = await supabase.auth.getSession();
-      if (!currentSession?.session) {
-        const { error: authError } = await supabase.auth.signInWithPassword({
-          email: credentials.username,
-          password: credentials.password,
-        });
-        if (authError) {
-          console.warn("Supabase auth login warning:", authError.message);
-        }
-      }
+      await supabase.auth.signInWithPassword({
+        email: credentials.username,
+        password: credentials.password,
+      });
     } catch (e: any) {
-      console.warn("Failed to check or establish Supabase session:", e?.message);
+      // Supabase auth is supplementary — Django is the primary auth provider
+      console.warn("Supabase signIn skipped:", e?.message);
     }
 
-    // 2. Log in with Django backend
-    const res = await apiService.login({
-      username: credentials.username,
-      password: credentials.password,
-    });
-    const token = res.data.token;
-    
-    await SecureStore.setItemAsync(TOKEN_KEY, token);
-    apiService.setToken(token);
-    
-    const userRes = await apiService.getMe();
-    const u = userRes.data;
-    u.initials = ((u.name || u.username || u.email || "US")).slice(0, 2).toUpperCase();
-    
-    // Store username for autocomplete/prefilling (no raw password stored)
-    await SecureStore.setItemAsync("admin-suite.username", credentials.username);
+    // 2. Log in with Django backend (primary auth)
+    try {
+      const res = await apiService.login({
+        username: credentials.username,
+        password: credentials.password,
+      });
+      const token = res.data.token;
+      
+      await SecureStore.setItemAsync(TOKEN_KEY, token);
+      apiService.setToken(token);
+      
+      const userRes = await apiService.getMe();
+      const u = userRes.data;
+      u.initials = ((u.name || u.username || u.email || "US")).slice(0, 2).toUpperCase();
+      
+      // Store username for autocomplete/prefilling (no raw password stored)
+      await SecureStore.setItemAsync("admin-suite.username", credentials.username);
 
-    setUser(u);
+      setUser(u);
+    } catch (err: any) {
+      if (err.response?.status === 423 || err.response?.data?.error === 'suspended') {
+        const until = err.response?.data?.suspended_until;
+        if (until) {
+          await setSuspendedUntil(until);
+        }
+      }
+      throw err;
+    }
   };
 
   const signUpWithSupabase = async (email: string, password: string) => {
@@ -188,6 +196,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email,
         password,
         confirm_password: password,
+        supabase_verified: true,
       });
       
       const token = signupRes.data.token;
@@ -281,6 +290,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         loading,
+        suspendedUntil,
+        setSuspendedUntil,
         login,
         signUpWithSupabase,
         resendSupabaseOTP,

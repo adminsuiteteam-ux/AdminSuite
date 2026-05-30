@@ -1,8 +1,10 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
+  Dimensions,
   Modal,
   Platform,
   Pressable,
@@ -14,6 +16,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { DashboardTour, TourLayout } from "@/components/DashboardTour";
 import { FinancialChart } from "@/components/FinancialChart";
 import { FloatInView } from "@/components/FloatInView";
 import { SectionHeader } from "@/components/SectionHeader";
@@ -22,6 +25,8 @@ import { useAuth } from "@/context/AuthContext";
 import { useData } from "@/context/DataContext";
 import { useCurrencyFmt } from "@/context/SettingsContext";
 import { useColors } from "@/hooks/useColors";
+
+const { height: screenHeight } = Dimensions.get("window");
 
 export default function DashboardScreen() {
   const colors = useColors();
@@ -35,6 +40,106 @@ export default function DashboardScreen() {
   const [notifOpen, setNotifOpen] = useState(false);
   const unread = notifications.length;
 
+  // ── Dashboard Tour State ──
+  const [tourActive, setTourActive] = useState(false);
+  const [tourStep, setTourStep] = useState(0);
+  const [layouts, setLayouts] = useState<Record<string, TourLayout>>({});
+  const [scrollOffset, setScrollOffset] = useState(0);
+
+  const scrollViewRef = useRef<ScrollView>(null);
+  const headerRef = useRef<View>(null);
+  const profitRef = useRef<View>(null);
+  const chartRef = useRef<View>(null);
+  const statsRef = useRef<View>(null);
+  const actionsRef = useRef<View>(null);
+
+  const startTour = () => {
+    setTourActive(true);
+    setTourStep(0);
+    setTimeout(() => {
+      measureAndScrollStep(0);
+    }, 150);
+  };
+
+  const finishTour = async () => {
+    setTourActive(false);
+    await AsyncStorage.setItem("admin-suite.dashboard-tour-complete", "true");
+  };
+
+  const nextStep = () => {
+    if (tourStep < 4) {
+      const nextS = tourStep + 1;
+      setTourStep(nextS);
+      setTimeout(() => {
+        measureAndScrollStep(nextS);
+      }, 50);
+    } else {
+      finishTour();
+    }
+  };
+
+  const prevStep = () => {
+    if (tourStep > 0) {
+      const prevS = tourStep - 1;
+      setTourStep(prevS);
+      setTimeout(() => {
+        measureAndScrollStep(prevS);
+      }, 50);
+    }
+  };
+
+  const scrollToActiveStep = (stepIndex: number) => {
+    const keys = ["header", "profit", "chart", "stats", "actions"];
+    const currentKey = keys[stepIndex];
+    const layout = layouts[currentKey];
+    if (layout) {
+      const screenHeightOffset = (screenHeight - layout.height) / 2;
+      const scrollToY = Math.max(0, layout.y - screenHeightOffset);
+      scrollViewRef.current?.scrollTo({ y: scrollToY, animated: true });
+    }
+  };
+
+  const measureAndScrollStep = (stepIndex: number) => {
+    const refs = [headerRef, profitRef, chartRef, statsRef, actionsRef];
+    const keys = ["header", "profit", "chart", "stats", "actions"];
+    const currentRef = refs[stepIndex];
+    const currentKey = keys[stepIndex];
+
+    if (currentRef?.current && scrollViewRef.current) {
+      currentRef.current.measureLayout(
+        scrollViewRef.current as any,
+        (x, y, width, height) => {
+          const measured = { x, y, width, height };
+          setLayouts((prev) => ({
+            ...prev,
+            [currentKey]: measured,
+          }));
+          const screenHeightOffset = (screenHeight - height) / 2;
+          const scrollToY = Math.max(0, y - screenHeightOffset);
+          scrollViewRef.current?.scrollTo({ y: scrollToY, animated: true });
+        },
+        () => {
+          scrollToActiveStep(stepIndex);
+        }
+      );
+    } else {
+      scrollToActiveStep(stepIndex);
+    }
+  };
+
+  // Check first-time tour triggers
+  useEffect(() => {
+    const checkTour = async () => {
+      const tourComplete = await AsyncStorage.getItem("admin-suite.dashboard-tour-complete");
+      if (!tourComplete) {
+        setTimeout(() => {
+          startTour();
+        }, 1200);
+      }
+    };
+    checkTour();
+  }, []);
+
   const tabBarPad = (Platform.OS === "web" ? 96 : 100) + 24;
   const isLargeScreen = width >= 768;
   const contentMaxWidth = 960;
@@ -42,6 +147,12 @@ export default function DashboardScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView
+        ref={scrollViewRef}
+        scrollEnabled={!tourActive}
+        onScroll={(e) => {
+          setScrollOffset(e.nativeEvent.contentOffset.y);
+        }}
+        scrollEventThrottle={16}
         contentContainerStyle={{
           paddingBottom: tabBarPad,
           paddingTop: insets.top,
@@ -57,7 +168,17 @@ export default function DashboardScreen() {
               end={{ x: 1, y: 1 }}
               style={StyleSheet.absoluteFill}
             />
-            <View style={styles.headerTop}>
+            <View
+              ref={headerRef}
+              onLayout={(e) => {
+                const { y, height, width, x } = e.nativeEvent.layout;
+                setLayouts((prev) => ({
+                  ...prev,
+                  header: prev.header || { y: y + 34, height, width, x: x + 38 },
+                }));
+              }}
+              style={styles.headerTop}
+            >
               <View style={{ flex: 1 }}>
               <Text style={[styles.greeting, { fontFamily: "Inter_500Medium" }]}>
                 {greeting()},
@@ -73,6 +194,21 @@ export default function DashboardScreen() {
               </View>
             </View>
             <View style={{ flexDirection: "row", gap: 8 }}>
+              <Pressable
+                onPress={startTour}
+                style={({ pressed }) => [
+                  styles.bellBtn,
+                  {
+                    transform: [{ scale: pressed ? 0.92 : 1 }],
+                    opacity: pressed ? 0.8 : 1,
+                  }
+                ]}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Restart App Tour"
+              >
+                <Feather name="compass" size={19} color="#fff" />
+              </Pressable>
               <Pressable
                 onPress={() => router.push("/settings" as any)}
                 style={({ pressed }) => [
@@ -109,7 +245,17 @@ export default function DashboardScreen() {
             </View>
           </View>
 
-          <View style={styles.profitBox}>
+          <View
+            ref={profitRef}
+            onLayout={(e) => {
+              const { y, height, width, x } = e.nativeEvent.layout;
+              setLayouts((prev) => ({
+                ...prev,
+                profit: prev.profit || { y: y + 130, height, width, x: x + 38 },
+              }));
+            }}
+            style={styles.profitBox}
+          >
             <Text style={[styles.profitLabel, { fontFamily: "Inter_500Medium" }]}>
               Net Profit · This Month
             </Text>
@@ -143,73 +289,109 @@ export default function DashboardScreen() {
           </View>
         </View>
 
-        <FloatInView delay={100}>
-          <FinancialChart formatValue={fmt} />
-        </FloatInView>
-
-        <FloatInView delay={160}>
-        <View style={styles.statsGrid}>
-          <StatCard
-            label="Employees"
-            value={m.employees.toString()}
-            icon="users"
-            accent={colors.primary}
-            trend={{ dir: "up", value: "+2" }}
-          />
-          <StatCard
-            label="Active Projects"
-            value={m.activeProjects.toString()}
-            icon="layers"
-            accent={colors.accent}
-            trend={{ dir: "up", value: "+1" }}
-          />
-          <StatCard
-            label="Clients"
-            value={m.clients.toString()}
-            icon="briefcase"
-            accent={colors.success}
-          />
-          <StatCard
-            label="Income"
-            value={fmt(m.totalIncome)}
-            icon="trending-up"
-            accent="#0ea5e9"
-            trend={{ dir: "up", value: "+12%" }}
-          />
+        <View
+          ref={chartRef}
+          onLayout={(e) => {
+            const { y, height, width, x } = e.nativeEvent.layout;
+            setLayouts((prev) => ({
+              ...prev,
+              chart: prev.chart || { y, height, width, x },
+            }));
+          }}
+          style={{ width: "100%" }}
+        >
+          <FloatInView delay={100}>
+            <FinancialChart formatValue={fmt} />
+          </FloatInView>
         </View>
-        </FloatInView>
 
-        <FloatInView delay={220}>
-        <View style={styles.section}>
-          <SectionHeader title="Quick actions" />
-          <View style={styles.actionsRow}>
-            <QuickAction
-              icon="user-plus"
-              label="Add employee"
-              color={colors.primary}
-              onPress={() => router.push("/employee/create" as any)}
-            />
-            <QuickAction
-              icon="dollar-sign"
-              label="Log income"
-              color={colors.success}
-              onPress={() => router.push("/(tabs)/finance")}
-            />
-            <QuickAction
-              icon="briefcase"
-              label="New client"
-              color={colors.accent}
-              onPress={() => router.push("/client/create" as any)}
-            />
-            <QuickAction
-              icon="file-text"
-              label="Export"
-              color="#0ea5e9"
-              onPress={() => {}}
-            />
-          </View>
+        <View
+          ref={statsRef}
+          onLayout={(e) => {
+            const { y, height, width, x } = e.nativeEvent.layout;
+            setLayouts((prev) => ({
+              ...prev,
+              stats: prev.stats || { y, height, width, x },
+            }));
+          }}
+          style={{ width: "100%" }}
+        >
+          <FloatInView delay={160}>
+            <View style={styles.statsGrid}>
+              <StatCard
+                label="Employees"
+                value={m.employees.toString()}
+                icon="users"
+                accent={colors.primary}
+                trend={{ dir: "up", value: "+2" }}
+              />
+              <StatCard
+                label="Active Projects"
+                value={m.activeProjects.toString()}
+                icon="layers"
+                accent={colors.accent}
+                trend={{ dir: "up", value: "+1" }}
+              />
+              <StatCard
+                label="Clients"
+                value={m.clients.toString()}
+                icon="briefcase"
+                accent={colors.success}
+              />
+              <StatCard
+                label="Income"
+                value={fmt(m.totalIncome)}
+                icon="trending-up"
+                accent="#0ea5e9"
+                trend={{ dir: "up", value: "+12%" }}
+              />
+            </View>
+          </FloatInView>
         </View>
-        </FloatInView>
+
+        <View
+          ref={actionsRef}
+          onLayout={(e) => {
+            const { y, height, width, x } = e.nativeEvent.layout;
+            setLayouts((prev) => ({
+              ...prev,
+              actions: prev.actions || { y, height, width, x },
+            }));
+          }}
+          style={{ width: "100%" }}
+        >
+          <FloatInView delay={220}>
+            <View style={styles.section}>
+              <SectionHeader title="Quick actions" />
+              <View style={styles.actionsRow}>
+                <QuickAction
+                  icon="user-plus"
+                  label="Add employee"
+                  color={colors.primary}
+                  onPress={() => router.push("/employee/create" as any)}
+                />
+                <QuickAction
+                  icon="dollar-sign"
+                  label="Log income"
+                  color={colors.success}
+                  onPress={() => router.push("/(tabs)/finance")}
+                />
+                <QuickAction
+                  icon="briefcase"
+                  label="New client"
+                  color={colors.accent}
+                  onPress={() => router.push("/client/create" as any)}
+                />
+                <QuickAction
+                  icon="file-text"
+                  label="Export"
+                  color="#0ea5e9"
+                  onPress={() => {}}
+                />
+              </View>
+            </View>
+          </FloatInView>
+        </View>
 
         <FloatInView delay={280}>
         <View style={styles.section}>
@@ -399,6 +581,16 @@ export default function DashboardScreen() {
       <NotificationsModal
         visible={notifOpen}
         onClose={() => setNotifOpen(false)}
+      />
+
+      <DashboardTour
+        active={tourActive}
+        step={tourStep}
+        layouts={layouts}
+        scrollOffset={scrollOffset}
+        onNext={nextStep}
+        onBack={prevStep}
+        onSkip={finishTour}
       />
     </View>
   );

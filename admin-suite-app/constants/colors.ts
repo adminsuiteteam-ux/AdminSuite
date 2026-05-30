@@ -1,69 +1,111 @@
+/**
+ * AdminSuite — Cinema Dark Glass Design System
+ * Premium 3D glassmorphic color tokens
+ *
+ * Light: Frosted glass on cool gray canvas
+ * Dark:  Deep cinematic OLED with indigo glow
+ */
+
 const colors = {
   light: {
-    text: "#0a0a0a",
-    tint: "#0a0a0a",
+    text: "#0c0c0e",
+    tint: "#0c0c0e",
 
-    background: "#ffffff",
-    foreground: "#0a0a0a",
+    background: "#f4f5f7",
+    foreground: "#0c0c0e",
 
-    card: "#ffffff",
-    cardForeground: "#0a0a0a",
+    card: "rgba(255, 255, 255, 0.72)",
+    cardForeground: "#0c0c0e",
 
-    primary: "#0a0a0a",
+    primary: "#0c0c0e",
     primaryForeground: "#ffffff",
 
     secondary: "#dbeafe",
     secondaryForeground: "#1e3a8a",
 
-    muted: "#eef2f7",
-    mutedForeground: "#64748b",
+    muted: "#eef1f5",
+    mutedForeground: "#6b7280",
 
-    accent: "#2563eb",
+    accent: "#5E6AD2",
     accentForeground: "#ffffff",
 
     success: "#22c55e",
-    warning: "#f97316",
+    warning: "#f59e0b",
     danger: "#ef4444",
 
     destructive: "#ef4444",
     destructiveForeground: "#ffffff",
 
-    border: "#e2e8f0",
-    input: "#e2e8f0",
+    border: "rgba(0, 0, 0, 0.06)",
+    input: "#e5e7eb",
+
+    // Glass tokens
+    glass: "rgba(255, 255, 255, 0.55)",
+    glassBorder: "rgba(255, 255, 255, 0.85)",
+    glassOverlay: "rgba(255, 255, 255, 0.08)",
+    accentGlow: "rgba(94, 106, 210, 0.18)",
+    surfaceElevated: "rgba(255, 255, 255, 0.88)",
+
+    // 3D interaction tokens
+    shimmerBase: "rgba(255, 255, 255, 0)",
+    shimmerPeak: "rgba(255, 255, 255, 0.35)",
+    pressHighlight: "rgba(255, 255, 255, 0.12)",
+    focusGlow: "rgba(94, 106, 210, 0.25)",
+    cardGlassSheen: "rgba(255, 255, 255, 0.18)",
+    inputGlass: "rgba(255, 255, 255, 0.65)",
+    inputGlassBorder: "rgba(0, 0, 0, 0.08)",
+    inputFocusGlow: "rgba(94, 106, 210, 0.12)",
   },
   dark: {
-    text: "#f0f0f0",
-    tint: "#f0f0f0",
+    text: "#EDEDEF",
+    tint: "#EDEDEF",
 
-    background: "#09090b",
-    foreground: "#fafafa",
+    background: "#050506",
+    foreground: "#EDEDEF",
 
-    card: "#18181b",
-    cardForeground: "#fafafa",
+    card: "rgba(255, 255, 255, 0.05)",
+    cardForeground: "#EDEDEF",
 
-    primary: "#fafafa",
-    primaryForeground: "#09090b",
+    primary: "#EDEDEF",
+    primaryForeground: "#050506",
 
-    secondary: "#1e3a5f",
+    secondary: "#1e293b",
     secondaryForeground: "#93c5fd",
 
-    muted: "#27272a",
-    mutedForeground: "#a1a1aa",
+    muted: "#1a1a1f",
+    mutedForeground: "#8A8F98",
 
-    accent: "#3b82f6",
+    accent: "#5E6AD2",
     accentForeground: "#ffffff",
 
-    success: "#22c55e",
-    warning: "#f97316",
-    danger: "#ef4444",
+    success: "#34d399",
+    warning: "#fbbf24",
+    danger: "#f87171",
 
-    destructive: "#ef4444",
+    destructive: "#f87171",
     destructiveForeground: "#ffffff",
 
-    border: "#27272a",
+    border: "rgba(255, 255, 255, 0.08)",
     input: "#27272a",
+
+    // Glass tokens
+    glass: "rgba(255, 255, 255, 0.04)",
+    glassBorder: "rgba(255, 255, 255, 0.08)",
+    glassOverlay: "rgba(255, 255, 255, 0.03)",
+    accentGlow: "rgba(94, 106, 210, 0.20)",
+    surfaceElevated: "rgba(255, 255, 255, 0.07)",
+
+    // 3D interaction tokens
+    shimmerBase: "rgba(255, 255, 255, 0)",
+    shimmerPeak: "rgba(255, 255, 255, 0.08)",
+    pressHighlight: "rgba(255, 255, 255, 0.06)",
+    focusGlow: "rgba(94, 106, 210, 0.35)",
+    cardGlassSheen: "rgba(255, 255, 255, 0.06)",
+    inputGlass: "rgba(255, 255, 255, 0.06)",
+    inputGlassBorder: "rgba(255, 255, 255, 0.10)",
+    inputFocusGlow: "rgba(94, 106, 210, 0.20)",
   },
-  radius: 16,
+  radius: 20,
 };
 
 export default colors;

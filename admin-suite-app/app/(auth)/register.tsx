@@ -177,7 +177,7 @@ export default function RegisterScreen() {
   
   // OTP 8-digit states (matches Supabase config)
   const [otpValues, setOtpValues] = useState<string[]>(Array(8).fill(""));
-  const [countdown, setCountdown] = useState(90);
+  const [countdown, setCountdown] = useState(30);
   const [canResend, setCanResend] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
   const [hasOtpError, setHasOtpError] = useState(false);
@@ -264,7 +264,7 @@ export default function RegisterScreen() {
       await signUpWithSupabase(email.trim().toLowerCase(), password);
       setSuccess("Verification code sent to your email!");
       setStep("code");
-      setCountdown(90);
+      setCountdown(30);
       setCanResend(false);
       setIsVerified(false);
       setHasOtpError(false);
@@ -281,7 +281,7 @@ export default function RegisterScreen() {
     setError("");
     setSuccess("");
     setOtpValues(Array(8).fill(""));
-    setCountdown(90);
+    setCountdown(30);
     setCanResend(false);
     setHasOtpError(false);
     try {
@@ -702,7 +702,7 @@ export default function RegisterScreen() {
     );
   }
 
-  const isDarkTheme = colors.background === "#09090b";
+  const isDarkTheme = colors.isDark;
 
   return (
     <KeyboardAvoidingView

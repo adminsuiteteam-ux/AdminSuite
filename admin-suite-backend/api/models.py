@@ -209,7 +209,21 @@ class UserProfile(models.Model):
     average_revenue = models.CharField(max_length=50, blank=True, default='')
     company_logo = models.ImageField(upload_to='company_logos/', blank=True, null=True)
 
+    # Throttling & suspension lockout details
+    failed_login_attempts = models.IntegerField(default=0)
+    suspended_until = models.DateTimeField(null=True, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"Profile for {self.user.username}"
+
+
+class PasswordResetCode(models.Model):
+    """Stores 6-digit verification codes for forgotten password resets."""
+    email = models.EmailField(unique=True)
+    code = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Reset code for {self.email}: {self.code}"

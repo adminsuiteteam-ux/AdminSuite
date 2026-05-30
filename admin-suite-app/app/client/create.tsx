@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { useData } from "@/context/DataContext";
 import { useColors } from "@/hooks/useColors";
+import { useToast } from "@/context/ToastContext";
 import { apiService } from "@/services/api";
 
 const STEPS = [
@@ -35,6 +36,7 @@ export default function CreateClientScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { refresh } = useData();
+  const { showToast } = useToast();
   const [step, setStep] = useState(0);
 
   const [company, setCompany] = useState("");
@@ -85,16 +87,19 @@ export default function CreateClientScreen() {
       await apiService.createClient(payload);
       await refresh();
       
-      if (Platform.OS === "web") {
-        router.back();
-      } else {
-        Alert.alert("Client Created", `${company} has been added successfully.`, [
-          { text: "OK", onPress: () => router.back() },
-        ]);
-      }
+      showToast({
+        title: "Client Created",
+        message: `${company} has been added successfully.`,
+        type: "success",
+      });
+      router.back();
     } catch (err) {
       console.error("Save failed:", err);
-      Alert.alert("Error", "Failed to save client. Please try again.");
+      showToast({
+        title: "Error",
+        message: "Failed to save client. Please try again.",
+        type: "error",
+      });
     } finally {
       setSaving(false);
     }

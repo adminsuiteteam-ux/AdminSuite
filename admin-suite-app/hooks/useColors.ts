@@ -16,6 +16,6 @@ export function useColors() {
     themeMode === "dark" || (themeMode === "system" && scheme === "dark");
 
   const palette = isDark && "dark" in colors ? (colors as any).dark : colors.light;
-  return { ...palette, radius: colors.radius };
+  return { ...palette, radius: colors.radius, isDark };
 }
 

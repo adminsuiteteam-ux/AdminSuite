@@ -65,6 +65,14 @@ export const apiService = {
   verifyEmailCode: (data: { email: string; code: string }) =>
     apiClient.post('auth/email/verify/', data),
 
+  // Password Reset
+  sendPasswordResetCode: (data: { email: string }) =>
+    apiClient.post('auth/password-reset/send-code/', data),
+  verifyPasswordResetCode: (data: { email: string; code: string }) =>
+    apiClient.post('auth/password-reset/verify/', data),
+  confirmPasswordReset: (data: { email: string; code: string; new_password: string }) =>
+    apiClient.post('auth/password-reset/confirm/', data),
+
   setToken: (token: string | null) => {
     if (token) {
       apiClient.defaults.headers.common['Authorization'] = `Token ${token}`;

@@ -19,12 +19,14 @@ import * as ImagePicker from "expo-image-picker";
 
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
+import { useToast } from "@/context/ToastContext";
 import { apiService, getMediaUrl } from "@/services/api";
 
 export default function OrganisationSettingsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user, setUser } = useAuth();
+  const { showToast } = useToast();
 
   const isCreated = !!user?.business_name;
   const [isEditing, setIsEditing] = useState(!isCreated);
@@ -105,14 +107,12 @@ export default function OrganisationSettingsScreen() {
         });
       }
 
-      if (Platform.OS === "web") {
-        alert("Organisation details updated successfully!");
-        setIsEditing(false);
-      } else {
-        Alert.alert("Success", "Organisation details updated successfully!", [
-          { text: "OK", onPress: () => setIsEditing(false) },
-        ]);
-      }
+      showToast({
+        title: "Success",
+        message: "Organisation details updated successfully!",
+        type: "success"
+      });
+      setIsEditing(false);
     } catch (err: any) {
       console.error(err);
       setError(err.message || "Failed to update organisation details.");

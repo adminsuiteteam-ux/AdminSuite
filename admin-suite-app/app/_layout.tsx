@@ -21,16 +21,17 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/context/AuthContext";
 import { DataProvider } from "@/context/DataContext";
 import { SettingsProvider } from "@/context/SettingsContext";
+import { ToastProvider } from "@/context/ToastContext";
 
-// Initialize Sentry
-Sentry.init({
-  dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
-  // Set to false in production or use a lower value like 0.2
-  enableAutoSessionTracking: true,
-  tracesSampleRate: __DEV__ ? 1.0 : 0.2,
-  debug: __DEV__,
-  enabled: !__DEV__, // Only send events in production
-});
+// Initialize Sentry (production only — avoids noisy dev warnings)
+if (!__DEV__) {
+  Sentry.init({
+    dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
+    enableAutoSessionTracking: true,
+    tracesSampleRate: 0.2,
+    debug: false,
+  });
+}
 
 SplashScreen.preventAutoHideAsync();
 
@@ -38,12 +39,12 @@ const queryClient = new QueryClient();
 
 function RootLayoutNav() {
   return (
-    <Stack screenOptions={{ headerShown: false, animation: "fade" }}>
-      <Stack.Screen name="index" />
-      <Stack.Screen name="(auth)" />
-      <Stack.Screen name="tour" />
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="lock" />
+    <Stack screenOptions={{ headerShown: false, animation: "fade_from_bottom" }}>
+      <Stack.Screen name="index" options={{ animation: "fade" }} />
+      <Stack.Screen name="(auth)" options={{ animation: "fade_from_bottom" }} />
+      <Stack.Screen name="tour" options={{ animation: "slide_from_right" }} />
+      <Stack.Screen name="(tabs)" options={{ animation: "fade" }} />
+      <Stack.Screen name="lock" options={{ animation: "fade" }} />
     </Stack>
   );
 }
@@ -66,28 +67,31 @@ function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <ErrorBoundary>
-        <QueryClientProvider client={queryClient}>
-          <GestureHandlerRootView style={{ flex: 1 }}>
-            <KeyboardProvider>
-              <AuthProvider>
-                <DataProvider>
-                  <SettingsProvider>
-                    <StatusBar style="auto" />
-                    <RootLayoutNav />
-                    <ConnectionBanner />
-                  </SettingsProvider>
-                </DataProvider>
-              </AuthProvider>
-            </KeyboardProvider>
-          </GestureHandlerRootView>
-        </QueryClientProvider>
-      </ErrorBoundary>
+      <ToastProvider>
+        <ErrorBoundary>
+          <QueryClientProvider client={queryClient}>
+            <GestureHandlerRootView style={{ flex: 1 }}>
+              <KeyboardProvider>
+                <AuthProvider>
+                  <DataProvider>
+                    <SettingsProvider>
+                      <StatusBar style="auto" />
+                      <RootLayoutNav />
+                      <ConnectionBanner />
+                    </SettingsProvider>
+                  </DataProvider>
+                </AuthProvider>
+              </KeyboardProvider>
+            </GestureHandlerRootView>
+          </QueryClientProvider>
+        </ErrorBoundary>
+      </ToastProvider>
     </SafeAreaProvider>
   );
 }
 
-export default Sentry.wrap(RootLayout);
+// Only wrap with Sentry in production to avoid dev-mode warnings
+export default __DEV__ ? RootLayout : Sentry.wrap(RootLayout);
 
 import { useData } from "@/context/DataContext";
 import { StyleSheet } from "react-native";

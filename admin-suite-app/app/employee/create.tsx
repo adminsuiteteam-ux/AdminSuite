@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { useData } from "@/context/DataContext";
 import { useColors } from "@/hooks/useColors";
+import { useToast } from "@/context/ToastContext";
 import { apiService } from "@/services/api";
 
 const STEPS = [
@@ -53,6 +54,7 @@ export default function CreateEmployeeScreen() {
   const insets = useSafeAreaInsets();
   const { employees, refresh } = useData();
   const { editId } = useLocalSearchParams<{ editId?: string }>();
+  const { showToast } = useToast();
   const [step, setStep] = useState(0);
 
   const isEditing = !!editId;
@@ -235,13 +237,12 @@ export default function CreateEmployeeScreen() {
       
       await refresh();
       
-      if (Platform.OS === "web") {
-        router.back();
-      } else {
-        Alert.alert(isEditing ? "Employee Updated" : "Employee Created", `${name} has been ${isEditing ? "updated" : "added"} successfully.`, [
-          { text: "OK", onPress: () => router.back() },
-        ]);
-      }
+      showToast({
+        title: isEditing ? "Employee Updated" : "Employee Created",
+        message: `${name} has been ${isEditing ? "updated" : "added"} successfully.`,
+        type: "success"
+      });
+      router.back();
     } catch (err) {
       console.error("Save failed:", err);
       Alert.alert("Error", "Failed to save employee data. Please try again.");

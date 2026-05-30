@@ -2,26 +2,47 @@ import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { useColors } from "@/hooks/useColors";
+import { typography, spacing } from "@/constants/theme";
 
-export function SectionHeader({ title, action, onPress }: { title: string; action?: string; onPress?: () => void }) {
+export function SectionHeader({
+  title,
+  action,
+  onPress,
+}: {
+  title: string;
+  action?: string;
+  onPress?: () => void;
+}) {
   const colors = useColors();
   return (
     <View style={styles.row}>
       <Text
         style={[
           styles.title,
-          { color: colors.foreground, fontFamily: "Inter_700Bold" },
+          {
+            color: colors.foreground,
+            fontFamily: "Inter_700Bold",
+            ...typography.h2,
+          },
         ]}
       >
         {title}
       </Text>
       {action ? (
-        <Pressable onPress={onPress} hitSlop={10}>
+        <Pressable
+          onPress={onPress}
+          hitSlop={10}
+          style={({ pressed }) => ({
+            opacity: pressed ? 0.6 : 1,
+            transform: [{ scale: pressed ? 0.96 : 1 }],
+          })}
+        >
           <Text
             style={{
-              color: colors.primary,
+              color: colors.accent,
               fontFamily: "Inter_600SemiBold",
               fontSize: 13,
+              letterSpacing: 0.1,
             }}
           >
             {action}
@@ -37,11 +58,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 12,
-    marginTop: 8,
+    marginBottom: spacing.md,
+    marginTop: spacing.sm,
   },
   title: {
-    fontSize: 18,
-    letterSpacing: -0.3,
+    fontSize: 20,
+    letterSpacing: -0.4,
   },
 });

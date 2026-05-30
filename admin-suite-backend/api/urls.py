@@ -6,7 +6,8 @@ from .views import (
     BudgetCategoryViewSet, SavingsViewSet, metrics, client_metrics, payroll_metrics,
     debts_grouped, me, register, google_login, apple_login, send_otp, verify_otp,
     send_email_verification, verify_email, export_data,
-    ThrottledObtainAuthToken
+    ThrottledObtainAuthToken, send_password_reset_code,
+    verify_password_reset_code, confirm_password_reset
 )
 
 router = DefaultRouter()
@@ -35,5 +36,9 @@ urlpatterns = [
     path('auth/phone/verify/', verify_otp, name='verify_otp'),
     path('auth/email/send-code/', send_email_verification, name='send_email_verification'),
     path('auth/email/verify/', verify_email, name='verify_email'),
+    # Password Reset
+    path('auth/password-reset/send-code/', send_password_reset_code, name='send_password_reset_code'),
+    path('auth/password-reset/verify/', verify_password_reset_code, name='verify_password_reset_code'),
+    path('auth/password-reset/confirm/', confirm_password_reset, name='confirm_password_reset'),
     path('export/', export_data, name='export-data'),
 ]

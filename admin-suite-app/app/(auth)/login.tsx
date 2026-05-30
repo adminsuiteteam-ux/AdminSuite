@@ -1,9 +1,10 @@
-import { Feather, AntDesign } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 
 import { Link, router } from "expo-router";
 import * as SecureStore from "expo-secure-store";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Animated,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -14,10 +15,12 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as Haptics from "expo-haptics";
 
 import { LogoMark } from "../../components/Brand";
 import { useAuth } from "../../context/AuthContext";
 import { useColors } from "../../hooks/useColors";
+import { shadows, spacing, motion } from "@/constants/theme";
 
 export default function LoginScreen() {
   const colors = useColors();
@@ -35,6 +38,14 @@ export default function LoginScreen() {
   const [emailFocused, setEmailFocused] = useState(false);
   const [passFocused, setPassFocused] = useState(false);
 
+  // ── Animated values for glassmorphic focus glow ──────────────────
+  const emailGlow = useRef(new Animated.Value(0)).current;
+  const passGlow = useRef(new Animated.Value(0)).current;
+
+  // ── 3D button press animation ───────────────────────────────────
+  const btnPressAnim = useRef(new Animated.Value(0)).current;
+  const secondaryPressAnim = useRef(new Animated.Value(0)).current;
+
   // Prefill email from last successful login
   useEffect(() => {
     (async () => {
@@ -49,10 +60,24 @@ export default function LoginScreen() {
     })();
   }, []);
 
+  // Animate focus glow
+  useEffect(() => {
+    Animated.timing(emailGlow, {
+      toValue: emailFocused ? 1 : 0,
+      duration: 200,
+      useNativeDriver: false,
+    }).start();
+  }, [emailFocused]);
+
+  useEffect(() => {
+    Animated.timing(passGlow, {
+      toValue: passFocused ? 1 : 0,
+      duration: 200,
+      useNativeDriver: false,
+    }).start();
+  }, [passFocused]);
+
   const navigateAfterLogin = () => {
-    // user object may not be updated yet — rely on the freshest state from context
-    // The index.tsx splash gate handles profile_complete + tour routing.
-    // After login, we go to the splash gate which re-evaluates routing.
     router.replace("/");
   };
 
@@ -71,7 +96,12 @@ export default function LoginScreen() {
       await login({ username: email.trim().toLowerCase(), password });
       navigateAfterLogin();
     } catch (err: any) {
-      setError(err.response?.data?.non_field_errors?.[0] || err.message || "Invalid credentials. Please try again.");
+      const errorData = err.response?.data;
+      if (err.response?.status === 423 || errorData?.error === "suspended") {
+        router.replace("/(auth)/suspended");
+      } else {
+        setError(errorData?.message || errorData?.non_field_errors?.[0] || err.message || "Invalid credentials. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -92,6 +122,74 @@ export default function LoginScreen() {
       setLoading(false);
     }
   };
+
+  // ── 3D Button handlers ────────────────────────────────────────────
+  const handleBtnPressIn = useCallback(() => {
+    Animated.spring(btnPressAnim, {
+      toValue: 1,
+      friction: motion.springPress.friction,
+      tension: motion.springPress.tension,
+      useNativeDriver: true,
+    }).start();
+  }, [btnPressAnim]);
+
+  const handleBtnPressOut = useCallback(() => {
+    Animated.spring(btnPressAnim, {
+      toValue: 0,
+      friction: motion.springSnappy.friction,
+      tension: motion.springSnappy.tension,
+      useNativeDriver: true,
+    }).start();
+  }, [btnPressAnim]);
+
+  const handleSecondaryPressIn = useCallback(() => {
+    Animated.spring(secondaryPressAnim, {
+      toValue: 1,
+      friction: motion.springPress.friction,
+      tension: motion.springPress.tension,
+      useNativeDriver: true,
+    }).start();
+  }, [secondaryPressAnim]);
+
+  const handleSecondaryPressOut = useCallback(() => {
+    Animated.spring(secondaryPressAnim, {
+      toValue: 0,
+      friction: motion.springSnappy.friction,
+      tension: motion.springSnappy.tension,
+      useNativeDriver: true,
+    }).start();
+  }, [secondaryPressAnim]);
+
+  // Interpolations
+  const emailBorderColor = emailGlow.interpolate({
+    inputRange: [0, 1],
+    outputRange: [colors.inputGlassBorder, colors.accent],
+  });
+  const emailShadowOpacity = emailGlow.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 0.15],
+  });
+  const passBorderColor = passGlow.interpolate({
+    inputRange: [0, 1],
+    outputRange: [colors.inputGlassBorder, colors.accent],
+  });
+  const passShadowOpacity = passGlow.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 0.15],
+  });
+
+  const btnTranslateY = btnPressAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, motion.press.translateY],
+  });
+  const btnScale = btnPressAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, motion.press.scale],
+  });
+  const secScale = secondaryPressAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 0.97],
+  });
 
   return (
     <KeyboardAvoidingView
@@ -133,14 +231,21 @@ export default function LoginScreen() {
           )}
 
           <View style={styles.form}>
-            <View style={[
-              styles.inputWrap,
-              {
-                backgroundColor: colors.muted,
-                borderWidth: 1.5,
-                borderColor: emailFocused ? colors.primary : "transparent",
-              }
-            ]}>
+            {/* ── Email Input (Glass) ── */}
+            <Animated.View
+              style={[
+                styles.inputWrap,
+                {
+                  backgroundColor: colors.inputGlass,
+                  borderColor: emailBorderColor,
+                  borderWidth: 1.5,
+                  shadowColor: colors.accent,
+                  shadowOpacity: emailShadowOpacity,
+                  shadowRadius: 12,
+                  shadowOffset: { width: 0, height: 0 },
+                },
+              ]}
+            >
               <View style={[styles.iconCircle, { backgroundColor: colors.primary }]}>
                 <Feather name="mail" size={14} color={colors.primaryForeground} />
               </View>
@@ -155,17 +260,24 @@ export default function LoginScreen() {
                 keyboardType="email-address"
                 style={[styles.input, { fontFamily: "Inter_500Medium", color: colors.text }]}
               />
-            </View>
+            </Animated.View>
 
-            <View style={[
-              styles.inputWrap,
-              {
-                marginTop: 12,
-                backgroundColor: colors.muted,
-                borderWidth: 1.5,
-                borderColor: passFocused ? colors.primary : "transparent",
-              }
-            ]}>
+            {/* ── Password Input (Glass) ── */}
+            <Animated.View
+              style={[
+                styles.inputWrap,
+                {
+                  marginTop: 12,
+                  backgroundColor: colors.inputGlass,
+                  borderColor: passBorderColor,
+                  borderWidth: 1.5,
+                  shadowColor: colors.accent,
+                  shadowOpacity: passShadowOpacity,
+                  shadowRadius: 12,
+                  shadowOffset: { width: 0, height: 0 },
+                },
+              ]}
+            >
               <View style={[styles.iconCircle, { backgroundColor: colors.primary }]}>
                 <Feather name="lock" size={14} color={colors.primaryForeground} />
               </View>
@@ -186,7 +298,7 @@ export default function LoginScreen() {
                   color={colors.mutedForeground}
                 />
               </Pressable>
-            </View>
+            </Animated.View>
 
             <Link href="/(auth)/forgot-password" asChild>
               <Pressable style={styles.forgotBtn} hitSlop={10}>
@@ -202,29 +314,37 @@ export default function LoginScreen() {
               </Text>
             ) : null}
 
+            {/* ── 3D Primary Button ── */}
             <View style={styles.submitRow}>
               <Pressable
-                style={({ pressed }) => [
-                  styles.primaryBtn,
-                  {
-                    flex: 1,
-                    opacity: pressed || loading ? 0.85 : 1,
-                    backgroundColor: colors.primary,
-                    transform: [{ scale: pressed && !loading ? 0.96 : 1 }]
-                  },
-                ]}
-                onPress={onSubmit}
+                onPress={() => {
+                  if (Platform.OS !== "web") {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                  }
+                  onSubmit();
+                }}
+                onPressIn={handleBtnPressIn}
+                onPressOut={handleBtnPressOut}
                 disabled={loading}
+                style={{ flex: 1 }}
               >
-                <Text style={[styles.primaryBtnText, { fontFamily: "Inter_600SemiBold", color: colors.primaryForeground }]}>
-                  {loading ? "Signing in..." : "Continue"}
-                </Text>
+                <Animated.View
+                  style={[
+                    styles.primaryBtn,
+                    {
+                      backgroundColor: colors.primary,
+                      opacity: loading ? 0.7 : 1,
+                      transform: [{ translateY: btnTranslateY }, { scale: btnScale }],
+                    },
+                    shadows.btnResting,
+                  ]}
+                >
+                  <Text style={[styles.primaryBtnText, { fontFamily: "Inter_600SemiBold", color: colors.primaryForeground }]}>
+                    {loading ? "Signing in..." : "Continue"}
+                  </Text>
+                </Animated.View>
               </Pressable>
-
-
             </View>
-
-
 
             <View style={styles.divider}>
               <View style={[styles.line, { backgroundColor: colors.border }]} />
@@ -234,20 +354,25 @@ export default function LoginScreen() {
               <View style={[styles.line, { backgroundColor: colors.border }]} />
             </View>
 
+            {/* ── Secondary Button (3D) ── */}
             <Link href="/(auth)/register" asChild>
               <Pressable
-                style={({ pressed }) => [
-                  styles.secondaryBtn,
-                  {
-                    backgroundColor: colors.muted,
-                    transform: [{ scale: pressed ? 0.97 : 1 }],
-                    opacity: pressed ? 0.85 : 1
-                  }
-                ]}
+                onPressIn={handleSecondaryPressIn}
+                onPressOut={handleSecondaryPressOut}
               >
-                <Text style={[styles.secondaryBtnText, { fontFamily: "Inter_500Medium", color: colors.text }]}>
-                  Create an account
-                </Text>
+                <Animated.View
+                  style={[
+                    styles.secondaryBtn,
+                    {
+                      backgroundColor: colors.muted,
+                      transform: [{ scale: secScale }],
+                    },
+                  ]}
+                >
+                  <Text style={[styles.secondaryBtnText, { fontFamily: "Inter_500Medium", color: colors.text }]}>
+                    Create an account
+                  </Text>
+                </Animated.View>
               </Pressable>
             </Link>
           </View>
@@ -329,19 +454,12 @@ const styles = StyleSheet.create({
     gap: 12,
     alignItems: "center",
   },
-  biometricBtn: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-  },
   primaryBtn: {
     height: 56,
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
   },
   primaryBtnText: {
     fontSize: 16,

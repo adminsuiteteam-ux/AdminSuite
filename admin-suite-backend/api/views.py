@@ -28,22 +28,102 @@ class ThrottledObtainAuthToken(ObtainAuthToken):
     throttle_classes = [AuthRateThrottle]
 
     def post(self, request, *args, **kwargs):
-        # Allow email as username
-        data = request.data.copy() if hasattr(request.data, 'copy') else dict(request.data)
-        username = data.get('username')
-        if username and '@' in username:
+        from django.contrib.auth.models import User
+        from django.utils import timezone
+        from django.contrib.auth import authenticate
+        from .models import UserProfile
+        from rest_framework.authtoken.models import Token
+
+        username = request.data.get('username', '').strip()
+        password = request.data.get('password', '')
+
+        if not username or not password:
+            return Response({'error': 'Username and password are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Resolve email to username if email is used
+        target_user = None
+        if '@' in username:
             try:
-                from django.contrib.auth.models import User
-                user = User.objects.get(email__iexact=username.strip())
-                data['username'] = user.username
+                target_user = User.objects.get(email__iexact=username)
             except User.DoesNotExist:
                 pass
-        serializer = self.serializer_class(data=data, context={'request': request})
-        serializer.is_valid(raise_exception=True)
-        user = serializer.validated_data['user']
-        from rest_framework.authtoken.models import Token
+        else:
+            try:
+                target_user = User.objects.get(username__iexact=username)
+            except User.DoesNotExist:
+                pass
+
+        if target_user:
+            profile, _ = UserProfile.objects.get_or_create(user=target_user)
+            # Check if currently suspended
+            if profile.suspended_until and profile.suspended_until > timezone.now():
+                time_left = int((profile.suspended_until - timezone.now()).total_seconds())
+                minutes_left = max(1, (time_left + 59) // 60)
+                # Show standard lockout screen block
+                return Response({
+                    'error': 'suspended',
+                    'message': f'Account suspended. Please try again after {minutes_left} minutes.',
+                    'suspended_until': profile.suspended_until.isoformat()
+                }, status=status.HTTP_423_LOCKED)
+
+        # Attempt to authenticate
+        user = None
+        if target_user:
+            user = authenticate(username=target_user.username, password=password)
+        else:
+            user = authenticate(username=username, password=password)
+
+        if not user:
+            # Authentication failed!
+            if target_user:
+                profile.failed_login_attempts += 1
+                attempts_left = 7 - profile.failed_login_attempts
+
+                if profile.failed_login_attempts >= 7:
+                    profile.suspended_until = timezone.now() + timezone.timedelta(minutes=10)
+                    profile.save()
+                    return Response({
+                        'error': 'suspended',
+                        'message': 'Account has been suspended for 10 minutes due to 7 consecutive failed login attempts.',
+                        'suspended_until': profile.suspended_until.isoformat()
+                    }, status=status.HTTP_423_LOCKED)
+                elif profile.failed_login_attempts >= 3:
+                    profile.save()
+                    return Response({
+                        'error': 'warning',
+                        'message': f'Incorrect credentials. You have only {attempts_left} trials left before account is suspended for 10 minutes. Click Forgot Password to reset it.',
+                        'attempts_left': attempts_left
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                else:
+                    profile.save()
+                    return Response({
+                        'error': 'invalid_credentials',
+                        'message': f'Unable to log in with provided credentials. {attempts_left} trials left.',
+                        'attempts_left': attempts_left
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                return Response({
+                    'error': 'invalid_credentials',
+                    'message': 'Unable to log in with provided credentials.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Successful login!
+        profile, _ = UserProfile.objects.get_or_create(user=user)
+        profile.failed_login_attempts = 0
+        profile.suspended_until = None
+        profile.save()
+
         token, created = Token.objects.get_or_create(user=user)
-        return Response({'token': token.key})
+        return Response({
+            'token': token.key,
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'name': user.first_name or user.username,
+                'profile_complete': profile.profile_complete,
+            }
+        })
 
 
 
@@ -203,16 +283,34 @@ def register(request):
     from .models import UserProfile, EmailVerificationCode
 
     email = request.data.get('email', '').strip().lower()
-    
+    supabase_verified = request.data.get('supabase_verified')
+
+    # Block registration if the email is associated with a suspended account
+    try:
+        from django.contrib.auth.models import User
+        from django.utils import timezone
+        existing_user = User.objects.get(email__iexact=email)
+        profile, _ = UserProfile.objects.get_or_create(user=existing_user)
+        if profile.suspended_until and profile.suspended_until > timezone.now():
+            time_left = int((profile.suspended_until - timezone.now()).total_seconds())
+            minutes_left = max(1, (time_left + 59) // 60)
+            return Response({
+                'error': 'suspended',
+                'message': f'Account suspended. Please try again after {minutes_left} minutes.',
+                'suspended_until': profile.suspended_until.isoformat()
+            }, status=status.HTTP_423_LOCKED)
+    except User.DoesNotExist:
+        pass
+
     # Enforce that email verification has been completed (optional for external Supabase validation)
     verification = None
-    try:
-        verification = EmailVerificationCode.objects.get(email=email)
-        if verification.code != 'VERIFIED':
+    if not supabase_verified:
+        try:
+            verification = EmailVerificationCode.objects.get(email=email)
+            if verification.code != 'VERIFIED':
+                return Response({'error': 'Email verification has not been completed.'}, status=status.HTTP_400_BAD_REQUEST)
+        except EmailVerificationCode.DoesNotExist:
             return Response({'error': 'Email verification has not been completed.'}, status=status.HTTP_400_BAD_REQUEST)
-    except EmailVerificationCode.DoesNotExist:
-        # Bypassed for external Supabase registration flow
-        pass
 
     serializer = RegisterSerializer(data=request.data)
     if not serializer.is_valid():
@@ -719,3 +817,148 @@ def export_data(request):
         return response
 
     return Response({'error': 'Unsupported format. Use format=pdf or format=csv.'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@throttle_classes([AuthRateThrottle])
+def send_password_reset_code(request):
+    """
+    Sends a 6-digit verification code to the given email address for password reset.
+    Checks if a user with that email exists.
+    In DEBUG mode, the code is returned in the response for easy testing.
+    """
+    import secrets
+    from django.core.validators import validate_email
+    from django.core.exceptions import ValidationError
+    from django.contrib.auth.models import User
+    from django.conf import settings
+    from .models import PasswordResetCode, UserProfile
+
+    email = request.data.get('email', '').strip().lower()
+    if not email:
+        return Response({'error': 'Email is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        validate_email(email)
+    except ValidationError:
+        return Response({'error': 'Invalid email address.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # The email must be the same with what they used to create their account with
+    try:
+        user = User.objects.get(email__iexact=email)
+    except User.DoesNotExist:
+        return Response({'error': 'No account found with this email.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Check if suspended
+    profile, _ = UserProfile.objects.get_or_create(user=user)
+    from django.utils import timezone
+    if profile.suspended_until and profile.suspended_until > timezone.now():
+        time_left = int((profile.suspended_until - timezone.now()).total_seconds())
+        minutes_left = max(1, (time_left + 59) // 60)
+        return Response({
+            'error': 'suspended',
+            'message': f'Account suspended. Please try again after {minutes_left} minutes.'
+        }, status=status.HTTP_423_LOCKED)
+
+    # Generate 6-digit numeric code
+    code = ''.join([str(secrets.randbelow(10)) for _ in range(6)])
+
+    # Store/Update verification code
+    PasswordResetCode.objects.update_or_create(
+        email=email,
+        defaults={'code': code},
+    )
+
+    from core.safe_logger import safe_log, mask_email
+    safe_log("info", "Password reset code generated", extra={"email": mask_email(email), "code": "***"})
+
+    response_data = {'message': 'Verification code sent successfully.', 'email': email}
+    if settings.DEBUG:
+        response_data['code'] = code  # Dev convenience only
+
+    return Response(response_data)
+
+
+@api_view(['POST'])
+@throttle_classes([AuthRateThrottle])
+def verify_password_reset_code(request):
+    """
+    Verify the 6-digit password reset OTP.
+    Sets the status of PasswordResetCode for that email to 'VERIFIED'.
+    """
+    from django.utils import timezone
+    from datetime import timedelta
+    from .models import PasswordResetCode
+
+    email = request.data.get('email', '').strip().lower()
+    code = request.data.get('code', '').strip()
+
+    if not email or not code:
+        return Response({'error': 'Email and code are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        record = PasswordResetCode.objects.get(email=email)
+    except PasswordResetCode.DoesNotExist:
+        return Response({'error': 'No reset code found for this email. Please request a new one.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Check expiry (10 minutes)
+    if timezone.now() - record.created_at > timedelta(minutes=10):
+        record.delete()
+        return Response({'error': 'Verification code has expired. Please request a new one.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if record.code != code:
+        return Response({'error': 'Invalid verification code.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Mark as verified
+    record.code = "VERIFIED"
+    record.save()
+
+    return Response({'message': 'OTP verified successfully.', 'email': email})
+
+
+@api_view(['POST'])
+@throttle_classes([AuthRateThrottle])
+def confirm_password_reset(request):
+    """
+    Confirm password reset: set new password, clear all login lockout counters.
+    """
+    from django.contrib.auth.models import User
+    from .models import PasswordResetCode, UserProfile
+
+    email = request.data.get('email', '').strip().lower()
+    code = request.data.get('code', '').strip()
+    new_password = request.data.get('new_password', '')
+
+    if not email or not code or not new_password:
+        return Response({'error': 'Email, code, and new password are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if len(new_password) < 8:
+        return Response({'error': 'Password must be at least 8 characters long.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        record = PasswordResetCode.objects.get(email=email)
+    except PasswordResetCode.DoesNotExist:
+        return Response({'error': 'No reset code found for this email. Please request a new one.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if record.code != "VERIFIED":
+        return Response({'error': 'OTP verification has not been completed.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        user = User.objects.get(email__iexact=email)
+    except User.DoesNotExist:
+        return Response({'error': 'User not found.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Change password
+    user.set_password(new_password)
+    user.save()
+
+    # Clear lockout status
+    profile, _ = UserProfile.objects.get_or_create(user=user)
+    profile.failed_login_attempts = 0
+    profile.suspended_until = None
+    profile.save()
+
+    # Delete verification record
+    record.delete()
+
+    return Response({'message': 'Password has been reset successfully. You can now log in.'})
