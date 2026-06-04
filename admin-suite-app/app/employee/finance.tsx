@@ -1,12 +1,14 @@
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
-import React from "react";
+import React, { useState } from "react";
 import {
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -15,14 +17,25 @@ import { FloatInView } from "@/components/FloatInView";
 import { useData } from "@/context/DataContext";
 import { useCurrencyFmt } from "@/context/SettingsContext";
 import { useColors } from "@/hooks/useColors";
+import { apiService } from "@/services/api";
 
 export default function EmployeeFinanceScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const fmt = useCurrencyFmt();
-  const { employees } = useData();
+  const { employees, refresh: refreshAllData } = useData();
   const { id } = useLocalSearchParams();
   const employee = employees.find((e) => String(e.id) === String(id));
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const [editCurrentPay, setEditCurrentPay] = useState("");
+  const [editEmployeeOwes, setEditEmployeeOwes] = useState("");
+  const [editCompanyOwes, setEditCompanyOwes] = useState("");
+  const [editShares, setEditShares] = useState("");
+  const [editBonuses, setEditBonuses] = useState("");
+  const [editDeductions, setEditDeductions] = useState("");
 
   if (!employee) {
     return (
@@ -49,6 +62,57 @@ export default function EmployeeFinanceScreen() {
 
   const netBalance = companyOwes - employeeOwes;
 
+  const startEditing = () => {
+    setEditCurrentPay(String(currentPay));
+    setEditEmployeeOwes(String(employeeOwes));
+    setEditCompanyOwes(String(companyOwes));
+    setEditShares(String(shares));
+    setEditBonuses(String(bonuses));
+    setEditDeductions(String(deductions));
+    setIsEditing(true);
+  };
+
+  const cancelEditing = () => {
+    setIsEditing(false);
+  };
+
+  const saveChanges = async () => {
+    const pay = parseFloat(editCurrentPay);
+    const eOwes = parseFloat(editEmployeeOwes);
+    const cOwes = parseFloat(editCompanyOwes);
+    const sh = parseFloat(editShares);
+    const bon = parseFloat(editBonuses);
+    const ded = parseFloat(editDeductions);
+
+    if (isNaN(pay) || pay < 0) return Alert.alert("Validation Error", "Current pay must be a positive number.");
+    if (isNaN(eOwes) || eOwes < 0) return Alert.alert("Validation Error", "Employee owes must be a positive number.");
+    if (isNaN(cOwes) || cOwes < 0) return Alert.alert("Validation Error", "Company owes must be a positive number.");
+    if (isNaN(sh) || sh < 0 || sh > 100) return Alert.alert("Validation Error", "Shares must be between 0 and 100.");
+    if (isNaN(bon) || bon < 0) return Alert.alert("Validation Error", "Bonuses must be a positive number.");
+    if (isNaN(ded) || ded < 0) return Alert.alert("Validation Error", "Deductions must be a positive number.");
+
+    try {
+      setIsSaving(true);
+      await apiService.patchEmployee(employee.id, {
+        finance_data: {
+          current_pay: pay,
+          employee_owes_company: eOwes,
+          company_owes_employee: cOwes,
+          shares: sh,
+          bonuses: bon,
+          deductions: ded
+        }
+      });
+      await refreshAllData();
+      setIsEditing(false);
+    } catch (err) {
+      console.warn("Failed to save financials:", err);
+      Alert.alert("Error", "Failed to update financial records. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       {/* ── Header ─────────────────────────────────────── */}
@@ -61,18 +125,29 @@ export default function EmployeeFinanceScreen() {
         />
         <View style={styles.headerGlow} />
         <View style={styles.topRow}>
-          <Pressable onPress={() => router.back()} style={styles.iconBtn} hitSlop={10}>
-            <Feather name="chevron-left" size={22} color="#fff" />
+          <Pressable 
+            onPress={isEditing ? cancelEditing : () => router.back()} 
+            style={styles.iconBtn} 
+            hitSlop={10}
+          >
+            <Feather name={isEditing ? "x" : "chevron-left"} size={22} color="#fff" />
           </Pressable>
           <View style={{ flex: 1, alignItems: "center" }}>
             <Text style={[styles.headerTitle, { fontFamily: "Inter_700Bold" }]}>
-              Financial Record
+              {isEditing ? "Edit Financials" : "Financial Record"}
             </Text>
             <Text style={[styles.headerSub, { fontFamily: "Inter_500Medium" }]}>
               {employee.name}
             </Text>
           </View>
-          <View style={{ width: 38 }} />
+          <Pressable 
+            onPress={isEditing ? saveChanges : startEditing} 
+            style={[styles.iconBtn, isSaving && { opacity: 0.5 }]} 
+            disabled={isSaving}
+            hitSlop={10}
+          >
+            <Feather name={isEditing ? "check" : "edit-2"} size={18} color="#fff" />
+          </Pressable>
         </View>
 
         {/* Summary cards */}
@@ -95,189 +170,257 @@ export default function EmployeeFinanceScreen() {
         </View>
       </View>
 
-      <ScrollView
-        contentContainerStyle={{ paddingBottom: 80 }}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* ── Debt & balance ───────────────────────────── */}
-        <FloatInView>
-          <View style={{ paddingHorizontal: 16, marginTop: 20 }}>
-            <SectionLabel title="Balance overview" />
-            <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
-              <View style={styles.balanceRow}>
-                <View style={[styles.balanceDot, { backgroundColor: netBalance >= 0 ? "#22c55e" : "#ef4444" }]} />
-                <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_500Medium", fontSize: 13, flex: 1 }}>
-                  Net balance
-                </Text>
-                <Text style={{ color: netBalance >= 0 ? "#22c55e" : "#ef4444", fontFamily: "Inter_700Bold", fontSize: 18 }}>
-                  {netBalance >= 0 ? "+" : ""}{fmt(Math.abs(netBalance))}
-                </Text>
-              </View>
-              <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 4, paddingLeft: 20 }}>
-                {netBalance > 0
-                  ? "The company owes this employee"
-                  : netBalance < 0
-                  ? "This employee owes the company"
-                  : "No outstanding balance"}
+      {isEditing ? (
+        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
+          <FloatInView>
+            <FormInput label="Monthly Salary / Current Pay" value={editCurrentPay} onChangeText={setEditCurrentPay} />
+            <FormInput label="Employee Owes Company" value={editEmployeeOwes} onChangeText={setEditEmployeeOwes} />
+            <FormInput label="Company Owes Employee" value={editCompanyOwes} onChangeText={setEditCompanyOwes} />
+            <FormInput label="Company Shares (%)" value={editShares} onChangeText={setEditShares} />
+            <FormInput label="Bonuses" value={editBonuses} onChangeText={setEditBonuses} />
+            <FormInput label="Deductions" value={editDeductions} onChangeText={setEditDeductions} />
+            
+            <Pressable
+              onPress={saveChanges}
+              disabled={isSaving}
+              style={({ pressed }) => [
+                {
+                  backgroundColor: colors.primary,
+                  paddingVertical: 14,
+                  borderRadius: colors.radius,
+                  alignItems: "center",
+                  marginTop: 20,
+                  opacity: pressed || isSaving ? 0.8 : 1
+                }
+              ]}
+            >
+              <Text style={{ color: colors.primaryForeground, fontFamily: "Inter_700Bold", fontSize: 16 }}>
+                {isSaving ? "Saving Changes..." : "Save Financial Record"}
               </Text>
-            </View>
-
-            <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
-              <View style={[styles.halfCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
-                <View style={[styles.halfCardIcon, { backgroundColor: "#ef44441A" }]}>
-                  <Feather name="arrow-up-right" size={16} color="#ef4444" />
-                </View>
-                <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_500Medium", fontSize: 11, marginTop: 8 }}>
-                  EMPLOYEE OWES
-                </Text>
-                <Text style={{ color: employeeOwes > 0 ? "#ef4444" : colors.foreground, fontFamily: "Inter_700Bold", fontSize: 18, marginTop: 2 }}>
-                  {fmt(employeeOwes)}
-                </Text>
-              </View>
-              <View style={[styles.halfCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
-                <View style={[styles.halfCardIcon, { backgroundColor: "#22c55e1A" }]}>
-                  <Feather name="arrow-down-left" size={16} color="#22c55e" />
-                </View>
-                <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_500Medium", fontSize: 11, marginTop: 8 }}>
-                  COMPANY OWES
-                </Text>
-                <Text style={{ color: companyOwes > 0 ? "#22c55e" : colors.foreground, fontFamily: "Inter_700Bold", fontSize: 18, marginTop: 2 }}>
-                  {fmt(companyOwes)}
-                </Text>
-              </View>
-            </View>
-          </View>
-        </FloatInView>
-
-        {/* ── Shares ───────────────────────────────────── */}
-        <FloatInView delay={100}>
-          <View style={{ paddingHorizontal: 16, marginTop: 22 }}>
-            <SectionLabel title="Company shares" />
-            <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                <View style={[styles.sharesIcon, { backgroundColor: "#a855f71A" }]}>
-                  <Feather name="bar-chart-2" size={20} color="#a855f7" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: colors.foreground, fontFamily: "Inter_700Bold", fontSize: 22 }}>
-                    {shares > 0 ? `${shares}%` : "None"}
+            </Pressable>
+          </FloatInView>
+        </ScrollView>
+      ) : (
+        <ScrollView
+          contentContainerStyle={{ paddingBottom: 80 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* ── Debt & balance ───────────────────────────── */}
+          <FloatInView>
+            <View style={{ paddingHorizontal: 16, marginTop: 20 }}>
+              <SectionLabel title="Balance overview" />
+              <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+                <View style={styles.balanceRow}>
+                  <View style={[styles.balanceDot, { backgroundColor: netBalance >= 0 ? "#22c55e" : "#ef4444" }]} />
+                  <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_500Medium", fontSize: 13, flex: 1 }}>
+                    Net balance
                   </Text>
-                  <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 2 }}>
-                    {shares > 0 ? "Equity stake in the company" : "No equity allocation"}
+                  <Text style={{ color: netBalance >= 0 ? "#22c55e" : "#ef4444", fontFamily: "Inter_700Bold", fontSize: 18 }}>
+                    {netBalance >= 0 ? "+" : ""}{fmt(Math.abs(netBalance))}
                   </Text>
                 </View>
+                <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 4, paddingLeft: 20 }}>
+                  {netBalance > 0
+                    ? "The company owes this employee"
+                    : netBalance < 0
+                    ? "This employee owes the company"
+                    : "No outstanding balance"}
+                </Text>
               </View>
-              {shares > 0 && (
-                <View style={[styles.sharesBar, { backgroundColor: colors.muted, marginTop: 14 }]}>
-                  <View style={[styles.sharesFill, { width: `${Math.min(shares * 10, 100)}%` }]} />
-                </View>
-              )}
-            </View>
-          </View>
-        </FloatInView>
 
-        {/* ── Bonuses & deductions ─────────────────────── */}
-        <FloatInView delay={160}>
-          <View style={{ paddingHorizontal: 16, marginTop: 22 }}>
-            <SectionLabel title="Bonuses & deductions" />
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <View style={[styles.halfCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
-                <View style={[styles.halfCardIcon, { backgroundColor: "#22c55e1A" }]}>
-                  <Feather name="gift" size={16} color="#22c55e" />
+              <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
+                <View style={[styles.halfCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+                  <View style={[styles.halfCardIcon, { backgroundColor: "#ef44441A" }]}>
+                    <Feather name="arrow-up-right" size={16} color="#ef4444" />
+                  </View>
+                  <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_500Medium", fontSize: 11, marginTop: 8 }}>
+                    EMPLOYEE OWES
+                  </Text>
+                  <Text style={{ color: employeeOwes > 0 ? "#ef4444" : colors.foreground, fontFamily: "Inter_700Bold", fontSize: 18, marginTop: 2 }}>
+                    {fmt(employeeOwes)}
+                  </Text>
                 </View>
-                <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_500Medium", fontSize: 11, marginTop: 8 }}>
-                  BONUSES
-                </Text>
-                <Text style={{ color: "#22c55e", fontFamily: "Inter_700Bold", fontSize: 18, marginTop: 2 }}>
-                  +{fmt(bonuses)}
-                </Text>
-              </View>
-              <View style={[styles.halfCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
-                <View style={[styles.halfCardIcon, { backgroundColor: "#ef44441A" }]}>
-                  <Feather name="minus-circle" size={16} color="#ef4444" />
+                <View style={[styles.halfCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+                  <View style={[styles.halfCardIcon, { backgroundColor: "#22c55e1A" }]}>
+                    <Feather name="arrow-down-left" size={16} color="#22c55e" />
+                  </View>
+                  <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_500Medium", fontSize: 11, marginTop: 8 }}>
+                    COMPANY OWES
+                  </Text>
+                  <Text style={{ color: companyOwes > 0 ? "#22c55e" : colors.foreground, fontFamily: "Inter_700Bold", fontSize: 18, marginTop: 2 }}>
+                    {fmt(companyOwes)}
+                  </Text>
                 </View>
-                <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_500Medium", fontSize: 11, marginTop: 8 }}>
-                  DEDUCTIONS
-                </Text>
-                <Text style={{ color: "#ef4444", fontFamily: "Inter_700Bold", fontSize: 18, marginTop: 2 }}>
-                  -{fmt(deductions)}
-                </Text>
               </View>
             </View>
-          </View>
-        </FloatInView>
+          </FloatInView>
 
-        {/* ── Pay history ──────────────────────────────── */}
-        <FloatInView delay={220}>
-          <View style={{ paddingHorizontal: 16, marginTop: 22 }}>
-            <SectionLabel title="Pay history" />
-            <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius, paddingVertical: 0 }]}>
-              {payHistory.map((m: any, i: number) => (
-                <View
-                  key={m.month}
-                  style={[
-                    styles.payRow,
-                    i < payHistory.length - 1 && {
-                      borderBottomWidth: StyleSheet.hairlineWidth,
-                      borderBottomColor: colors.border,
-                    },
-                  ]}
-                >
-                  <View style={[styles.monthChip, { backgroundColor: m.paid ? "#22c55e1A" : colors.muted, borderColor: m.paid ? "#22c55e" : colors.border }]}>
-                    <Text style={{ color: m.paid ? "#16a34a" : colors.mutedForeground, fontFamily: "Inter_600SemiBold", fontSize: 11 }}>
-                      {m.month}
-                    </Text>
+          {/* ── Shares ───────────────────────────────────── */}
+          <FloatInView delay={100}>
+            <View style={{ paddingHorizontal: 16, marginTop: 22 }}>
+              <SectionLabel title="Company shares" />
+              <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                  <View style={[styles.sharesIcon, { backgroundColor: "#a855f71A" }]}>
+                    <Feather name="bar-chart-2" size={20} color="#a855f7" />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 14 }}>
-                      {fmt(Number(m.amount))}
+                    <Text style={{ color: colors.foreground, fontFamily: "Inter_700Bold", fontSize: 22 }}>
+                      {shares > 0 ? `${shares}%` : "None"}
+                    </Text>
+                    <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 2 }}>
+                      {shares > 0 ? "Equity stake in the company" : "No equity allocation"}
                     </Text>
                   </View>
-                  {m.paid ? (
-                    <View style={styles.paidBadge}>
-                      <Feather name="check" size={11} color="#16a34a" />
-                      <Text style={{ color: "#16a34a", fontFamily: "Inter_600SemiBold", fontSize: 11 }}>Paid</Text>
-                    </View>
-                  ) : (
-                    <View style={styles.pendingBadge}>
-                      <Feather name="clock" size={11} color="#f97316" />
-                      <Text style={{ color: "#f97316", fontFamily: "Inter_600SemiBold", fontSize: 11 }}>Pending</Text>
-                    </View>
-                  )}
                 </View>
-              ))}
-            </View>
-          </View>
-        </FloatInView>
-
-        {/* ── Summary bar at bottom ────────────────────── */}
-        <FloatInView delay={280}>
-          <View style={{ paddingHorizontal: 16, marginTop: 22 }}>
-            <SectionLabel title="Annual summary" />
-            <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
-              <SummaryRow label="Base salary (monthly)" value={fmt(currentPay)} color={colors.foreground} colors={colors} />
-              <SummaryRow label="Total paid this year" value={fmt(totalPaid)} color="#22c55e" colors={colors} />
-              <SummaryRow label="Total pending" value={fmt(totalPending)} color="#f97316" colors={colors} />
-              <SummaryRow label="Bonuses earned" value={`+${fmt(bonuses)}`} color="#22c55e" colors={colors} />
-              <SummaryRow label="Deductions" value={`-${fmt(deductions)}`} color="#ef4444" colors={colors} />
-              <View style={[styles.totalLine, { backgroundColor: colors.border }]} />
-              <View style={styles.totalRow}>
-                <Text style={{ color: colors.foreground, fontFamily: "Inter_700Bold", fontSize: 15 }}>
-                  Net compensation
-                </Text>
-                <Text style={{ color: colors.foreground, fontFamily: "Inter_700Bold", fontSize: 18 }}>
-                  {fmt(totalPaid + bonuses - deductions)}
-                </Text>
+                {shares > 0 && (
+                  <View style={[styles.sharesBar, { backgroundColor: colors.muted, marginTop: 14 }]}>
+                    <View style={[styles.sharesFill, { width: `${Math.min(shares * 10, 100)}%` }]} />
+                  </View>
+                )}
               </View>
             </View>
-          </View>
-        </FloatInView>
-      </ScrollView>
+          </FloatInView>
+
+          {/* ── Bonuses & deductions ─────────────────────── */}
+          <FloatInView delay={160}>
+            <View style={{ paddingHorizontal: 16, marginTop: 22 }}>
+              <SectionLabel title="Bonuses & deductions" />
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <View style={[styles.halfCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+                  <View style={[styles.halfCardIcon, { backgroundColor: "#22c55e1A" }]}>
+                    <Feather name="gift" size={16} color="#22c55e" />
+                  </View>
+                  <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_500Medium", fontSize: 11, marginTop: 8 }}>
+                    BONUSES
+                  </Text>
+                  <Text style={{ color: "#22c55e", fontFamily: "Inter_700Bold", fontSize: 18, marginTop: 2 }}>
+                    +{fmt(bonuses)}
+                  </Text>
+                </View>
+                <View style={[styles.halfCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+                  <View style={[styles.halfCardIcon, { backgroundColor: "#ef44441A" }]}>
+                    <Feather name="minus-circle" size={16} color="#ef4444" />
+                  </View>
+                  <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_500Medium", fontSize: 11, marginTop: 8 }}>
+                    DEDUCTIONS
+                  </Text>
+                  <Text style={{ color: "#ef4444", fontFamily: "Inter_700Bold", fontSize: 18, marginTop: 2 }}>
+                    -{fmt(deductions)}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </FloatInView>
+
+          {/* ── Pay history ──────────────────────────────── */}
+          <FloatInView delay={220}>
+            <View style={{ paddingHorizontal: 16, marginTop: 22 }}>
+              <SectionLabel title="Pay history" />
+              <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius, paddingVertical: 0 }]}>
+                {payHistory.map((m: any, i: number) => (
+                  <View
+                    key={m.month}
+                    style={[
+                      styles.payRow,
+                      i < payHistory.length - 1 && {
+                        borderBottomWidth: StyleSheet.hairlineWidth,
+                        borderBottomColor: colors.border,
+                      },
+                    ]}
+                  >
+                    <View style={[styles.monthChip, { backgroundColor: m.paid ? "#22c55e1A" : colors.muted, borderColor: m.paid ? "#22c55e" : colors.border }]}>
+                      <Text style={{ color: m.paid ? "#16a34a" : colors.mutedForeground, fontFamily: "Inter_600SemiBold", fontSize: 11 }}>
+                        {m.month}
+                      </Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 14 }}>
+                        {fmt(Number(m.amount))}
+                      </Text>
+                    </View>
+                    {m.paid ? (
+                      <View style={styles.paidBadge}>
+                        <Feather name="check" size={11} color="#16a34a" />
+                        <Text style={{ color: "#16a34a", fontFamily: "Inter_600SemiBold", fontSize: 11 }}>Paid</Text>
+                      </View>
+                    ) : (
+                      <View style={styles.pendingBadge}>
+                        <Feather name="clock" size={11} color="#f97316" />
+                        <Text style={{ color: "#f97316", fontFamily: "Inter_600SemiBold", fontSize: 11 }}>Pending</Text>
+                      </View>
+                    )}
+                  </View>
+                ))}
+              </View>
+            </View>
+          </FloatInView>
+
+          {/* ── Summary bar at bottom ────────────────────── */}
+          <FloatInView delay={280}>
+            <View style={{ paddingHorizontal: 16, marginTop: 22 }}>
+              <SectionLabel title="Annual summary" />
+              <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+                <SummaryRow label="Base salary (monthly)" value={fmt(currentPay)} color={colors.foreground} colors={colors} />
+                <SummaryRow label="Total paid this year" value={fmt(totalPaid)} color="#22c55e" colors={colors} />
+                <SummaryRow label="Total pending" value={fmt(totalPending)} color="#f97316" colors={colors} />
+                <SummaryRow label="Bonuses earned" value={`+${fmt(bonuses)}`} color="#22c55e" colors={colors} />
+                <SummaryRow label="Deductions" value={`-${fmt(deductions)}`} color="#ef4444" colors={colors} />
+                <View style={[styles.totalLine, { backgroundColor: colors.border }]} />
+                <View style={styles.totalRow}>
+                  <Text style={{ color: colors.foreground, fontFamily: "Inter_700Bold", fontSize: 15 }}>
+                    Net compensation
+                  </Text>
+                  <Text style={{ color: colors.foreground, fontFamily: "Inter_700Bold", fontSize: 18 }}>
+                    {fmt(totalPaid + bonuses - deductions)}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </FloatInView>
+        </ScrollView>
+      )}
     </View>
   );
 }
 
 /* ── Sub components ─────────────────────────────────────── */
+
+function FormInput({ label, value, onChangeText, placeholder, keyboardType = "numeric" }: any) {
+  const colors = useColors();
+  return (
+    <View style={{ marginBottom: 16 }}>
+      <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_600SemiBold", fontSize: 11, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 6 }}>
+        {label}
+      </Text>
+      <View style={{
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: colors.card,
+        borderColor: colors.border,
+        borderWidth: 1,
+        borderRadius: colors.radius,
+        paddingHorizontal: 12,
+        height: 48
+      }}>
+        <TextInput
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor={colors.mutedForeground}
+          keyboardType={keyboardType}
+          style={{
+            flex: 1,
+            color: colors.foreground,
+            fontFamily: "Inter_600SemiBold",
+            fontSize: 15,
+            padding: 0
+          }}
+        />
+      </View>
+    </View>
+  );
+}
 
 function SectionLabel({ title }: { title: string }) {
   const colors = useColors();

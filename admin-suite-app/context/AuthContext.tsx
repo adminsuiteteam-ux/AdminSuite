@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { supabase } from "@/services/supabase";
-import { apiService } from "@/services/api";
+import { apiService, resolveBackendUrl } from "@/services/api";
 
 const TOKEN_KEY = "admin-suite.token";
 const TOUR_KEY = "admin-suite.tour-complete";
@@ -67,8 +67,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    apiService.onUnauthorized(async () => {
+      await logout();
+    });
+
     (async () => {
       try {
+        await resolveBackendUrl();
         const [token, tourRaw, suspendedUntilRaw] = await Promise.all([
           SecureStore.getItemAsync(TOKEN_KEY),
           AsyncStorage.getItem(TOUR_KEY),
@@ -93,10 +98,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         
         if (tourRaw === "true") setTourComplete(true);
-      } catch (err) {
-        console.error("Auth init failed:", err);
-        await SecureStore.deleteItemAsync(TOKEN_KEY);
-        apiService.setToken(null);
+      } catch (err: any) {
+        if (err.response && (err.response.status === 401 || err.response.status === 403)) {
+          console.log("Auth session expired (401/403). Clearing token.");
+          await SecureStore.deleteItemAsync(TOKEN_KEY);
+          apiService.setToken(null);
+        } else {
+          console.log("Auth init failed (Network/Server error):", err.message || err);
+        }
       }
 
       setLoading(false);
@@ -146,48 +155,85 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signUpWithSupabase = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-    
-    if (error) {
-      console.error("Supabase signUp error:", error.message, error.status);
-      throw new Error(error.message);
-    }
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+      
+      if (error) {
+        throw new Error(error.message);
+      }
+      
+      // Supabase returns an empty identities array when user already exists
+      if (data?.user?.identities?.length === 0) {
+        throw new Error("An account with this email already exists. Please sign in instead.");
+      }
 
-    // Supabase returns an empty identities array when user already exists
-    // (security measure — it won't reveal existing emails via error)
-    if (data?.user?.identities?.length === 0) {
-      throw new Error("An account with this email already exists. Please sign in instead.");
-    }
+      if (!data?.user) {
+        throw new Error("Sign up failed. Please check your email and try again.");
+      }
 
-    // If no session and no confirmed user, OTP was sent successfully
-    if (!data?.user) {
-      throw new Error("Sign up failed. Please check your email and try again.");
+      await AsyncStorage.setItem("auth.use_supabase_signup", "true");
+    } catch (err: any) {
+      if (err.message && err.message.includes("already exists")) {
+        throw err;
+      }
+      console.warn("Supabase signUp failed, falling back to Django local verification:", err?.message);
+      await AsyncStorage.setItem("auth.use_supabase_signup", "false");
+      try {
+        const res = await apiService.sendEmailCode({ email });
+        if (res.data && res.data.code) {
+          await AsyncStorage.setItem("auth.debug_otp_code", res.data.code);
+        }
+      } catch (djangoErr: any) {
+        throw new Error(djangoErr.response?.data?.error || djangoErr.message || "Failed to send verification code via Django.");
+      }
     }
   };
 
   const resendSupabaseOTP = async (email: string) => {
-    const { data, error } = await supabase.auth.resend({
-      type: 'signup',
-      email: email.trim().toLowerCase(),
-    });
-    
-    if (error) {
-      throw new Error(error.message);
+    const useSupabase = await AsyncStorage.getItem("auth.use_supabase_signup");
+    if (useSupabase !== "false") {
+      const { data, error } = await supabase.auth.resend({
+        type: 'signup',
+        email: email.trim().toLowerCase(),
+      });
+      
+      if (error) {
+        throw new Error(error.message);
+      }
+    } else {
+      try {
+        const res = await apiService.sendEmailCode({ email });
+        if (res.data && res.data.code) {
+          await AsyncStorage.setItem("auth.debug_otp_code", res.data.code);
+        }
+      } catch (djangoErr: any) {
+        throw new Error(djangoErr.response?.data?.error || djangoErr.message || "Failed to resend verification code.");
+      }
     }
   };
 
   const verifySupabaseOTP = async (email: string, code: string, password: string) => {
-    const { data, error } = await supabase.auth.verifyOtp({
-      email,
-      token: code.trim(),
-      type: 'signup',
-    });
+    const useSupabase = await AsyncStorage.getItem("auth.use_supabase_signup");
     
-    if (error) {
-      throw new Error(error.message);
+    if (useSupabase !== "false") {
+      const { data, error } = await supabase.auth.verifyOtp({
+        email,
+        token: code.trim(),
+        type: 'signup',
+      });
+      
+      if (error) {
+        throw new Error(error.message);
+      }
+    } else {
+      try {
+        await apiService.verifyEmailCode({ email, code: code.trim() });
+      } catch (djangoErr: any) {
+        throw new Error(djangoErr.response?.data?.error || djangoErr.message || "Invalid or expired verification code.");
+      }
     }
     
     try {
@@ -196,7 +242,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email,
         password,
         confirm_password: password,
-        supabase_verified: true,
+        supabase_verified: useSupabase !== "false",
       });
       
       const token = signupRes.data.token;

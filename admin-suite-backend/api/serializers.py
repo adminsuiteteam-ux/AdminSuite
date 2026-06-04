@@ -4,7 +4,8 @@ from django.contrib.auth.models import User
 from .models import (
     Employee, EmployeeFinance, PayHistory, Client, Project, 
     Transaction, Notification, Debt, BudgetCategory, Savings,
-    UserProfile
+    UserProfile, EmployeeActivityLog, EmployeeQuery, EmployeeTask,
+    EmployeeLeave, EmployeeMessage, EmployeeDocument, SalaryAdjustment
 )
 
 from django.contrib.auth.password_validation import validate_password
@@ -44,16 +45,61 @@ class EmployeeFinanceSerializer(serializers.ModelSerializer):
             'shares', 'pay_history', 'bonuses', 'deductions'
         ]
 
+class EmployeeActivityLogSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EmployeeActivityLog
+        fields = ['id', 'employee', 'action', 'details', 'created_at']
+
+class EmployeeQuerySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EmployeeQuery
+        fields = ['id', 'employee', 'query_type', 'message', 'status', 'attachment', 'created_at']
+
+class EmployeeTaskSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EmployeeTask
+        fields = ['id', 'employee', 'title', 'description', 'priority', 'due_date', 'status', 'attachment', 'created_at']
+
+class EmployeeLeaveSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EmployeeLeave
+        fields = ['id', 'employee', 'leave_type', 'start_date', 'end_date', 'duration_days', 'status', 'created_at']
+
+class EmployeeMessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EmployeeMessage
+        fields = ['id', 'employee', 'subject', 'body', 'delivery_mode', 'attachment', 'created_at']
+
+class EmployeeDocumentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EmployeeDocument
+        fields = ['id', 'employee', 'name', 'document_type', 'file', 'created_at', 'updated_at']
+
+class SalaryAdjustmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SalaryAdjustment
+        fields = ['id', 'employee', 'adjustment_type', 'amount', 'previous_salary', 'new_salary', 'effective_date', 'notes', 'created_at']
+
 class EmployeeSerializer(serializers.ModelSerializer):
     finance = EmployeeFinanceSerializer(read_only=True)
     finance_data = serializers.JSONField(write_only=True, required=False)
+    activity_logs = EmployeeActivityLogSerializer(many=True, read_only=True)
+    queries = EmployeeQuerySerializer(many=True, read_only=True)
+    tasks = EmployeeTaskSerializer(many=True, read_only=True)
+    leaves = EmployeeLeaveSerializer(many=True, read_only=True)
+    messages = EmployeeMessageSerializer(many=True, read_only=True)
+    documents = EmployeeDocumentSerializer(many=True, read_only=True)
+    salary_adjustments = SalaryAdjustmentSerializer(many=True, read_only=True)
     
     class Meta:
         model = Employee
         fields = [
             'id', 'name', 'role', 'department', 'office', 'status', 
             'performance', 'salary', 'initials', 'avatar', 'email', 
-            'phone', 'location', 'bio', 'socials', 'finance', 'finance_data'
+            'phone', 'location', 'bio', 'socials', 'finance', 'finance_data',
+            'is_flagged', 'flag_reason', 'flag_note', 'is_archived',
+            'activity_logs', 'queries', 'tasks', 'leaves', 'messages',
+            'documents', 'salary_adjustments'
         ]
         read_only_fields = ['user']
         extra_kwargs = {
@@ -116,7 +162,10 @@ class ProjectSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Project
-        fields = ['id', 'name', 'client', 'client_name', 'status', 'value', 'progress']
+        fields = [
+            'id', 'name', 'client', 'client_name', 'status', 'value', 'progress',
+            'start_date', 'end_date', 'location', 'image', 'video'
+        ]
 
 class ClientSerializer(serializers.ModelSerializer):
     projects = ProjectSerializer(many=True, read_only=True)

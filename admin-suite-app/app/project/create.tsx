@@ -1,7 +1,8 @@
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
-import React, { useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -20,7 +21,10 @@ import { apiService } from "@/services/api";
 export default function CreateProjectScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { clients, refresh } = useData();
+  const { projects, clients, refresh } = useData();
+  const { editId } = useLocalSearchParams<{ editId?: string }>();
+
+  const isEditing = !!editId;
 
   const [name, setName] = useState("");
   const [clientId, setClientId] = useState("");
@@ -30,23 +34,62 @@ export default function CreateProjectScreen() {
 
   const statuses = ["active", "planned", "on_hold", "completed"];
 
+  useEffect(() => {
+    if (editId) {
+      const project = projects.find((p) => String(p.id) === String(editId));
+      if (project) {
+        setName(project.name || "");
+        setClientId(project.client ? String(project.client) : "");
+        setStatus(project.status || "active");
+        setValue(project.value ? String(project.value) : "");
+      }
+    }
+  }, [editId, projects]);
+
   const handleSave = async () => {
     if (saving) return;
-    if (!name || !clientId || !value) return;
+
+    if (!name.trim()) {
+      Alert.alert("Validation Error", "Please enter a project name.");
+      return;
+    }
+    if (!clientId) {
+      Alert.alert("Validation Error", "Please select a client. If you have no clients, you must create a client first.");
+      return;
+    }
+    if (!value.trim()) {
+      Alert.alert("Validation Error", "Please enter a project value.");
+      return;
+    }
+    if (isNaN(parseFloat(value))) {
+      Alert.alert("Validation Error", "Please enter a valid numeric project value.");
+      return;
+    }
     
     setSaving(true);
+    const existingProj = projects.find((p) => String(p.id) === String(editId));
     try {
-      await apiService.createProject({
-        name,
-        client: parseInt(clientId),
-        status,
-        value: parseFloat(value) || 0,
-        progress: status === "completed" ? 100 : 0,
-      });
+      await (isEditing
+        ? apiService.updateProject(editId!, {
+            name: name.trim(),
+            client: parseInt(clientId),
+            status,
+            value: parseFloat(value) || 0,
+            progress: status === "completed" ? 100 : (existingProj?.progress || 0),
+          })
+        : apiService.createProject({
+            name: name.trim(),
+            client: parseInt(clientId),
+            status,
+            value: parseFloat(value) || 0,
+            progress: status === "completed" ? 100 : 0,
+          }));
       await refresh();
       router.back();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Save failed:", err);
+      const msg = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+      Alert.alert("Save Error", `Failed to save project: ${msg}`);
     } finally {
       setSaving(false);
     }
@@ -66,7 +109,7 @@ export default function CreateProjectScreen() {
           <Feather name="chevron-left" size={22} color={colors.foreground} />
         </Pressable>
         <Text style={[styles.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-          New Project
+          {isEditing ? "Edit Project" : "New Project"}
         </Text>
         <View style={{ width: 38 }} />
       </View>
@@ -85,25 +128,48 @@ export default function CreateProjectScreen() {
 
         <View style={styles.formGroup}>
           <Text style={[styles.label, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Client</Text>
-          <View style={styles.clientGrid}>
-            {clients.map((c) => (
+          {clients.length === 0 ? (
+            <View style={[styles.emptyClientsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={{ color: colors.danger, fontFamily: "Inter_500Medium", fontSize: 14, marginBottom: 12 }}>
+                No clients found in your workspace. You must create at least one client before adding a project.
+              </Text>
               <Pressable
-                key={c.id}
-                onPress={() => setClientId(String(c.id))}
-                style={[
-                  styles.clientChip,
+                onPress={() => router.push("/client/create")}
+                style={({ pressed }) => [
+                  styles.createClientBtn,
                   {
-                    backgroundColor: clientId === String(c.id) ? colors.primary : colors.card,
-                    borderColor: clientId === String(c.id) ? colors.primary : colors.border,
-                  },
+                    backgroundColor: colors.primary,
+                    opacity: pressed ? 0.9 : 1,
+                  }
                 ]}
               >
-                <Text style={{ color: clientId === String(c.id) ? colors.primaryForeground : colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 12 }}>
-                  {c.company}
+                <Feather name="plus" size={14} color={colors.primaryForeground} />
+                <Text style={{ color: colors.primaryForeground, fontFamily: "Inter_600SemiBold", fontSize: 13 }}>
+                  Create Client
                 </Text>
               </Pressable>
-            ))}
-          </View>
+            </View>
+          ) : (
+            <View style={styles.clientGrid}>
+              {clients.map((c) => (
+                <Pressable
+                  key={c.id}
+                  onPress={() => setClientId(String(c.id))}
+                  style={[
+                    styles.clientChip,
+                    {
+                      backgroundColor: clientId === String(c.id) ? colors.primary : colors.card,
+                      borderColor: clientId === String(c.id) ? colors.primary : colors.border,
+                    },
+                  ]}
+                >
+                  <Text style={{ color: clientId === String(c.id) ? colors.primaryForeground : colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 12 }}>
+                    {c.company}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
         </View>
 
         <View style={styles.formGroup}>
@@ -145,7 +211,7 @@ export default function CreateProjectScreen() {
       <View style={[styles.footer, { paddingBottom: insets.bottom + 16, borderTopColor: colors.border }]}>
         <Pressable onPress={handleSave} disabled={saving} style={[styles.submitBtn, { backgroundColor: colors.primary, opacity: saving ? 0.7 : 1 }]}>
           <Text style={{ color: colors.primaryForeground, fontFamily: "Inter_600SemiBold", fontSize: 16 }}>
-            {saving ? "Creating..." : "Create Project"}
+            {saving ? (isEditing ? "Saving..." : "Creating...") : (isEditing ? "Save Changes" : "Create Project")}
           </Text>
         </Pressable>
       </View>
@@ -166,4 +232,18 @@ const styles = StyleSheet.create({
   chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
   footer: { padding: 16, borderTopWidth: 1 },
   submitBtn: { height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  emptyClientsCard: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: "flex-start",
+  },
+  createClientBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
 });

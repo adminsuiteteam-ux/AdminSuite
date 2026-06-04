@@ -3,20 +3,25 @@ from django.contrib.auth.models import User
 from django.db import models
 from django.db.models import Sum
 from rest_framework import viewsets, status
-from rest_framework.decorators import api_view, permission_classes, throttle_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes, action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
 from rest_framework.authtoken.views import ObtainAuthToken
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from .models import (
     Employee, EmployeeFinance, PayHistory, Client, Project, Transaction,
-    Notification, Debt, BudgetCategory, Savings
+    Notification, Debt, BudgetCategory, Savings, EmployeeActivityLog,
+    EmployeeQuery, EmployeeTask, EmployeeLeave, EmployeeMessage,
+    EmployeeDocument, SalaryAdjustment, PayrollStatus
 )
 from .serializers import (
     EmployeeSerializer, ClientSerializer, ProjectSerializer,
     TransactionSerializer, NotificationSerializer, DebtSerializer,
     BudgetCategorySerializer, SavingsSerializer, UserSerializer,
-    UserProfileSerializer, RegisterSerializer
+    UserProfileSerializer, RegisterSerializer, EmployeeActivityLogSerializer,
+    EmployeeQuerySerializer, EmployeeTaskSerializer, EmployeeLeaveSerializer,
+    EmployeeMessageSerializer, EmployeeDocumentSerializer, SalaryAdjustmentSerializer
 )
 
 
@@ -137,6 +142,61 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
+    @action(detail=True, methods=['post'])
+    def flag(self, request, pk=None):
+        employee = self.get_object()
+        is_flagged = request.data.get('is_flagged', False)
+        reason = request.data.get('flag_reason', '')
+        note = request.data.get('flag_note', '')
+
+        employee.is_flagged = is_flagged
+        if is_flagged:
+            employee.flag_reason = reason
+            employee.flag_note = note
+            action_name = "Flagged"
+            details = f"Flagged. Reason: '{reason}'. Note: '{note}'"
+        else:
+            employee.flag_reason = ""
+            employee.flag_note = ""
+            action_name = "Unflagged"
+            details = f"Unflagged (Flag resolved). Note: '{note}'"
+            
+        employee.save(update_fields=['is_flagged', 'flag_reason', 'flag_note'])
+        
+        # Log to activity history
+        EmployeeActivityLog.objects.create(
+            employee=employee,
+            action=action_name,
+            details=details
+        )
+        return Response({'status': 'success', 'is_flagged': employee.is_flagged})
+
+    @action(detail=True, methods=['post'])
+    def archive(self, request, pk=None):
+        employee = self.get_object()
+        employee.is_archived = True
+        employee.save(update_fields=['is_archived'])
+        # Log activity
+        EmployeeActivityLog.objects.create(
+            employee=employee,
+            action="Archived",
+            details="Employee profile has been archived/deactivated."
+        )
+        return Response({'status': 'success', 'is_archived': True})
+
+    @action(detail=True, methods=['post'])
+    def restore(self, request, pk=None):
+        employee = self.get_object()
+        employee.is_archived = False
+        employee.save(update_fields=['is_archived'])
+        # Log activity
+        EmployeeActivityLog.objects.create(
+            employee=employee,
+            action="Restored",
+            details="Employee profile has been restored/reactivated."
+        )
+        return Response({'status': 'success', 'is_archived': False})
+
 
 class ClientViewSet(viewsets.ModelViewSet):
     serializer_class = ClientSerializer
@@ -215,12 +275,16 @@ class SavingsViewSet(viewsets.ModelViewSet):
         serializer.save(user=self.request.user)
 
 
-@api_view(['GET', 'PUT', 'PATCH'])
+@api_view(['GET', 'PUT', 'PATCH', 'DELETE'])
 @permission_classes([IsAuthenticated])
 def me(request):
     from .models import UserProfile
     user = request.user
     profile, _ = UserProfile.objects.get_or_create(user=user)
+
+    if request.method == 'DELETE':
+        user.delete()
+        return Response({'message': 'Account deleted successfully.'}, status=status.HTTP_204_NO_CONTENT)
 
     if request.method in ('PUT', 'PATCH'):
         # Update user fields
@@ -375,24 +439,52 @@ def client_metrics(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def payroll_metrics(request):
-    """Payroll status — mirrors getPayrollMetrics()"""
+    """Payroll status — dynamic list of months fetched from DB"""
     user = request.user
-    # Uses a static 8-month calendar just like the frontend
-    payroll_months = [
-        {'month': 'Jan', 'paid': True}, {'month': 'Feb', 'paid': True},
-        {'month': 'Mar', 'paid': True}, {'month': 'Apr', 'paid': True},
-        {'month': 'May', 'paid': False}, {'month': 'Jun', 'paid': False},
-        {'month': 'Jul', 'paid': False}, {'month': 'Aug', 'paid': False},
-    ]
+    default_months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug']
+    
+    # Fetch existing statuses
+    statuses = {ps.month: ps.paid for ps in PayrollStatus.objects.filter(user=user)}
+    
+    payroll_months = []
+    for m in default_months:
+        paid_status = statuses.get(m, False)
+        payroll_months.append({'month': m, 'paid': paid_status})
+        
     paid = sum(1 for m in payroll_months if m['paid'])
     unpaid = len(payroll_months) - paid
     staff_paid = Employee.objects.filter(user=user, status='active').count()
+    
     return Response({
         'paid': paid,
         'unpaid': unpaid,
         'staffPaid': staff_paid,
         'total': len(payroll_months),
         'payrollMonths': payroll_months,
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def toggle_payroll_month(request):
+    """Toggle or set the paid status for a specific month"""
+    user = request.user
+    month = request.data.get('month')
+    paid = request.data.get('paid', False)
+    
+    if not month:
+        return Response({'error': 'month is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+    payroll_status, created = PayrollStatus.objects.update_or_create(
+        user=user,
+        month=month,
+        defaults={'paid': paid}
+    )
+    
+    return Response({
+        'month': payroll_status.month,
+        'paid': payroll_status.paid,
+        'success': True
     })
 
 
@@ -716,10 +808,11 @@ def export_data(request):
     export_type = request.GET.get('type', 'general').strip().lower()
     time_filter = request.GET.get('time_filter')
     individual_id = request.GET.get('id')
+    skip_branding = request.GET.get('skip_branding', 'false').strip().lower() == 'true'
 
     if export_format == 'pdf':
         try:
-            pdf_data = build_pdf_report(request.user, export_type, time_filter=time_filter, individual_id=individual_id)
+            pdf_data = build_pdf_report(request.user, export_type, time_filter=time_filter, individual_id=individual_id, skip_branding=skip_branding)
             response = HttpResponse(pdf_data, content_type='application/pdf')
             response['Content-Disposition'] = f'attachment; filename="adminsuite_{export_type}_export.pdf"'
             return response
@@ -962,3 +1055,187 @@ def confirm_password_reset(request):
     record.delete()
 
     return Response({'message': 'Password has been reset successfully. You can now log in.'})
+
+
+class EmployeeActivityLogViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = EmployeeActivityLogSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return EmployeeActivityLog.objects.filter(employee__user=self.request.user).order_by('-created_at')
+
+
+class EmployeeQueryViewSet(viewsets.ModelViewSet):
+    serializer_class = EmployeeQuerySerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return EmployeeQuery.objects.filter(employee__user=self.request.user).order_by('-created_at')
+
+    def perform_create(self, serializer):
+        employee = serializer.validated_data.get('employee')
+        if employee.user != self.request.user:
+            raise PermissionDenied("You do not have permission to query this employee.")
+        instance = serializer.save()
+        EmployeeActivityLog.objects.create(
+            employee=employee,
+            action="Query Raised",
+            details=f"Raised query of type '{instance.query_type}': {instance.message}"
+        )
+
+
+class EmployeeTaskViewSet(viewsets.ModelViewSet):
+    serializer_class = EmployeeTaskSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return EmployeeTask.objects.filter(employee__user=self.request.user).order_by('-created_at')
+
+    def perform_create(self, serializer):
+        employee = serializer.validated_data.get('employee')
+        if employee.user != self.request.user:
+            raise PermissionDenied("You do not have permission to assign tasks to this employee.")
+        instance = serializer.save()
+        
+        EmployeeActivityLog.objects.create(
+            employee=employee,
+            action="Task Assigned",
+            details=f"Assigned task: {instance.title} (Priority: {instance.priority})"
+        )
+        
+        Notification.objects.create(
+            user=self.request.user,
+            title="Task Assigned",
+            body=f"Assigned task '{instance.title}' to {employee.name}",
+            time="Just now"
+        )
+
+
+class EmployeeLeaveViewSet(viewsets.ModelViewSet):
+    serializer_class = EmployeeLeaveSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return EmployeeLeave.objects.filter(employee__user=self.request.user).order_by('-created_at')
+
+    def perform_create(self, serializer):
+        employee = serializer.validated_data.get('employee')
+        if employee.user != self.request.user:
+            raise PermissionDenied("You do not have permission to schedule leave for this employee.")
+        
+        start_date = serializer.validated_data.get('start_date')
+        end_date = serializer.validated_data.get('end_date')
+        
+        overlapping = EmployeeLeave.objects.filter(
+            employee=employee,
+            start_date__lte=end_date,
+            end_date__gte=start_date
+        )
+        if overlapping.exists():
+            raise ValidationError("Leave dates overlap with an existing scheduled leave.")
+            
+        instance = serializer.save()
+        
+        from datetime import date
+        today = date.today()
+        if instance.start_date <= today <= instance.end_date:
+            employee.status = 'on_leave'
+            employee.save(update_fields=['status'])
+            
+        EmployeeActivityLog.objects.create(
+            employee=employee,
+            action="Leave Scheduled",
+            details=f"Scheduled {instance.leave_type} leave from {instance.start_date} to {instance.end_date} ({instance.duration_days} days)"
+        )
+
+
+class EmployeeMessageViewSet(viewsets.ModelViewSet):
+    serializer_class = EmployeeMessageSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return EmployeeMessage.objects.filter(employee__user=self.request.user).order_by('-created_at')
+
+    def perform_create(self, serializer):
+        employee = serializer.validated_data.get('employee')
+        if employee.user != self.request.user:
+            raise PermissionDenied("You do not have permission to send messages to this employee.")
+        instance = serializer.save()
+        EmployeeActivityLog.objects.create(
+            employee=employee,
+            action="Message Sent",
+            details=f"Sent {instance.delivery_mode} message. Subject: {instance.subject}"
+        )
+
+
+class EmployeeDocumentViewSet(viewsets.ModelViewSet):
+    serializer_class = EmployeeDocumentSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return EmployeeDocument.objects.filter(employee__user=self.request.user).order_by('-created_at')
+
+    def perform_create(self, serializer):
+        employee = serializer.validated_data.get('employee')
+        if employee.user != self.request.user:
+            raise PermissionDenied("You do not have permission to manage documents for this employee.")
+        instance = serializer.save()
+        EmployeeActivityLog.objects.create(
+            employee=employee,
+            action="Document Added",
+            details=f"Added document: {instance.name} ({instance.document_type})"
+        )
+
+    def perform_destroy(self, instance):
+        employee = instance.employee
+        doc_name = instance.name
+        instance.delete()
+        EmployeeActivityLog.objects.create(
+            employee=employee,
+            action="Document Deleted",
+            details=f"Deleted document: {doc_name}"
+        )
+
+
+class SalaryAdjustmentViewSet(viewsets.ModelViewSet):
+    serializer_class = SalaryAdjustmentSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return SalaryAdjustment.objects.filter(employee__user=self.request.user).order_by('-created_at')
+
+    def perform_create(self, serializer):
+        employee = serializer.validated_data.get('employee')
+        if employee.user != self.request.user:
+            raise PermissionDenied("You do not have permission to adjust salary for this employee.")
+        
+        adj_type = serializer.validated_data.get('adjustment_type')
+        amount = serializer.validated_data.get('amount')
+        prev_salary = employee.salary
+        
+        if adj_type == 'increment':
+            new_salary = prev_salary + amount
+        elif adj_type == 'decrement':
+            new_salary = max(0, prev_salary - amount)
+        elif adj_type == 'bonus':
+            new_salary = prev_salary
+            employee.finance.bonuses += amount
+            employee.finance.save(update_fields=['bonuses'])
+        elif adj_type == 'correction':
+            new_salary = amount
+        else:
+            new_salary = prev_salary
+            
+        instance = serializer.save(previous_salary=prev_salary, new_salary=new_salary)
+        
+        if adj_type != 'bonus':
+            employee.salary = new_salary
+            employee.finance.current_pay = new_salary
+            employee.save(update_fields=['salary'])
+            employee.finance.save(update_fields=['current_pay'])
+            
+        EmployeeActivityLog.objects.create(
+            employee=employee,
+            action="Salary Adjusted",
+            details=f"Adjusted salary ({adj_type}): {prev_salary} -> {new_salary} (Amount: {amount})"
+        )

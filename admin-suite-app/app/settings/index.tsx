@@ -12,12 +12,14 @@ import {
   Switch,
   Text,
   View,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
 import { CURRENCIES, useSettings } from "@/context/SettingsContext";
 import { useColors } from "@/hooks/useColors";
+import { apiService } from "@/services/api";
 
 export default function AppSettingsScreen() {
   const colors = useColors();
@@ -35,6 +37,8 @@ export default function AppSettingsScreen() {
   const [currencyOpen, setCurrencyOpen] = useState(false);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [signOutOpen, setSignOutOpen] = useState(false);
+  const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const handleToggleBiometrics = async (value: boolean) => {
     if (value) {
@@ -76,6 +80,21 @@ export default function AppSettingsScreen() {
     setSignOutOpen(false);
     await logout();
     router.replace("/(auth)/login");
+  };
+
+  const handleConfirmDeleteAccount = async () => {
+    setDeleteLoading(true);
+    try {
+      await apiService.deleteAccount();
+      setDeleteAccountOpen(false);
+      await logout();
+      router.replace("/(auth)/login");
+    } catch (e: any) {
+      console.error("Delete account failed:", e);
+      Alert.alert("Error", "Failed to delete account. Please try again later.");
+    } finally {
+      setDeleteLoading(false);
+    }
   };
 
   return (
@@ -140,6 +159,27 @@ export default function AppSettingsScreen() {
               <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
             </View>
           </Pressable>
+
+          <Pressable onPress={() => setDeleteAccountOpen(true)} style={{ marginTop: 8 }}>
+            <View
+              style={[
+                styles.row,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                  borderRadius: colors.radius,
+                },
+              ]}
+            >
+              <View style={[styles.rowIcon, { backgroundColor: colors.danger + "1A" }]}>
+                <Feather name="trash-2" size={16} color={colors.danger} />
+              </View>
+              <Text style={{ color: colors.danger, fontFamily: "Inter_600SemiBold", fontSize: 14, flex: 1 }}>
+                Delete Account
+              </Text>
+              <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+            </View>
+          </Pressable>
         </Group>
 
         <Text style={[styles.version, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
@@ -171,6 +211,13 @@ export default function AppSettingsScreen() {
         visible={signOutOpen}
         onClose={() => setSignOutOpen(false)}
         onConfirm={handleConfirmLogout}
+      />
+
+      <DeleteAccountModal
+        visible={deleteAccountOpen}
+        onClose={() => setDeleteAccountOpen(false)}
+        onConfirm={handleConfirmDeleteAccount}
+        loading={deleteLoading}
       />
     </View>
   );
@@ -284,6 +331,58 @@ function SignOutModal({ visible, onClose, onConfirm }: { visible: boolean; onClo
             <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 16 }}>Yes, Sign Out</Text>
           </Pressable>
           <Pressable onPress={onClose} style={({ pressed }) => [styles.actionBtn, { backgroundColor: colors.muted, opacity: pressed ? 0.8 : 1 }]}>
+            <Text style={{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 16 }}>Cancel</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function DeleteAccountModal({
+  visible,
+  onClose,
+  onConfirm,
+  loading,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  loading: boolean;
+}) {
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <Pressable style={styles.modalBackdrop} onPress={onClose} />
+      <View style={[styles.modalSheet, { backgroundColor: colors.background, paddingBottom: insets.bottom + 24 }]}>
+        <View style={styles.sheetHandle} />
+        <View style={{ alignItems: "center", paddingTop: 16, paddingBottom: 24 }}>
+          <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: colors.danger + "1A", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+            <Feather name="trash-2" size={28} color={colors.danger} />
+          </View>
+          <Text style={[styles.sheetTitle, { color: colors.foreground, fontFamily: "Inter_700Bold", textAlign: "center" }]}>Delete Account</Text>
+          <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 14, textAlign: "center", marginTop: 8, paddingHorizontal: 32, lineHeight: 20 }}>
+            Are you sure you want to delete your account? This will permanently delete your profile, organization, employees, clients, transactions, and all other workspace data. This action is irreversible.
+          </Text>
+        </View>
+        <View style={{ gap: 12 }}>
+          <Pressable
+            onPress={onConfirm}
+            disabled={loading}
+            style={({ pressed }) => [styles.actionBtn, { backgroundColor: colors.danger, opacity: loading ? 0.6 : pressed ? 0.8 : 1 }]}
+          >
+            {loading ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 16 }}>Yes, Delete My Account</Text>
+            )}
+          </Pressable>
+          <Pressable
+            onPress={onClose}
+            disabled={loading}
+            style={({ pressed }) => [styles.actionBtn, { backgroundColor: colors.muted, opacity: pressed ? 0.8 : 1 }]}
+          >
             <Text style={{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 16 }}>Cancel</Text>
           </Pressable>
         </View>

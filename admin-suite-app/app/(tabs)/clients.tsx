@@ -167,7 +167,7 @@ export default function ClientsScreen() {
                   >
                     <Text
                       style={{
-                        color: active ? "#fff" : colors.foreground,
+                        color: active ? colors.primaryForeground : colors.foreground,
                         fontFamily: "Inter_600SemiBold",
                         fontSize: 12,
                       }}

@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
-import React, { useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -24,6 +24,7 @@ const STEPS = [
   { title: "Company Info", subtitle: "Name & contact person" },
   { title: "Contact Details", subtitle: "Email, location & website" },
   { title: "Description", subtitle: "What they do & remarks" },
+  { title: "Financial details", subtitle: "Revenue, payments & debts" },
 ];
 
 const STATUS_OPTIONS = [
@@ -35,9 +36,12 @@ const STATUS_OPTIONS = [
 export default function CreateClientScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { refresh } = useData();
+  const { clients, refresh } = useData();
+  const { editId } = useLocalSearchParams<{ editId?: string }>();
   const { showToast } = useToast();
   const [step, setStep] = useState(0);
+
+  const isEditing = !!editId;
 
   const [company, setCompany] = useState("");
   const [contact, setContact] = useState("");
@@ -49,7 +53,34 @@ export default function CreateClientScreen() {
 
   const [description, setDescription] = useState("");
   const [remark, setRemark] = useState("");
+
+  // Financial States
+  const [lifetimeValue, setLifetimeValue] = useState("");
+  const [pendingPayments, setPendingPayments] = useState("");
+  const [clientOwes, setClientOwes] = useState("");
+  const [companyOwes, setCompanyOwes] = useState("");
+
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (editId) {
+      const client = clients.find((c) => String(c.id) === String(editId));
+      if (client) {
+        setCompany(client.company || "");
+        setContact(client.contact || "");
+        setStatus(client.status || "active");
+        setEmail(client.email || "");
+        setLocation(client.location || "");
+        setWebsite(client.website || "");
+        setDescription(client.description || "");
+        setRemark(client.remark || "");
+        setLifetimeValue(client.lifetime_value ? client.lifetime_value.toString() : "");
+        setPendingPayments(client.pending_payments ? client.pending_payments.toString() : "");
+        setClientOwes(client.client_owes_company ? client.client_owes_company.toString() : "");
+        setCompanyOwes(client.company_owes_client ? client.company_owes_client.toString() : "");
+      }
+    }
+  }, [editId, clients]);
 
   const canNext = () => {
     if (step === 0) return company.trim().length > 0 && contact.trim().length > 0;
@@ -80,16 +111,24 @@ export default function CreateClientScreen() {
       website,
       description,
       remark,
+      lifetime_value: parseFloat(lifetimeValue) || 0,
+      pending_payments: parseFloat(pendingPayments) || 0,
+      client_owes_company: parseFloat(clientOwes) || 0,
+      company_owes_client: parseFloat(companyOwes) || 0,
       coords: { lat: 0, lng: 0 }, // Default coords
     };
 
     try {
-      await apiService.createClient(payload);
+      if (isEditing) {
+        await apiService.updateClient(editId!, payload);
+      } else {
+        await apiService.createClient(payload);
+      }
       await refresh();
       
       showToast({
-        title: "Client Created",
-        message: `${company} has been added successfully.`,
+        title: isEditing ? "Client Updated" : "Client Created",
+        message: `${company} has been ${isEditing ? "updated" : "added"} successfully.`,
         type: "success",
       });
       router.back();
@@ -97,7 +136,7 @@ export default function CreateClientScreen() {
       console.error("Save failed:", err);
       showToast({
         title: "Error",
-        message: "Failed to save client. Please try again.",
+        message: `Failed to ${isEditing ? "update" : "save"} client. Please try again.`,
         type: "error",
       });
     } finally {
@@ -191,11 +230,20 @@ export default function CreateClientScreen() {
             />
           </View>
         )}
+
+        {step === 3 && (
+          <View style={{ gap: 16 }}>
+            <Field label="Lifetime Value (LTV)" value={lifetimeValue} onChangeText={setLifetimeValue} placeholder="e.g. 5000" colors={colors} keyboardType="numeric" />
+            <Field label="Pending Payments" value={pendingPayments} onChangeText={setPendingPayments} placeholder="e.g. 1200" colors={colors} keyboardType="numeric" />
+            <Field label="Client Owes Company" value={clientOwes} onChangeText={setClientOwes} placeholder="e.g. 800" colors={colors} keyboardType="numeric" />
+            <Field label="Company Owes Client" value={companyOwes} onChangeText={setCompanyOwes} placeholder="e.g. 0" colors={colors} keyboardType="numeric" />
+          </View>
+        )}
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 16, backgroundColor: colors.background, borderTopColor: colors.border }]}>
         <PrimaryButton
-          label={step === STEPS.length - 1 ? "Save Client" : "Continue"}
+          label={step === STEPS.length - 1 ? (isEditing ? "Save Changes" : "Save Client") : "Continue"}
           onPress={next}
           disabled={!canNext()}
           icon={step === STEPS.length - 1 ? <Feather name="check" size={16} color="#fff" /> : <Feather name="arrow-right" size={16} color="#fff" />}

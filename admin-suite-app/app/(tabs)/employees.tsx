@@ -24,6 +24,8 @@ const FILTERS = [
   { id: "active", label: "Active" },
   { id: "on_leave", label: "On leave" },
   { id: "terminated", label: "Inactive" },
+  { id: "flagged", label: "Flagged" },
+  { id: "archived", label: "Archived" },
 ];
 
 const STATUS_DOT: Record<string, string> = {
@@ -55,6 +57,20 @@ export default function EmployeesScreen() {
         !query ||
         e.name.toLowerCase().includes(query.toLowerCase()) ||
         e.role.toLowerCase().includes(query.toLowerCase());
+      
+      if (filter === "archived") {
+        return matchesQuery && e.is_archived;
+      }
+      
+      // By default, hide archived employees
+      if (e.is_archived) {
+        return false;
+      }
+      
+      if (filter === "flagged") {
+        return matchesQuery && e.is_flagged;
+      }
+      
       const matchesFilter = filter === "all" || e.status === filter;
       return matchesQuery && matchesFilter;
     });
@@ -210,18 +226,38 @@ export default function EmployeesScreen() {
                       />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text
-                        style={[
-                          styles.name,
-                          {
-                            color: colors.foreground,
-                            fontFamily: "Inter_700Bold",
-                          },
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {e.name}
-                      </Text>
+                      <View style={{ flexDirection: "row", alignItems: "center" }}>
+                        <Text
+                          style={[
+                            styles.name,
+                            {
+                              color: colors.foreground,
+                              fontFamily: "Inter_700Bold",
+                              flexShrink: 1,
+                            },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {e.name}
+                        </Text>
+                        {e.is_flagged && (
+                          <View
+                            style={{
+                              backgroundColor: "#ef44441F",
+                              borderRadius: 4,
+                              paddingHorizontal: 5,
+                              paddingVertical: 2,
+                              marginLeft: 6,
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 2,
+                            }}
+                          >
+                            <Feather name="flag" size={10} color="#ef4444" />
+                            <Text style={{ color: "#ef4444", fontSize: 9, fontFamily: "Inter_700Bold" }}>FLAGGED</Text>
+                          </View>
+                        )}
+                      </View>
                       <Text
                         style={[
                           styles.role,

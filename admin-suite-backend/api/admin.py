@@ -2,7 +2,7 @@ from django.contrib import admin
 from .models import (
     Employee, EmployeeFinance, PayHistory, Client, Project,
     Transaction, Notification, Debt, BudgetCategory, Savings,
-    UserProfile, PhoneOTP, EmailVerificationCode, PasswordResetCode
+    UserProfile, PhoneOTP, EmailVerificationCode, PasswordResetCode, PayrollStatus
 )
 
 
@@ -91,3 +91,10 @@ class EmailVerificationCodeAdmin(admin.ModelAdmin):
 @admin.register(PasswordResetCode)
 class PasswordResetCodeAdmin(admin.ModelAdmin):
     list_display = ('email', 'code', 'created_at')
+
+
+@admin.register(PayrollStatus)
+class PayrollStatusAdmin(admin.ModelAdmin):
+    list_display = ('user', 'month', 'paid')
+    list_filter = ('paid', 'month')
+    search_fields = ('user__username', 'month')

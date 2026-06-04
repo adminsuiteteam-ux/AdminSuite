@@ -48,6 +48,31 @@ function smoothPath(points: { x: number; y: number }[]) {
   return d;
 }
 
+const parseCustomDate = (dateStr: string): Date | null => {
+  if (!dateStr) return null;
+  const parsed = new Date(dateStr);
+  if (!isNaN(parsed.getTime())) return parsed;
+  
+  const months = {
+    jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+    jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11
+  };
+  
+  const cleaned = dateStr.replace(',', '').trim();
+  const parts = cleaned.split(/\s+/);
+  if (parts.length >= 2) {
+    const monthPart = parts[0].toLowerCase().substring(0, 3);
+    const dayPart = parseInt(parts[1], 10);
+    const monthIdx = (months as any)[monthPart];
+    
+    if (monthIdx !== undefined && !isNaN(dayPart)) {
+      const year = parts[2] ? parseInt(parts[2], 10) : new Date().getFullYear();
+      return new Date(year, monthIdx, dayPart);
+    }
+  }
+  return null;
+};
+
 const SERIES_COLORS = {
   income: "#22c55e",
   expense: "#ef4444",
@@ -76,8 +101,8 @@ export function FinancialChart({ formatValue }: { formatValue: (v: number) => st
       transactions.forEach((tx: any) => {
         try {
           const amt = parseFloat(tx.amount) || 0;
-          const d = new Date(Date.parse(tx.date + ", " + new Date().getFullYear()));
-          if (!isNaN(d.getTime())) {
+          const d = parseCustomDate(tx.date);
+          if (d && !isNaN(d.getTime())) {
             const diffDays = (new Date().getTime() - d.getTime()) / (1000 * 60 * 60 * 24);
             if (diffDays >= 0 && diffDays < 7) {
               const dayIdx = (d.getDay() + 6) % 7; // Sunday=0 -> 6, Monday=1 -> 0
@@ -98,8 +123,8 @@ export function FinancialChart({ formatValue }: { formatValue: (v: number) => st
       transactions.forEach((tx: any) => {
         try {
           const amt = parseFloat(tx.amount) || 0;
-          const d = new Date(Date.parse(tx.date + ", " + new Date().getFullYear()));
-          if (!isNaN(d.getTime())) {
+          const d = parseCustomDate(tx.date);
+          if (d && !isNaN(d.getTime())) {
             const diffDays = (new Date().getTime() - d.getTime()) / (1000 * 60 * 60 * 24);
             if (diffDays >= 0 && diffDays < 30) {
               const weekIdx = Math.min(3, Math.floor(diffDays / 7.5));
@@ -122,8 +147,8 @@ export function FinancialChart({ formatValue }: { formatValue: (v: number) => st
       transactions.forEach((tx: any) => {
         try {
           const amt = parseFloat(tx.amount) || 0;
-          const d = new Date(Date.parse(tx.date + ", " + new Date().getFullYear()));
-          if (!isNaN(d.getTime())) {
+          const d = parseCustomDate(tx.date);
+          if (d && !isNaN(d.getTime())) {
             const monthIdx = d.getMonth();
             if (tx.type === "income") {
               res.income[monthIdx] += amt;

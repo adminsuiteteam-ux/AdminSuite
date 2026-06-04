@@ -47,6 +47,7 @@ interface DataContextType {
   loading: boolean;
   fetchError: string | null;
   refresh: () => Promise<void>;
+  togglePayrollMonth: (month: string, currentPaid: boolean) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | null>(null);
@@ -164,6 +165,27 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     };
   }, [user, fetchAll]);
 
+  const togglePayrollMonth = useCallback(async (month: string, currentPaid: boolean) => {
+    const newPaid = !currentPaid;
+    
+    setPayrollMonths(prev => prev.map(m => m.month === month ? { ...m, paid: newPaid } : m));
+    setPayrollMetrics(prev => {
+      const paidChange = newPaid ? 1 : -1;
+      return {
+        ...prev,
+        paid: Math.max(0, prev.paid + paidChange),
+        unpaid: Math.max(0, prev.unpaid - paidChange),
+      };
+    });
+
+    try {
+      await apiService.togglePayrollMonth({ month, paid: newPaid });
+    } catch (err) {
+      console.error("Failed to toggle payroll status:", err);
+      fetchAll(true);
+    }
+  }, [fetchAll]);
+
   return (
     <DataContext.Provider
       value={{
@@ -182,6 +204,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         loading,
         fetchError,
         refresh: fetchAll,
+        togglePayrollMonth,
       }}
     >
       {children}

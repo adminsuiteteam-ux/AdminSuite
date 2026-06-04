@@ -7,11 +7,21 @@ from .views import (
     debts_grouped, me, register, google_login, apple_login, send_otp, verify_otp,
     send_email_verification, verify_email, export_data,
     ThrottledObtainAuthToken, send_password_reset_code,
-    verify_password_reset_code, confirm_password_reset
+    verify_password_reset_code, confirm_password_reset,
+    EmployeeActivityLogViewSet, EmployeeQueryViewSet, EmployeeTaskViewSet,
+    EmployeeLeaveViewSet, EmployeeMessageViewSet, EmployeeDocumentViewSet,
+    SalaryAdjustmentViewSet, toggle_payroll_month
 )
 
 router = DefaultRouter()
 router.register(r'employees', EmployeeViewSet, basename='employee')
+router.register(r'employee-activities', EmployeeActivityLogViewSet, basename='employee-activity')
+router.register(r'employee-queries', EmployeeQueryViewSet, basename='employee-query')
+router.register(r'employee-tasks', EmployeeTaskViewSet, basename='employee-task')
+router.register(r'employee-leaves', EmployeeLeaveViewSet, basename='employee-leave')
+router.register(r'employee-messages', EmployeeMessageViewSet, basename='employee-message')
+router.register(r'employee-documents', EmployeeDocumentViewSet, basename='employee-document')
+router.register(r'salary-adjustments', SalaryAdjustmentViewSet, basename='salary-adjustment')
 router.register(r'clients', ClientViewSet, basename='client')
 router.register(r'projects', ProjectViewSet, basename='project')
 router.register(r'transactions', TransactionViewSet, basename='transaction')
@@ -28,6 +38,7 @@ urlpatterns = [
     path('metrics/', metrics, name='metrics'),
     path('client-metrics/', client_metrics, name='client-metrics'),
     path('payroll-metrics/', payroll_metrics, name='payroll-metrics'),
+    path('payroll-metrics/toggle/', toggle_payroll_month, name='toggle-payroll-month'),
     path('debts-grouped/', debts_grouped, name='debts-grouped'),
     # Social / Phone auth
     path('auth/google/', google_login, name='google_login'),

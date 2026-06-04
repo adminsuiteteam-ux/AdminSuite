@@ -20,7 +20,7 @@ const TAB_ITEMS = [
   { name: "employees", label: "Employees", icon: "users" },
   { name: "clients", label: "Clients", icon: "briefcase" },
   { name: "finance", label: "Finance", icon: "trending-up" },
-  { name: "settings", label: "Profile", icon: "user" },
+  { name: "settings", label: "More", icon: "more-horizontal" },
 ];
 
 export default function TabLayout() {

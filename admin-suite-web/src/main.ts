@@ -495,6 +495,8 @@ interface AppState {
   isMobileSidebarOpen: boolean;
   isNotificationsOpen: boolean;
   toast: { message: string; type: 'success' | 'error' | 'info'; visible: boolean } | null;
+  chartRange: '7D' | '30D' | '12M';
+  activeDebtTab: 'weOwe' | 'owedToUs';
   
   // Slide trackers
   activeTourSlide: number;
@@ -570,6 +572,8 @@ const state: AppState = {
   isMobileSidebarOpen: false,
   isNotificationsOpen: false,
   toast: null,
+  chartRange: '7D',
+  activeDebtTab: 'weOwe',
   
   activeTourSlide: 0,
   completeProfileSlide: 0,
@@ -2564,11 +2568,7 @@ function drawDashboardTab(): string {
 
     <div class="content-grid">
       <div class="card">
-        <div class="card-header">
-          <div class="card-title">Financial Ledger Trend (May)</div>
-          <span class="status-badge active" style="font-size:10px;">Live Feed</span>
-        </div>
-        <div class="card-body">
+        <div class="card-body" style="padding: 22px;">
           ${drawDashboardSvgChart()}
         </div>
       </div>
@@ -2626,58 +2626,315 @@ function drawDashboardTab(): string {
 }
 
 function drawDashboardSvgChart(): string {
-  // Maps state.transactions into a beautiful interactive area chart
-  const data = state.transactions.slice(0, 6).reverse();
-  if (data.length < 2) {
-    return `<div style="height:180px; display:flex; align-items:center; justify-content:center; color:var(--muted-foreground); font-size:13px;">Insufficient transaction entries to graph trends.</div>`;
+  function smoothPath(points: { x: number; y: number }[]) {
+    if (points.length < 2) return "";
+    let d = `M ${points[0].x.toFixed(2)} ${points[0].y.toFixed(2)}`;
+    for (let i = 0; i < points.length - 1; i++) {
+      const p0 = points[i - 1] || points[i];
+      const p1 = points[i];
+      const p2 = points[i + 1];
+      const p3 = points[i + 2] || p2;
+      const cp1x = p1.x + (p2.x - p0.x) / 6;
+      const cp1y = p1.y + (p2.y - p0.y) / 6;
+      const cp2x = p2.x - (p3.x - p1.x) / 6;
+      const cp2y = p2.y - (p3.y - p1.y) / 6;
+      d += ` C ${cp1x.toFixed(2)} ${cp1y.toFixed(2)}, ${cp2x.toFixed(2)} ${cp2y.toFixed(2)}, ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`;
+    }
+    return d;
   }
 
-  const values = data.map(t => t.amount);
-  const max = Math.max(...values, 1000);
-  const min = Math.min(...values, 0);
-  const range = max - min;
+  function formatCurrencyShort(val: number): string {
+    if (Math.abs(val) >= 1000000) return (val / 1000000).toFixed(1) + 'M';
+    if (Math.abs(val) >= 1000) return (val / 1000).toFixed(0) + 'k';
+    return Math.round(val).toString();
+  }
 
-  const points = data.map((t, i) => {
-    const x = 30 + (i * 60);
-    const y = 180 - ((t.amount - min) / range * 140);
-    return { x, y, label: t.category, val: formatCurrency(t.amount) };
-  });
+  const res = {
+    labels: [] as string[],
+    income: [] as number[],
+    expense: [] as number[],
+  };
 
-  const path = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
-  const area = `${path} L ${points[points.length - 1].x} 180 L ${points[0].x} 180 Z`;
+  if (state.chartRange === "7D") {
+    res.labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    res.income = [0, 0, 0, 0, 0, 0, 0];
+    res.expense = [0, 0, 0, 0, 0, 0, 0];
 
-  const dots = points.map(p => `
-    <g class="chart-point-group">
-      <circle cx="${p.x}" cy="${p.y}" r="5" fill="var(--accent)" stroke="#fff" stroke-width="2" class="chart-point" style="cursor:pointer;"></circle>
-      <g class="chart-tooltip-g" style="display:none; transition: all 0.2s;">
-        <rect x="${p.x - 45}" y="${p.y - 32}" width="90" height="22" rx="4" fill="var(--foreground)" opacity="0.95"></rect>
-        <text x="${p.x}" y="${p.y - 18}" fill="var(--background)" font-size="9" font-weight="700" text-anchor="middle">${p.val}</text>
-      </g>
-    </g>
-  `).join('');
+    state.transactions.forEach((tx: any) => {
+      try {
+        const amt = parseFloat(tx.amount) || 0;
+        const d = new Date(Date.parse(tx.date + ", " + new Date().getFullYear()));
+        if (!isNaN(d.getTime())) {
+          const diffDays = (new Date().getTime() - d.getTime()) / (1000 * 60 * 60 * 24);
+          if (diffDays >= 0 && diffDays < 7) {
+            const dayIdx = (d.getDay() + 6) % 7; // Sunday=0 -> 6, Monday=1 -> 0
+            if (tx.type === "income") {
+              res.income[dayIdx] += amt;
+            } else {
+              res.expense[dayIdx] += amt;
+            }
+          }
+        }
+      } catch (e) {}
+    });
+  } else if (state.chartRange === "30D") {
+    res.labels = ["W1", "W2", "W3", "W4"];
+    res.income = [0, 0, 0, 0];
+    res.expense = [0, 0, 0, 0];
+
+    state.transactions.forEach((tx: any) => {
+      try {
+        const amt = parseFloat(tx.amount) || 0;
+        const d = new Date(Date.parse(tx.date + ", " + new Date().getFullYear()));
+        if (!isNaN(d.getTime())) {
+          const diffDays = (new Date().getTime() - d.getTime()) / (1000 * 60 * 60 * 24);
+          if (diffDays >= 0 && diffDays < 30) {
+            const weekIdx = Math.min(3, Math.floor(diffDays / 7.5));
+            const mappedIdx = 3 - weekIdx;
+            if (tx.type === "income") {
+              res.income[mappedIdx] += amt;
+            } else {
+              res.expense[mappedIdx] += amt;
+            }
+          }
+        }
+      } catch (e) {}
+    });
+  } else {
+    // 12M
+    res.labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    res.income = Array(12).fill(0);
+    res.expense = Array(12).fill(0);
+
+    state.transactions.forEach((tx: any) => {
+      try {
+        const amt = parseFloat(tx.amount) || 0;
+        const d = new Date(Date.parse(tx.date + ", " + new Date().getFullYear()));
+        if (!isNaN(d.getTime())) {
+          const monthIdx = d.getMonth();
+          if (tx.type === "income") {
+            res.income[monthIdx] += amt;
+          } else {
+            res.expense[monthIdx] += amt;
+          }
+        }
+      } catch (e) {}
+    });
+  }
+
+  const profit = res.income.map((v, i) => v - res.expense[i]);
+  const allValues = [...res.income, ...res.expense, ...profit];
+  const rawMin = Math.min(...allValues, 0);
+  const rawMax = Math.max(...allValues, 100);
+  const yMin = Math.floor(rawMin / 10) * 10;
+  const yMax = Math.ceil(rawMax / 10) * 10;
+
+  const PADDING = { top: 20, right: 20, bottom: 30, left: 50 };
+  const width = 500;
+  const height = 240;
+  const innerW = width - PADDING.left - PADDING.right;
+  const innerH = height - PADDING.top - PADDING.bottom;
+
+  const xFor = (i: number) =>
+    PADDING.left + (res.labels.length === 1 ? innerW / 2 : (innerW * i) / (res.labels.length - 1));
+  const yFor = (v: number) =>
+    PADDING.top + innerH - ((v - yMin) / (yMax - yMin || 1)) * innerH;
+
+  const buildPoints = (arr: number[]) => arr.map((v, i) => ({ x: xFor(i), y: yFor(v) }));
+
+  const incomePts = buildPoints(res.income);
+  const expensePts = buildPoints(res.expense);
+  const profitPts = buildPoints(profit);
+
+  const incomePath = smoothPath(incomePts);
+  const expensePath = smoothPath(expensePts);
+  const profitPath = smoothPath(profitPts);
+
+  const areaPath = incomePts.length > 0 ? (
+    incomePath +
+    ` L ${incomePts[incomePts.length - 1].x.toFixed(2)} ${(PADDING.top + innerH).toFixed(2)} L ${incomePts[0].x.toFixed(2)} ${(PADDING.top + innerH).toFixed(2)} Z`
+  ) : "";
+
+  const totalIncome = res.income.reduce((s: number, v: number) => s + v, 0);
+  const totalExpense = res.expense.reduce((s: number, v: number) => s + v, 0);
+  const netProfit = totalIncome - totalExpense;
+
+  const yTicks = [0, 0.33, 0.66, 1].map((t) => yMin + (yMax - yMin) * (1 - t));
 
   return `
-    <div style="width:100%; overflow-x:auto;">
-      <svg viewBox="0 0 360 200" style="width:100%; min-width:320px; display:block;">
-        <defs>
-          <linearGradient id="chart-grad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.25"></stop>
-            <stop offset="100%" stop-color="var(--accent)" stop-opacity="0.00"></stop>
-          </linearGradient>
-        </defs>
+    <div class="financial-pulse-widget" style="display:flex; flex-direction:column; gap:16px;">
+      <!-- Styling Block -->
+      <style>
+        @keyframes breathing {
+          0% { transform: scale(1); opacity: 0.6; }
+          100% { transform: scale(2.2); opacity: 0; }
+        }
+        .live-dot-pulse {
+          animation: breathing 1.2s infinite ease-out;
+          transform-origin: center;
+        }
+        .chart-point-group:hover .hover-dot {
+          display: block !important;
+        }
+        .chart-point-group:hover .chart-tooltip-g {
+          display: block !important;
+        }
+      </style>
+
+      <!-- Header Row (breathing dot + title + range chips) -->
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div style="position:relative; width:12px; height:12px; display:flex; align-items:center; justify-content:center;">
+            <div class="live-dot-pulse" style="position:absolute; width:12px; height:12px; border-radius:50%; background:#22c55e;"></div>
+            <div style="width:6px; height:6px; border-radius:50%; background:#22c55e;"></div>
+          </div>
+          <span style="color:#22c55e; font-size:10px; font-weight:700; letter-spacing:1.2px;">LIVE</span>
+          <h3 style="font-size:16px; font-weight:700; margin:0; margin-left:4px; color:var(--foreground);">Financial Pulse</h3>
+        </div>
         
-        <line x1="30" y1="40" x2="330" y2="40" stroke="var(--border)" stroke-dasharray="4"></line>
-        <line x1="30" y1="110" x2="330" y2="110" stroke="var(--border)" stroke-dasharray="4"></line>
-        <line x1="30" y1="180" x2="330" y2="180" stroke="var(--border)"></line>
-        
-        <path d="${area}" fill="url(#chart-grad)"></path>
-        <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linecap="round"></path>
-        ${dots}
-        
-        <text x="30" y="195" fill="var(--muted-foreground)" font-size="9" text-anchor="middle">Start</text>
-        <text x="180" y="195" fill="var(--muted-foreground)" font-size="9" text-anchor="middle">Mid</text>
-        <text x="330" y="195" fill="var(--muted-foreground)" font-size="9" text-anchor="middle">Latest</text>
-      </svg>
+        <!-- Range chips -->
+        <div style="display:flex; gap:6px;">
+          ${['7D', '30D', '12M'].map(r => {
+            const active = state.chartRange === r;
+            return `
+              <button id="dash-range-${r}" style="
+                padding: 5px 12px;
+                border-radius: 999px;
+                border: 1px solid ${active ? 'var(--accent)' : 'var(--border)'};
+                background: ${active ? 'var(--accent)' : 'transparent'};
+                color: ${active ? '#fff' : 'var(--muted-foreground)'};
+                font-size: 11px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.2s;
+              ">${r}</button>
+            `;
+          }).join('')}
+        </div>
+      </div>
+
+      <!-- Summary Row (Pills) -->
+      <div style="display:flex; gap:16px; align-items:flex-end; padding: 4px 0;">
+        <!-- Net Profit Pill -->
+        <div style="flex:1.2; min-width:0;">
+          <div style="display:flex; align-items:center; gap:5px; margin-bottom:2px;">
+            <div style="width:7px; height:7px; border-radius:50%; background:#f97316;"></div>
+            <span style="color:var(--muted-foreground); font-size:10px; text-transform:uppercase; font-weight:600; letter-spacing:0.5px;">Net</span>
+          </div>
+          <div style="color:var(--foreground); font-size:22px; font-weight:800; font-variant-numeric:tabular-nums; letter-spacing:-0.5px;">${formatCurrency(netProfit)}</div>
+        </div>
+        <!-- Income Pill -->
+        <div style="flex:1; min-width:0;">
+          <div style="display:flex; align-items:center; gap:5px; margin-bottom:2px;">
+            <div style="width:7px; height:7px; border-radius:50%; background:#22c55e;"></div>
+            <span style="color:var(--muted-foreground); font-size:10px; text-transform:uppercase; font-weight:600; letter-spacing:0.5px;">In</span>
+          </div>
+          <div style="color:var(--foreground); font-size:14px; font-weight:700; font-variant-numeric:tabular-nums;">${formatCurrency(totalIncome)}</div>
+        </div>
+        <!-- Expense Pill -->
+        <div style="flex:1; min-width:0;">
+          <div style="display:flex; align-items:center; gap:5px; margin-bottom:2px;">
+            <div style="width:7px; height:7px; border-radius:50%; background:#ef4444;"></div>
+            <span style="color:var(--muted-foreground); font-size:10px; text-transform:uppercase; font-weight:600; letter-spacing:0.5px;">Out</span>
+          </div>
+          <div style="color:var(--foreground); font-size:14px; font-weight:700; font-variant-numeric:tabular-nums;">${formatCurrency(totalExpense)}</div>
+        </div>
+      </div>
+
+      <!-- Chart SVG -->
+      <div style="width:100%; overflow-x:auto; margin-top:8px;">
+        <svg viewBox="0 0 500 240" style="width:100%; min-width:400px; display:block;">
+          <defs>
+            <linearGradient id="incomeFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#22c55e" stop-opacity="0.18"></stop>
+              <stop offset="100%" stop-color="#22c55e" stop-opacity="0.00"></stop>
+            </linearGradient>
+          </defs>
+
+          <!-- Grid Lines -->
+          ${yTicks.map(tv => {
+            const y = yFor(tv);
+            return `
+              <line x1="${PADDING.left}" x2="${500 - PADDING.right}" y1="${y}" y2="${y}" stroke="var(--border)" stroke-dasharray="3" stroke-width="1"></line>
+              <text x="${PADDING.left - 8}" y="${y + 4}" fill="var(--muted-foreground)" font-size="9.5" font-weight="600" text-anchor="end">${formatCurrencyShort(tv)}</text>
+            `;
+          }).join('')}
+
+          <line x1="${PADDING.left}" x2="${500 - PADDING.right}" y1="${height - PADDING.bottom}" y2="${height - PADDING.bottom}" stroke="var(--border)" stroke-width="1.5"></line>
+
+          <!-- Area Fill for Income -->
+          ${areaPath ? `<path d="${areaPath}" fill="url(#incomeFill)"></path>` : ''}
+
+          <!-- Curves -->
+          ${expensePath ? `<path d="${expensePath}" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path>` : ''}
+          ${profitPath ? `<path d="${profitPath}" fill="none" stroke="#f97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path>` : ''}
+          ${incomePath ? `<path d="${incomePath}" fill="none" stroke="#22c55e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>` : ''}
+
+          <!-- Pulsing Pin Points for Last Coordinates -->
+          ${[
+            { last: incomePts[incomePts.length - 1], color: '#22c55e' },
+            { last: profitPts[profitPts.length - 1], color: '#f97316' },
+            { last: expensePts[expensePts.length - 1], color: '#ef4444' }
+          ].map(s => {
+            if (!s.last) return '';
+            return `
+              <g>
+                <circle cx="${s.last.x}" cy="${s.last.y}" r="7" fill="${s.color}" opacity="0.35" class="live-dot-pulse"></circle>
+                <circle cx="${s.last.x}" cy="${s.last.y}" r="3.5" fill="${s.color}" stroke="var(--background)" stroke-width="1.5"></circle>
+              </g>
+            `;
+          }).join('')}
+
+          <!-- Tooltip Interactive Circles & Groups -->
+          ${res.labels.map((lab, i) => {
+            const incP = incomePts[i];
+            const expP = expensePts[i];
+            const prfP = profitPts[i];
+            if (!incP || !expP || !prfP) return '';
+            const tooltipY = Math.min(incP.y, expP.y, prfP.y);
+            return `
+              <g class="chart-point-group">
+                <!-- Invisible hit target column -->
+                <rect x="${incP.x - 15}" y="${PADDING.top}" width="30" height="${innerH}" fill="transparent"></rect>
+                
+                <!-- Bullet points shown on hover -->
+                <circle cx="${incP.x}" cy="${incP.y}" r="4" fill="#22c55e" stroke="var(--background)" stroke-width="1.5" style="display:none;" class="hover-dot"></circle>
+                <circle cx="${expP.x}" cy="${expP.y}" r="4" fill="#ef4444" stroke="var(--background)" stroke-width="1.5" style="display:none;" class="hover-dot"></circle>
+                <circle cx="${prfP.x}" cy="${prfP.y}" r="4" fill="#f97316" stroke="var(--background)" stroke-width="1.5" style="display:none;" class="hover-dot"></circle>
+                
+                <g class="chart-tooltip-g" style="display:none; pointer-events:none;">
+                  <rect x="${incP.x - 65}" y="${tooltipY - 62}" width="130" height="52" rx="6" fill="var(--foreground)" opacity="0.96" filter="drop-shadow(0 4px 6px rgba(0,0,0,0.15))"></rect>
+                  <text x="${incP.x}" y="${tooltipY - 48}" fill="var(--background)" font-size="9" font-weight="700" text-anchor="middle">${lab}</text>
+                  <text x="${incP.x}" y="${tooltipY - 36}" fill="#22c55e" font-size="8.5" font-weight="700" text-anchor="middle">In: ${formatCurrency(res.income[i])}</text>
+                  <text x="${incP.x}" y="${tooltipY - 24}" fill="#ef4444" font-size="8.5" font-weight="700" text-anchor="middle">Out: ${formatCurrency(res.expense[i])}</text>
+                  <text x="${incP.x}" y="${tooltipY - 14}" fill="#f97316" font-size="8.5" font-weight="700" text-anchor="middle">Net: ${formatCurrency(profit[i])}</text>
+                </g>
+              </g>
+            `;
+          }).join('')}
+
+          <!-- X Axis Labels -->
+          ${res.labels.map((lab, i) => `
+            <text x="${xFor(i)}" y="${height - 8}" fill="var(--muted-foreground)" font-size="9.5" font-weight="600" text-anchor="middle">${lab}</text>
+          `).join('')}
+        </svg>
+      </div>
+
+      <!-- Legend Row -->
+      <div style="display:flex; justify-content:center; gap:20px; margin-top:4px;">
+        <div style="display:flex; align-items:center; gap:6px;">
+          <div style="width:8px; height:8px; border-radius:50%; background:#22c55e;"></div>
+          <span style="color:var(--muted-foreground); font-size:11px; font-weight:600;">Income</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <div style="width:8px; height:8px; border-radius:50%; background:#ef4444;"></div>
+          <span style="color:var(--muted-foreground); font-size:11px; font-weight:600;">Expense</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <div style="width:8px; height:8px; border-radius:50%; background:#f97316;"></div>
+          <span style="color:var(--muted-foreground); font-size:11px; font-weight:600;">Net Profit</span>
+        </div>
+      </div>
     </div>
   `;
 }
@@ -2699,15 +2956,30 @@ function bindDashboardEvents() {
   const settings = document.getElementById('qa-settings');
   if (settings) settings.addEventListener('click', () => navigateToTab('settings'));
 
+  // Range selector clicks
+  ['7D', '30D', '12M'].forEach(r => {
+    const el = document.getElementById(`dash-range-${r}`);
+    if (el) {
+      el.addEventListener('click', () => {
+        state.chartRange = r as any;
+        renderApp();
+      });
+    }
+  });
+
   // Chart Tooltips
   document.querySelectorAll('.chart-point-group').forEach(grp => {
     grp.addEventListener('mouseenter', (e) => {
       const tooltip = (e.currentTarget as HTMLElement).querySelector('.chart-tooltip-g') as HTMLElement;
       if (tooltip) tooltip.style.display = 'block';
+      const hoverDots = (e.currentTarget as HTMLElement).querySelectorAll('.hover-dot');
+      hoverDots.forEach((hd: any) => hd.style.display = 'block');
     });
     grp.addEventListener('mouseleave', (e) => {
       const tooltip = (e.currentTarget as HTMLElement).querySelector('.chart-tooltip-g') as HTMLElement;
       if (tooltip) tooltip.style.display = 'none';
+      const hoverDots = (e.currentTarget as HTMLElement).querySelectorAll('.hover-dot');
+      hoverDots.forEach((hd: any) => hd.style.display = 'none');
     });
   });
 
@@ -3683,6 +3955,138 @@ function bindSettingsEvents() {
     });
   }
 
+  // Caching mechanism for web organization profile completeness (valid for 5 minutes)
+  let _profileCheckCache: { timestamp: number; isValid: boolean } | null = null;
+
+  async function checkWebProfileCompleteness(): Promise<boolean> {
+    const now = Date.now();
+    const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+    if (_profileCheckCache && (now - _profileCheckCache.timestamp) < CACHE_DURATION) {
+      return _profileCheckCache.isValid;
+    }
+
+    try {
+      const res = await apiRequest('me/');
+      state.user = res;
+      const isValid = !!(res.business_name && res.company_logo);
+      _profileCheckCache = { timestamp: now, isValid };
+      return isValid;
+    } catch (err) {
+      console.warn('Failed to refresh profile in web pre-check:', err);
+      const isValid = !!(state.user?.business_name && state.user?.company_logo);
+      return isValid;
+    }
+  }
+
+  function showBrandingWarningModal(onConfigure: () => void, onExportStandard: () => void) {
+    const backdrop = document.createElement('div');
+    backdrop.style.position = 'fixed';
+    backdrop.style.top = '0';
+    backdrop.style.left = '0';
+    backdrop.style.width = '100vw';
+    backdrop.style.height = '100vh';
+    backdrop.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+    backdrop.style.display = 'flex';
+    backdrop.style.alignItems = 'center';
+    backdrop.style.justifyContent = 'center';
+    backdrop.style.zIndex = '9999';
+    backdrop.style.backdropFilter = 'blur(4px)';
+
+    const container = document.createElement('div');
+    container.className = 'card';
+    container.style.width = '400px';
+    container.style.maxWidth = '90%';
+    container.style.padding = '24px';
+    container.style.borderRadius = '12px';
+    container.style.boxShadow = '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)';
+    container.style.backgroundColor = 'var(--card)';
+    container.style.border = '1px solid var(--border)';
+    container.style.display = 'flex';
+    container.style.flexDirection = 'column';
+    container.style.alignItems = 'center';
+    container.style.gap = '16px';
+
+    const iconWrap = document.createElement('div');
+    iconWrap.style.width = '64px';
+    iconWrap.style.height = '64px';
+    iconWrap.style.borderRadius = '50%';
+    iconWrap.style.backgroundColor = 'rgba(79, 70, 229, 0.1)';
+    iconWrap.style.display = 'flex';
+    iconWrap.style.alignItems = 'center';
+    iconWrap.style.justifyContent = 'center';
+    
+    const iconSvg = document.createElement('div');
+    iconSvg.innerHTML = getIconSvg('alert');
+    iconSvg.style.width = '28px';
+    iconSvg.style.height = '28px';
+    iconSvg.style.color = 'var(--primary)';
+    iconWrap.appendChild(iconSvg);
+
+    const title = document.createElement('h3');
+    title.textContent = 'Branding Incomplete';
+    title.style.fontSize = '18px';
+    title.style.fontWeight = '700';
+    title.style.color = 'var(--foreground)';
+    title.style.margin = '0';
+
+    const desc = document.createElement('p');
+    desc.textContent = 'Your organization profile is missing a name or logo. To export branded PDF reports, please complete your profile setup.';
+    desc.style.fontSize = '13px';
+    desc.style.color = 'var(--muted-foreground)';
+    desc.style.textAlign = 'center';
+    desc.style.lineHeight = '1.5';
+    desc.style.margin = '0';
+
+    const btnCol = document.createElement('div');
+    btnCol.style.display = 'flex';
+    btnCol.style.flexDirection = 'column';
+    btnCol.style.gap = '10px';
+    btnCol.style.width = '100%';
+    btnCol.style.marginTop = '8px';
+
+    const btnConfigure = document.createElement('button');
+    btnConfigure.className = 'btn btn-primary';
+    btnConfigure.style.width = '100%';
+    btnConfigure.style.justifyContent = 'center';
+    btnConfigure.textContent = 'Configure Branding';
+    btnConfigure.addEventListener('click', () => {
+      backdrop.remove();
+      onConfigure();
+    });
+
+    const btnExportStandard = document.createElement('button');
+    btnExportStandard.className = 'btn btn-outline';
+    btnExportStandard.style.width = '100%';
+    btnExportStandard.style.justifyContent = 'center';
+    btnExportStandard.textContent = 'Export Standard (No Branding)';
+    btnExportStandard.addEventListener('click', () => {
+      backdrop.remove();
+      onExportStandard();
+    });
+
+    const btnCancel = document.createElement('button');
+    btnCancel.className = 'btn btn-ghost';
+    btnCancel.style.width = '100%';
+    btnCancel.style.justifyContent = 'center';
+    btnCancel.textContent = 'Cancel';
+    btnCancel.addEventListener('click', () => {
+      backdrop.remove();
+    });
+
+    btnCol.appendChild(btnConfigure);
+    btnCol.appendChild(btnExportStandard);
+    btnCol.appendChild(btnCancel);
+
+    container.appendChild(iconWrap);
+    container.appendChild(title);
+    container.appendChild(desc);
+    container.appendChild(btnCol);
+
+    backdrop.appendChild(container);
+    document.body.appendChild(backdrop);
+  }
+
   // Real REST Trigger Export
   const exportBtn = document.getElementById('real-export-btn');
   if (exportBtn) {
@@ -3691,36 +4095,63 @@ function bindSettingsEvents() {
       const type = (document.getElementById('export-type-select') as HTMLSelectElement).value;
       
       exportBtn.setAttribute('disabled', 'true');
-      exportBtn.innerHTML = 'Compiling File...';
+      exportBtn.innerHTML = 'Checking profile...';
 
       try {
-        const token = localStorage.getItem('admin-suite.token');
-        const url = `${API_BASE}export/?format=${format}&type=${type}&time_filter=all&id=`;
+        const isProfileComplete = await checkWebProfileCompleteness();
         
-        const response = await fetch(url, {
-          headers: {
-            'Authorization': `Token ${token}`
+        const executeExport = async (skipBranding: boolean) => {
+          exportBtn.setAttribute('disabled', 'true');
+          exportBtn.innerHTML = 'Compiling File...';
+          try {
+            const token = localStorage.getItem('admin-suite.token');
+            const url = `${API_BASE}export/?format=${format}&type=${type}&time_filter=all&id=&skip_branding=${skipBranding}`;
+            
+            const response = await fetch(url, {
+              headers: {
+                'Authorization': `Token ${token}`
+              }
+            });
+
+            if (!response.ok) {
+              throw new Error(`Export compile failed: ${response.status}`);
+            }
+
+            const blob = await response.blob();
+            const blobUrl = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = `adminsuite_${type}_report.${format}`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(blobUrl);
+
+            showToast('Report downloaded successfully!', 'success');
+          } catch (err: any) {
+            showToast(err.message || 'Trigger export failed', 'error');
+          } finally {
+            exportBtn.removeAttribute('disabled');
+            exportBtn.innerHTML = `${getIconSvg('download')} Trigger Remote Export`;
           }
-        });
+        };
 
-        if (!response.ok) {
-          throw new Error(`Export compile failed: ${response.status}`);
+        if (isProfileComplete) {
+          await executeExport(false);
+        } else {
+          exportBtn.removeAttribute('disabled');
+          exportBtn.innerHTML = `${getIconSvg('download')} Trigger Remote Export`;
+          showBrandingWarningModal(
+            () => {
+              navigateToTab('settings');
+            },
+            async () => {
+              await executeExport(true);
+            }
+          );
         }
-
-        const blob = await response.blob();
-        const blobUrl = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = blobUrl;
-        a.download = `adminsuite_${type}_report.${format}`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(blobUrl);
-
-        showToast('Report downloaded successfully!', 'success');
       } catch (err: any) {
-        showToast(err.message || 'Trigger export failed', 'error');
-      } finally {
+        showToast(err.message || 'Verification check failed', 'error');
         exportBtn.removeAttribute('disabled');
         exportBtn.innerHTML = `${getIconSvg('download')} Trigger Remote Export`;
       }

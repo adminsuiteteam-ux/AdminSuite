@@ -195,21 +195,6 @@ export default function DashboardScreen() {
             </View>
             <View style={{ flexDirection: "row", gap: 8 }}>
               <Pressable
-                onPress={startTour}
-                style={({ pressed }) => [
-                  styles.bellBtn,
-                  {
-                    transform: [{ scale: pressed ? 0.92 : 1 }],
-                    opacity: pressed ? 0.8 : 1,
-                  }
-                ]}
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel="Restart App Tour"
-              >
-                <Feather name="compass" size={19} color="#fff" />
-              </Pressable>
-              <Pressable
                 onPress={() => router.push("/settings" as any)}
                 style={({ pressed }) => [
                   styles.bellBtn,
@@ -318,33 +303,37 @@ export default function DashboardScreen() {
         >
           <FloatInView delay={160}>
             <View style={styles.statsGrid}>
-              <StatCard
-                label="Employees"
-                value={m.employees.toString()}
-                icon="users"
-                accent={colors.primary}
-                trend={{ dir: "up", value: "+2" }}
-              />
-              <StatCard
-                label="Active Projects"
-                value={m.activeProjects.toString()}
-                icon="layers"
-                accent={colors.accent}
-                trend={{ dir: "up", value: "+1" }}
-              />
-              <StatCard
-                label="Clients"
-                value={m.clients.toString()}
-                icon="briefcase"
-                accent={colors.success}
-              />
-              <StatCard
-                label="Income"
-                value={fmt(m.totalIncome)}
-                icon="trending-up"
-                accent="#0ea5e9"
-                trend={{ dir: "up", value: "+12%" }}
-              />
+              <View style={styles.statsRow}>
+                <StatCard
+                  label="Employees"
+                  value={m.employees.toString()}
+                  icon="users"
+                  accent={colors.primary}
+                  trend={{ dir: "up", value: "+2" }}
+                />
+                <StatCard
+                  label="Active Projects"
+                  value={m.activeProjects.toString()}
+                  icon="layers"
+                  accent={colors.accent}
+                  trend={{ dir: "up", value: "+1" }}
+                />
+              </View>
+              <View style={styles.statsRow}>
+                <StatCard
+                  label="Clients"
+                  value={m.clients.toString()}
+                  icon="briefcase"
+                  accent={colors.success}
+                />
+                <StatCard
+                  label="Income"
+                  value={fmt(m.totalIncome)}
+                  icon="trending-up"
+                  accent="#0ea5e9"
+                  trend={{ dir: "up", value: "+12%" }}
+                />
+              </View>
             </View>
           </FloatInView>
         </View>
@@ -840,11 +829,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   statsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
     gap: 10,
     marginTop: 18,
     paddingHorizontal: 16,
+  },
+  statsRow: {
+    flexDirection: "row",
+    gap: 10,
   },
   section: {
     paddingHorizontal: 16,

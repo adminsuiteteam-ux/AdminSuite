@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from './button';
 import { cn } from '@/lib/utils';
 
-interface HeroProps extends React.HTMLAttributes<HTMLDivElement> {
+interface HeroProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'title'> {
   title: React.ReactNode;
   subtitle: string;
   images: { src: string; alt: string; }[];
@@ -32,7 +32,7 @@ export const HeroSection = React.forwardRef<HTMLDivElement, HeroProps>(
       <div
         ref={ref}
         className={cn(
-          'relative w-full min-h-screen flex flex-col items-center justify-center overflow-x-hidden bg-black text-white p-4 py-24',
+          'relative w-full min-h-screen flex flex-col items-center justify-center overflow-x-hidden bg-white dark:bg-black text-zinc-900 dark:text-white p-4 py-24 transition-colors duration-300',
           className
         )}
         {...props}
@@ -50,7 +50,7 @@ export const HeroSection = React.forwardRef<HTMLDivElement, HeroProps>(
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tighter max-w-4xl mx-auto leading-[1.15]">
               {title}
             </h1>
-            <p className="max-w-2xl mx-auto text-white/50 text-sm md:text-lg">
+            <p className="max-w-2xl mx-auto text-zinc-500 dark:text-white/50 text-sm md:text-lg">
               {subtitle}
             </p>
           </div>
@@ -90,13 +90,11 @@ export const HeroSection = React.forwardRef<HTMLDivElement, HeroProps>(
                       visibility: Math.abs(pos) > 1 ? 'hidden' : 'visible',
                     }}
                   >
-                    <div className="relative w-full h-full rounded-[2.5rem] p-1.5 bg-zinc-900 border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.8)] overflow-hidden">
-                      <img
-                        src={image.src}
-                        alt={image.alt}
-                        className="object-cover w-full h-full rounded-[2.2rem] border border-white/5 shadow-inner"
-                      />
-                    </div>
+                    <img
+                      src={image.src}
+                      alt={image.alt}
+                      className="max-w-full max-h-full object-contain drop-shadow-[0_20px_50px_rgba(0,0,0,0.7)] dark:drop-shadow-[0_20px_50px_rgba(255,255,255,0.05)]"
+                    />
                   </div>
                 );
               })}
@@ -106,7 +104,7 @@ export const HeroSection = React.forwardRef<HTMLDivElement, HeroProps>(
             <Button
               variant="outline"
               size="icon"
-              className="absolute left-0 sm:left-4 top-1/2 -translate-y-1/2 rounded-full h-11 w-11 z-20 bg-black/40 border-white/10 text-white hover:bg-white/10 hover:text-white backdrop-blur-md"
+              className="absolute left-0 sm:left-4 top-1/2 -translate-y-1/2 rounded-full h-11 w-11 z-20 bg-white/40 dark:bg-black/40 border-zinc-200 dark:border-white/10 text-zinc-700 dark:text-white hover:bg-zinc-100 dark:hover:bg-white/10 hover:text-zinc-900 dark:hover:text-white backdrop-blur-md"
               onClick={handlePrev}
             >
               <ChevronLeft className="h-5 w-5" />
@@ -114,7 +112,7 @@ export const HeroSection = React.forwardRef<HTMLDivElement, HeroProps>(
             <Button
               variant="outline"
               size="icon"
-              className="absolute right-0 sm:right-4 top-1/2 -translate-y-1/2 rounded-full h-11 w-11 z-20 bg-black/40 border-white/10 text-white hover:bg-white/10 hover:text-white backdrop-blur-md"
+              className="absolute right-0 sm:right-4 top-1/2 -translate-y-1/2 rounded-full h-11 w-11 z-20 bg-white/40 dark:bg-black/40 border-zinc-200 dark:border-white/10 text-zinc-700 dark:text-white hover:bg-zinc-100 dark:hover:bg-white/10 hover:text-zinc-900 dark:hover:text-white backdrop-blur-md"
               onClick={handleNext}
             >
               <ChevronRight className="h-5 w-5" />

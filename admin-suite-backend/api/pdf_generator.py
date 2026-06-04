@@ -1,70 +1,153 @@
 import os
 import re
+import collections
+from PIL import Image
 from django.utils import timezone
 from datetime import timedelta
 from django.db.models import Sum
-from fpdf import FPDF
+from fpdf import FPDF  # type: ignore
+
+def get_dominant_color(image_path, default_color=(79, 70, 229)): # Indigo-600 default (#4f46e5)
+    if not image_path or not os.path.exists(image_path):
+        return default_color
+    try:
+        with Image.open(image_path) as img:
+            # Copy to avoid modifying original and resize to speed up
+            img = img.copy()
+            img.thumbnail((80, 80))
+            img = img.convert('RGBA')
+            pixels = list(img.getdata())
+            
+            # Filter out transparent, pure white, pure black, and desaturated gray pixels
+            color_candidates = []
+            for r, g, b, a in pixels:
+                if a < 50: # transparent
+                    continue
+                # Skip pure/near-white (e.g. all values > 235)
+                if r > 235 and g > 235 and b > 235:
+                    continue
+                # Skip pure/near-black (e.g. all values < 25)
+                if r < 25 and g < 25 and b < 25:
+                    continue
+                # Skip highly desaturated (grays) where differences are small
+                if abs(r - g) < 15 and abs(g - b) < 15 and abs(r - b) < 15:
+                    continue
+                color_candidates.append((r, g, b))
+                
+            if not color_candidates:
+                # If everything got filtered, relax filters (just skip transparent)
+                color_candidates = [(r, g, b) for r, g, b, a in pixels if a >= 50]
+                
+            if not color_candidates:
+                return default_color
+                
+            counter = collections.Counter(color_candidates)
+            most_common = counter.most_common(1)
+            if most_common:
+                return most_common[0][0]
+    except Exception:
+        pass
+    return default_color
 
 class ExportPDF(FPDF):
-    def __init__(self, business_name="", org_location="", org_email="", logo_path=None, *args, **kwargs):
+    def __init__(self, business_name="", org_location="", org_email="", logo_path=None, skip_branding=False, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.business_name = business_name
         self.org_location = org_location
         self.org_email = org_email
         self.logo_path = logo_path
+        self.skip_branding = skip_branding
         self.set_margins(20, 20, 20)
         self.set_auto_page_break(auto=True, margin=20)
+        
+        # Color extraction if branding is active and profile is complete
+        if not self.skip_branding and self.logo_path and os.path.exists(self.logo_path) and self.business_name:
+            self.primary_color = get_dominant_color(self.logo_path)
+            self.is_branded = True
+        else:
+            self.primary_color = (79, 70, 229) # Default premium Indigo-600
+            self.is_branded = False
 
     def header(self):
-        # Header banner styling
+        # Header banner background styling
         self.set_fill_color(248, 250, 252) # Slate-50 background for header
         self.rect(0, 0, 210, 48, "F")
         
-        # Render logo if available
-        logo_x = 20
-        if self.logo_path and os.path.exists(self.logo_path):
-            try:
-                self.image(self.logo_path, x=20, y=12, h=24)
-                logo_x = 52 # Shift text right if logo is rendered
-            except Exception:
-                pass
-                
-        # Business metadata header
-        self.set_xy(logo_x, 14)
-        self.set_font("helvetica", "B", 14)
-        self.set_text_color(15, 23, 42) # Slate-900
-        self.cell(0, 6, self.business_name or "AdminSuite Workspace", ln=True)
-        
-        self.set_x(logo_x)
-        self.set_font("helvetica", "", 9)
-        self.set_text_color(71, 85, 105) # Slate-600
-        
-        location_str = self.org_location or "AdminSuite Cloud Platform"
-        email_str = self.org_email or "support@adminsuite.com"
-        self.cell(0, 5, f"{location_str}  |  {email_str}", ln=True)
-        
-        self.set_x(logo_x)
-        self.set_font("helvetica", "I", 8)
-        self.set_text_color(148, 163, 184) # Slate-400
-        self.cell(0, 4, f"Exported: {timezone.now().strftime('%Y-%m-%d %H:%M:%S UTC')}", ln=True)
-        
-        # Divider line below header
-        self.set_draw_color(226, 232, 240) # Slate-200
-        self.set_line_width(0.5)
-        self.line(20, 44, 190, 44)
+        # Conditional paths based on branding completeness
+        if not self.is_branded or self.skip_branding:
+            # Standard Unbranded Layout
+            self.set_xy(20, 14)
+            self.set_font("helvetica", "B", 14)
+            self.set_text_color(15, 23, 42) # Slate-900
+            self.cell(0, 6, "AdminSuite Workspace", ln=True)
+            
+            self.set_x(20)
+            self.set_font("helvetica", "", 9)
+            self.set_text_color(71, 85, 105) # Slate-600
+            self.cell(0, 5, "AdminSuite Cloud Platform  |  support@adminsuite.com", ln=True)
+            
+            self.set_x(20)
+            self.set_font("helvetica", "I", 8)
+            self.set_text_color(148, 163, 184) # Slate-400
+            self.cell(0, 4, f"Exported: {timezone.now().strftime('%Y-%m-%d %H:%M:%S UTC')}", ln=True)
+            
+            # Divider line below header (Standard Slate-200)
+            self.set_draw_color(226, 232, 240)
+            self.set_line_width(0.5)
+            self.line(20, 44, 190, 44)
+        else:
+            # Branded Layout (Dynamic Company Letterhead)
+            logo_x = 20
+            if self.logo_path and os.path.exists(self.logo_path):
+                try:
+                    self.image(self.logo_path, x=20, y=10, h=24)
+                    logo_x = 52 # Shift text right to fit logo
+                except Exception:
+                    pass
+            
+            # Business metadata header
+            self.set_xy(logo_x, 12)
+            self.set_font("helvetica", "B", 14)
+            # Use extracted brand color for the bold company name
+            self.set_text_color(*self.primary_color)
+            self.cell(0, 6, self.business_name, ln=True)
+            
+            self.set_x(logo_x)
+            self.set_font("helvetica", "", 9)
+            self.set_text_color(71, 85, 105) # Slate-600
+            
+            location_str = self.org_location or "AdminSuite Cloud Platform"
+            email_str = self.org_email or "support@adminsuite.com"
+            self.cell(0, 5, f"{location_str}  |  {email_str}", ln=True)
+            
+            self.set_x(logo_x)
+            self.set_font("helvetica", "I", 8)
+            self.set_text_color(148, 163, 184) # Slate-400
+            self.cell(0, 4, f"Exported: {timezone.now().strftime('%Y-%m-%d %H:%M:%S UTC')}", ln=True)
+            
+            # Divider line below header using primary brand color
+            self.set_draw_color(*self.primary_color)
+            self.set_line_width(0.8) # Thicker separator line for branding
+            self.line(20, 44, 190, 44)
+            
         self.ln(20)
 
     def footer(self):
-        self.set_y(-20)
-        self.set_draw_color(241, 245, 249)
+        self.set_y(-18)
+        self.set_draw_color(226, 232, 240) # Slate-200 divider line
         self.set_line_width(0.3)
         self.line(20, self.get_y() - 2, 190, self.get_y() - 2)
         
-        # Footer text - copyright and Powered by DimaCode
-        self.set_font("helvetica", "", 8)
-        self.set_text_color(148, 163, 184) # Slate-400
-        self.cell(100, 10, "Copyright \xa9 Admin Suite. All rights reserved.", align="L")
-        self.cell(70, 10, "Powered by DimaCode", align="R")
+        # Footer text - copyright year and page count
+        self.set_font("helvetica", "", 7) # 7px font size
+        self.set_text_color(100, 100, 100) # Color #646464
+        
+        current_year = timezone.now().year
+        left_text = f"Copyright \xa9 {current_year} Admin Suite. Powered by Dimacode"
+        right_text = f"Page {self.page_no()} of {self.alias_nb()}"
+        
+        self.cell(100, 8, left_text, align="L")
+        self.cell(70, 8, right_text, align="R")
 
 def sanitize_text(text):
     if not text:
@@ -82,15 +165,24 @@ def sanitize_text(text):
 def render_pdf_table(pdf, title, headers, rows, col_widths=None):
     # Table Title
     pdf.set_font("helvetica", "B", 11)
-    pdf.set_text_color(30, 41, 59) # Slate-800
+    if pdf.is_branded and not pdf.skip_branding:
+        pdf.set_text_color(*pdf.primary_color)
+    else:
+        pdf.set_text_color(30, 41, 59) # Slate-800
     pdf.cell(0, 8, title, ln=True)
     pdf.ln(2)
 
     # Setup headers
     pdf.set_font("helvetica", "B", 9)
-    pdf.set_fill_color(241, 245, 249) # slate-100
-    pdf.set_draw_color(226, 232, 240)
-    pdf.set_text_color(15, 23, 42)
+    if pdf.is_branded and not pdf.skip_branding:
+        pdf.set_fill_color(*pdf.primary_color)
+        pdf.set_draw_color(*pdf.primary_color)
+        pdf.set_text_color(255, 255, 255) # White text for branded headers
+    else:
+        pdf.set_fill_color(241, 245, 249) # slate-100
+        pdf.set_draw_color(226, 232, 240)
+        pdf.set_text_color(15, 23, 42)
+        
     pdf.set_line_width(0.2)
     
     num_cols = len(headers)
@@ -104,6 +196,7 @@ def render_pdf_table(pdf, title, headers, rows, col_widths=None):
     # Rows
     pdf.set_font("helvetica", "", 9)
     pdf.set_text_color(51, 65, 85)
+    pdf.set_draw_color(226, 232, 240) # Reset border color for table rows
     
     if not rows:
         pdf.cell(170, 8, "No records found.", border=1, align="C")
@@ -136,7 +229,7 @@ def render_pdf_table(pdf, title, headers, rows, col_widths=None):
         pdf.ln(h)
     pdf.ln(4)
 
-def build_pdf_report(user, export_type, time_filter=None, individual_id=None):
+def build_pdf_report(user, export_type, time_filter=None, individual_id=None, skip_branding=False):
     from .models import UserProfile, Employee, Client, Project, Transaction, BudgetCategory, Savings
     
     profile, _ = UserProfile.objects.get_or_create(user=user)
@@ -146,7 +239,8 @@ def build_pdf_report(user, export_type, time_filter=None, individual_id=None):
         business_name=profile.business_name,
         org_location=profile.org_location,
         org_email=profile.org_email,
-        logo_path=logo_path
+        logo_path=logo_path,
+        skip_branding=skip_branding
     )
     pdf.add_page()
     
@@ -274,7 +368,7 @@ def build_pdf_report(user, export_type, time_filter=None, individual_id=None):
                 render_pdf_table(pdf, "Compensation & Finance Ledger", fin_headers, fin_rows, fin_widths)
                 
                 # Pay History
-                phs = f.pay_history.all()
+                phs = getattr(f, 'pay_history').all()
                 ph_headers = ["Calendar Month", "Pay Amount", "Payout Status"]
                 ph_widths = [60, 50, 60]
                 ph_rows = [[ph.month, f"${ph.amount}", "PAID" if ph.paid else "UNPAID"] for ph in phs]

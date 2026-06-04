@@ -23,7 +23,7 @@ export default function FinanceScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const fmt = useCurrencyFmt();
-  const { metrics: m, payrollMetrics: pr, debts, budgetCategories, transactions, payrollMonths } = useData();
+  const { metrics: m, payrollMetrics: pr, debts, budgetCategories, transactions, payrollMonths, togglePayrollMonth } = useData();
   const [debtTab, setDebtTab] = useState("we_owe");
   const [addMenuOpen, setAddMenuOpen] = useState(false);
 
@@ -278,15 +278,18 @@ export default function FinanceScreen() {
               </View>
               <View style={styles.monthsRow}>
                 {payrollMonths.map((m) => (
-                  <View
+                  <Pressable
                     key={m.month}
-                    style={[
+                    onPress={() => togglePayrollMonth(m.month, m.paid)}
+                    style={({ pressed }) => [
                       styles.monthChip,
                       {
                         backgroundColor: m.paid
                           ? "#22c55e1A"
                           : colors.muted,
                         borderColor: m.paid ? "#22c55e" : colors.border,
+                        opacity: pressed ? 0.7 : 1,
+                        transform: [{ scale: pressed ? 0.95 : 1 }],
                       },
                     ]}
                   >
@@ -304,7 +307,7 @@ export default function FinanceScreen() {
                     ) : (
                       <Feather name="clock" size={11} color={colors.mutedForeground} />
                     )}
-                  </View>
+                  </Pressable>
                 ))}
               </View>
             </View>

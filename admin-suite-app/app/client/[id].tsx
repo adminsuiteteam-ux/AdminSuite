@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
-import React from "react";
+import React, { useState } from "react";
 import {
   Alert,
   Linking,
@@ -11,6 +11,7 @@ import {
   StyleSheet,
   Text,
   View,
+  Modal,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle, Path } from "react-native-svg";
@@ -19,6 +20,7 @@ import { FloatInView } from "@/components/FloatInView";
 import { useData } from "@/context/DataContext";
 import { useCurrencyFmt } from "@/context/SettingsContext";
 import { useColors } from "@/hooks/useColors";
+import { apiService } from "@/services/api";
 
 const STATUS_COLOR: Record<string, string> = {
   active: "#22c55e",
@@ -32,9 +34,12 @@ export default function ClientDetailScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const fmt = useCurrencyFmt();
-  const { clients } = useData();
+  const { clients, refresh } = useData();
   const { id } = useLocalSearchParams();
   const client = clients.find((c: any) => String(c.id) === String(id));
+
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   if (!client) {
     return (
@@ -53,9 +58,32 @@ export default function ClientDetailScreen() {
 
   const open = (url: string) => Linking.openURL(url).catch(() => {});
 
-  const onAction = (label: string) => {
-    if (Platform.OS === "web") return;
-    Alert.alert(label, `${label} action triggered for ${client.company}.`);
+  const handleDeleteClient = () => {
+    Alert.alert(
+      "Delete Client",
+      `Are you sure you want to permanently delete ${client.company}? All associated projects will also be deleted.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setIsDeleting(true);
+              await apiService.deleteClient(client.id);
+              await refresh();
+              setActionsOpen(false);
+              router.back();
+            } catch (err) {
+              console.error("Delete client failed:", err);
+              Alert.alert("Error", "Failed to delete client. Please try again.");
+            } finally {
+              setIsDeleting(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   return (
@@ -93,7 +121,7 @@ export default function ClientDetailScreen() {
               Client
             </Text>
             <Pressable
-              onPress={() => onAction("Edit")}
+              onPress={() => setActionsOpen(true)}
               style={({ pressed }) => [
                 styles.iconBtn,
                 {
@@ -352,6 +380,87 @@ export default function ClientDetailScreen() {
             </Section>
           </FloatInView>
 
+          <FloatInView delay={390}>
+            <Section title="Client Projects">
+              <View style={{ gap: 10 }}>
+                {client.projects && client.projects.length > 0 ? (
+                  client.projects.map((p: any) => (
+                    <Pressable
+                      key={p.id}
+                      onPress={() => router.push(`/project/${p.id}` as any)}
+                    >
+                      {({ pressed }) => (
+                        <View
+                          style={{
+                            padding: 14,
+                            borderWidth: 1,
+                            backgroundColor: colors.card,
+                            borderColor: colors.border,
+                            borderRadius: colors.radius,
+                            opacity: pressed ? 0.85 : 1,
+                            transform: [{ scale: pressed ? 0.98 : 1 }],
+                            gap: 10
+                          }}
+                        >
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                            <View style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: 10,
+                              backgroundColor: (p.status === "completed" ? "#22c55e" : p.status === "active" ? "#2563eb" : "#94a3b8") + "1A",
+                              alignItems: "center",
+                              justifyContent: "center"
+                            }}>
+                              <Feather name="layers" size={14} color={p.status === "completed" ? "#22c55e" : p.status === "active" ? "#2563eb" : "#64748b"} />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ color: colors.foreground, fontFamily: "Inter_700Bold", fontSize: 14 }}>
+                                {p.name}
+                              </Text>
+                              <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_500Medium", fontSize: 11, marginTop: 2 }}>
+                                {p.start_date || "No start date"} → {p.end_date || "No end date"} · {p.location || "On-site / remote"}
+                              </Text>
+                            </View>
+                            <View style={{
+                              paddingHorizontal: 8,
+                              paddingVertical: 4,
+                              borderRadius: 6,
+                              backgroundColor: (p.status === "completed" ? "#22c55e" : p.status === "active" ? "#2563eb" : "#64748b") + "1A"
+                            }}>
+                              <Text style={{
+                                color: p.status === "completed" ? "#22c55e" : p.status === "active" ? "#2563eb" : "#64748b",
+                                fontFamily: "Inter_700Bold",
+                                fontSize: 9,
+                                textTransform: "uppercase"
+                              }}>
+                                {p.status}
+                              </Text>
+                            </View>
+                          </View>
+
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                            <View style={{ height: 6, flex: 1, backgroundColor: colors.border, borderRadius: 3, overflow: "hidden" }}>
+                              <View style={{ height: "100%", width: `${p.progress}%`, backgroundColor: p.status === "completed" ? "#22c55e" : p.status === "active" ? "#2563eb" : "#64748b" }} />
+                            </View>
+                            <Text style={{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 11 }}>
+                              {p.progress}%
+                            </Text>
+                          </View>
+                        </View>
+                      )}
+                    </Pressable>
+                  ))
+                ) : (
+                  <View style={{ padding: 20, alignItems: "center", borderWidth: 1, borderColor: colors.border, borderRadius: colors.radius, backgroundColor: colors.card }}>
+                    <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13 }}>
+                      No projects associated with this client
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </Section>
+          </FloatInView>
+
           <FloatInView delay={420}>
             <Section title="Financial record & Tasks">
               <View style={[styles.detailCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
@@ -372,6 +481,46 @@ export default function ClientDetailScreen() {
 
         </View>
       </ScrollView>
+
+      {/* Actions Modal */}
+      <Modal visible={actionsOpen} transparent animationType="fade" onRequestClose={() => setActionsOpen(false)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setActionsOpen(false)}>
+          <View style={[styles.modalContainer, { backgroundColor: colors.isDark ? "#18181c" : "#ffffff", borderColor: colors.border }]}>
+            <Text style={[styles.modalTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Client Actions</Text>
+            
+            <Pressable
+              onPress={() => {
+                setActionsOpen(false);
+                router.push(`/client/create?editId=${client.id}`);
+              }}
+              style={({ pressed }) => [styles.modalActionRow, pressed && { backgroundColor: colors.muted }]}
+            >
+              <Feather name="edit-2" size={16} color={colors.foreground} />
+              <Text style={{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 15 }}>Edit Client Profile</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={handleDeleteClient}
+              style={({ pressed }) => [styles.modalActionRow, pressed && { backgroundColor: colors.muted }]}
+              disabled={isDeleting}
+            >
+              <Feather name="trash-2" size={16} color="#ef4444" />
+              <Text style={{ color: "#ef4444", fontFamily: "Inter_600SemiBold", fontSize: 15 }}>
+                {isDeleting ? "Deleting..." : "Delete Client"}
+              </Text>
+            </Pressable>
+
+            <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
+
+            <Pressable
+              onPress={() => setActionsOpen(false)}
+              style={({ pressed }) => [styles.modalActionRow, { justifyContent: "center" }, pressed && { backgroundColor: colors.muted }]}
+            >
+              <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_600SemiBold", fontSize: 14 }}>Cancel</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -680,4 +829,32 @@ const styles = StyleSheet.create({
   },
   bioCard: { padding: 16, borderWidth: 1 },
   remarkCard: { flexDirection: "row", gap: 10, alignItems: "flex-start" },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalContainer: {
+    width: "100%",
+    maxWidth: 320,
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 16,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontFamily: "Inter_700Bold",
+    marginBottom: 16,
+    paddingHorizontal: 8,
+  },
+  modalActionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
 });

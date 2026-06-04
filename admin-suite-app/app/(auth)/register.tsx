@@ -20,6 +20,7 @@ import Svg, { Defs, LinearGradient as SvgLinearGradient, Stop, Polygon, Line } f
 import { LogoMark } from "@/components/Brand";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 function GeometricBackground() {
   return (
@@ -262,7 +263,15 @@ export default function RegisterScreen() {
     setLoading(true);
     try {
       await signUpWithSupabase(email.trim().toLowerCase(), password);
-      setSuccess("Verification code sent to your email!");
+      
+      const debugCode = await AsyncStorage.getItem("auth.debug_otp_code");
+      if (debugCode) {
+        setSuccess(`Verification code (DEV): ${debugCode}`);
+        await AsyncStorage.removeItem("auth.debug_otp_code");
+      } else {
+        setSuccess("Verification code sent to your email!");
+      }
+      
       setStep("code");
       setCountdown(30);
       setCanResend(false);
@@ -286,7 +295,14 @@ export default function RegisterScreen() {
     setHasOtpError(false);
     try {
       await resendSupabaseOTP(email.trim().toLowerCase());
-      setSuccess("New 8-digit verification code sent!");
+      
+      const debugCode = await AsyncStorage.getItem("auth.debug_otp_code");
+      if (debugCode) {
+        setSuccess(`New verification code (DEV): ${debugCode}`);
+        await AsyncStorage.removeItem("auth.debug_otp_code");
+      } else {
+        setSuccess("New 8-digit verification code sent!");
+      }
     } catch (err: any) {
       setError(err.message || "Failed to resend verification code.");
     }

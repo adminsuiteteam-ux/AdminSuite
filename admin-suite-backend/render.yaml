@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: adminsuite-api
+    runtime: python
+    buildCommand: ./build.sh
+    startCommand: gunicorn core.wsgi:application --bind 0.0.0.0:$PORT
+    envVars:
+      - key: DJANGO_DEBUG
+        value: "False"
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: adminsuite-db
+          property: connectionString
+      - key: DJANGO_ALLOWED_HOSTS
+        fromService:
+          type: web
+          name: adminsuite-api
+          property: host
+      - key: CORS_ALLOWED_ORIGINS
+        fromService:
+          type: web
+          name: adminsuite-api
+          property: url
+      - key: CLOUDINARY_URL
+        sync: false
+
+databases:
+  - name: adminsuite-db
+    plan: free

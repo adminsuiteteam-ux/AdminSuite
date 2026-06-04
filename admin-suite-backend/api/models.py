@@ -49,6 +49,10 @@ class Employee(models.Model):
     bio = models.TextField(blank=True, null=True)
     socials = models.JSONField(default=dict, blank=True)
     finance = models.OneToOneField(EmployeeFinance, on_delete=models.CASCADE, related_name='employee')
+    is_flagged = models.BooleanField(default=False)
+    flag_reason = models.CharField(max_length=255, blank=True, null=True)
+    flag_note = models.TextField(blank=True, null=True)
+    is_archived = models.BooleanField(default=False)
 
     def __str__(self):
         return self.name
@@ -91,6 +95,11 @@ class Project(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
     value = models.DecimalField(max_digits=15, decimal_places=2, default=0)
     progress = models.IntegerField(default=0)
+    start_date = models.DateField(null=True, blank=True)
+    end_date = models.DateField(null=True, blank=True)
+    location = models.CharField(max_length=255, blank=True, null=True)
+    image = models.ImageField(upload_to='projects/images/', blank=True, null=True)
+    video = models.FileField(upload_to='projects/videos/', blank=True, null=True)
     user = models.ForeignKey('auth.User', on_delete=models.CASCADE, null=True, blank=True)
 
     def __str__(self):
@@ -227,3 +236,135 @@ class PasswordResetCode(models.Model):
 
     def __str__(self):
         return f"Reset code for {self.email}: {self.code}"
+
+
+class EmployeeActivityLog(models.Model):
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='activity_logs')
+    action = models.CharField(max_length=100)
+    details = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.employee.name} - {self.action} on {self.created_at}"
+
+
+class EmployeeQuery(models.Model):
+    STATUS_CHOICES = [
+        ('open', 'Open'),
+        ('in_progress', 'In Progress'),
+        ('resolved', 'Resolved'),
+    ]
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='queries')
+    query_type = models.CharField(max_length=100)
+    message = models.TextField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='open')
+    attachment = models.FileField(upload_to='query_attachments/', blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Query for {self.employee.name} - {self.status}"
+
+
+class EmployeeTask(models.Model):
+    PRIORITY_CHOICES = [
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High'),
+    ]
+    STATUS_CHOICES = [
+        ('assigned', 'Assigned'),
+        ('in_progress', 'In Progress'),
+        ('completed', 'Completed'),
+    ]
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='tasks')
+    title = models.CharField(max_length=255)
+    description = models.TextField()
+    priority = models.CharField(max_length=20, choices=PRIORITY_CHOICES, default='medium')
+    due_date = models.DateField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='assigned')
+    attachment = models.FileField(upload_to='task_attachments/', blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Task for {self.employee.name} - {self.title}"
+
+
+class EmployeeLeave(models.Model):
+    STATUS_CHOICES = [
+        ('scheduled', 'Scheduled'),
+        ('active', 'Active'),
+        ('completed', 'Completed'),
+    ]
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='leaves')
+    leave_type = models.CharField(max_length=100)
+    start_date = models.DateField()
+    end_date = models.DateField()
+    duration_days = models.IntegerField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='scheduled')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Leave for {self.employee.name} ({self.start_date} to {self.end_date})"
+
+
+class EmployeeMessage(models.Model):
+    DELIVERY_CHOICES = [
+        ('in_app', 'In-App'),
+        ('email', 'Email'),
+        ('both', 'Both'),
+        ('whatsapp', 'WhatsApp'),
+        ('sms', 'SMS'),
+    ]
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='messages')
+    subject = models.CharField(max_length=255)
+    body = models.TextField()
+    delivery_mode = models.CharField(max_length=20, choices=DELIVERY_CHOICES, default='both')
+    attachment = models.FileField(upload_to='message_attachments/', blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Message to {self.employee.name} - {self.subject}"
+
+
+class EmployeeDocument(models.Model):
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='documents')
+    name = models.CharField(max_length=255)
+    document_type = models.CharField(max_length=100)
+    file = models.FileField(upload_to='employee_documents/')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.name} for {self.employee.name}"
+
+
+class SalaryAdjustment(models.Model):
+    TYPE_CHOICES = [
+        ('increment', 'Increment'),
+        ('decrement', 'Decrement'),
+        ('bonus', 'Bonus'),
+        ('correction', 'Correction'),
+    ]
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='salary_adjustments')
+    adjustment_type = models.CharField(max_length=20, choices=TYPE_CHOICES)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    previous_salary = models.DecimalField(max_digits=10, decimal_places=2)
+    new_salary = models.DecimalField(max_digits=10, decimal_places=2)
+    effective_date = models.DateField()
+    notes = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.adjustment_type} for {self.employee.name} - {self.amount}"
+
+
+class PayrollStatus(models.Model):
+    user = models.ForeignKey('auth.User', on_delete=models.CASCADE, related_name='payroll_statuses')
+    month = models.CharField(max_length=20)
+    paid = models.BooleanField(default=False)
+
+    class Meta:
+        unique_together = ('user', 'month')
+
+    def __str__(self):
+        return f"{self.user.username} - {self.month}: {'Paid' if self.paid else 'Pending'}"
