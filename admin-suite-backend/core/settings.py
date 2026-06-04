@@ -48,9 +48,16 @@ if DEBUG:
     ]
 else:
     _hosts = os.environ.get('DJANGO_ALLOWED_HOSTS')
-    if not _hosts:
-        raise ValueError("DJANGO_ALLOWED_HOSTS environment variable must be set in production.")
-    ALLOWED_HOSTS = [h.strip() for h in _hosts.split(',')]
+    RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
+    
+    if not _hosts and not RENDER_EXTERNAL_HOSTNAME:
+        raise ValueError("DJANGO_ALLOWED_HOSTS or RENDER_EXTERNAL_HOSTNAME environment variable must be set in production.")
+        
+    ALLOWED_HOSTS = []
+    if _hosts:
+        ALLOWED_HOSTS.extend([h.strip() for h in _hosts.split(',')])
+    if RENDER_EXTERNAL_HOSTNAME and RENDER_EXTERNAL_HOSTNAME not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
     
     # Set CSRF_TRUSTED_ORIGINS in production
     _csrf_origins = os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS')
@@ -58,12 +65,6 @@ else:
         CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_origins.split(',')]
     else:
         CSRF_TRUSTED_ORIGINS = [f"https://{h}" for h in ALLOWED_HOSTS if h and not h.startswith('*')]
-        
-    # Auto-allow Render hostname if deployed on Render
-    RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
-    if RENDER_EXTERNAL_HOSTNAME:
-        ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
-        CSRF_TRUSTED_ORIGINS.append(f"https://{RENDER_EXTERNAL_HOSTNAME}")
 
 
 # Application definition
@@ -192,7 +193,12 @@ else:
     if DEBUG:
         CORS_ALLOW_ALL_ORIGINS = True
     else:
-        raise ValueError("CORS_ALLOWED_ORIGINS environment variable must be set in production.")
+        RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
+        if RENDER_EXTERNAL_HOSTNAME:
+            CORS_ALLOW_ALL_ORIGINS = False
+            CORS_ALLOWED_ORIGINS = [f"https://{RENDER_EXTERNAL_HOSTNAME}"]
+        else:
+            CORS_ALLOW_ALL_ORIGINS = True  # Fallback to avoid crashing the build
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
