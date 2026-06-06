@@ -43,6 +43,7 @@ class Employee(models.Model):
     initials = models.CharField(max_length=5)
     avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
     user = models.ForeignKey('auth.User', on_delete=models.CASCADE, null=True, blank=True)
+    linked_user = models.OneToOneField('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='employee_profile')
     email = models.EmailField()
     phone = models.CharField(max_length=50, blank=True, null=True)
     location = models.CharField(max_length=255, blank=True, null=True)
@@ -204,6 +205,7 @@ class UserProfile(models.Model):
     biometrics_enabled = models.BooleanField(default=False)
     notifications_enabled = models.BooleanField(default=False)
     profile_complete = models.BooleanField(default=False)
+    is_first_login = models.BooleanField(default=False)
     
     # Organisational details
     business_name = models.CharField(max_length=255, blank=True, default='')

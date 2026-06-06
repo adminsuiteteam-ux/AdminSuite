@@ -126,7 +126,7 @@ DATABASES = {
     ),
     'backup': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': str(BASE_DIR / 'db.sqlite3'),
     }
 }
 
@@ -144,6 +144,14 @@ if db_url and (db_url.startswith('postgres://') or db_url.startswith('postgresql
         # Mask exception to prevent raw credential leaks in console/logs
         print("⚠️ Warning: Supabase primary database unreachable. Falling back to SQLite.", file=sys.stderr)
         DATABASES['default'] = DATABASES['backup']
+
+import sys
+if 'test' in sys.argv:
+    DATABASES['default'] = {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': str(BASE_DIR / 'db_test.sqlite3'),
+    }
+
 
 
 # Password validation

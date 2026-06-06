@@ -44,6 +44,7 @@ function RootLayoutNav() {
       <Stack.Screen name="(auth)" options={{ animation: "fade_from_bottom" }} />
       <Stack.Screen name="tour" options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="(tabs)" options={{ animation: "fade" }} />
+      <Stack.Screen name="(employee)" options={{ animation: "fade" }} />
       <Stack.Screen name="lock" options={{ animation: "fade" }} />
     </Stack>
   );

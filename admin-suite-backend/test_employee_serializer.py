@@ -50,11 +50,12 @@ class EmployeeSerializerTestPatch(EmployeeSerializer):
                 pass
         return super().to_internal_value(data)
 
-user = User.objects.first()
-serializer = EmployeeSerializer(data=q)
-is_valid = serializer.is_valid()
-print("Is valid:", is_valid)
-if not is_valid:
-    print("Errors:", serializer.errors)
-else:
-    print("Validated data:", serializer.validated_data)
+if __name__ == '__main__':
+    user = User.objects.first()
+    serializer = EmployeeSerializer(data=q)
+    is_valid = serializer.is_valid()
+    print("Is valid:", is_valid)
+    if not is_valid:
+        print("Errors:", serializer.errors)
+    else:
+        print("Validated data:", serializer.validated_data)

@@ -172,10 +172,14 @@ export default function SplashGate() {
           router.replace("/tour");
         } else if (!user) {
           router.replace("/(auth)/login");
+        } else if (user.role === 'employee' && user.is_first_login) {
+          router.replace("/(auth)/employee-setup");
         } else if (!user.profile_complete) {
           router.replace("/(auth)/complete-profile");
         } else if (biometricsEnabled) {
           router.replace("/lock");
+        } else if (user.role === 'employee') {
+          router.replace("/(employee)");
         } else {
           router.replace("/(tabs)");
         }

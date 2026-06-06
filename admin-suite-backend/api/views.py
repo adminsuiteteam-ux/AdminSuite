@@ -21,7 +21,8 @@ from .serializers import (
     BudgetCategorySerializer, SavingsSerializer, UserSerializer,
     UserProfileSerializer, RegisterSerializer, EmployeeActivityLogSerializer,
     EmployeeQuerySerializer, EmployeeTaskSerializer, EmployeeLeaveSerializer,
-    EmployeeMessageSerializer, EmployeeDocumentSerializer, SalaryAdjustmentSerializer
+    EmployeeMessageSerializer, EmployeeDocumentSerializer, SalaryAdjustmentSerializer,
+    EmployeeFinanceSerializer, PayHistorySerializer
 )
 
 
@@ -293,6 +294,15 @@ def me(request):
             user.first_name = first_name
             user.save(update_fields=['first_name'])
 
+        password = request.data.get('password')
+        if password:
+            if len(password) < 8:
+                return Response({'password': ['Password must be at least 8 characters long.']}, status=status.HTTP_400_BAD_REQUEST)
+            user.set_password(password)
+            user.save()
+            profile.is_first_login = False
+            profile.save()
+
         # Update profile fields
         profile_serializer = UserProfileSerializer(profile, data=request.data, partial=True)
         if profile_serializer.is_valid():
@@ -309,12 +319,19 @@ def me(request):
     if profile.company_logo:
         company_logo_url = request.build_absolute_uri(profile.company_logo.url)
 
+    employee_id = None
+    if profile.role == 'employee':
+        employee = getattr(user, 'employee_profile', None)
+        if employee:
+            employee_id = employee.id
+
     return Response({
         'id': user.id,
         'username': user.username,
         'email': user.email,
         'name': name,
         'profile_complete': profile.profile_complete,
+        'is_first_login': profile.is_first_login,
         'location': profile_data.get('location', ''),
         'heard_from': profile_data.get('heard_from', ''),
         'role': profile_data.get('role', ''),
@@ -335,6 +352,7 @@ def me(request):
         'working_days': profile_data.get('working_days', ''),
         'average_revenue': profile_data.get('average_revenue', ''),
         'company_logo': company_logo_url,
+        'employee_id': employee_id,
     })
 
 
@@ -1239,3 +1257,96 @@ class SalaryAdjustmentViewSet(viewsets.ModelViewSet):
             action="Salary Adjusted",
             details=f"Adjusted salary ({adj_type}): {prev_salary} -> {new_salary} (Amount: {amount})"
         )
+
+
+# ---------------------------------------------------------------------------
+# Employee Portal Endpoints
+# ---------------------------------------------------------------------------
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def employee_dashboard(request):
+    user = request.user
+    profile = getattr(user, 'profile', None)
+    if not profile or profile.role != 'employee':
+        raise PermissionDenied("Only employees can access this portal.")
+        
+    employee = getattr(user, 'employee_profile', None)
+    if not employee:
+        return Response({'error': 'Employee profile not found.'}, status=status.HTTP_404_NOT_FOUND)
+        
+    # Get assigned tasks
+    tasks = EmployeeTask.objects.filter(employee=employee).order_by('-created_at')
+    
+    # Get activity logs
+    activities = EmployeeActivityLog.objects.filter(employee=employee).order_by('-created_at')[:8]
+    
+    # Return consolidated metrics and details
+    return Response({
+        'employee': EmployeeSerializer(employee, context={'request': request}).data,
+        'tasks': EmployeeTaskSerializer(tasks, many=True, context={'request': request}).data,
+        'activities': EmployeeActivityLogSerializer(activities, many=True).data,
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def employee_finance(request):
+    user = request.user
+    profile = getattr(user, 'profile', None)
+    if not profile or profile.role != 'employee':
+        raise PermissionDenied("Only employees can access this portal.")
+        
+    employee = getattr(user, 'employee_profile', None)
+    if not employee:
+        return Response({'error': 'Employee profile not found.'}, status=status.HTTP_404_NOT_FOUND)
+        
+    finance = employee.finance
+    pay_history = PayHistory.objects.filter(finance=finance).order_by('-id')
+    
+    return Response({
+        'finance': EmployeeFinanceSerializer(finance).data,
+        'pay_history': PayHistorySerializer(pay_history, many=True).data,
+        'salary': float(employee.salary),
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def employee_update_task(request, pk):
+    user = request.user
+    profile = getattr(user, 'profile', None)
+    if not profile or profile.role != 'employee':
+        raise PermissionDenied("Only employees can access this portal.")
+        
+    employee = getattr(user, 'employee_profile', None)
+    if not employee:
+        return Response({'error': 'Employee profile not found.'}, status=status.HTTP_404_NOT_FOUND)
+        
+    try:
+        task = EmployeeTask.objects.get(pk=pk, employee=employee)
+    except EmployeeTask.DoesNotExist:
+        return Response({'error': 'Task not found.'}, status=status.HTTP_404_NOT_FOUND)
+        
+    new_status = request.data.get('status')
+    description = request.data.get('description', '')
+    
+    if new_status not in ['assigned', 'in_progress', 'completed']:
+        return Response({'error': 'Invalid task status.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+    task.status = new_status
+    if description:
+        task.description = f"{task.description}\n\n[Update]: {description}"
+    task.save()
+    
+    # Log activity
+    EmployeeActivityLog.objects.create(
+        employee=employee,
+        action="Task Updated",
+        details=f"Task '{task.title}' updated to status '{new_status}'."
+    )
+    
+    return Response({
+        'status': 'success',
+        'task': EmployeeTaskSerializer(task, context={'request': request}).data
+    })

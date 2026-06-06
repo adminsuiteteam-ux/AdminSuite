@@ -11,7 +11,7 @@ const getHost = () => {
     const ip = hostUri.split(':')[0];
     if (ip) return ip;
   }
-  return '192.168.4.152'; // Current computer local IP
+  return '192.168.135.152'; // Current computer local IP
 };
 
 const HOST = getHost(); 
@@ -56,7 +56,7 @@ const CANDIDATES = [
   `http://localhost:8000/`,
   `http://10.0.2.2:8000/`,
   Constants.expoConfig?.hostUri ? `http://${Constants.expoConfig.hostUri.split(':')[0]}:8000/` : null,
-  `http://192.168.4.152:8000/`,
+  `http://192.168.135.152:8000/`,
 ].filter((url): url is string => !!url);
 
 const pingUrl = async (url: string): Promise<boolean> => {
@@ -236,6 +236,12 @@ export const apiService = {
   togglePayrollMonth: (data: { month: string; paid: boolean }) => apiClient.post('payroll-metrics/toggle/', data),
   getDebtsGrouped: () => apiClient.get('debts-grouped/'),
   deleteAccount: () => apiClient.delete('me/'),
+  
+  // Employee Portal Endpoints
+  getEmployeeDashboard: () => apiClient.get('employee-portal/dashboard/'),
+  getEmployeeFinance: () => apiClient.get('employee-portal/finance/'),
+  updateEmployeeTask: (taskId: number, data: { status: string; description?: string }) => 
+    apiClient.post(`employee-portal/tasks/${taskId}/update/`, data),
 };
 
 export default apiClient;

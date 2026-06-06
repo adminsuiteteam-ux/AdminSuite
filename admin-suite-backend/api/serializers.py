@@ -1,4 +1,6 @@
 import json
+import random
+import string
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from .models import (
@@ -90,6 +92,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
     messages = EmployeeMessageSerializer(many=True, read_only=True)
     documents = EmployeeDocumentSerializer(many=True, read_only=True)
     salary_adjustments = SalaryAdjustmentSerializer(many=True, read_only=True)
+    temp_password = serializers.SerializerMethodField()
     
     class Meta:
         model = Employee
@@ -99,9 +102,9 @@ class EmployeeSerializer(serializers.ModelSerializer):
             'phone', 'location', 'bio', 'socials', 'finance', 'finance_data',
             'is_flagged', 'flag_reason', 'flag_note', 'is_archived',
             'activity_logs', 'queries', 'tasks', 'leaves', 'messages',
-            'documents', 'salary_adjustments'
+            'documents', 'salary_adjustments', 'linked_user', 'temp_password'
         ]
-        read_only_fields = ['user']
+        read_only_fields = ['user', 'linked_user']
         extra_kwargs = {
             'office': {'required': False, 'allow_blank': True, 'default': ''},
             'phone': {'required': False, 'allow_blank': True},
@@ -112,6 +115,9 @@ class EmployeeSerializer(serializers.ModelSerializer):
             'initials': {'required': False, 'default': ''},
             'socials': {'required': False},
         }
+
+    def get_temp_password(self, obj):
+        return getattr(obj, '_temp_password', None)
 
     def to_internal_value(self, data):
         # Convert QueryDict to standard dict to prevent list-wrapping issues for complex fields
@@ -137,6 +143,33 @@ class EmployeeSerializer(serializers.ModelSerializer):
         finance_data = validated_data.pop('finance_data', {})
         user = validated_data.get('user')
         
+        # Auto-create user account for the employee
+        email = validated_data.get('email', '').strip().lower()
+        name = validated_data.get('name', '').strip()
+        
+        if User.objects.filter(email=email).exists():
+            raise serializers.ValidationError({"email": "A user with this email address already exists."})
+            
+        temp_password = "Temp#" + "".join(random.choices(string.ascii_letters + string.digits, k=8))
+        
+        # Create Django User
+        emp_user = User.objects.create_user(
+            username=email,
+            email=email,
+            password=temp_password,
+            first_name=name.split(' ')[0] if name else '',
+            last_name=' '.join(name.split(' ')[1:]) if name else ''
+        )
+        
+        # Setup Employee UserProfile
+        profile, _ = UserProfile.objects.get_or_create(user=emp_user)
+        profile.role = 'employee'
+        profile.is_first_login = True
+        profile.profile_complete = True
+        profile.save()
+        
+        validated_data['linked_user'] = emp_user
+
         # Filter finance_data to only valid EmployeeFinance fields
         valid_finance_fields = {f.name for f in EmployeeFinance._meta.get_fields() if hasattr(f, 'column')} # type: ignore
         clean_finance = {k: v for k, v in finance_data.items() if k in valid_finance_fields and k != 'id'}
@@ -144,6 +177,9 @@ class EmployeeSerializer(serializers.ModelSerializer):
         # Create finance record first
         finance = EmployeeFinance.objects.create(user=user, **clean_finance) # type: ignore
         employee = Employee.objects.create(finance=finance, **validated_data) # type: ignore
+        
+        # Save temp password to display to Admin
+        employee._temp_password = temp_password
         return employee
 
     def update(self, instance, validated_data):
@@ -225,7 +261,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
         fields = [
             'location', 'heard_from', 'role', 'phone', 'avatar',
             'bio', 'social_link', 'biometrics_enabled', 'notifications_enabled',
-            'profile_complete',
+            'profile_complete', 'is_first_login',
             'business_name', 'org_location', 'org_email', 'company_line',
             'social_handles', 'total_workers', 'opening_time', 'closing_time',
             'working_days', 'average_revenue', 'company_logo',

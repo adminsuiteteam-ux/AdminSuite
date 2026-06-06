@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 
 import { Link, router } from "expo-router";
-import * as SecureStore from "expo-secure-store";
+import * as SecureStore from "@/services/storage";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,

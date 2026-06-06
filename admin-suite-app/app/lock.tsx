@@ -20,7 +20,7 @@ import { useColors } from "@/hooks/useColors";
 export default function LockScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const [authenticating, setAuthenticating] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [success, setSuccess] = useState(false);
@@ -48,7 +48,11 @@ export default function LockScreen() {
 
       if (result.success) {
         setSuccess(true);
-        router.replace("/(tabs)");
+        if (user?.role === 'employee') {
+          router.replace("/(employee)");
+        } else {
+          router.replace("/(tabs)");
+        }
       } else {
         setErrorMsg(result.error || "Authentication failed.");
       }

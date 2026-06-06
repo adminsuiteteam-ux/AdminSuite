@@ -6,6 +6,7 @@ import {
   Alert,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -94,6 +95,18 @@ export default function CreateEmployeeScreen() {
   // Step 6 — Photo
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const [createdEmployee, setCreatedEmployee] = useState<{ email: string; tempPassword?: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyPassword = async () => {
+    if (!createdEmployee?.tempPassword) return;
+    const success = await copyToClipboard(createdEmployee.tempPassword);
+    if (success) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   useEffect(() => {
     if (editId) {
@@ -229,20 +242,31 @@ export default function CreateEmployeeScreen() {
     }));
 
     try {
+      let response;
       if (isEditing) {
-        await apiService.updateEmployee(editId!, formData);
+        response = await apiService.updateEmployee(editId!, formData);
+        await refresh();
+        showToast({
+          title: "Employee Updated",
+          message: `${name} has been updated successfully.`,
+          type: "success"
+        });
+        router.back();
       } else {
-        await apiService.createEmployee(formData);
+        response = await apiService.createEmployee(formData);
+        await refresh();
+        const tempPassword = response.data?.temp_password;
+        if (tempPassword) {
+          setCreatedEmployee({ email, tempPassword });
+        } else {
+          showToast({
+            title: "Employee Created",
+            message: `${name} has been added successfully.`,
+            type: "success"
+          });
+          router.back();
+        }
       }
-      
-      await refresh();
-      
-      showToast({
-        title: isEditing ? "Employee Updated" : "Employee Created",
-        message: `${name} has been ${isEditing ? "updated" : "added"} successfully.`,
-        type: "success"
-      });
-      router.back();
     } catch (err) {
       console.error("Save failed:", err);
       Alert.alert("Error", "Failed to save employee data. Please try again.");
@@ -460,6 +484,79 @@ export default function CreateEmployeeScreen() {
           icon={step === STEPS.length - 1 ? <Feather name="check" size={16} color="#fff" /> : <Feather name="arrow-right" size={16} color="#fff" />}
         />
       </View>
+
+      {/* Success Modal for Temporary Password */}
+      <Modal
+        visible={createdEmployee !== null}
+        transparent
+        animationType="fade"
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[styles.successIconCircle, { backgroundColor: colors.accent + "1A" }]}>
+              <Feather name="check-circle" size={40} color={colors.accent} />
+            </View>
+            <Text style={[styles.modalTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+              Employee Created!
+            </Text>
+            <Text style={[styles.modalSubtitle, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              An account has been automatically created for the employee. Share these login details with them:
+            </Text>
+
+            <View style={[styles.detailsContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
+              <View style={styles.detailRow}>
+                <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>EMAIL</Text>
+                <Text style={[styles.detailValue, { color: colors.foreground }]} selectable>{createdEmployee?.email}</Text>
+              </View>
+              <View style={[styles.detailDivider, { backgroundColor: colors.border }]} />
+              <View style={styles.detailRow}>
+                <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>TEMPORARY PASSWORD</Text>
+                <View style={styles.passwordCopyRow}>
+                  <Text style={[styles.detailValue, styles.passwordValue, { color: colors.foreground }]} selectable>
+                    {createdEmployee?.tempPassword}
+                  </Text>
+                  <Pressable
+                    onPress={handleCopyPassword}
+                    style={({ pressed }) => [
+                      styles.copyBtn,
+                      {
+                        backgroundColor: copied ? colors.accent + "1A" : colors.border + "4D",
+                        borderColor: copied ? colors.accent : colors.border,
+                        opacity: pressed ? 0.7 : 1,
+                      }
+                    ]}
+                  >
+                    <Feather name={copied ? "check" : "copy"} size={14} color={copied ? colors.accent : colors.foreground} />
+                    <Text style={[styles.copyBtnText, { color: copied ? colors.accent : colors.foreground }]}>
+                      {copied ? "Copied" : "Copy"}
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+
+            <Text style={[styles.infoNote, { color: colors.mutedForeground }]}>
+              Note: The employee will be prompted to set a new password upon logging in.
+            </Text>
+
+            <Pressable
+              onPress={() => {
+                setCreatedEmployee(null);
+                router.back();
+              }}
+              style={({ pressed }) => [
+                styles.modalDoneBtn,
+                {
+                  backgroundColor: colors.accent,
+                  opacity: pressed ? 0.9 : 1,
+                }
+              ]}
+            >
+              <Text style={styles.modalDoneBtnText}>Done</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -590,4 +687,129 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  modalContent: {
+    width: "100%",
+    maxWidth: 400,
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: 24,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 8,
+  },
+  successIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  detailsContainer: {
+    width: "100%",
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    gap: 12,
+    marginBottom: 16,
+  },
+  detailRow: {
+    gap: 4,
+  },
+  detailLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.5,
+  },
+  detailValue: {
+    fontSize: 15,
+    fontWeight: "500",
+  },
+  detailDivider: {
+    height: 1,
+    width: "100%",
+  },
+  passwordCopyRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+  },
+  passwordValue: {
+    flex: 1,
+    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
+    fontSize: 16,
+    letterSpacing: 0.5,
+  },
+  copyBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  copyBtnText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  infoNote: {
+    fontSize: 12,
+    textAlign: "center",
+    lineHeight: 18,
+    marginBottom: 24,
+    paddingHorizontal: 8,
+  },
+  modalDoneBtn: {
+    width: "100%",
+    height: 48,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalDoneBtnText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
 });
+
+const copyToClipboard = async (text: string) => {
+  if (Platform.OS === 'web') {
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } else {
+    try {
+      const { Clipboard } = require('react-native');
+      Clipboard.setString(text);
+      return true;
+    } catch (e) {
+      console.warn("Clipboard copy failed", e);
+    }
+  }
+  return false;
+};

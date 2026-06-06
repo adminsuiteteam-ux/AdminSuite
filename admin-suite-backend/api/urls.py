@@ -10,7 +10,8 @@ from .views import (
     verify_password_reset_code, confirm_password_reset,
     EmployeeActivityLogViewSet, EmployeeQueryViewSet, EmployeeTaskViewSet,
     EmployeeLeaveViewSet, EmployeeMessageViewSet, EmployeeDocumentViewSet,
-    SalaryAdjustmentViewSet, toggle_payroll_month
+    SalaryAdjustmentViewSet, toggle_payroll_month,
+    employee_dashboard, employee_finance, employee_update_task
 )
 
 router = DefaultRouter()
@@ -51,5 +52,9 @@ urlpatterns = [
     path('auth/password-reset/send-code/', send_password_reset_code, name='send_password_reset_code'),
     path('auth/password-reset/verify/', verify_password_reset_code, name='verify_password_reset_code'),
     path('auth/password-reset/confirm/', confirm_password_reset, name='confirm_password_reset'),
+    # Employee Portal
+    path('employee-portal/dashboard/', employee_dashboard, name='employee-dashboard'),
+    path('employee-portal/finance/', employee_finance, name='employee-finance'),
+    path('employee-portal/tasks/<int:pk>/update/', employee_update_task, name='employee-update-task'),
     path('export/', export_data, name='export-data'),
 ]

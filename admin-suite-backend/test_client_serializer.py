@@ -21,8 +21,9 @@ payload = {
     'coords': {'lat': 0, 'lng': 0}
 }
 
-serializer = ClientSerializer(data=payload)
-is_valid = serializer.is_valid()
-print("Is valid:", is_valid)
-if not is_valid:
-    print("Errors:", serializer.errors)
+if __name__ == '__main__':
+    serializer = ClientSerializer(data=payload)
+    is_valid = serializer.is_valid()
+    print("Is valid:", is_valid)
+    if not is_valid:
+        print("Errors:", serializer.errors)

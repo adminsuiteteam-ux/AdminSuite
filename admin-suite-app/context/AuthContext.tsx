@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as SecureStore from "expo-secure-store";
+import * as SecureStore from "@/services/storage";
 import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { supabase } from "@/services/supabase";
 import { apiService, resolveBackendUrl } from "@/services/api";
@@ -15,6 +15,8 @@ export type User = {
   role: string;
   initials: string;
   profile_complete: boolean;
+  is_first_login?: boolean;
+  employee_id?: number | null;
   location?: string;
   phone?: string;
   bio?: string;
