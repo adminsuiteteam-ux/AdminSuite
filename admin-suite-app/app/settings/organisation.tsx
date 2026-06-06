@@ -42,7 +42,7 @@ export default function OrganisationSettingsScreen() {
   const [closingTime, setClosingTime] = useState(user?.closing_time || "");
   const [workingDays, setWorkingDays] = useState(user?.working_days || "");
   const [averageRevenue, setAverageRevenue] = useState(user?.average_revenue || "");
-  const [logoUri, setLogoUri] = useState<string | null>(user?.company_logo || null);
+  const [logoUri, setLogoUri] = useState<string | null>(user?.company_logo ? getMediaUrl(user.company_logo) : null);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -230,7 +230,7 @@ export default function OrganisationSettingsScreen() {
         <View style={styles.logoSection}>
           <Pressable onPress={pickLogo} style={[styles.logoOutline, { borderColor: colors.primary }]}>
             {logoUri ? (
-              <Image source={{ uri: logoUri.startsWith("http") ? logoUri : logoUri }} style={styles.logoImg} />
+              <Image source={{ uri: getMediaUrl(logoUri) }} style={styles.logoImg} />
             ) : (
               <View style={[styles.logoPlaceholder, { backgroundColor: colors.muted }]}>
                 <Feather name="camera" size={24} color={colors.mutedForeground} />

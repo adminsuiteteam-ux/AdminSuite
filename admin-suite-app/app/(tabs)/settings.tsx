@@ -24,7 +24,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@/context/AuthContext";
 import { useData } from "@/context/DataContext";
 import { useColors } from "@/hooks/useColors";
-import { apiService, BASE_URL } from "@/services/api";
+import { apiService, BASE_URL, getMediaUrl } from "@/services/api";
 import ExportBrandingModal from "@/components/ExportBrandingModal";
 
 export default function MoreHubScreen() {
@@ -107,7 +107,7 @@ export default function MoreHubScreen() {
             >
               <View style={[styles.gridIconWrap, { backgroundColor: "#8b5cf61A" }]}>
                 {user?.avatar ? (
-                  <Image source={{ uri: user.avatar }} style={styles.avatarImg} />
+                  <Image source={{ uri: getMediaUrl(user.avatar) }} style={styles.avatarImg} />
                 ) : (
                   <Text style={{ color: "#8b5cf6", fontSize: 14, fontFamily: "Inter_700Bold" }}>
                     {user?.initials || "US"}

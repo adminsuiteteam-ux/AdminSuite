@@ -26,7 +26,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useData } from "@/context/DataContext";
 import { useColors } from "@/hooks/useColors";
 import { useToast } from "@/context/ToastContext";
-import { apiService, BASE_URL, appendFileToFormData } from "@/services/api";
+import { apiService, BASE_URL, appendFileToFormData, getMediaUrl } from "@/services/api";
 import ExportBrandingModal from "@/components/ExportBrandingModal";
 
 export default function UserProfileDetailScreen() {
@@ -150,7 +150,7 @@ export default function UserProfileDetailScreen() {
             <View style={styles.profileHeaderRow}>
               <View style={[styles.avatarWrap, { backgroundColor: "rgba(255,255,255,0.2)", justifyContent: "center", alignItems: "center" }]}>
                 {user?.avatar ? (
-                  <Image source={{ uri: user.avatar }} style={styles.avatarImg} />
+                  <Image source={{ uri: getMediaUrl(user.avatar) }} style={styles.avatarImg} />
                 ) : (
                   <Text style={{ color: "#fff", fontSize: 24, fontFamily: "Inter_700Bold" }}>
                     {user?.initials || "US"}
@@ -172,7 +172,7 @@ export default function UserProfileDetailScreen() {
                   setEditPhone(user?.phone || "");
                   setEditBio(user?.bio || "");
                   setEditSocialLink(user?.social_link || "");
-                  setPhotoUri(user?.avatar || null);
+                  setPhotoUri(user?.avatar ? getMediaUrl(user.avatar) : null);
                   setEditError("");
                   setEditOpen(true);
                 }}

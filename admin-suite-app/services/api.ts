@@ -23,6 +23,16 @@ const API_URL = `${activeBaseUrl}api/`;
 
 export const getMediaUrl = (path: string | null) => {
   if (!path) return "https://i.pravatar.cc/300";
+  if (
+    path.startsWith("file://") ||
+    path.startsWith("content://") ||
+    path.startsWith("ph://") ||
+    path.startsWith("assets-library://") ||
+    path.startsWith("blob:") ||
+    path.startsWith("data:")
+  ) {
+    return path;
+  }
   let finalPath = path;
   if (path.startsWith("http")) {
     const match = path.match(/^https?:\/\/(localhost|127\.0\.0\.1):8000\/(.*)$/);

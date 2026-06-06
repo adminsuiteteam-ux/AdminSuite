@@ -21,7 +21,7 @@ import { PrimaryButton } from "@/components/PrimaryButton";
 import { useData } from "@/context/DataContext";
 import { useColors } from "@/hooks/useColors";
 import { useToast } from "@/context/ToastContext";
-import { apiService, appendFileToFormData } from "@/services/api";
+import { apiService, appendFileToFormData, getMediaUrl } from "@/services/api";
 
 const STEPS = [
   { title: "Basic Info", subtitle: "Name, role & department" },
@@ -151,7 +151,7 @@ export default function CreateEmployeeScreen() {
           setShares(emp.finance.shares ? emp.finance.shares.toString() : "");
         }
 
-        setPhotoUri(emp.avatar || null);
+        setPhotoUri(emp.avatar ? getMediaUrl(emp.avatar) : null);
       }
     }
   }, [editId, employees]);
@@ -443,7 +443,7 @@ export default function CreateEmployeeScreen() {
               ]}
             >
               {photoUri ? (
-                <Image source={{ uri: photoUri }} style={styles.photoImage} />
+                <Image source={{ uri: getMediaUrl(photoUri) }} style={styles.photoImage} />
               ) : (
                 <View style={{ alignItems: "center", gap: 8 }}>
                   <Feather name="camera" size={32} color={colors.mutedForeground} />
