@@ -26,7 +26,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useData } from "@/context/DataContext";
 import { useColors } from "@/hooks/useColors";
 import { useToast } from "@/context/ToastContext";
-import { apiService, BASE_URL } from "@/services/api";
+import { apiService, BASE_URL, appendFileToFormData } from "@/services/api";
 import ExportBrandingModal from "@/components/ExportBrandingModal";
 
 export default function UserProfileDetailScreen() {
@@ -76,17 +76,7 @@ export default function UserProfileDetailScreen() {
       formData.append("bio", editBio.trim());
       formData.append("social_link", editSocialLink.trim());
 
-      if (photoUri && !photoUri.startsWith("http")) {
-        const filename = photoUri.split("/").pop();
-        const match = /\.(\w+)$/.exec(filename || "");
-        const type = match ? `image/${match[1]}` : `image`;
-        
-        formData.append("avatar", {
-          uri: photoUri,
-          name: filename,
-          type,
-        } as any);
-      }
+      await appendFileToFormData(formData, "avatar", photoUri);
 
       const res = await apiService.updateMe(formData);
       if (user) {

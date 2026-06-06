@@ -154,13 +154,13 @@ export default function SplashGate() {
       Animated.parallel([
         Animated.timing(exitOpacity, {
           toValue: 0,
-          duration: 400,
+          duration: 300,
           useNativeDriver: true,
           easing: Easing.out(Easing.ease),
         }),
         Animated.timing(exitScale, {
           toValue: 1.06,
-          duration: 400,
+          duration: 300,
           useNativeDriver: true,
           easing: Easing.out(Easing.ease),
         }),
@@ -184,7 +184,7 @@ export default function SplashGate() {
           router.replace("/(tabs)");
         }
       });
-    }, 1900);
+    }, 400);
     return () => clearTimeout(t);
   }, [loading, user, tourComplete, biometricsEnabled, suspendedUntil]);
 

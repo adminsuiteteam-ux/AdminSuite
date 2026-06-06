@@ -21,7 +21,7 @@ import { PrimaryButton } from "@/components/PrimaryButton";
 import { useData } from "@/context/DataContext";
 import { useColors } from "@/hooks/useColors";
 import { useToast } from "@/context/ToastContext";
-import { apiService } from "@/services/api";
+import { apiService, appendFileToFormData } from "@/services/api";
 
 const STEPS = [
   { title: "Basic Info", subtitle: "Name, role & department" },
@@ -220,17 +220,7 @@ export default function CreateEmployeeScreen() {
     };
     formData.append("socials", JSON.stringify(socials));
 
-    if (photoUri && !photoUri.startsWith("http")) {
-      const filename = photoUri.split("/").pop();
-      const match = /\.(\w+)$/.exec(filename || "");
-      const type = match ? `image/${match[1]}` : `image`;
-      
-      formData.append("avatar", {
-        uri: photoUri,
-        name: filename,
-        type,
-      } as any);
-    }
+    await appendFileToFormData(formData, "avatar", photoUri);
 
     // Since EmployeeFinance is a separate model, the backend serializer might need adjustment
     // but for now we'll pass the financial fields if the serializer supports them

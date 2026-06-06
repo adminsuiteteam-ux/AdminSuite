@@ -23,10 +23,42 @@ const API_URL = `${activeBaseUrl}api/`;
 
 export const getMediaUrl = (path: string | null) => {
   if (!path) return "https://i.pravatar.cc/300";
-  if (path.startsWith("http")) return path;
+  let finalPath = path;
+  if (path.startsWith("http")) {
+    const match = path.match(/^https?:\/\/(localhost|127\.0\.0\.1):8000\/(.*)$/);
+    if (match) {
+      finalPath = match[2];
+    } else {
+      return path;
+    }
+  }
   // Ensure we don't double slash
-  const cleanPath = path.startsWith("/") ? path.slice(1) : path;
+  const cleanPath = finalPath.startsWith("/") ? finalPath.slice(1) : finalPath;
   return `${activeBaseUrl}${cleanPath}`;
+};
+
+export const appendFileToFormData = async (formData: FormData, fieldName: string, uri: string | null) => {
+  if (!uri || uri.startsWith("http")) return;
+  
+  if (Platform.OS === 'web') {
+    try {
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      const filename = uri.split("/").pop() || "upload.jpg";
+      formData.append(fieldName, blob, filename);
+    } catch (e) {
+      console.error(`Failed to append web file for ${fieldName}`, e);
+    }
+  } else {
+    const filename = uri.split("/").pop();
+    const match = /\.(\w+)$/.exec(filename || "");
+    const type = match ? `image/${match[1]}` : `image`;
+    formData.append(fieldName, {
+      uri,
+      name: filename,
+      type,
+    } as any);
+  }
 };
 
 let unauthorizedCallback: (() => void) | null = null;
@@ -78,15 +110,20 @@ const pingUrl = async (url: string): Promise<boolean> => {
 };
 
 export const resolveBackendUrl = async () => {
-  for (const candidate of CANDIDATES) {
+  const pingPromises = CANDIDATES.map(async (candidate) => {
     const ok = await pingUrl(candidate);
-    if (ok) {
-      const cleanBase = candidate.endsWith('/') ? candidate : `${candidate}/`;
-      activeBaseUrl = cleanBase;
-      apiClient.defaults.baseURL = `${cleanBase}api/`;
-      console.log(`[API] Dynamic backend URL resolved to: ${apiClient.defaults.baseURL}`);
-      return candidate;
-    }
+    return { candidate, ok };
+  });
+
+  const results = await Promise.all(pingPromises);
+  const successful = results.find(r => r.ok);
+  if (successful) {
+    const candidate = successful.candidate;
+    const cleanBase = candidate.endsWith('/') ? candidate : `${candidate}/`;
+    activeBaseUrl = cleanBase;
+    apiClient.defaults.baseURL = `${cleanBase}api/`;
+    console.log(`[API] Dynamic backend URL resolved to: ${apiClient.defaults.baseURL}`);
+    return candidate;
   }
   console.warn(`[API] No dynamic backend candidate responded. Retaining base: ${apiClient.defaults.baseURL}`);
   return null;

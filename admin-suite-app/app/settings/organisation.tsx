@@ -20,7 +20,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { useToast } from "@/context/ToastContext";
-import { apiService, getMediaUrl } from "@/services/api";
+import { apiService, getMediaUrl, appendFileToFormData } from "@/services/api";
 
 export default function OrganisationSettingsScreen() {
   const colors = useColors();
@@ -88,16 +88,7 @@ export default function OrganisationSettingsScreen() {
       formData.append("working_days", workingDays.trim());
       formData.append("average_revenue", averageRevenue.trim());
 
-      if (logoUri && !logoUri.startsWith("http")) {
-        const filename = logoUri.split("/").pop();
-        const match = /\.(\w+)$/.exec(filename || "");
-        const type = match ? `image/${match[1]}` : `image`;
-        formData.append("company_logo", {
-          uri: logoUri,
-          name: filename,
-          type,
-        } as any);
-      }
+      await appendFileToFormData(formData, "company_logo", logoUri);
 
       const res = await apiService.updateMe(formData);
       if (user) {

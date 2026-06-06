@@ -24,7 +24,7 @@ import { PrimaryButton } from "@/components/PrimaryButton";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { useSettings } from "@/context/SettingsContext";
-import { apiService } from "@/services/api";
+import { apiService, appendFileToFormData } from "@/services/api";
 
 const { width } = Dimensions.get("window");
 
@@ -259,27 +259,8 @@ export default function CompleteProfileScreen() {
       formData.append("working_days", workingDays.join(","));
       formData.append("average_revenue", averageRevenue);
 
-      if (avatarUri) {
-        const filename = avatarUri.split("/").pop() || "avatar.jpg";
-        const match = /\.(\w+)$/.exec(filename);
-        const type = match ? `image/${match[1]}` : "image/jpeg";
-        formData.append("avatar", {
-          uri: avatarUri,
-          name: filename,
-          type,
-        } as any);
-      }
-
-      if (companyLogoUri) {
-        const filename = companyLogoUri.split("/").pop() || "company_logo.jpg";
-        const match = /\.(\w+)$/.exec(filename);
-        const type = match ? `image/${match[1]}` : "image/jpeg";
-        formData.append("company_logo", {
-          uri: companyLogoUri,
-          name: filename,
-          type,
-        } as any);
-      }
+      await appendFileToFormData(formData, "avatar", avatarUri);
+      await appendFileToFormData(formData, "company_logo", companyLogoUri);
 
       const res = await apiService.updateMe(formData);
 

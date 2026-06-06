@@ -383,12 +383,16 @@ export default function EmployeeDetailScreen() {
     formData.append("name", docName);
     formData.append("document_type", docType);
     
-    // In real app, standard document picker is used. Here, we submit a mock text file.
-    formData.append("file", {
-      uri: Platform.OS === "android" ? "file:///data/user/0/mock.txt" : "file:///mock.txt",
-      name: docFileSelected || `${docName.replace(/\s+/g, "_").toLowerCase()}.pdf`,
-      type: "application/pdf"
-    } as any);
+    if (Platform.OS === "web") {
+      const blob = new Blob(["mock content"], { type: "application/pdf" });
+      formData.append("file", blob, docFileSelected || `${docName.replace(/\s+/g, "_").toLowerCase()}.pdf`);
+    } else {
+      formData.append("file", {
+        uri: Platform.OS === "android" ? "file:///data/user/0/mock.txt" : "file:///mock.txt",
+        name: docFileSelected || `${docName.replace(/\s+/g, "_").toLowerCase()}.pdf`,
+        type: "application/pdf"
+      } as any);
+    }
 
     try {
       setSubmitting(true);
