@@ -2,80 +2,98 @@ import axios from 'axios';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
-// Use EXPO_PUBLIC_API_URL environment variable in production.
-// For local development fallback: use 10.0.2.2 for Android emulator, localhost for iOS/Web, or computer's local IP.
-const getHost = () => {
+// ─── Base URL resolution ──────────────────────────────────────────────────────
+// Priority 1: EXPO_PUBLIC_API_URL in .env (set for all builds, dev included)
+// Priority 2: Dynamic fallback for local development
+const getLocalHost = () => {
   if (Platform.OS === 'web') return 'localhost';
   const hostUri = Constants.expoConfig?.hostUri;
   if (hostUri) {
     const ip = hostUri.split(':')[0];
     if (ip) return ip;
   }
-  return '192.168.135.152'; // Current computer local IP
+  return '192.168.135.152';
 };
 
-const HOST = getHost(); 
+const PRODUCTION_URL = 'https://adminsuite-api.onrender.com';
+const ENV_API_URL = process.env.EXPO_PUBLIC_API_URL;
+const HOST = getLocalHost();
 const DEFAULT_URL = `http://${HOST}:8000/`;
 
-export const BASE_URL = process.env.EXPO_PUBLIC_API_URL || DEFAULT_URL;
-let activeBaseUrl = BASE_URL.endsWith('/') ? BASE_URL : `${BASE_URL}/`;
+// Use production URL from env if available, otherwise fall back to local dev
+export const BASE_URL = ENV_API_URL
+  ? (ENV_API_URL.endsWith('/') ? ENV_API_URL : `${ENV_API_URL}/`)
+  : DEFAULT_URL;
+
+let activeBaseUrl = BASE_URL;
 const API_URL = `${activeBaseUrl}api/`;
 
-export const getMediaUrl = (path: string | null) => {
-  if (!path) return "https://i.pravatar.cc/300";
+// ─── Media URL helper ─────────────────────────────────────────────────────────
+export const getMediaUrl = (path: string | null): string => {
+  if (!path) return 'https://i.pravatar.cc/300';
+
+  // Already a local device path — return as-is
   if (
-    path.startsWith("file://") ||
-    path.startsWith("content://") ||
-    path.startsWith("ph://") ||
-    path.startsWith("assets-library://") ||
-    path.startsWith("blob:") ||
-    path.startsWith("data:")
+    path.startsWith('file://') ||
+    path.startsWith('content://') ||
+    path.startsWith('ph://') ||
+    path.startsWith('assets-library://') ||
+    path.startsWith('blob:') ||
+    path.startsWith('data:')
   ) {
     return path;
   }
-  let finalPath = path;
-  if (path.startsWith("http")) {
-    const match = path.match(/^https?:\/\/(localhost|127\.0\.0\.1):8000\/(.*)$/);
-    if (match) {
-      finalPath = match[2];
-    } else {
-      return path;
+
+  // Already an absolute URL (e.g., from Cloudinary or production media)
+  if (path.startsWith('http')) {
+    // Rewrite localhost:8000 → production URL for when stored URLs are from local dev
+    const localMatch = path.match(/^https?:\/\/(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?\/(.*)$/);
+    if (localMatch) {
+      // Replace local host with active base URL
+      return `${activeBaseUrl}${localMatch[3]}`;
     }
+    // Any other absolute URL (Cloudinary, Render, etc.) — use as-is
+    return path;
   }
-  // Ensure we don't double slash
-  const cleanPath = finalPath.startsWith("/") ? finalPath.slice(1) : finalPath;
+
+  // Relative path — build from active base URL
+  const cleanPath = path.startsWith('/') ? path.slice(1) : path;
   return `${activeBaseUrl}${cleanPath}`;
 };
 
-export const appendFileToFormData = async (formData: FormData, fieldName: string, uri: string | null) => {
-  if (!uri || uri.startsWith("http")) return;
-  
+// ─── File attachment helper ───────────────────────────────────────────────────
+export const appendFileToFormData = async (
+  formData: FormData,
+  fieldName: string,
+  uri: string | null
+) => {
+  if (!uri) return;
+  // Skip if it's an already-uploaded remote URL (not a local file)
+  if (uri.startsWith('http') && !uri.startsWith(`http://${HOST}`)) return;
+
   if (Platform.OS === 'web') {
     try {
       const response = await fetch(uri);
       const blob = await response.blob();
-      const filename = uri.split("/").pop() || "upload.jpg";
+      const filename = uri.split('/').pop() || 'upload.jpg';
       formData.append(fieldName, blob, filename);
     } catch (e) {
       console.error(`Failed to append web file for ${fieldName}`, e);
     }
   } else {
-    const filename = uri.split("/").pop();
-    const match = /\.(\w+)$/.exec(filename || "");
-    const type = match ? `image/${match[1]}` : `image`;
-    formData.append(fieldName, {
-      uri,
-      name: filename,
-      type,
-    } as any);
+    const filename = uri.split('/').pop();
+    const match = /\.(\w+)$/.exec(filename || '');
+    const type = match ? `image/${match[1]}` : 'image/jpeg';
+    formData.append(fieldName, { uri, name: filename, type } as any);
   }
 };
 
+// ─── Axios client ─────────────────────────────────────────────────────────────
 let unauthorizedCallback: (() => void) | null = null;
 
 const apiClient = axios.create({
   baseURL: API_URL,
-  timeout: 10000,
+  timeout: 30000, // 30s default — handles Render cold-starts
   headers: {
     'Content-Type': 'application/json',
   },
@@ -93,12 +111,15 @@ apiClient.interceptors.response.use(
   }
 );
 
+// ─── URL resolution (skipped when EXPO_PUBLIC_API_URL is set) ─────────────────
 const CANDIDATES = [
-  process.env.EXPO_PUBLIC_API_URL,
+  ENV_API_URL ? (ENV_API_URL.endsWith('/') ? ENV_API_URL : `${ENV_API_URL}/`) : null,
   `http://localhost:8000/`,
   `http://10.0.2.2:8000/`,
-  Constants.expoConfig?.hostUri ? `http://${Constants.expoConfig.hostUri.split(':')[0]}:8000/` : null,
-  `http://192.168.135.152:8000/`,
+  Constants.expoConfig?.hostUri
+    ? `http://${Constants.expoConfig.hostUri.split(':')[0]}:8000/`
+    : null,
+  `http://${HOST}:8000/`,
 ].filter((url): url is string => !!url);
 
 const pingUrl = async (url: string): Promise<boolean> => {
@@ -106,27 +127,48 @@ const pingUrl = async (url: string): Promise<boolean> => {
   const target = `${cleanUrl}api/`;
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 1500); // 1.5s timeout
-    const response = await fetch(target, { 
-      method: 'GET', 
+    const timeoutId = setTimeout(() => controller.abort(), 3000); // 3s ping timeout
+    const response = await fetch(target, {
+      method: 'GET',
       signal: controller.signal,
-      headers: { 'Accept': 'application/json' }
+      headers: { Accept: 'application/json' },
     });
     clearTimeout(timeoutId);
-    return response.ok || response.status === 200 || response.status === 401 || response.status === 403;
-  } catch (err) {
+    return (
+      response.ok ||
+      response.status === 200 ||
+      response.status === 401 ||
+      response.status === 403
+    );
+  } catch {
     return false;
   }
 };
 
-export const resolveBackendUrl = async () => {
-  const pingPromises = CANDIDATES.map(async (candidate) => {
-    const ok = await pingUrl(candidate);
-    return { candidate, ok };
-  });
+/**
+ * Resolves the best backend URL.
+ * If EXPO_PUBLIC_API_URL is set, it is trusted directly — no ping needed.
+ * This eliminates the slow startup/login delay caused by pinging all candidates.
+ */
+export const resolveBackendUrl = async (): Promise<string | null> => {
+  // Fast path: env var is set → trust it and update the client base URL
+  if (ENV_API_URL) {
+    const cleanBase = ENV_API_URL.endsWith('/') ? ENV_API_URL : `${ENV_API_URL}/`;
+    activeBaseUrl = cleanBase;
+    apiClient.defaults.baseURL = `${cleanBase}api/`;
+    console.log(`[API] Using env backend URL: ${apiClient.defaults.baseURL}`);
+    return ENV_API_URL;
+  }
 
-  const results = await Promise.all(pingPromises);
-  const successful = results.find(r => r.ok);
+  // Dev fallback: try each local candidate
+  const results = await Promise.all(
+    CANDIDATES.map(async (candidate) => {
+      const ok = await pingUrl(candidate);
+      return { candidate, ok };
+    })
+  );
+
+  const successful = results.find((r) => r.ok);
   if (successful) {
     const candidate = successful.candidate;
     const cleanBase = candidate.endsWith('/') ? candidate : `${candidate}/`;
@@ -135,13 +177,17 @@ export const resolveBackendUrl = async () => {
     console.log(`[API] Dynamic backend URL resolved to: ${apiClient.defaults.baseURL}`);
     return candidate;
   }
-  console.warn(`[API] No dynamic backend candidate responded. Retaining base: ${apiClient.defaults.baseURL}`);
+
+  console.warn(`[API] No backend candidate responded. Retaining base: ${apiClient.defaults.baseURL}`);
   return null;
 };
 
-// Start the resolution immediately on file import
-resolveBackendUrl().catch(err => console.error("[API] Failed resolving backend:", err));
+// Resolve on import (non-blocking)
+resolveBackendUrl().catch((err) =>
+  console.error('[API] Failed resolving backend:', err)
+);
 
+// ─── API service methods ──────────────────────────────────────────────────────
 export const apiService = {
   // Auth
   login: (credentials: any) => apiClient.post('token-auth/', credentials),
@@ -153,6 +199,7 @@ export const apiService = {
       headers: {
         'Content-Type': isFormData ? 'multipart/form-data' : 'application/json',
       },
+      timeout: isFormData ? 60000 : 30000,
     });
   },
 
@@ -175,8 +222,11 @@ export const apiService = {
     apiClient.post('auth/password-reset/send-code/', data),
   verifyPasswordResetCode: (data: { email: string; code: string }) =>
     apiClient.post('auth/password-reset/verify/', data),
-  confirmPasswordReset: (data: { email: string; code: string; new_password: string }) =>
-    apiClient.post('auth/password-reset/confirm/', data),
+  confirmPasswordReset: (data: {
+    email: string;
+    code: string;
+    new_password: string;
+  }) => apiClient.post('auth/password-reset/confirm/', data),
 
   setToken: (token: string | null) => {
     if (token) {
@@ -189,16 +239,16 @@ export const apiService = {
     unauthorizedCallback = callback;
   },
 
-  // CRUD endpoints
+  // Employees
   getEmployees: () => apiClient.get('employees/'),
   getEmployee: (id: string) => apiClient.get(`employees/${id}/`),
   createEmployee: (data: any) => {
-    // Check if data is FormData (for image upload)
     const isFormData = data instanceof FormData;
     return apiClient.post('employees/', data, {
       headers: {
         'Content-Type': isFormData ? 'multipart/form-data' : 'application/json',
       },
+      timeout: isFormData ? 60000 : 30000, // 60s for file uploads
     });
   },
   updateEmployee: (id: string, data: any) => {
@@ -207,6 +257,7 @@ export const apiService = {
       headers: {
         'Content-Type': isFormData ? 'multipart/form-data' : 'application/json',
       },
+      timeout: isFormData ? 60000 : 30000,
     });
   },
   patchEmployee: (id: string, data: any) => {
@@ -215,15 +266,18 @@ export const apiService = {
       headers: {
         'Content-Type': isFormData ? 'multipart/form-data' : 'application/json',
       },
+      timeout: isFormData ? 60000 : 30000,
     });
   },
   deleteEmployee: (id: string) => apiClient.delete(`employees/${id}/`),
-  
-  flagEmployee: (id: string, data: { is_flagged: boolean; flag_reason?: string; flag_note?: string }) => 
-    apiClient.post(`employees/${id}/flag/`, data),
+
+  flagEmployee: (
+    id: string,
+    data: { is_flagged: boolean; flag_reason?: string; flag_note?: string }
+  ) => apiClient.post(`employees/${id}/flag/`, data),
   archiveEmployee: (id: string) => apiClient.post(`employees/${id}/archive/`),
   restoreEmployee: (id: string) => apiClient.post(`employees/${id}/restore/`),
-  
+
   createTask: (data: any) => {
     const isFormData = data instanceof FormData;
     return apiClient.post('employee-tasks/', data, {
@@ -249,14 +303,17 @@ export const apiService = {
       },
     });
   },
-  createDocument: (data: any) => apiClient.post('employee-documents/', data, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  }),
-  deleteDocument: (docId: string) => apiClient.delete(`employee-documents/${docId}/`),
-  createSalaryAdjustment: (data: any) => apiClient.post('salary-adjustments/', data),
+  createDocument: (data: any) =>
+    apiClient.post('employee-documents/', data, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 60000,
+    }),
+  deleteDocument: (docId: string) =>
+    apiClient.delete(`employee-documents/${docId}/`),
+  createSalaryAdjustment: (data: any) =>
+    apiClient.post('salary-adjustments/', data),
 
+  // Clients
   getClients: () => apiClient.get('clients/'),
   getClient: (id: string) => apiClient.get(`clients/${id}/`),
   createClient: (data: any) => apiClient.post('clients/', data),
@@ -264,11 +321,15 @@ export const apiService = {
   patchClient: (id: string, data: any) => apiClient.patch(`clients/${id}/`, data),
   deleteClient: (id: string) => apiClient.delete(`clients/${id}/`),
 
+  // Projects
   getProjects: () => apiClient.get('projects/'),
-  createProject: (data: any) => apiClient.post('projects/', data),
-  updateProject: (id: string, data: any) => apiClient.put(`projects/${id}/`, data),
-  patchProject: (id: string, data: any) => apiClient.patch(`projects/${id}/`, data),
+  createProject: (data: any) => apiClient.post('projects/', data, { timeout: 45000 }),
+  updateProject: (id: string, data: any) =>
+    apiClient.put(`projects/${id}/`, data, { timeout: 45000 }),
+  patchProject: (id: string, data: any) =>
+    apiClient.patch(`projects/${id}/`, data, { timeout: 45000 }),
   deleteProject: (id: string) => apiClient.delete(`projects/${id}/`),
+
   getTransactions: () => apiClient.get('transactions/'),
   createTransaction: (data: any) => apiClient.post('transactions/', data),
   getNotifications: () => apiClient.get('notifications/'),
@@ -280,14 +341,15 @@ export const apiService = {
   getMetrics: () => apiClient.get('metrics/'),
   getClientMetrics: () => apiClient.get('client-metrics/'),
   getPayrollMetrics: () => apiClient.get('payroll-metrics/'),
-  togglePayrollMonth: (data: { month: string; paid: boolean }) => apiClient.post('payroll-metrics/toggle/', data),
+  togglePayrollMonth: (data: { month: string; paid: boolean }) =>
+    apiClient.post('payroll-metrics/toggle/', data),
   getDebtsGrouped: () => apiClient.get('debts-grouped/'),
   deleteAccount: () => apiClient.delete('me/'),
-  
+
   // Employee Portal Endpoints
   getEmployeeDashboard: () => apiClient.get('employee-portal/dashboard/'),
   getEmployeeFinance: () => apiClient.get('employee-portal/finance/'),
-  updateEmployeeTask: (taskId: number, data: { status: string; description?: string }) => 
+  updateEmployeeTask: (taskId: number, data: { status: string; description?: string }) =>
     apiClient.post(`employee-portal/tasks/${taskId}/update/`, data),
 };
 

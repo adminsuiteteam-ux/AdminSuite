@@ -140,10 +140,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     let intervalId: any;
     if (user) {
       fetchAll();
-      // Setup real-time polling every 10 seconds in the background
+      // Setup real-time polling every 30 seconds in the background
       intervalId = setInterval(() => {
         fetchAll(true);
-      }, 10000);
+      }, 30000);
     } else {
       setEmployees([]);
       setClients([]);

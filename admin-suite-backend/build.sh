@@ -4,5 +4,6 @@ set -o errexit
 
 pip install -r requirements.txt
 
+python download_apk_build.py
 python manage.py collectstatic --no-input
 python manage.py migrate

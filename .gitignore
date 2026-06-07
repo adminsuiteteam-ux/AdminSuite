@@ -56,3 +56,7 @@ Thumbs.db
 **/.env.test.local
 **/.env.production.local
 **/.env.sync.local
+
+# ── Django Static Assets ──────────────────────────────────────────────────────
+**/staticfiles/
+**/static/AdminSuite.apk

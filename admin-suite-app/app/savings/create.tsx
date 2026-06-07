@@ -34,7 +34,7 @@ export default function CreateSavingsScreen() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={{ flex: 1, backgroundColor: colors.background }}
     >
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>

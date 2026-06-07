@@ -3,6 +3,8 @@ import { FeatureCarousel } from './components/ui/feature-carousel';
 import { Footer2 as Footer } from './components/ui/shadcnblocks-com-footer2';
 import { StoryCard } from './components/ui/story-card';
 import { Button } from './components/ui/button';
+import { ParticleButton } from './components/ui/particle-button';
+import FlowArt, { FlowSection } from './components/ui/story-scroll';
 import { GlowCard } from './components/ui/spotlight-card';
 import { CircularTestimonials } from './components/ui/circular-testimonials';
 import { TextRevealByWord } from './components/ui/text-reveal';
@@ -14,9 +16,9 @@ import {
   Smartphone, 
   Cpu, 
   Database,
-  ArrowRight,
   Sparkles,
-  Mail
+  Mail,
+  Download
 } from 'lucide-react';
 
 export default function App() {
@@ -48,6 +50,146 @@ export default function App() {
     <div className="relative min-h-screen bg-white dark:bg-black text-zinc-900 dark:text-white select-none transition-colors duration-300">
       {/* Dynamic Horizon Three.js & GSAP Parallax background Hero */}
       <HorizonHero />
+
+      {/* ── About Us — Vision & Mission (Story Scroll) ── */}
+      <div id="about-section">
+        <FlowArt aria-label="About AdminSuite">
+          <FlowSection aria-label="Who We Are" style={{ backgroundColor: '#0a0b14', color: '#fff' }}>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-indigo-300">01 — Who We Are</p>
+            <hr className="my-[2vw] border-none border-t border-white/10" />
+            <div>
+              <h2 className="text-[clamp(3.5rem,12vw,13rem)] font-black leading-[0.85] uppercase tracking-tight">
+                Built For
+                <br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-emerald-400">Leaders</span>
+              </h2>
+            </div>
+            <hr className="my-[2vw] border-none border-t border-white/10" />
+            <p className="mt-auto max-w-[55ch] text-[clamp(1rem,2.2vw,1.75rem)] font-normal leading-relaxed text-white/70">
+              AdminSuite is a full-stack business command centre designed for modern managers. We unify employee oversight, client management, and financial intelligence into one seamless, secure ecosystem — giving decision-makers the clarity they need to lead with confidence.
+            </p>
+          </FlowSection>
+
+          <FlowSection aria-label="Our Mission" style={{ backgroundColor: '#5e6ad2', color: '#fff' }}>
+            <p className="text-xs font-bold uppercase tracking-[0.2em]">02 — Our Mission</p>
+            <hr className="my-[2vw] border-none border-t border-white/30" />
+            <div>
+              <h2 className="text-[clamp(3.5rem,12vw,13rem)] font-black leading-[0.85] uppercase tracking-tight">
+                Clarity
+                <br />
+                In Every
+                <br />
+                Decision
+              </h2>
+            </div>
+            <hr className="my-[2vw] border-none border-t border-white/30" />
+            <p className="max-w-[55ch] text-[clamp(1rem,2.2vw,1.75rem)] font-normal leading-relaxed text-white/80">
+              Our mission is to eliminate the chaos of disconnected spreadsheets, siloed data, and manual reporting. AdminSuite delivers real-time visibility across your entire operation so that every leader — from team lead to CFO — can make faster, smarter decisions.
+            </p>
+            <hr className="my-[2vw] border-none border-t border-white/30" />
+            <div className="flex flex-wrap gap-[3vw]">
+              <div className="min-w-[180px] flex-1">
+                <p className="mb-2 text-sm font-bold uppercase tracking-wider">People First</p>
+                <p className="text-[clamp(0.85rem,1.3vw,1.05rem)] leading-relaxed opacity-75">
+                  Every feature is built around the humans who use it — intuitive interfaces, zero friction onboarding, and role-based access that makes sense from day one.
+                </p>
+              </div>
+              <div className="min-w-[180px] flex-1">
+                <p className="mb-2 text-sm font-bold uppercase tracking-wider">Data Integrity</p>
+                <p className="text-[clamp(0.85rem,1.3vw,1.05rem)] leading-relaxed opacity-75">
+                  Transactions, payroll, and client records are stored securely with end-to-end encryption and live Supabase synchronisation across all devices.
+                </p>
+              </div>
+              <div className="min-w-[180px] flex-1">
+                <p className="mb-2 text-sm font-bold uppercase tracking-wider">Operational Flow</p>
+                <p className="text-[clamp(0.85rem,1.3vw,1.05rem)] leading-relaxed opacity-75">
+                  From task assignment to invoice generation, every workflow is connected — no tab-switching, no manual reconciliation, no blind spots.
+                </p>
+              </div>
+            </div>
+          </FlowSection>
+
+          <FlowSection aria-label="Our Vision" style={{ backgroundColor: '#0d1117', color: '#fff' }}>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-400">03 — Our Vision</p>
+            <hr className="my-[2vw] border-none border-t border-white/10" />
+            <div>
+              <h2 className="text-[clamp(3.5rem,12vw,13rem)] font-black leading-[0.85] uppercase tracking-tight">
+                The Future
+                <br />
+                Of Work
+                <br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">Is Unified</span>
+              </h2>
+            </div>
+            <hr className="my-[2vw] border-none border-t border-white/10" />
+            <p className="max-w-[55ch] text-[clamp(1rem,2.2vw,1.75rem)] font-normal leading-relaxed text-white/70">
+              We envision a world where any business — from a boutique agency to a multi-national firm — operates with the same intelligence and efficiency as a Fortune 500 company. AdminSuite is the equaliser.
+            </p>
+            <hr className="my-[2vw] border-none border-t border-white/10" />
+            <div className="flex flex-wrap gap-[3vw]">
+              <div className="min-w-[180px] flex-1">
+                <p className="mb-2 text-sm font-bold uppercase tracking-wider text-emerald-400">Workforce Intelligence</p>
+                <p className="text-[clamp(0.85rem,1.3vw,1.05rem)] leading-relaxed opacity-60">
+                  AI-ready employee analytics, attendance patterns, and performance benchmarks — giving managers the foresight to act before problems arise.
+                </p>
+              </div>
+              <div className="min-w-[180px] flex-1">
+                <p className="mb-2 text-sm font-bold uppercase tracking-wider text-indigo-400">Financial Foresight</p>
+                <p className="text-[clamp(0.85rem,1.3vw,1.05rem)] leading-relaxed opacity-60">
+                  Predictive cash-flow modelling, automated profit/loss summaries, and instant financial snapshots accessible from any device, anywhere.
+                </p>
+              </div>
+              <div className="min-w-[180px] flex-1">
+                <p className="mb-2 text-sm font-bold uppercase tracking-wider text-cyan-400">Client Excellence</p>
+                <p className="text-[clamp(0.85rem,1.3vw,1.05rem)] leading-relaxed opacity-60">
+                  Deep client portfolios with project tracking, retainer management, and transparent communication logs — turning every client relationship into a long-term partnership.
+                </p>
+              </div>
+            </div>
+            <hr className="my-[2vw] border-none border-t border-white/10" />
+            <p className="mt-auto ml-auto max-w-[50ch] text-right text-[clamp(1rem,2vw,1.5rem)] font-normal leading-relaxed text-white/50">
+              Every line of code we write starts with a single question — does this make our users more effective?
+            </p>
+          </FlowSection>
+
+          <FlowSection aria-label="What We Build" style={{ backgroundColor: '#111827', color: '#fff' }}>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-indigo-300">04 — What We Build</p>
+            <hr className="my-[2vw] border-none border-t border-white/10" />
+            <div>
+              <h2 className="text-[clamp(3.5rem,12vw,13rem)] font-black leading-[0.85] uppercase tracking-tight">
+                One
+                <br />
+                Platform.
+                <br />
+                Total
+                <br />
+                Control.
+              </h2>
+            </div>
+            <hr className="my-[2vw] border-none border-t border-white/10" />
+            <div className="flex flex-wrap gap-[3vw]">
+              <div className="min-w-[180px] flex-1">
+                <p className="mb-2 text-sm font-bold uppercase tracking-wider">Employee Management</p>
+                <p className="text-[clamp(0.85rem,1.3vw,1.05rem)] leading-relaxed opacity-60">
+                  Onboard team members, assign roles, track attendance, manage leave, and view payroll history — all within a secure, permission-based environment.
+                </p>
+              </div>
+              <div className="min-w-[180px] flex-1">
+                <p className="mb-2 text-sm font-bold uppercase tracking-wider">Client & Project Tracking</p>
+                <p className="text-[clamp(0.85rem,1.3vw,1.05rem)] leading-relaxed opacity-60">
+                  Maintain detailed client portfolios, coordinate project timelines, and organise deliverables from a unified command centre with visual Kanban boards.
+                </p>
+              </div>
+              <div className="min-w-[180px] flex-1">
+                <p className="mb-2 text-sm font-bold uppercase tracking-wider">Financial Command</p>
+                <p className="text-[clamp(0.85rem,1.3vw,1.05rem)] leading-relaxed opacity-60">
+                  Real-time profit tracking, expense logging, income reporting, and transparent analytics synced directly to your live database with interactive charts.
+                </p>
+              </div>
+            </div>
+          </FlowSection>
+        </FlowArt>
+      </div>
 
       {/* Storytelling Visual Experience */}
       <div className="relative z-10 max-w-7xl mx-auto py-32 space-y-32">
@@ -141,22 +283,22 @@ export default function App() {
             <CircularTestimonials 
               testimonials={[
                 {
-                  quote: "AdminSuite completely transformed how we onboard and manage employee workspace roles. The biometric security integration gives us full confidence.",
-                  name: "Sarah Jenkins",
-                  designation: "VP of Operations at TechCorp",
-                  src: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=600&auto=format&fit=crop"
+                  quote: "AdminSuite has completely transformed how we manage employee workspace roles. The biometric security integration and direct sync give us full confidence.",
+                  name: "Dimaro T. Godsgift",
+                  designation: "CEO of Dimacode (Tech Company)",
+                  src: "/dimaro.jpg"
                 },
                 {
-                  quote: "Tracking clients and project milestones is incredibly simple now. Our account managers save 15+ hours weekly with the unified dashboard.",
-                  name: "Michael Chen",
-                  designation: "Product Director at DesignFlux",
-                  src: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=600&auto=format&fit=crop"
+                  quote: "Tracking client projects and video assets is incredibly simple now. Our cinematography team saves hours of coordination weekly using the unified dashboard.",
+                  name: "Eluan Clever",
+                  designation: "CEO of Eluan Visuals (Cinematography)",
+                  src: "/eluan.jpg"
                 },
                 {
-                  quote: "The real-time database sync and transparent financial graphs are a game changer. We finally have direct visibility into our monthly cash flows.",
-                  name: "Elena Rostova",
-                  designation: "Chief Financial Officer at LexisMedia",
-                  src: "https://images.unsplash.com/photo-1580489944761-15a19d654956?q=80&w=600&auto=format&fit=crop"
+                  quote: "The real-time database and clean cash flow tracking are absolute lifesavers for managing client deposits and photography project schedules.",
+                  name: "Precious Warekereowei",
+                  designation: "CEO of Precy_Photos (Photography)",
+                  src: "/precious.jpg"
                 }
               ]}
               autoplay={true}
@@ -290,12 +432,15 @@ export default function App() {
             Deploy AdminSuite to your organization today. Streamline role allocation, secure transaction ledgers, and manage your workforce with premium UI/UX interfaces.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <a href="/AdminSuite_Setup.exe" download className="pointer-events-auto">
-              <Button size="lg" className="rounded-full px-8 bg-zinc-900 text-white dark:bg-white dark:text-black hover:opacity-95 font-semibold group flex items-center gap-2">
-                <span>Download Windows .exe File</span>
-                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-              </Button>
-            </a>
+            <ParticleButton
+              size="lg"
+              href="https://adminsuite-api.onrender.com/static/AdminSuite.apk"
+              download={true}
+              className="rounded-full px-8 bg-zinc-900 text-white dark:bg-white dark:text-black hover:opacity-95 font-semibold flex items-center gap-2"
+            >
+              <Download className="w-4 h-4" />
+              <span>Download Android APK</span>
+            </ParticleButton>
             <a href="http://localhost:5173" target="_blank" rel="noreferrer" className="pointer-events-auto">
               <Button size="lg" variant="outline" className="rounded-full px-8 border-zinc-300 dark:border-white/10 text-zinc-700 dark:text-white hover:bg-zinc-100 dark:hover:bg-white/5">
                 Use AdminSuite Web

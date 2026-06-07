@@ -722,7 +722,7 @@ export default function RegisterScreen() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={{ flex: 1, backgroundColor: isTablet ? (isDarkTheme ? "#18181b" : "#f4f4f5") : colors.background }}
     >
       {!isTablet && <MobileAnimatedBackground isDark={isDarkTheme} />}
@@ -1116,14 +1116,18 @@ const styles = StyleSheet.create({
   },
   successAnimationContainer: {
     position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: "center",
-    alignItems: "center",
+    alignSelf: "center",
+    top: "30%",
     zIndex: 10,
     borderRadius: 20,
+    paddingVertical: 24,
+    paddingHorizontal: 32,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
   },
   successCircle: {
     width: 64,

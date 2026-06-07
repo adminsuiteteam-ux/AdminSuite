@@ -75,7 +75,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     (async () => {
       try {
-        await resolveBackendUrl();
+        // Only run URL resolution if no explicit API URL is configured
+        // (avoids slow startup ping when production URL is already known)
+        if (!process.env.EXPO_PUBLIC_API_URL) {
+          await resolveBackendUrl();
+        }
         const [token, tourRaw, suspendedUntilRaw] = await Promise.all([
           SecureStore.getItemAsync(TOKEN_KEY),
           AsyncStorage.getItem(TOUR_KEY),

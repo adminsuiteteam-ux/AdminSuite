@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { ContainerScroll } from './container-scroll-animation';
 import { Button } from './button';
-import { ArrowRight, Sparkles, Sun, Moon, Menu, X } from 'lucide-react';
+import { ParticleButton } from './particle-button';
+import { ArrowRight, Sparkles, Download, Menu, X } from 'lucide-react';
 
 interface ThreeRefs {
   scene: THREE.Scene | null;
@@ -64,19 +65,12 @@ export const Component = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const smoothCameraPos = useRef({ x: 0, y: 20, z: 150 });
   const [scrollY, setScrollY] = useState(0);
-  const [isDark, setIsDark] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const totalSections = 3;
 
-  const toggleTheme = useCallback(() => {
-    const html = document.documentElement;
-    if (html.classList.contains('dark')) {
-      html.classList.remove('dark');
-      setIsDark(false);
-    } else {
-      html.classList.add('dark');
-      setIsDark(true);
-    }
+  // Force dark mode permanently
+  useEffect(() => {
+    document.documentElement.classList.add('dark');
   }, []);
 
   const threeRefs = useRef<ThreeRefs>({
@@ -600,14 +594,14 @@ export const Component = () => {
           {/* Desktop Nav */}
           <div className="hidden md:flex items-center gap-8 pointer-events-auto">
             <a
-              href="#download"
+              href="#about"
               onClick={(e) => {
                 e.preventDefault();
-                document.getElementById('cta-section')?.scrollIntoView({ behavior: 'smooth' });
+                document.getElementById('about-section')?.scrollIntoView({ behavior: 'smooth' });
               }}
               className="text-sm font-semibold text-zinc-600 dark:text-white/75 hover:text-zinc-900 dark:hover:text-white transition-colors hover:scale-105 active:scale-95 duration-200"
             >
-              Download EXE
+              About Us
             </a>
             <a
               href="#support"
@@ -620,32 +614,19 @@ export const Component = () => {
               Support
             </a>
             <a
-              href="http://localhost:5173"
-              target="_blank"
-              rel="noreferrer"
+              href="#download"
+              onClick={(e) => {
+                e.preventDefault();
+                document.getElementById('cta-section')?.scrollIntoView({ behavior: 'smooth' });
+              }}
               className="text-sm font-semibold text-zinc-600 dark:text-white/75 hover:text-zinc-900 dark:hover:text-white transition-colors hover:scale-105 active:scale-95 duration-200"
             >
-              Sign In
+              Download APK
             </a>
-            {/* Theme Toggle */}
-            <button
-              onClick={toggleTheme}
-              className="p-2 rounded-full bg-zinc-100 dark:bg-white/10 hover:bg-zinc-200 dark:hover:bg-white/20 transition-all duration-200 hover:scale-110 active:scale-95"
-              aria-label="Toggle theme"
-            >
-              {isDark ? <Sun className="w-4 h-4 text-yellow-400" /> : <Moon className="w-4 h-4 text-zinc-700" />}
-            </button>
           </div>
 
-          {/* Mobile: Theme Toggle + Hamburger */}
+          {/* Mobile: Hamburger only */}
           <div className="flex md:hidden items-center gap-3 pointer-events-auto">
-            <button
-              onClick={toggleTheme}
-              className="p-2 rounded-full bg-zinc-100 dark:bg-white/10 hover:bg-zinc-200 dark:hover:bg-white/20 transition-all duration-200"
-              aria-label="Toggle theme"
-            >
-              {isDark ? <Sun className="w-4 h-4 text-yellow-400" /> : <Moon className="w-4 h-4 text-zinc-700" />}
-            </button>
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="p-2 rounded-xl bg-zinc-100 dark:bg-white/10 hover:bg-zinc-200 dark:hover:bg-white/20 transition-all duration-200"
@@ -660,15 +641,15 @@ export const Component = () => {
         {mobileMenuOpen && (
           <div className="md:hidden pointer-events-auto mx-4 mt-1 rounded-2xl bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border border-zinc-200 dark:border-white/10 shadow-2xl p-5 space-y-1 animate-[fadeSlideIn_0.2s_ease-out]">
             <a
-              href="#download"
+              href="#about"
               onClick={(e) => {
                 e.preventDefault();
                 setMobileMenuOpen(false);
-                document.getElementById('cta-section')?.scrollIntoView({ behavior: 'smooth' });
+                document.getElementById('about-section')?.scrollIntoView({ behavior: 'smooth' });
               }}
               className="block px-4 py-3 rounded-xl text-sm font-semibold text-zinc-700 dark:text-white/80 hover:bg-zinc-100 dark:hover:bg-white/5 transition-colors"
             >
-              Download EXE
+              About Us
             </a>
             <a
               href="#support"
@@ -682,12 +663,15 @@ export const Component = () => {
               Support
             </a>
             <a
-              href="http://localhost:5173"
-              target="_blank"
-              rel="noreferrer"
+              href="#download"
+              onClick={(e) => {
+                e.preventDefault();
+                setMobileMenuOpen(false);
+                document.getElementById('cta-section')?.scrollIntoView({ behavior: 'smooth' });
+              }}
               className="block px-4 py-3 rounded-xl text-sm font-semibold text-zinc-700 dark:text-white/80 hover:bg-zinc-100 dark:hover:bg-white/5 transition-colors"
             >
-              Sign In
+              Download APK
             </a>
           </div>
         )}
@@ -737,15 +721,19 @@ export const Component = () => {
 
               {/* Hero CTAs */}
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4 pointer-events-auto">
-                <a href="/AdminSuite_Setup.exe" download className="pointer-events-auto">
-                  <Button size="lg" className="rounded-full px-8 bg-zinc-900 text-white dark:bg-white dark:text-black hover:opacity-90 font-semibold group flex items-center gap-2">
-                    <span>Download Windows .exe File</span>
-                    <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-                  </Button>
-                </a>
-                <a href="http://localhost:5173" target="_blank" rel="noreferrer" className="pointer-events-auto">
-                  <Button size="lg" variant="outline" className="rounded-full px-8 border-zinc-300 dark:border-white/10 text-zinc-700 dark:text-white hover:bg-zinc-100 dark:hover:bg-white/5">
-                    Use AdminSuite Web
+                <ParticleButton
+                  size="lg"
+                  href="https://adminsuite-api.onrender.com/static/AdminSuite.apk"
+                  download={true}
+                  className="rounded-full px-8 bg-white text-black hover:bg-white/90 font-semibold flex items-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download APK</span>
+                </ParticleButton>
+                <a href="#about" onClick={(e) => { e.preventDefault(); document.getElementById('about-section')?.scrollIntoView({ behavior: 'smooth' }); }} className="pointer-events-auto">
+                  <Button size="lg" variant="outline" className="rounded-full px-8 border-zinc-300 dark:border-white/10 text-zinc-700 dark:text-white hover:bg-zinc-100 dark:hover:bg-white/5 flex items-center gap-2">
+                    <span>About Us</span>
+                    <ArrowRight className="w-4 h-4" />
                   </Button>
                 </a>
               </div>

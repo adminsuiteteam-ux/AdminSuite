@@ -209,7 +209,7 @@ export default function EmployeeTasksScreen() {
 
             {filteredTasks.length === 0 && (
               <View style={styles.emptyState}>
-                <Feather name="folder-open" size={36} color={colors.mutedForeground} />
+                <Feather name="folder" size={36} color={colors.mutedForeground} />
                 <Text style={[styles.emptyStateText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
                   No tasks found in this section.
                 </Text>
