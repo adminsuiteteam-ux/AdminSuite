@@ -488,6 +488,7 @@ interface AppState {
     average_revenue?: string;
     biometrics_enabled?: boolean;
     notifications_enabled?: boolean;
+    company_logo?: string;
   } | null;
   authToken: string | null;
   activeTab: 'dashboard' | 'employees' | 'clients' | 'finance' | 'settings';
@@ -675,7 +676,9 @@ async function supabaseResendOTP(email: string) {
 // DJANGO REST CLIENT
 // ============================================================
 
-const API_BASE = 'http://localhost:8000/api/';
+const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  ? 'http://localhost:8000/api/'
+  : 'https://adminsuite-api.onrender.com/api/';
 
 async function apiRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
   const token = localStorage.getItem('admin-suite.token');

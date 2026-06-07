@@ -441,7 +441,7 @@ export default function App() {
               <Download className="w-4 h-4" />
               <span>Download Android APK</span>
             </ParticleButton>
-            <a href="http://localhost:5173" target="_blank" rel="noreferrer" className="pointer-events-auto">
+            <a href="https://adminsuite-web.onrender.com" target="_blank" rel="noreferrer" className="pointer-events-auto">
               <Button size="lg" variant="outline" className="rounded-full px-8 border-zinc-300 dark:border-white/10 text-zinc-700 dark:text-white hover:bg-zinc-100 dark:hover:bg-white/5">
                 Use AdminSuite Web
               </Button>

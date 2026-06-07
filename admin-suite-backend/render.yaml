@@ -26,6 +26,18 @@ services:
       - key: CLOUDINARY_URL
         sync: false
 
+  - type: static
+    name: adminsuite-landing
+    rootDir: admin-suite-landing
+    buildCommand: npm run build
+    publishPath: dist
+
+  - type: static
+    name: adminsuite-web
+    rootDir: admin-suite-web
+    buildCommand: npm run build
+    publishPath: dist
+
 databases:
   - name: adminsuite-db
     plan: free
