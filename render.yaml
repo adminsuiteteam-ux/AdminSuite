@@ -20,10 +20,7 @@ services:
           name: adminsuite-api
           property: host
       - key: CORS_ALLOWED_ORIGINS
-        fromService:
-          type: web
-          name: adminsuite-api
-          property: url
+        value: https://adminsuite-landing.onrender.com,https://adminsuite-web.onrender.com
       - key: CLOUDINARY_URL
         sync: false
 
