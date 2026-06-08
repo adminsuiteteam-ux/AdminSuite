@@ -79,12 +79,12 @@ export default function App() {
       {/* Dynamic Horizon Three.js & GSAP Parallax background Hero */}
       <HorizonHero />
 
-      {/* ── About Us — Vision & Mission (Story Scroll) ── */}
+      {/* ── About Us — Who We Are & What We Build (Story Scroll) ── */}
       <div id="about-section">
         <FlowArt aria-label="About AdminSuite">
           <FlowSection aria-label="Who We Are" style={{ backgroundColor: '#0a0b14', color: '#fff' }}>
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-indigo-300">01 — Who We Are</p>
-            <hr className="my-4 md:my-[2vw] border-none border-t border-white/10" />
+            <hr className="my-2 md:my-3 border-none border-t border-white/10" />
             <div>
               <h2 className="text-4xl sm:text-6xl md:text-8xl lg:text-[clamp(4.5rem,10vw,12rem)] font-black leading-[0.85] uppercase tracking-tight">
                 Built For
@@ -92,97 +92,15 @@ export default function App() {
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-emerald-400">Leaders</span>
               </h2>
             </div>
-            <hr className="my-4 md:my-[2vw] border-none border-t border-white/10" />
-            <p className="mt-6 md:mt-auto max-w-[55ch] text-sm sm:text-base md:text-lg lg:text-[clamp(1.1rem,1.8vw,1.6rem)] font-normal leading-relaxed text-white/70">
+            <hr className="my-2 md:my-3 border-none border-t border-white/10" />
+            <p className="mt-4 md:mt-6 max-w-[55ch] text-sm sm:text-base md:text-lg lg:text-[clamp(1.1rem,1.8vw,1.6rem)] font-normal leading-relaxed text-white/70">
               AdminSuite is a full-stack business command centre designed for modern managers. We unify employee oversight, client management, and financial intelligence into one seamless, secure ecosystem — giving decision-makers the clarity they need to lead with confidence.
             </p>
           </FlowSection>
 
-          <FlowSection aria-label="Our Mission" style={{ backgroundColor: '#5e6ad2', color: '#fff' }}>
-            <p className="text-xs font-bold uppercase tracking-[0.2em]">02 — Our Mission</p>
-            <hr className="my-4 md:my-[2vw] border-none border-t border-white/30" />
-            <div>
-              <h2 className="text-4xl sm:text-6xl md:text-8xl lg:text-[clamp(4.5rem,10vw,12rem)] font-black leading-[0.85] uppercase tracking-tight">
-                Clarity
-                <br />
-                In Every
-                <br />
-                Decision
-              </h2>
-            </div>
-            <hr className="my-4 md:my-[2vw] border-none border-t border-white/30" />
-            <p className="max-w-[55ch] text-sm sm:text-base md:text-lg lg:text-[clamp(1.1rem,1.8vw,1.6rem)] font-normal leading-relaxed text-white/80">
-              Our mission is to eliminate the chaos of disconnected spreadsheets, siloed data, and manual reporting. AdminSuite delivers real-time visibility across your entire operation so that every leader — from team lead to CFO — can make faster, smarter decisions.
-            </p>
-            <hr className="my-4 md:my-[2vw] border-none border-t border-white/30" />
-            <div className="flex flex-wrap gap-[3vw] gap-y-6">
-              <div className="min-w-[180px] flex-1">
-                <p className="mb-2 text-sm font-bold uppercase tracking-wider">People First</p>
-                <p className="text-sm leading-relaxed opacity-75">
-                  Every feature is built around the humans who use it — intuitive interfaces, zero friction onboarding, and role-based access that makes sense from day one.
-                </p>
-              </div>
-              <div className="min-w-[180px] flex-1">
-                <p className="mb-2 text-sm font-bold uppercase tracking-wider">Data Integrity</p>
-                <p className="text-sm leading-relaxed opacity-75">
-                  Transactions, payroll, and client records are stored securely with end-to-end encryption and live Supabase synchronisation across all devices.
-                </p>
-              </div>
-              <div className="min-w-[180px] flex-1">
-                <p className="mb-2 text-sm font-bold uppercase tracking-wider">Operational Flow</p>
-                <p className="text-sm leading-relaxed opacity-75">
-                  From task assignment to invoice generation, every workflow is connected — no tab-switching, no manual reconciliation, no blind spots.
-                </p>
-              </div>
-            </div>
-          </FlowSection>
-
-          <FlowSection aria-label="Our Vision" style={{ backgroundColor: '#0d1117', color: '#fff' }}>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-400">03 — Our Vision</p>
-            <hr className="my-4 md:my-[2vw] border-none border-t border-white/10" />
-            <div>
-              <h2 className="text-4xl sm:text-6xl md:text-8xl lg:text-[clamp(4.5rem,10vw,12rem)] font-black leading-[0.85] uppercase tracking-tight">
-                The Future
-                <br />
-                Of Work
-                <br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">Is Unified</span>
-              </h2>
-            </div>
-            <hr className="my-4 md:my-[2vw] border-none border-t border-white/10" />
-            <p className="max-w-[55ch] text-sm sm:text-base md:text-lg lg:text-[clamp(1.1rem,1.8vw,1.6rem)] font-normal leading-relaxed text-white/70">
-              We envision a world where any business — from a boutique agency to a multi-national firm — operates with the same intelligence and efficiency as a Fortune 500 company. AdminSuite is the equaliser.
-            </p>
-            <hr className="my-4 md:my-[2vw] border-none border-t border-white/10" />
-            <div className="flex flex-wrap gap-[3vw] gap-y-6">
-              <div className="min-w-[180px] flex-1">
-                <p className="mb-2 text-sm font-bold uppercase tracking-wider text-emerald-400">Workforce Intelligence</p>
-                <p className="text-sm leading-relaxed opacity-60">
-                  AI-ready employee analytics, attendance patterns, and performance benchmarks — giving managers the foresight to act before problems arise.
-                </p>
-              </div>
-              <div className="min-w-[180px] flex-1">
-                <p className="mb-2 text-sm font-bold uppercase tracking-wider text-indigo-400">Financial Foresight</p>
-                <p className="text-sm leading-relaxed opacity-60">
-                  Predictive cash-flow modelling, automated profit/loss summaries, and instant financial snapshots accessible from any device, anywhere.
-                </p>
-              </div>
-              <div className="min-w-[180px] flex-1">
-                <p className="mb-2 text-sm font-bold uppercase tracking-wider text-cyan-400">Client Excellence</p>
-                <p className="text-sm leading-relaxed opacity-60">
-                  Deep client portfolios with project tracking, retainer management, and transparent communication logs — turning every client relationship into a long-term partnership.
-                </p>
-              </div>
-            </div>
-            <hr className="my-4 md:my-[2vw] border-none border-t border-white/10" />
-            <p className="mt-6 md:mt-auto ml-auto max-w-[50ch] text-left md:text-right text-sm sm:text-base md:text-lg lg:text-[clamp(1.1rem,1.8vw,1.6rem)] font-normal leading-relaxed text-white/50">
-              Every line of code we write starts with a single question — does this make our users more effective?
-            </p>
-          </FlowSection>
-
           <FlowSection aria-label="What We Build" style={{ backgroundColor: '#111827', color: '#fff' }}>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-indigo-300">04 — What We Build</p>
-            <hr className="my-4 md:my-[2vw] border-none border-t border-white/10" />
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-indigo-300">02 — What We Build</p>
+            <hr className="my-2 md:my-3 border-none border-t border-white/10" />
             <div>
               <h2 className="text-4xl sm:text-6xl md:text-8xl lg:text-[clamp(4.5rem,10vw,12rem)] font-black leading-[0.85] uppercase tracking-tight">
                 One
@@ -194,23 +112,23 @@ export default function App() {
                 Control.
               </h2>
             </div>
-            <hr className="my-4 md:my-[2vw] border-none border-t border-white/10" />
-            <div className="flex flex-wrap gap-[3vw] gap-y-6">
+            <hr className="my-2 md:my-3 border-none border-t border-white/10" />
+            <div className="flex flex-wrap gap-[2vw] gap-y-4">
               <div className="min-w-[180px] flex-1">
-                <p className="mb-2 text-sm font-bold uppercase tracking-wider">Employee Management</p>
-                <p className="text-sm leading-relaxed opacity-60">
+                <p className="mb-1 text-sm font-bold uppercase tracking-wider">Employee Management</p>
+                <p className="text-xs sm:text-sm leading-relaxed opacity-60">
                   Onboard team members, assign roles, track attendance, manage leave, and view payroll history — all within a secure, permission-based environment.
                 </p>
               </div>
               <div className="min-w-[180px] flex-1">
-                <p className="mb-2 text-sm font-bold uppercase tracking-wider">Client & Project Tracking</p>
-                <p className="text-sm leading-relaxed opacity-60">
+                <p className="mb-1 text-sm font-bold uppercase tracking-wider">Client & Project Tracking</p>
+                <p className="text-xs sm:text-sm leading-relaxed opacity-60">
                   Maintain detailed client portfolios, coordinate project timelines, and organise deliverables from a unified command centre with visual Kanban boards.
                 </p>
               </div>
               <div className="min-w-[180px] flex-1">
-                <p className="mb-2 text-sm font-bold uppercase tracking-wider">Financial Command</p>
-                <p className="text-sm leading-relaxed opacity-60">
+                <p className="mb-1 text-sm font-bold uppercase tracking-wider">Financial Command</p>
+                <p className="text-xs sm:text-sm leading-relaxed opacity-60">
                   Real-time profit tracking, expense logging, income reporting, and transparent analytics synced directly to your live database with interactive charts.
                 </p>
               </div>
@@ -346,7 +264,7 @@ export default function App() {
       </section>
 
       {/* Tech Specifications Stack Showcase */}
-      <section className="relative z-10 py-24 bg-zinc-50 dark:bg-zinc-950/60 border-t border-zinc-200 dark:border-white/5 px-4 transition-colors duration-300">
+      <section className="hidden md:block relative z-10 py-24 bg-zinc-50 dark:bg-zinc-950/60 border-t border-zinc-200 dark:border-white/5 px-4 transition-colors duration-300">
         <div className="max-w-7xl mx-auto space-y-16">
           <div className="text-center space-y-4 max-w-xl mx-auto">
             <div className="flex justify-center mb-2">
