@@ -1,4 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { gsap } from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+gsap.registerPlugin(ScrollTrigger);
 import { Component as HorizonHero } from './components/ui/horizon-hero-section';
 import { FeatureCarousel } from './components/ui/feature-carousel';
 import { Footer2 as Footer } from './components/ui/shadcnblocks-com-footer2';
@@ -27,6 +30,29 @@ export default function App() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [formError, setFormError] = useState('');
+
+  // Fade the Financial Control card out while the story-scroll section is overhead,
+  // then scrub it back to full opacity as the FlowArt block exits upward.
+  useEffect(() => {
+    const ctx = gsap.context(() => {
+      gsap.fromTo(
+        '#financial-control-card',
+        { opacity: 0, y: 20 },
+        {
+          opacity: 1,
+          y: 0,
+          ease: 'power1.out',
+          scrollTrigger: {
+            trigger: '#about-section',
+            start: 'bottom 75%',
+            end: 'bottom 5%',
+            scrub: 0.8,
+          },
+        },
+      );
+    });
+    return () => ctx.revert();
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -257,15 +283,17 @@ export default function App() {
         />
 
         {/* Step 3: Financial Control */}
-        <StoryCard 
-          step="03 / Finances"
-          title="Real-Time Financial Control"
-          description="Access a fully transparent financial health dashboard. Track your monthly net profit, log outgoing expenses, monitor active retainer clients, and view visual charts synced directly with your database."
-          icon={TrendingUp}
-          imageSrc="/phone_mockup_financial.png"
-          alignment="left"
-          glowColor="rgba(94, 106, 210, 0.15)"
-        />
+        <div id="financial-control-card">
+          <StoryCard 
+            step="03 / Finances"
+            title="Real-Time Financial Control"
+            description="Access a fully transparent financial health dashboard. Track your monthly net profit, log outgoing expenses, monitor active retainer clients, and view visual charts synced directly with your database."
+            icon={TrendingUp}
+            imageSrc="/phone_mockup_financial.png"
+            alignment="left"
+            glowColor="rgba(94, 106, 210, 0.15)"
+          />
+        </div>
       </div>
 
       {/* Scroll-linked text reveal section */}

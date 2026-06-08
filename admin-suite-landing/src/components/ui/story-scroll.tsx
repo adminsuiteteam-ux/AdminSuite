@@ -41,7 +41,7 @@ export const FlowSection: React.FC<FlowSectionProps> = ({
           'flow-art-container relative flex min-h-screen w-full flex-col justify-start md:justify-between gap-6 px-[4vw] pt-[clamp(2rem,8vw,4vw)] pb-[4vw]',
           'will-change-transform',
         )}
-        style={{ transformOrigin: 'bottom left', ...innerStyle }}
+        style={{ transformOrigin: 'bottom left', backgroundColor: 'inherit', ...innerStyle }}
       >
         {children}
       </div>
