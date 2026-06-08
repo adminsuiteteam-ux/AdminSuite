@@ -20,12 +20,12 @@ services:
           name: adminsuite-api
           property: host
       - key: CORS_ALLOWED_ORIGINS
-        value: https://adminsuite-landing.onrender.com,https://adminsuite-web.onrender.com
+        value: https://adminsuite.onrender.com,https://adminsuite-web.onrender.com
       - key: CLOUDINARY_URL
         sync: false
 
   - type: web
-    name: adminsuite-landing
+    name: adminsuite
     runtime: static
     rootDir: admin-suite-landing
     buildCommand: npm run build

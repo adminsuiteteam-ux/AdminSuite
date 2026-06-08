@@ -32,7 +32,7 @@ export const FlowSection: React.FC<FlowSectionProps> = ({
     <div
       data-flow-inner
       className={cx(
-        'flow-art-container relative flex min-h-screen w-full flex-col justify-between gap-6 px-[4vw] pt-[clamp(2rem,8vw,4vw)] pb-[4vw]',
+        'flow-art-container relative flex min-h-screen w-full flex-col justify-start md:justify-between gap-6 px-[4vw] pt-[clamp(2rem,8vw,4vw)] pb-[4vw]',
         'will-change-transform',
       )}
       style={{ transformOrigin: 'bottom left', ...style }}
@@ -57,6 +57,7 @@ const FlowArt: React.FC<FlowArtProps> = ({
 }) => {
   const containerRef = useRef<HTMLElement>(null);
   const [reducedMotion, setReducedMotion] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -64,6 +65,13 @@ const FlowArt: React.FC<FlowArtProps> = ({
     update();
     mq.addEventListener('change', update);
     return () => mq.removeEventListener('change', update);
+  }, []);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
   useGSAP(
@@ -74,6 +82,16 @@ const FlowArt: React.FC<FlowArtProps> = ({
         containerRef.current.querySelectorAll<HTMLElement>('[data-flow-section]'),
       );
       if (sections.length === 0) return;
+
+      if (isMobile) {
+        sections.forEach((section) => {
+          const inner = section.querySelector<HTMLElement>('.flow-art-container');
+          if (inner) {
+            gsap.set(inner, { clearProps: 'all' });
+          }
+        });
+        return;
+      }
 
       const triggers: ScrollTrigger[] = [];
 
@@ -117,7 +135,7 @@ const FlowArt: React.FC<FlowArtProps> = ({
         triggers.forEach((t) => t.kill());
       };
     },
-    { scope: containerRef, dependencies: [childCount(children), reducedMotion] },
+    { scope: containerRef, dependencies: [childCount(children), reducedMotion, isMobile] },
   );
 
   return (

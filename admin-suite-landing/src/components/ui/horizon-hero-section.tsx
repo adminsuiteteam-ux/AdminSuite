@@ -5,8 +5,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { ContainerScroll } from './container-scroll-animation';
 import { Button } from './button';
-import { ParticleButton } from './particle-button';
-import { ArrowRight, Sparkles, Download, Menu, X } from 'lucide-react';
+import { ArrowRight, Sparkles, Menu, X } from 'lucide-react';
 
 interface ThreeRefs {
   scene: THREE.Scene | null;
@@ -64,6 +63,7 @@ export const Component = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const smoothCameraPos = useRef({ x: 0, y: 20, z: 150 });
+  const isPastHeroRef = useRef(false);
   const [scrollY, setScrollY] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const totalSections = 3;
@@ -410,6 +410,7 @@ export const Component = () => {
     /* ── Animation Loop ── */
     const animate = () => {
       refs.animationId = requestAnimationFrame(animate);
+      if (isPastHeroRef.current) return;
       const time = Date.now() * 0.001;
 
       // Particle drift
@@ -487,6 +488,7 @@ export const Component = () => {
       const currentScrollY = window.scrollY;
       setScrollY(currentScrollY);
       const wh = window.innerHeight || 800;
+      isPastHeroRef.current = currentScrollY > wh * 4.8;
       
       const progress = Math.min(currentScrollY / wh, 4);
       const curIdx = Math.floor(progress);
@@ -567,6 +569,8 @@ export const Component = () => {
     return -clampedDiff * 60;
   };
 
+  const isPastHero = scrollY > wh * 4.8;
+
   return (
     <div
       ref={containerRef}
@@ -574,12 +578,12 @@ export const Component = () => {
     >
       <canvas
         ref={canvasRef}
-        className="fixed inset-0 w-full h-full z-0 pointer-events-none"
+        className={`fixed inset-0 w-full h-full z-0 pointer-events-none transition-opacity duration-500 ${isPastHero ? 'opacity-0 invisible' : 'opacity-100'}`}
       />
 
       {/* ── Fixed Logo + Brand Header ── */}
-      <div className="fixed top-0 left-0 right-0 z-30 pointer-events-none">
-        <div className="flex items-center justify-between px-6 md:px-10 py-5 max-w-7xl mx-auto w-full">
+      <div className="fixed top-0 left-0 right-0 z-30 bg-white/80 dark:bg-[#07080f]/80 backdrop-blur-md border-b border-zinc-200 dark:border-white/5 transition-all duration-300">
+        <div className="flex items-center justify-between px-6 md:px-10 py-3.5 max-w-7xl mx-auto w-full">
           <div className="flex items-center gap-3.5 pointer-events-auto cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
             <img
               src="/logo.png"
@@ -689,18 +693,6 @@ export const Component = () => {
         <ContainerScroll
           titleComponent={
             <div className="flex flex-col items-center justify-center text-center px-4 space-y-6">
-              {/* Logo badge with glow */}
-              <div className="flex items-center gap-4 mb-4 select-none">
-                <img
-                  src="/logo.png"
-                  alt="AdminSuite"
-                  className="w-16 h-16 md:w-24 md:h-24 object-contain rounded-3xl dark:invert"
-                />
-                <span className="text-3xl md:text-5xl font-black bg-clip-text text-transparent bg-gradient-to-r from-zinc-900 via-zinc-800 to-zinc-600 dark:from-white dark:via-white dark:to-white/70">
-                  AdminSuite
-                </span>
-              </div>
-
               {/* Sparkle badge */}
               <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-xs font-semibold tracking-wider text-indigo-600 dark:text-indigo-300 uppercase">
                 <Sparkles className="w-3.5 h-3.5" />
@@ -721,19 +713,15 @@ export const Component = () => {
 
               {/* Hero CTAs */}
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4 pointer-events-auto">
-                <ParticleButton
-                  size="lg"
-                  href="https://adminsuite-api.onrender.com/static/AdminSuite.apk"
-                  download={true}
-                  className="rounded-full px-8 bg-white text-black hover:bg-white/90 font-semibold flex items-center gap-2"
-                >
-                  <Download className="w-4 h-4" />
-                  <span>Download APK</span>
-                </ParticleButton>
                 <a href="#about" onClick={(e) => { e.preventDefault(); document.getElementById('about-section')?.scrollIntoView({ behavior: 'smooth' }); }} className="pointer-events-auto">
-                  <Button size="lg" variant="outline" className="rounded-full px-8 border-zinc-300 dark:border-white/10 text-zinc-700 dark:text-white hover:bg-zinc-100 dark:hover:bg-white/5 flex items-center gap-2">
-                    <span>About Us</span>
+                  <Button size="lg" className="rounded-full px-8 bg-zinc-900 text-white dark:bg-white dark:text-black hover:bg-zinc-850 dark:hover:bg-white/95 font-semibold flex items-center gap-2">
+                    <span>Explore Features</span>
                     <ArrowRight className="w-4 h-4" />
+                  </Button>
+                </a>
+                <a href="#support" onClick={(e) => { e.preventDefault(); document.getElementById('support-section')?.scrollIntoView({ behavior: 'smooth' }); }} className="pointer-events-auto">
+                  <Button size="lg" variant="outline" className="rounded-full px-8 border-zinc-300 dark:border-white/10 text-zinc-700 dark:text-white hover:bg-zinc-100 dark:hover:bg-white/5 flex items-center gap-2">
+                    <span>Contact Support</span>
                   </Button>
                 </a>
               </div>
