@@ -23,24 +23,31 @@ export const FlowSection: React.FC<FlowSectionProps> = ({
   style = {},
   children,
   'aria-label': ariaLabel,
-}) => (
-  <section
-    data-flow-section
-    aria-label={ariaLabel}
-    className={cx('relative min-h-screen w-full overflow-hidden', className)}
-  >
-    <div
-      data-flow-inner
-      className={cx(
-        'flow-art-container relative flex min-h-screen w-full flex-col justify-start md:justify-between gap-6 px-[4vw] pt-[clamp(2rem,8vw,4vw)] pb-[4vw]',
-        'will-change-transform',
-      )}
-      style={{ transformOrigin: 'bottom left', ...style }}
+}) => {
+  // Separate background/color styles (applied to section so GSAP never strips them)
+  // from transform-related styles (applied to the inner animated div).
+  const { backgroundColor, color, ...innerStyle } = style;
+
+  return (
+    <section
+      data-flow-section
+      aria-label={ariaLabel}
+      className={cx('relative min-h-screen w-full overflow-hidden', className)}
+      style={{ backgroundColor, color }}
     >
-      {children}
-    </div>
-  </section>
-);
+      <div
+        data-flow-inner
+        className={cx(
+          'flow-art-container relative flex min-h-screen w-full flex-col justify-start md:justify-between gap-6 px-[4vw] pt-[clamp(2rem,8vw,4vw)] pb-[4vw]',
+          'will-change-transform',
+        )}
+        style={{ transformOrigin: 'bottom left', ...innerStyle }}
+      >
+        {children}
+      </div>
+    </section>
+  );
+};
 
 export interface FlowArtProps {
   children: React.ReactNode;
