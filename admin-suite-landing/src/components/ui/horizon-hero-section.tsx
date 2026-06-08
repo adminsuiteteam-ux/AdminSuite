@@ -530,30 +530,30 @@ export const Component = () => {
   const getSectionOpacity = (idx: number) => {
     if (idx === 0) {
       // Screen 1 (Manage Employees)
-      if (scrollProgress >= 1.2 && scrollProgress < 1.5) {
-        return (scrollProgress - 1.2) / 0.3;
-      } else if (scrollProgress >= 1.5 && scrollProgress <= 1.8) {
+      if (scrollProgress >= 1.3 && scrollProgress < 1.7) {
+        return (scrollProgress - 1.3) / 0.4;
+      } else if (scrollProgress >= 1.7 && scrollProgress <= 2.1) {
         return 1;
-      } else if (scrollProgress > 1.8 && scrollProgress <= 2.1) {
-        return Math.max(0, 1 - (scrollProgress - 1.8) / 0.3);
+      } else if (scrollProgress > 2.1 && scrollProgress <= 2.5) {
+        return Math.max(0, 1 - (scrollProgress - 2.1) / 0.4);
       }
     } else if (idx === 1) {
       // Screen 2 (Track Clients & Projects)
-      if (scrollProgress >= 2.2 && scrollProgress < 2.5) {
-        return (scrollProgress - 2.2) / 0.3;
-      } else if (scrollProgress >= 2.5 && scrollProgress <= 2.8) {
+      if (scrollProgress >= 2.6 && scrollProgress < 3.0) {
+        return (scrollProgress - 2.6) / 0.4;
+      } else if (scrollProgress >= 3.0 && scrollProgress <= 3.4) {
         return 1;
-      } else if (scrollProgress > 2.8 && scrollProgress <= 3.1) {
-        return Math.max(0, 1 - (scrollProgress - 2.8) / 0.3);
+      } else if (scrollProgress > 3.4 && scrollProgress <= 3.8) {
+        return Math.max(0, 1 - (scrollProgress - 3.4) / 0.4);
       }
     } else if (idx === 2) {
       // Screen 3 (Financial Control)
-      if (scrollProgress >= 3.2 && scrollProgress < 3.5) {
-        return (scrollProgress - 3.2) / 0.3;
-      } else if (scrollProgress >= 3.5 && scrollProgress <= 3.8) {
+      if (scrollProgress >= 3.9 && scrollProgress < 4.3) {
+        return (scrollProgress - 3.9) / 0.4;
+      } else if (scrollProgress >= 4.3 && scrollProgress <= 4.7) {
         return 1;
-      } else if (scrollProgress > 3.8 && scrollProgress <= 4.1) {
-        return Math.max(0, 1 - (scrollProgress - 3.8) / 0.3);
+      } else if (scrollProgress > 4.7 && scrollProgress <= 5.1) {
+        return Math.max(0, 1 - (scrollProgress - 4.7) / 0.4);
       }
     }
     return 0;

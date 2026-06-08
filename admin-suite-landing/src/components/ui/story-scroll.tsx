@@ -28,15 +28,14 @@ export const FlowSection: React.FC<FlowSectionProps> = ({
     data-flow-section
     aria-label={ariaLabel}
     className={cx('relative min-h-screen w-full overflow-hidden', className)}
-    style={style}
   >
     <div
       data-flow-inner
       className={cx(
-        'flow-art-container relative flex min-h-screen w-full flex-col justify-start gap-4 md:gap-5 px-[4vw] pt-[clamp(1.5rem,4vw,2.5rem)] pb-[3vw]',
+        'flow-art-container relative flex min-h-screen w-full flex-col justify-start md:justify-between gap-6 px-[4vw] pt-[clamp(2rem,8vw,4vw)] pb-[4vw]',
         'will-change-transform',
       )}
-      style={{ transformOrigin: 'bottom left' }}
+      style={{ transformOrigin: 'bottom left', ...style }}
     >
       {children}
     </div>
@@ -58,6 +57,7 @@ const FlowArt: React.FC<FlowArtProps> = ({
 }) => {
   const containerRef = useRef<HTMLElement>(null);
   const [reducedMotion, setReducedMotion] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -65,6 +65,13 @@ const FlowArt: React.FC<FlowArtProps> = ({
     update();
     mq.addEventListener('change', update);
     return () => mq.removeEventListener('change', update);
+  }, []);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
   useGSAP(
@@ -76,60 +83,59 @@ const FlowArt: React.FC<FlowArtProps> = ({
       );
       if (sections.length === 0) return;
 
-      const mm = gsap.matchMedia();
-
-      // Desktop layout: 768px and wider
-      mm.add("(min-width: 768px)", () => {
-        sections.forEach((section, i) => {
-          gsap.set(section, { zIndex: i + 1 });
-
+      if (isMobile) {
+        sections.forEach((section) => {
           const inner = section.querySelector<HTMLElement>('.flow-art-container');
-          if (!inner) return;
-
-          if (i > 0) {
-            gsap.set(inner, { rotation: 30, transformOrigin: 'bottom left' });
-            gsap.to(inner, {
-              rotation: 0,
-              ease: 'none',
-              scrollTrigger: {
-                trigger: section,
-                start: 'top bottom',
-                end: 'top 25%',
-                scrub: true,
-              },
-            });
+          if (inner) {
+            gsap.set(inner, { clearProps: 'all' });
           }
+        });
+        return;
+      }
 
-          if (i < sections.length - 1) {
+      const triggers: ScrollTrigger[] = [];
+
+      sections.forEach((section, i) => {
+        gsap.set(section, { zIndex: i + 1 });
+
+        const inner = section.querySelector<HTMLElement>('.flow-art-container');
+        if (!inner) return;
+
+        if (i > 0) {
+          gsap.set(inner, { rotation: 30, transformOrigin: 'bottom left' });
+          const tween = gsap.to(inner, {
+            rotation: 0,
+            ease: 'none',
+            scrollTrigger: {
+              trigger: section,
+              start: 'top bottom',
+              end: 'top 25%',
+              scrub: true,
+            },
+          });
+          if (tween.scrollTrigger) triggers.push(tween.scrollTrigger);
+        }
+
+        if (i < sections.length - 1) {
+          triggers.push(
             ScrollTrigger.create({
               trigger: section,
               start: 'bottom bottom',
               end: 'bottom top',
               pin: true,
               pinSpacing: false,
-            });
-          }
-        });
-      });
-
-      // Mobile layout: narrower than 768px
-      mm.add("(max-width: 767px)", () => {
-        sections.forEach((section) => {
-          const inner = section.querySelector<HTMLElement>('.flow-art-container');
-          if (inner) {
-            gsap.set(inner, { clearProps: 'transform,rotation,transformOrigin' });
-          }
-          gsap.set(section, { clearProps: 'zIndex,position,top,left,width,height,margin' });
-        });
+            }),
+          );
+        }
       });
 
       ScrollTrigger.refresh();
 
       return () => {
-        mm.revert();
+        triggers.forEach((t) => t.kill());
       };
     },
-    { scope: containerRef, dependencies: [childCount(children), reducedMotion] },
+    { scope: containerRef, dependencies: [childCount(children), reducedMotion, isMobile] },
   );
 
   return (
