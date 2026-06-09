@@ -16,7 +16,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { DashboardTour, TourLayout } from "@/components/DashboardTour";
+import { DashboardTour, TourLayout, TOUR_STEPS } from "@/components/DashboardTour";
 import { FinancialChart } from "@/components/FinancialChart";
 import { FloatInView } from "@/components/FloatInView";
 import { SectionHeader } from "@/components/SectionHeader";
@@ -66,8 +66,10 @@ export default function DashboardScreen() {
     await AsyncStorage.setItem("admin-suite.dashboard-tour-complete", "true");
   };
 
+  const TOTAL_TOUR_STEPS = TOUR_STEPS.length;
+
   const nextStep = () => {
-    if (tourStep < 4) {
+    if (tourStep < TOTAL_TOUR_STEPS - 1) {
       const nextS = tourStep + 1;
       setTourStep(nextS);
       setTimeout(() => {
@@ -88,9 +90,16 @@ export default function DashboardScreen() {
     }
   };
 
+  // Steps 0-4 are scroll-content steps; steps 5-9 are nav-bar steps
+  const SCROLL_KEYS = ["header", "profit", "chart", "stats", "actions"];
+
   const scrollToActiveStep = (stepIndex: number) => {
-    const keys = ["header", "profit", "chart", "stats", "actions"];
-    const currentKey = keys[stepIndex];
+    if (stepIndex >= 5) {
+      // For nav steps, scroll back to top so the full nav bar is visible
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      return;
+    }
+    const currentKey = SCROLL_KEYS[stepIndex];
     const layout = layouts[currentKey];
     if (layout) {
       const screenHeightOffset = (screenHeight - layout.height) / 2;
@@ -100,10 +109,14 @@ export default function DashboardScreen() {
   };
 
   const measureAndScrollStep = (stepIndex: number) => {
+    if (stepIndex >= 5) {
+      // Nav steps — scroll to top so nav bar is fully visible, no element measurement needed
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      return;
+    }
     const refs = [headerRef, profitRef, chartRef, statsRef, actionsRef];
-    const keys = ["header", "profit", "chart", "stats", "actions"];
     const currentRef = refs[stepIndex];
-    const currentKey = keys[stepIndex];
+    const currentKey = SCROLL_KEYS[stepIndex];
 
     if (currentRef?.current && scrollViewRef.current) {
       currentRef.current.measureLayout(

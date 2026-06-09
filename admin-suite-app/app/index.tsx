@@ -6,7 +6,7 @@ import { LogoMark } from "@/components/Brand";
 import { useAuth } from "@/context/AuthContext";
 import { useSettings } from "@/context/SettingsContext";
 import { useColors } from "@/hooks/useColors";
-import { motion, typography } from "@/constants/theme";
+import { motion } from "@/constants/theme";
 
 export default function SplashGate() {
   const colors = useColors();
@@ -14,24 +14,25 @@ export default function SplashGate() {
   const { biometricsEnabled } = useSettings();
 
   // ── Staggered entrance animations ─────────────────────────────────
-  // Frame 1: Logo ring — scale + opacity
+  // Frame 1: Logo — fade + gentle scale-up
   const logoOpacity = useRef(new Animated.Value(0)).current;
-  const logoScale = useRef(new Animated.Value(0.6)).current;
+  const logoScale = useRef(new Animated.Value(0.72)).current;
 
-  // Frame 2: Title — drift up + opacity
+  // Frame 2: Title — float up + fade
   const titleOpacity = useRef(new Animated.Value(0)).current;
-  const titleTranslateY = useRef(new Animated.Value(20)).current;
+  const titleTranslateY = useRef(new Animated.Value(18)).current;
 
-  // Frame 3: Subtitle + footer
+  // Frame 3: Subtitle — float up + fade
   const subOpacity = useRef(new Animated.Value(0)).current;
-  const subTranslateY = useRef(new Animated.Value(16)).current;
+  const subTranslateY = useRef(new Animated.Value(14)).current;
+
+  // Footer — fade in last
   const footerOpacity = useRef(new Animated.Value(0)).current;
 
-  // Shimmer pulse on logo ring
-  const shimmerAnim = useRef(new Animated.Value(0)).current;
-
-  // Loading dots
-  const dotAnim = useRef(new Animated.Value(0)).current;
+  // Loading dots — 3 independent bounce animations
+  const dot0 = useRef(new Animated.Value(0)).current;
+  const dot1 = useRef(new Animated.Value(0)).current;
+  const dot2 = useRef(new Animated.Value(0)).current;
 
   // Exit dissolve
   const exitOpacity = useRef(new Animated.Value(1)).current;
@@ -43,104 +44,95 @@ export default function SplashGate() {
   const logoBg = isDark ? "#111113" : "#f4f4f5";
   const logoTint = isDark ? "#EDEDEF" : "#000000";
 
+  const makeDotLoop = (anim: Animated.Value, delay: number) =>
+    Animated.loop(
+      Animated.sequence([
+        Animated.delay(delay),
+        Animated.timing(anim, {
+          toValue: 1,
+          duration: 380,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(anim, {
+          toValue: 0,
+          duration: 380,
+          easing: Easing.in(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.delay(Math.max(0, 760 - delay * 2)),
+      ])
+    );
+
   useEffect(() => {
     const [x1, y1, x2, y2] = motion.floatIn.easing;
     const bezier = Easing.bezier(x1, y1, x2, y2);
 
-    // Frame 1: Logo entrance (0ms)
+    // Frame 1: Logo (0ms)
     Animated.parallel([
       Animated.timing(logoOpacity, {
         toValue: 1,
-        duration: 600,
+        duration: 550,
         useNativeDriver: true,
         easing: bezier,
       }),
       Animated.spring(logoScale, {
         toValue: 1,
-        friction: 7,
-        tension: 60,
+        friction: 8,
+        tension: 55,
         useNativeDriver: true,
       }),
     ]).start();
 
-    // Frame 2: Title entrance (350ms stagger)
+    // Frame 2: Title (320ms stagger)
     Animated.parallel([
       Animated.timing(titleOpacity, {
         toValue: 1,
-        duration: 500,
-        delay: 350,
+        duration: 480,
+        delay: 320,
         useNativeDriver: true,
         easing: bezier,
       }),
       Animated.timing(titleTranslateY, {
         toValue: 0,
-        duration: 500,
-        delay: 350,
+        duration: 480,
+        delay: 320,
         useNativeDriver: true,
         easing: bezier,
       }),
     ]).start();
 
-    // Frame 3: Subtitle + footer (600ms stagger)
+    // Frame 3: Subtitle (520ms stagger)
     Animated.parallel([
       Animated.timing(subOpacity, {
         toValue: 1,
-        duration: 500,
-        delay: 600,
+        duration: 460,
+        delay: 520,
         useNativeDriver: true,
         easing: bezier,
       }),
       Animated.timing(subTranslateY, {
         toValue: 0,
-        duration: 500,
-        delay: 600,
-        useNativeDriver: true,
-        easing: bezier,
-      }),
-      Animated.timing(footerOpacity, {
-        toValue: 1,
-        duration: 600,
-        delay: 800,
+        duration: 460,
+        delay: 520,
         useNativeDriver: true,
         easing: bezier,
       }),
     ]).start();
 
-    // Shimmer pulse loop on logo ring
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(shimmerAnim, {
-          toValue: 1,
-          duration: 1200,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(shimmerAnim, {
-          toValue: 0,
-          duration: 1200,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
+    // Footer (760ms stagger)
+    Animated.timing(footerOpacity, {
+      toValue: 1,
+      duration: 500,
+      delay: 760,
+      useNativeDriver: true,
+      easing: bezier,
+    }).start();
 
-    // Loading dots
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(dotAnim, {
-          toValue: 1,
-          duration: 800,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(dotAnim, {
-          toValue: 0,
-          duration: 800,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
+    // 3 staggered bouncing dots
+    makeDotLoop(dot0, 0).start();
+    makeDotLoop(dot1, 160).start();
+    makeDotLoop(dot2, 320).start();
   }, []);
 
   // ── Routing with dissolve exit ────────────────────────────────────
@@ -150,7 +142,6 @@ export default function SplashGate() {
     const t = setTimeout(() => {
       hasRedirectedFromSplash.current = true;
 
-      // Dissolve exit animation
       Animated.parallel([
         Animated.timing(exitOpacity, {
           toValue: 0,
@@ -165,7 +156,6 @@ export default function SplashGate() {
           easing: Easing.out(Easing.ease),
         }),
       ]).start(() => {
-        // Navigate after dissolve completes
         if (suspendedUntil && new Date(suspendedUntil) > new Date()) {
           router.replace("/(auth)/suspended");
         } else if (!tourComplete) {
@@ -188,14 +178,11 @@ export default function SplashGate() {
     return () => clearTimeout(t);
   }, [loading, user, tourComplete, biometricsEnabled, suspendedUntil]);
 
-  // Shimmer glow interpolation
-  const shimmerOpacity = shimmerAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.3, 0.8],
-  });
-  const shimmerScale = shimmerAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, 1.08],
+  const makeDotStyle = (anim: Animated.Value) => ({
+    opacity: anim.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }),
+    transform: [
+      { translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) },
+    ],
   });
 
   return (
@@ -209,41 +196,19 @@ export default function SplashGate() {
         },
       ]}
     >
-      {/* ── Logo Mark with Shimmer Glow Ring ── */}
+      {/* ── Logo Mark ── */}
       <Animated.View
         style={{
           alignItems: "center",
           opacity: logoOpacity,
           transform: [{ scale: logoScale }],
+          marginBottom: 28,
         }}
       >
-        <View style={styles.markContainer}>
-          {/* Shimmer glow ring behind the logo */}
-          <Animated.View
-            style={[
-              styles.shimmerRing,
-              {
-                borderColor: colors.accent,
-                opacity: shimmerOpacity,
-                transform: [{ scale: shimmerScale }],
-              },
-            ]}
-            pointerEvents="none"
-          />
-          <View
-            style={[
-              styles.markRing,
-              {
-                backgroundColor: logoBg,
-              },
-            ]}
-          >
-            <LogoMark size={144} tint={logoTint} />
-          </View>
-        </View>
+        <LogoMark size={144} tint={logoTint} />
       </Animated.View>
 
-      {/* ── Title (staggered Frame 2) ── */}
+      {/* ── Title (Frame 2) ── */}
       <Animated.View
         style={{
           opacity: titleOpacity,
@@ -263,7 +228,7 @@ export default function SplashGate() {
         </Text>
       </Animated.View>
 
-      {/* ── Subtitle (staggered Frame 3) ── */}
+      {/* ── Subtitle (Frame 3) ── */}
       <Animated.View
         style={{
           opacity: subOpacity,
@@ -283,33 +248,17 @@ export default function SplashGate() {
         </Text>
       </Animated.View>
 
-      {/* ── Loading Dots ── */}
-      <Animated.View
-        style={[
-          styles.loadingRow,
-          { opacity: subOpacity },
-        ]}
-      >
-        {[0, 1, 2].map((i) => (
+      {/* ── Three Bouncing Dots ── */}
+      <Animated.View style={[styles.loadingRow, { opacity: subOpacity }]}>
+        {[dot0, dot1, dot2].map((anim, i) => (
           <Animated.View
             key={i}
             style={[
               styles.dot,
               {
                 backgroundColor: isDark ? "#3f3f46" : "#d4d4d8",
-                opacity: dotAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0.3, 1],
-                }),
-                transform: [
-                  {
-                    translateY: dotAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0, -4 - i * 1.5],
-                    }),
-                  },
-                ],
               },
+              makeDotStyle(anim),
             ]}
           />
         ))}
@@ -335,28 +284,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  markContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 28,
-  },
-  shimmerRing: {
-    position: "absolute",
-    width: 196,
-    height: 196,
-    borderRadius: 44,
-    borderWidth: 2,
-  },
   markRing: {
-    width: 176,
-    height: 176,
+    width: 172,
+    height: 172,
     borderRadius: 36,
     alignItems: "center",
     justifyContent: "center",
+    marginBottom: 28,
     shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.07,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
     elevation: 4,
   },
   title: {
@@ -375,6 +313,7 @@ const styles = StyleSheet.create({
     bottom: 120,
     flexDirection: "row",
     gap: 8,
+    alignItems: "center",
   },
   dot: {
     width: 8,

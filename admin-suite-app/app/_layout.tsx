@@ -33,7 +33,6 @@ if (!__DEV__) {
   });
 }
 
-SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 

@@ -7,7 +7,8 @@ from .models import (
     Employee, EmployeeFinance, PayHistory, Client, Project, 
     Transaction, Notification, Debt, BudgetCategory, Savings,
     UserProfile, EmployeeActivityLog, EmployeeQuery, EmployeeTask,
-    EmployeeLeave, EmployeeMessage, EmployeeDocument, SalaryAdjustment
+    EmployeeLeave, EmployeeMessage, EmployeeDocument, SalaryAdjustment,
+    ChatMessage
 )
 
 from django.contrib.auth.password_validation import validate_password
@@ -93,6 +94,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
     documents = EmployeeDocumentSerializer(many=True, read_only=True)
     salary_adjustments = SalaryAdjustmentSerializer(many=True, read_only=True)
     temp_password = serializers.SerializerMethodField()
+    avatar = serializers.ImageField(required=False, allow_null=True)
     
     class Meta:
         model = Employee
@@ -118,6 +120,18 @@ class EmployeeSerializer(serializers.ModelSerializer):
 
     def get_temp_password(self, obj):
         return getattr(obj, '_temp_password', None)
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        if instance.avatar:
+            request = self.context.get('request')
+            if request is not None:
+                ret['avatar'] = request.build_absolute_uri(instance.avatar.url)
+            else:
+                ret['avatar'] = instance.avatar.url
+        else:
+            ret['avatar'] = None
+        return ret
 
     def to_internal_value(self, data):
         # Convert QueryDict to standard dict to prevent list-wrapping issues for complex fields
@@ -195,6 +209,8 @@ class EmployeeSerializer(serializers.ModelSerializer):
 
 class ProjectSerializer(serializers.ModelSerializer):
     client_name = serializers.ReadOnlyField(source='client.company')
+    image = serializers.ImageField(required=False, allow_null=True)
+    video = serializers.FileField(required=False, allow_null=True)
 
     class Meta:
         model = Project
@@ -202,6 +218,27 @@ class ProjectSerializer(serializers.ModelSerializer):
             'id', 'name', 'client', 'client_name', 'status', 'value', 'progress',
             'start_date', 'end_date', 'location', 'image', 'video'
         ]
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        if instance.image:
+            request = self.context.get('request')
+            if request is not None:
+                ret['image'] = request.build_absolute_uri(instance.image.url)
+            else:
+                ret['image'] = instance.image.url
+        else:
+            ret['image'] = None
+
+        if instance.video:
+            request = self.context.get('request')
+            if request is not None:
+                ret['video'] = request.build_absolute_uri(instance.video.url)
+            else:
+                ret['video'] = instance.video.url
+        else:
+            ret['video'] = None
+        return ret
 
 class ClientSerializer(serializers.ModelSerializer):
     projects = ProjectSerializer(many=True, read_only=True)
@@ -298,3 +335,75 @@ class RegisterSerializer(serializers.Serializer):
             password=password,
         )
         return user
+
+
+class ChatMessageSerializer(serializers.ModelSerializer):
+    sender_id = serializers.ReadOnlyField(source='sender.id')
+    sender_name = serializers.SerializerMethodField()
+    sender_initials = serializers.SerializerMethodField()
+    sender_avatar = serializers.SerializerMethodField()
+    recipient_id = serializers.ReadOnlyField(source='recipient.id', default=None)
+    reply_to_id = serializers.PrimaryKeyRelatedField(
+        queryset=ChatMessage.objects.all(), source='reply_to', required=False, allow_null=True
+    )
+    reply_to_text = serializers.SerializerMethodField()
+    reply_to_sender = serializers.SerializerMethodField()
+    display_text = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ChatMessage
+        fields = [
+            'id', 'sender_id', 'sender_name', 'sender_initials', 'sender_avatar',
+            'recipient_id', 'text', 'display_text', 'is_pinned', 'is_edited', 'is_deleted',
+            'reply_to_id', 'reply_to_text', 'reply_to_sender',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = ['sender_id', 'sender_name', 'sender_initials', 'sender_avatar',
+                            'recipient_id', 'is_edited', 'is_deleted', 'created_at', 'updated_at']
+
+    def get_sender_name(self, obj):
+        emp = getattr(obj.sender, 'employee_profile', None)
+        if emp:
+            return emp.name
+        return f"{obj.sender.first_name} {obj.sender.last_name}".strip() or obj.sender.username
+
+    def get_sender_initials(self, obj):
+        name = self.get_sender_name(obj)
+        parts = name.split()
+        if len(parts) >= 2:
+            return (parts[0][0] + parts[-1][0]).upper()
+        return name[:2].upper()
+
+    def get_sender_avatar(self, obj):
+        request = self.context.get('request')
+        emp = getattr(obj.sender, 'employee_profile', None)
+        if emp and emp.avatar:
+            if request:
+                return request.build_absolute_uri(emp.avatar.url)
+            return emp.avatar.url
+        profile = getattr(obj.sender, 'profile', None)
+        if profile and profile.avatar:
+            if request:
+                return request.build_absolute_uri(profile.avatar.url)
+            return profile.avatar.url
+        return None
+
+    def get_reply_to_text(self, obj):
+        if obj.reply_to:
+            if obj.reply_to.is_deleted:
+                return "This message was deleted"
+            return obj.reply_to.text[:80]
+        return None
+
+    def get_reply_to_sender(self, obj):
+        if obj.reply_to:
+            emp = getattr(obj.reply_to.sender, 'employee_profile', None)
+            if emp:
+                return emp.name
+            return f"{obj.reply_to.sender.first_name} {obj.reply_to.sender.last_name}".strip() or obj.reply_to.sender.username
+        return None
+
+    def get_display_text(self, obj):
+        if obj.is_deleted:
+            return "This message was deleted"
+        return obj.text

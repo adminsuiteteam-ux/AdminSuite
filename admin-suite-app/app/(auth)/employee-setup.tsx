@@ -11,13 +11,16 @@ import {
   Text,
   TextInput,
   View,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
+import * as LocalAuthentication from "expo-local-authentication";
 
 import { LogoMark } from "../../components/Brand";
 import { useAuth } from "../../context/AuthContext";
 import { useColors } from "../../hooks/useColors";
+import { useSettings } from "../../context/SettingsContext";
 import { apiService } from "../../services/api";
 import { shadows, spacing, motion } from "@/constants/theme";
 
@@ -25,6 +28,7 @@ export default function EmployeeSetupScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user, setUser } = useAuth();
+  const { setBiometricsEnabled } = useSettings();
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -73,6 +77,53 @@ export default function EmployeeSetupScreen() {
     }).start();
   }, [btnPressAnim]);
 
+  const promptBiometricEnrolment = async () => {
+    if (Platform.OS === "web") {
+      router.replace("/");
+      return;
+    }
+
+    const compatible = await LocalAuthentication.hasHardwareAsync();
+    const enrolled = await LocalAuthentication.isEnrolledAsync();
+    if (!compatible || !enrolled) {
+      router.replace("/");
+      return;
+    }
+
+    Alert.alert(
+      "Enable Biometric Login",
+      "Would you like to use Face ID / Fingerprint to unlock your account next time?",
+      [
+        {
+          text: "Not Now",
+          style: "cancel",
+          onPress: () => {
+            router.replace("/");
+          },
+        },
+        {
+          text: "Enable",
+          onPress: async () => {
+            try {
+              const result = await LocalAuthentication.authenticateAsync({
+                promptMessage: "Verify your identity to enable biometric login",
+                cancelLabel: "Cancel",
+                disableDeviceFallback: false,
+              });
+              if (result.success) {
+                await setBiometricsEnabled(true);
+              }
+            } catch (err) {
+              console.warn("Biometric setup error:", err);
+            }
+            router.replace("/");
+          },
+        },
+      ],
+      { cancelable: false }
+    );
+  };
+
   const onSubmit = async () => {
     setError("");
     if (!password || password.length < 8) {
@@ -97,8 +148,8 @@ export default function EmployeeSetupScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       }
       
-      // Redirect
-      router.replace("/");
+      // Prompt biometric enrolment
+      await promptBiometricEnrolment();
     } catch (err: any) {
       const errorData = err.response?.data;
       setError(

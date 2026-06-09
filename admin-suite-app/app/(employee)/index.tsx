@@ -1,7 +1,8 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Platform,
   Pressable,
@@ -10,6 +11,7 @@ import {
   Text,
   View,
   ActivityIndicator,
+  Dimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -19,6 +21,9 @@ import { StatCard } from "@/components/StatCard";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { apiService } from "@/services/api";
+import { EmployeeDashboardTour, TourLayout, EMPLOYEE_TOUR_STEPS } from "@/components/EmployeeDashboardTour";
+
+const { height: screenHeight } = Dimensions.get("window");
 
 export default function EmployeeDashboard() {
   const colors = useColors();
@@ -28,6 +33,100 @@ export default function EmployeeDashboard() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState("");
+
+  // ── Employee Dashboard Tour State ──
+  const [tourActive, setTourActive] = useState(false);
+  const [tourStep, setTourStep] = useState(0);
+  const [layouts, setLayouts] = useState<Record<string, TourLayout>>({});
+  const [scrollOffset, setScrollOffset] = useState(0);
+
+  const scrollViewRef = useRef<ScrollView>(null);
+  const headerRef = useRef<View>(null);
+  const statsRef = useRef<View>(null);
+  const actionsRef = useRef<View>(null);
+  const activeTasksRef = useRef<View>(null);
+
+  const startTour = () => {
+    setTourActive(true);
+    setTourStep(0);
+    setTimeout(() => {
+      measureAndScrollStep(0);
+    }, 150);
+  };
+
+  const finishTour = async () => {
+    setTourActive(false);
+    await AsyncStorage.setItem("admin-suite.employee-dashboard-tour-complete", "true");
+  };
+
+  const nextStep = () => {
+    if (tourStep < EMPLOYEE_TOUR_STEPS.length - 1) {
+      const nextS = tourStep + 1;
+      setTourStep(nextS);
+      setTimeout(() => {
+        measureAndScrollStep(nextS);
+      }, 50);
+    } else {
+      finishTour();
+    }
+  };
+
+  const prevStep = () => {
+    if (tourStep > 0) {
+      const prevS = tourStep - 1;
+      setTourStep(prevS);
+      setTimeout(() => {
+        measureAndScrollStep(prevS);
+      }, 50);
+    }
+  };
+
+  const SCROLL_KEYS = ["header", "stats", "actions", "active_tasks"];
+
+  const scrollToActiveStep = (stepIndex: number) => {
+    if (stepIndex >= SCROLL_KEYS.length) {
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      return;
+    }
+    const currentKey = SCROLL_KEYS[stepIndex];
+    const layout = layouts[currentKey];
+    if (layout) {
+      const screenHeightOffset = (screenHeight - layout.height) / 2;
+      const scrollToY = Math.max(0, layout.y - screenHeightOffset);
+      scrollViewRef.current?.scrollTo({ y: scrollToY, animated: true });
+    }
+  };
+
+  const measureAndScrollStep = (stepIndex: number) => {
+    if (stepIndex >= SCROLL_KEYS.length) {
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      return;
+    }
+    const refs = [headerRef, statsRef, actionsRef, activeTasksRef];
+    const currentRef = refs[stepIndex];
+    const currentKey = SCROLL_KEYS[stepIndex];
+
+    if (currentRef?.current && scrollViewRef.current) {
+      currentRef.current.measureLayout(
+        scrollViewRef.current as any,
+        (x, y, width, height) => {
+          const measured = { x, y, width, height };
+          setLayouts((prev) => ({
+            ...prev,
+            [currentKey]: measured,
+          }));
+          const screenHeightOffset = (screenHeight - height) / 2;
+          const scrollToY = Math.max(0, y - screenHeightOffset);
+          scrollViewRef.current?.scrollTo({ y: scrollToY, animated: true });
+        },
+        () => {
+          scrollToActiveStep(stepIndex);
+        }
+      );
+    } else {
+      scrollToActiveStep(stepIndex);
+    }
+  };
 
   const fetchDashboardData = async () => {
     try {
@@ -45,6 +144,21 @@ export default function EmployeeDashboard() {
   useEffect(() => {
     fetchDashboardData();
   }, []);
+
+  // Check first-time tour triggers
+  useEffect(() => {
+    const checkTour = async () => {
+      const tourComplete = await AsyncStorage.getItem("admin-suite.employee-dashboard-tour-complete");
+      if (!tourComplete) {
+        setTimeout(() => {
+          startTour();
+        }, 1200);
+      }
+    };
+    if (data) {
+      checkTour();
+    }
+  }, [data]);
 
   const handleLogout = async () => {
     await logout();
@@ -91,6 +205,12 @@ export default function EmployeeDashboard() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView
+        ref={scrollViewRef}
+        scrollEnabled={!tourActive}
+        onScroll={(e) => {
+          setScrollOffset(e.nativeEvent.contentOffset.y);
+        }}
+        scrollEventThrottle={16}
         contentContainerStyle={{
           paddingBottom: tabBarPad,
           paddingTop: insets.top,
@@ -100,7 +220,17 @@ export default function EmployeeDashboard() {
       >
         <View style={{ width: "100%", maxWidth: 960 }}>
           {/* Header Card */}
-          <View style={styles.headerCard}>
+          <View
+            ref={headerRef}
+            onLayout={(e) => {
+              const { y, height, width, x } = e.nativeEvent.layout;
+              setLayouts((prev) => ({
+                ...prev,
+                header: prev.header || { y, height, width, x },
+              }));
+            }}
+            style={styles.headerCard}
+          >
             <LinearGradient
               colors={["#000000", "#0a0a0a", "#1e3a8a"]}
               start={{ x: 0, y: 0 }}
@@ -142,7 +272,17 @@ export default function EmployeeDashboard() {
 
           {/* Stats Grid */}
           <FloatInView delay={100}>
-            <View style={styles.statsGrid}>
+            <View
+              ref={statsRef}
+              onLayout={(e) => {
+                const { y, height, width, x } = e.nativeEvent.layout;
+                setLayouts((prev) => ({
+                  ...prev,
+                  stats: prev.stats || { y, height, width, x },
+                }));
+              }}
+              style={styles.statsGrid}
+            >
               <View style={styles.statsRow}>
                 <StatCard
                   label="Pending Tasks"
@@ -162,7 +302,17 @@ export default function EmployeeDashboard() {
 
           {/* Quick Actions */}
           <FloatInView delay={160}>
-            <View style={styles.section}>
+            <View
+              ref={actionsRef}
+              onLayout={(e) => {
+                const { y, height, width, x } = e.nativeEvent.layout;
+                setLayouts((prev) => ({
+                  ...prev,
+                  actions: prev.actions || { y, height, width, x },
+                }));
+              }}
+              style={styles.section}
+            >
               <SectionHeader title="Quick Actions" />
               <View style={styles.actionsRow}>
                 <QuickAction
@@ -195,7 +345,17 @@ export default function EmployeeDashboard() {
 
           {/* Tasks Summary */}
           <FloatInView delay={220}>
-            <View style={styles.section}>
+            <View
+              ref={activeTasksRef}
+              onLayout={(e) => {
+                const { y, height, width, x } = e.nativeEvent.layout;
+                setLayouts((prev) => ({
+                  ...prev,
+                  active_tasks: prev.active_tasks || { y, height, width, x },
+                }));
+              }}
+              style={styles.section}
+            >
               <SectionHeader
                 title="Active Tasks"
                 action="See all"
@@ -285,6 +445,16 @@ export default function EmployeeDashboard() {
           </FloatInView>
         </View>
       </ScrollView>
+
+      <EmployeeDashboardTour
+        active={tourActive}
+        step={tourStep}
+        layouts={layouts}
+        scrollOffset={scrollOffset}
+        onNext={nextStep}
+        onBack={prevStep}
+        onSkip={finishTour}
+      />
     </View>
   );
 }

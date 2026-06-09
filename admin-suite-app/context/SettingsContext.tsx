@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { useAuth } from "./AuthContext";
 
 const KEY = "admin-suite:settings";
 
@@ -37,11 +38,13 @@ type SettingsContextType = {
 const Ctx = createContext<SettingsContextType | null>(null);
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
   const [currencyCode, setCurrencyCode] = useState("NGN");
   const [themeMode, setThemeMode] = useState<ThemeMode>("system");
   const [biometricsEnabled, setBiometricsEnabledState] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
+  // Load global settings
   useEffect(() => {
     (async () => {
       try {
@@ -50,12 +53,29 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           const s = JSON.parse(raw);
           if (s.currencyCode) setCurrencyCode(s.currencyCode);
           if (s.theme) setThemeMode(s.theme);
-          if (s.biometricsEnabled !== undefined) setBiometricsEnabledState(s.biometricsEnabled);
         }
       } catch {}
-      setLoaded(true);
     })();
   }, []);
+
+  // Sync user-specific biometric settings whenever user changes
+  useEffect(() => {
+    if (!user) {
+      setBiometricsEnabledState(false);
+      setLoaded(true);
+      return;
+    }
+    (async () => {
+      try {
+        const key = `admin-suite:biometrics:${user.id}`;
+        const val = await AsyncStorage.getItem(key);
+        setBiometricsEnabledState(val === "true");
+      } catch {
+        setBiometricsEnabledState(false);
+      }
+      setLoaded(true);
+    })();
+  }, [user?.id]);
 
   const setCurrency = async (code: string) => {
     setCurrencyCode(code);
@@ -76,11 +96,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   };
 
   const setBiometricsEnabled = async (enabled: boolean) => {
+    if (!user) return;
     setBiometricsEnabledState(enabled);
     try {
-      const raw = await AsyncStorage.getItem(KEY);
-      const s = raw ? JSON.parse(raw) : {};
-      await AsyncStorage.setItem(KEY, JSON.stringify({ ...s, biometricsEnabled: enabled }));
+      const key = `admin-suite:biometrics:${user.id}`;
+      await AsyncStorage.setItem(key, enabled ? "true" : "false");
     } catch {}
   };
 

@@ -13,7 +13,7 @@ from .models import (
     Employee, EmployeeFinance, PayHistory, Client, Project, Transaction,
     Notification, Debt, BudgetCategory, Savings, EmployeeActivityLog,
     EmployeeQuery, EmployeeTask, EmployeeLeave, EmployeeMessage,
-    EmployeeDocument, SalaryAdjustment, PayrollStatus
+    EmployeeDocument, SalaryAdjustment, PayrollStatus, ChatMessage
 )
 from .serializers import (
     EmployeeSerializer, ClientSerializer, ProjectSerializer,
@@ -22,7 +22,7 @@ from .serializers import (
     UserProfileSerializer, RegisterSerializer, EmployeeActivityLogSerializer,
     EmployeeQuerySerializer, EmployeeTaskSerializer, EmployeeLeaveSerializer,
     EmployeeMessageSerializer, EmployeeDocumentSerializer, SalaryAdjustmentSerializer,
-    EmployeeFinanceSerializer, PayHistorySerializer
+    EmployeeFinanceSerializer, PayHistorySerializer, ChatMessageSerializer
 )
 
 
@@ -59,6 +59,7 @@ class ThrottledObtainAuthToken(ObtainAuthToken):
             except User.DoesNotExist:
                 pass
 
+        profile = None
         if target_user:
             profile, _ = UserProfile.objects.get_or_create(user=target_user)
             # Check if currently suspended
@@ -81,7 +82,7 @@ class ThrottledObtainAuthToken(ObtainAuthToken):
 
         if not user:
             # Authentication failed!
-            if target_user:
+            if target_user and profile:
                 profile.failed_login_attempts += 1
                 attempts_left = 7 - profile.failed_login_attempts
 
@@ -114,6 +115,12 @@ class ThrottledObtainAuthToken(ObtainAuthToken):
                 }, status=status.HTTP_400_BAD_REQUEST)
 
         # Successful login!
+        if not isinstance(user, User):
+            return Response({
+                'error': 'invalid_credentials',
+                'message': 'Unable to log in with provided credentials.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         profile, _ = UserProfile.objects.get_or_create(user=user)
         profile.failed_login_attempts = 0
         profile.suspended_until = None
@@ -369,7 +376,6 @@ def register(request):
 
     # Block registration if the email is associated with a suspended account
     try:
-        from django.contrib.auth.models import User
         from django.utils import timezone
         existing_user = User.objects.get(email__iexact=email)
         profile, _ = UserProfile.objects.get_or_create(user=existing_user)
@@ -1350,3 +1356,217 @@ def employee_update_task(request, pk):
         'status': 'success',
         'task': EmployeeTaskSerializer(task, context={'request': request}).data
     })
+
+
+# ---------------------------------------------------------------------------
+# Chat Endpoints
+# ---------------------------------------------------------------------------
+
+def _get_company_user(request):
+    """
+    Returns the admin/company user for the current authenticated user.
+    - If admin: returns self.
+    - If employee: returns the admin who owns their linked employee profile.
+    """
+    user = request.user
+    profile = getattr(user, 'profile', None)
+    if profile and profile.role == 'employee':
+        employee = getattr(user, 'employee_profile', None)
+        if employee:
+            return employee.user
+        return None
+    return user
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def chat_messages(request):
+    """
+    GET /api/chat/messages/
+    Returns messages for a conversation.
+    Query params:
+      - recipient_id: user ID for private chat (omit for group chat)
+    """
+    company_user = _get_company_user(request)
+    if not company_user:
+        return Response({'error': 'Company profile not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    recipient_id = request.GET.get('recipient_id')
+    profile = getattr(request.user, 'profile', None)
+    is_employee = profile and profile.role == 'employee'
+
+    if recipient_id:
+        try:
+            recipient = User.objects.get(id=recipient_id)
+        except User.DoesNotExist:
+            return Response({'error': 'Recipient not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Private messages between the two users in this company workspace
+        msgs = ChatMessage.objects.filter(
+            company_user=company_user,
+            recipient__isnull=False
+        ).filter(
+            models.Q(sender=request.user, recipient=recipient) |
+            models.Q(sender=recipient, recipient=request.user)
+        ).select_related('sender', 'recipient', 'reply_to', 'reply_to__sender')
+    else:
+        # Group messages (recipient=None)
+        msgs = ChatMessage.objects.filter(
+            company_user=company_user,
+            recipient__isnull=True
+        ).select_related('sender', 'reply_to', 'reply_to__sender')
+
+    serializer = ChatMessageSerializer(msgs, many=True, context={'request': request})
+    return Response(serializer.data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def chat_send(request):
+    """
+    POST /api/chat/send/
+    Body: { text, recipient_id? (for DM), reply_to_id? }
+    """
+    company_user = _get_company_user(request)
+    if not company_user:
+        return Response({'error': 'Company profile not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    text = request.data.get('text', '').strip()
+    if not text:
+        return Response({'error': 'Message text is required.'}, status=status.HTTP_400_BAD_REQUEST)
+    if len(text) > 2000:
+        return Response({'error': 'Message too long (max 2000 chars).'}, status=status.HTTP_400_BAD_REQUEST)
+
+    recipient_id = request.data.get('recipient_id')
+    reply_to_id = request.data.get('reply_to_id')
+
+    recipient = None
+    if recipient_id:
+        try:
+            recipient = User.objects.get(id=recipient_id)
+        except User.DoesNotExist:
+            return Response({'error': 'Recipient not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    reply_to = None
+    if reply_to_id:
+        try:
+            reply_to = ChatMessage.objects.get(id=reply_to_id, company_user=company_user)
+        except ChatMessage.DoesNotExist:
+            pass
+
+    msg = ChatMessage.objects.create(
+        company_user=company_user,
+        sender=request.user,
+        recipient=recipient,
+        text=text,
+        reply_to=reply_to,
+    )
+    serializer = ChatMessageSerializer(msg, context={'request': request})
+    return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['PUT', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def chat_message_detail(request, pk):
+    """
+    PUT /api/chat/messages/<pk>/   → Edit message text
+    DELETE /api/chat/messages/<pk>/ → Soft-delete
+    Only the sender can edit/delete their own messages.
+    """
+    company_user = _get_company_user(request)
+    try:
+        msg = ChatMessage.objects.get(id=pk, company_user=company_user)
+    except ChatMessage.DoesNotExist:
+        return Response({'error': 'Message not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if msg.sender != request.user:
+        return Response({'error': 'You can only edit/delete your own messages.'}, status=status.HTTP_403_FORBIDDEN)
+
+    if request.method == 'PUT':
+        text = request.data.get('text', '').strip()
+        if not text:
+            return Response({'error': 'Text is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        msg.text = text
+        msg.is_edited = True
+        msg.save(update_fields=['text', 'is_edited', 'updated_at'])
+        return Response(ChatMessageSerializer(msg, context={'request': request}).data)
+
+    elif request.method == 'DELETE':
+        msg.is_deleted = True
+        msg.text = ''
+        msg.save(update_fields=['is_deleted', 'text', 'updated_at'])
+        return Response({'status': 'deleted'})
+
+    return Response({'error': 'Method not allowed.'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def chat_pin_message(request, pk):
+    """
+    POST /api/chat/messages/<pk>/pin/
+    Toggles pin state. Admin-only for group chat; either party can pin in DMs.
+    """
+    company_user = _get_company_user(request)
+    try:
+        msg = ChatMessage.objects.get(id=pk, company_user=company_user)
+    except ChatMessage.DoesNotExist:
+        return Response({'error': 'Message not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    msg.is_pinned = not msg.is_pinned
+    msg.save(update_fields=['is_pinned'])
+    return Response({'is_pinned': msg.is_pinned})
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def chat_contacts(request):
+    """
+    GET /api/chat/contacts/
+    Returns the list of people the current user can chat with.
+    - Admin: group + all employees
+    - Employee: group + admin only
+    """
+    company_user = _get_company_user(request)
+    if not company_user:
+        return Response({'error': 'Company profile not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    profile = getattr(request.user, 'profile', None)
+    is_employee = profile and profile.role == 'employee'
+
+    contacts = []
+
+    # Always include group chat
+    contacts.append({
+        'id': 'group',
+        'type': 'group',
+        'name': 'Team Chat',
+        'initials': '#',
+        'avatar': None,
+    })
+
+    if is_employee:
+        # Employee can only DM the admin
+        admin_profile = getattr(company_user, 'profile', None)
+        admin_name = f"{company_user.first_name} {company_user.last_name}".strip() or company_user.username
+        contacts.append({
+            'id': company_user.id,
+            'type': 'private',
+            'name': admin_name,
+            'initials': admin_name[:2].upper(),
+            'avatar': None,
+        })
+    else:
+        # Admin can DM any employee
+        employees = Employee.objects.filter(user=company_user, is_archived=False).select_related('linked_user')
+        for emp in employees:
+            if emp.linked_user:
+                contacts.append({
+                    'id': emp.linked_user.id,
+                    'type': 'private',
+                    'name': emp.name,
+                    'initials': emp.initials or emp.name[:2].upper(),
+                    'avatar': None,
+                })
+
+    return Response(contacts)

@@ -68,8 +68,22 @@ export const appendFileToFormData = async (
   uri: string | null
 ) => {
   if (!uri) return;
-  // Skip if it's an already-uploaded remote URL (not a local file)
-  if (uri.startsWith('http') && !uri.startsWith(`http://${HOST}`)) return;
+
+  // Skip if the URI is already a remote server URL (already uploaded media).
+  // We detect this by checking if it's an http(s) URL that is NOT a local
+  // device file proxy (blob:, data:, file://, content://, ph://).
+  if (uri.startsWith('http://') || uri.startsWith('https://')) {
+    // Only re-upload if it points to our own active base URL on a local LAN/device IP,
+    // because on mobile the image picker returns local device paths which may get
+    // resolved to an http URL. We never want to re-send already-stored media.
+    const isLocalPickerProxy =
+      uri.includes('localhost') ||
+      uri.includes('127.0.0.1') ||
+      uri.includes('10.0.2.2') ||
+      uri.startsWith(`http://${HOST}`);
+    // Even those local references that contain /media/ are already stored on the server
+    if (uri.includes('/media/') || !isLocalPickerProxy) return;
+  }
 
   if (Platform.OS === 'web') {
     try {
@@ -87,6 +101,7 @@ export const appendFileToFormData = async (
     formData.append(fieldName, { uri, name: filename, type } as any);
   }
 };
+
 
 // ─── Axios client ─────────────────────────────────────────────────────────────
 let unauthorizedCallback: (() => void) | null = null;
@@ -351,6 +366,23 @@ export const apiService = {
   getEmployeeFinance: () => apiClient.get('employee-portal/finance/'),
   updateEmployeeTask: (taskId: number, data: { status: string; description?: string }) =>
     apiClient.post(`employee-portal/tasks/${taskId}/update/`, data),
+
+  // Chat Endpoints
+  getChatContacts: () => apiClient.get('chat/contacts/'),
+  getChatMessages: (recipientId?: number | 'group') => {
+    if (!recipientId || recipientId === 'group') {
+      return apiClient.get('chat/messages/');
+    }
+    return apiClient.get(`chat/messages/?recipient_id=${recipientId}`);
+  },
+  sendChatMessage: (data: { text: string; recipient_id?: number; reply_to_id?: number }) =>
+    apiClient.post('chat/send/', data),
+  editChatMessage: (id: number, text: string) =>
+    apiClient.put(`chat/messages/${id}/`, { text }),
+  deleteChatMessage: (id: number) =>
+    apiClient.delete(`chat/messages/${id}/`),
+  pinChatMessage: (id: number) =>
+    apiClient.post(`chat/messages/${id}/pin/`),
 };
 
 export default apiClient;

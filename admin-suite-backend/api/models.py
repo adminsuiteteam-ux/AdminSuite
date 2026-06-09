@@ -370,3 +370,38 @@ class PayrollStatus(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.month}: {'Paid' if self.paid else 'Pending'}"
+
+
+class ChatMessage(models.Model):
+    """
+    Stores chat messages between the admin and employees.
+    - If recipient is None → group/company-wide message.
+    - If recipient is set → private message between two users.
+    The 'company_user' field identifies which admin workspace this message belongs to.
+    """
+    company_user = models.ForeignKey(
+        'auth.User', on_delete=models.CASCADE, related_name='company_chat_messages'
+    )
+    sender = models.ForeignKey(
+        'auth.User', on_delete=models.CASCADE, related_name='sent_chat_messages'
+    )
+    recipient = models.ForeignKey(
+        'auth.User', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='received_chat_messages'
+    )
+    text = models.TextField()
+    is_pinned = models.BooleanField(default=False)
+    is_edited = models.BooleanField(default=False)
+    is_deleted = models.BooleanField(default=False)
+    reply_to = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True, related_name='replies'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['created_at']
+
+    def __str__(self):
+        dest = f"→ {self.recipient.username}" if self.recipient else "→ Group"
+        return f"[{self.sender.username} {dest}]: {self.text[:40]}"

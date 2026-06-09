@@ -144,6 +144,15 @@ export default function MoreHubScreen() {
               }}
             />
             <Row
+              icon="compass"
+              label="Replay Dashboard Tour"
+              hint="Re-run the 10-step dashboard walkthrough"
+              onPress={async () => {
+                await AsyncStorage.removeItem("admin-suite.dashboard-tour-complete");
+                router.replace("/(tabs)");
+              }}
+            />
+            <Row
               icon="globe"
               label="All clients"
               hint={`${clients.length} companies`}

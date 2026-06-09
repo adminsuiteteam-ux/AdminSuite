@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import {
+  Alert,
   Animated,
   KeyboardAvoidingView,
   Platform,
@@ -13,18 +14,23 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
+import * as LocalAuthentication from "expo-local-authentication";
 
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { useToast } from "@/context/ToastContext";
+import { useSettings } from "@/context/SettingsContext";
 import { apiService } from "@/services/api";
 import { spacing, motion, shadows } from "@/constants/theme";
+
+type ThemeMode = "light" | "dark" | "system";
 
 export default function EmployeeProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user, setUser } = useAuth();
   const { showToast } = useToast();
+  const { theme, setTheme, biometricsEnabled, setBiometricsEnabled } = useSettings();
 
   const [name, setName] = useState(user?.name || "");
   const [phone, setPhone] = useState(user?.phone || "");
@@ -32,6 +38,8 @@ export default function EmployeeProfileScreen() {
   const [bio, setBio] = useState(user?.bio || "");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPass, setShowPass] = useState(false);
+  const [showConfirmPass, setShowConfirmPass] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -62,6 +70,41 @@ export default function EmployeeProfileScreen() {
     }).start();
   }, [btnPressAnim]);
 
+  // ─── Prompt biometric enrolment after password change ───────────────────────
+  const promptBiometricEnrolment = async () => {
+    if (Platform.OS === "web") return;
+
+    const compatible = await LocalAuthentication.hasHardwareAsync();
+    const enrolled = await LocalAuthentication.isEnrolledAsync();
+    if (!compatible || !enrolled) return;
+
+    Alert.alert(
+      "Enable Biometric Login",
+      "Would you like to use Face ID / Fingerprint to unlock your account next time?",
+      [
+        { text: "Not Now", style: "cancel" },
+        {
+          text: "Enable",
+          onPress: async () => {
+            const result = await LocalAuthentication.authenticateAsync({
+              promptMessage: "Verify your identity to enable biometric login",
+              cancelLabel: "Cancel",
+              disableDeviceFallback: false,
+            });
+            if (result.success) {
+              setBiometricsEnabled(true);
+              showToast({
+                title: "Biometrics Enabled",
+                message: "You can now unlock your account with Face ID / Fingerprint.",
+                type: "success",
+              });
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const onSave = async () => {
     setError("");
     if (password && password.length < 8) {
@@ -74,6 +117,7 @@ export default function EmployeeProfileScreen() {
     }
 
     setSaving(true);
+    const didChangePassword = !!password;
     try {
       const payload: any = {
         first_name: name,
@@ -88,8 +132,12 @@ export default function EmployeeProfileScreen() {
 
       const res = await apiService.updateMe(payload);
       const updatedUser = res.data;
-      updatedUser.initials = ((updatedUser.name || updatedUser.username || updatedUser.email || "US")).slice(0, 2).toUpperCase();
-      
+      updatedUser.initials = (
+        updatedUser.name || updatedUser.username || updatedUser.email || "US"
+      )
+        .slice(0, 2)
+        .toUpperCase();
+
       setUser(updatedUser);
       setPassword("");
       setConfirmPassword("");
@@ -103,13 +151,18 @@ export default function EmployeeProfileScreen() {
         message: "Your changes have been saved successfully.",
         type: "success",
       });
+
+      // Offer biometric enrolment only after a password change and not already enabled
+      if (didChangePassword && !biometricsEnabled) {
+        setTimeout(promptBiometricEnrolment, 600);
+      }
     } catch (err: any) {
       const errorData = err.response?.data;
       setError(
-        errorData?.message || 
-        errorData?.password?.[0] || 
-        err.message || 
-        "Failed to update profile. Please try again."
+        errorData?.message ||
+          errorData?.password?.[0] ||
+          err.message ||
+          "Failed to update profile. Please try again."
       );
     } finally {
       setSaving(false);
@@ -141,6 +194,12 @@ export default function EmployeeProfileScreen() {
 
   const tabBarPad = (Platform.OS === "web" ? 96 : 100) + 24;
 
+  const THEME_OPTIONS: { id: ThemeMode; label: string; icon: keyof typeof Feather.glyphMap }[] = [
+    { id: "light", label: "Light", icon: "sun" },
+    { id: "dark", label: "Dark", icon: "moon" },
+    { id: "system", label: "Auto", icon: "smartphone" },
+  ];
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -161,6 +220,66 @@ export default function EmployeeProfileScreen() {
           <Text style={[styles.subtitle, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
             Edit your profile details or change password
           </Text>
+        </View>
+
+        {/* ── Avatar initials ── */}
+        <View style={styles.avatarRow}>
+          <View style={[styles.avatarCircle, { backgroundColor: colors.primary }]}>
+            <Text style={[styles.avatarTxt, { fontFamily: "Inter_700Bold" }]}>
+              {user?.initials || "ME"}
+            </Text>
+          </View>
+          <View>
+            <Text style={[styles.avatarName, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+              {user?.name || user?.email}
+            </Text>
+            <Text style={[styles.avatarRole, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              Employee
+            </Text>
+          </View>
+        </View>
+
+        {/* ── Appearance ── */}
+        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+            Appearance
+          </Text>
+          <View style={styles.themeRow}>
+            {THEME_OPTIONS.map((opt) => {
+              const active = theme === opt.id;
+              return (
+                <Pressable
+                  key={opt.id}
+                  onPress={() => setTheme(opt.id)}
+                  style={({ pressed }) => [
+                    styles.themeBtn,
+                    {
+                      backgroundColor: active ? colors.primary : colors.inputGlass,
+                      borderColor: active ? colors.primary : colors.border,
+                      opacity: pressed ? 0.8 : 1,
+                    },
+                  ]}
+                >
+                  <Feather
+                    name={opt.icon}
+                    size={16}
+                    color={active ? "#fff" : colors.mutedForeground}
+                  />
+                  <Text
+                    style={[
+                      styles.themeTxt,
+                      {
+                        color: active ? "#fff" : colors.mutedForeground,
+                        fontFamily: active ? "Inter_600SemiBold" : "Inter_400Regular",
+                      },
+                    ]}
+                  >
+                    {opt.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
 
         <View style={styles.form}>
@@ -311,9 +430,12 @@ export default function EmployeeProfileScreen() {
               onBlur={() => passGlow.setValue(0)}
               placeholder="New Password"
               placeholderTextColor={colors.mutedForeground}
-              secureTextEntry
+              secureTextEntry={!showPass}
               style={[styles.input, { color: colors.text, fontFamily: "Inter_500Medium" }]}
             />
+            <Pressable onPress={() => setShowPass((v) => !v)} hitSlop={8}>
+              <Feather name={showPass ? "eye-off" : "eye"} size={14} color={colors.mutedForeground} />
+            </Pressable>
           </Animated.View>
 
           <Animated.View
@@ -336,10 +458,23 @@ export default function EmployeeProfileScreen() {
               onChangeText={setConfirmPassword}
               placeholder="Confirm New Password"
               placeholderTextColor={colors.mutedForeground}
-              secureTextEntry
+              secureTextEntry={!showConfirmPass}
               style={[styles.input, { color: colors.text, fontFamily: "Inter_500Medium" }]}
             />
+            <Pressable onPress={() => setShowConfirmPass((v) => !v)} hitSlop={8}>
+              <Feather name={showConfirmPass ? "eye-off" : "eye"} size={14} color={colors.mutedForeground} />
+            </Pressable>
           </Animated.View>
+
+          {/* Biometric status hint */}
+          {biometricsEnabled && (
+            <View style={[styles.bioHint, { backgroundColor: colors.success + "15", borderColor: colors.success + "40" }]}>
+              <Feather name="shield" size={14} color={colors.success} />
+              <Text style={[styles.bioHintText, { color: colors.success, fontFamily: "Inter_500Medium" }]}>
+                Biometric login is enabled for this account
+              </Text>
+            </View>
+          )}
 
           {error ? (
             <Text style={[styles.errorText, { color: colors.danger, fontFamily: "Inter_500Medium" }]}>
@@ -385,20 +520,45 @@ export default function EmployeeProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: {
-    marginBottom: 24,
+  header: { marginBottom: 20 },
+  title: { fontSize: 26, letterSpacing: -0.5 },
+  subtitle: { fontSize: 14, marginTop: 4 },
+  avatarRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    marginBottom: 20,
   },
-  title: {
-    fontSize: 26,
-    letterSpacing: -0.5,
+  avatarCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  subtitle: {
-    fontSize: 14,
-    marginTop: 4,
+  avatarTxt: { color: "#fff", fontSize: 22 },
+  avatarName: { fontSize: 16 },
+  avatarRole: { fontSize: 13, marginTop: 2 },
+  section: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 20,
   },
-  form: {
-    width: "100%",
+  sectionTitle: { fontSize: 14, marginBottom: 12 },
+  themeRow: { flexDirection: "row", gap: 10 },
+  themeBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1.5,
   },
+  themeTxt: { fontSize: 13 },
+  form: { width: "100%" },
   inputLabel: {
     fontSize: 12,
     marginBottom: 6,
@@ -418,14 +578,18 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     paddingVertical: 12,
   },
-  input: {
-    flex: 1,
-    fontSize: 15,
+  input: { flex: 1, fontSize: 15 },
+  divider: { height: 1, marginVertical: 24 },
+  bioHint: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 10,
+    marginTop: 14,
   },
-  divider: {
-    height: 1,
-    marginVertical: 24,
-  },
+  bioHintText: { fontSize: 13 },
   errorText: {
     fontSize: 13,
     textAlign: "center",
@@ -444,7 +608,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     overflow: "hidden",
   },
-  primaryBtnText: {
-    fontSize: 16,
-  },
+  primaryBtnText: { fontSize: 16 },
 });

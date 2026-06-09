@@ -11,7 +11,8 @@ from .views import (
     EmployeeActivityLogViewSet, EmployeeQueryViewSet, EmployeeTaskViewSet,
     EmployeeLeaveViewSet, EmployeeMessageViewSet, EmployeeDocumentViewSet,
     SalaryAdjustmentViewSet, toggle_payroll_month,
-    employee_dashboard, employee_finance, employee_update_task
+    employee_dashboard, employee_finance, employee_update_task,
+    chat_messages, chat_send, chat_message_detail, chat_pin_message, chat_contacts,
 )
 
 router = DefaultRouter()
@@ -56,5 +57,11 @@ urlpatterns = [
     path('employee-portal/dashboard/', employee_dashboard, name='employee-dashboard'),
     path('employee-portal/finance/', employee_finance, name='employee-finance'),
     path('employee-portal/tasks/<int:pk>/update/', employee_update_task, name='employee-update-task'),
+    # Chat
+    path('chat/messages/', chat_messages, name='chat-messages'),
+    path('chat/send/', chat_send, name='chat-send'),
+    path('chat/messages/<int:pk>/', chat_message_detail, name='chat-message-detail'),
+    path('chat/messages/<int:pk>/pin/', chat_pin_message, name='chat-pin-message'),
+    path('chat/contacts/', chat_contacts, name='chat-contacts'),
     path('export/', export_data, name='export-data'),
 ]

@@ -30,7 +30,15 @@ export default function EmployeeLayout() {
       screenOptions={{ headerShown: false }}
     >
       {TAB_ITEMS.map((it) => (
-        <Tabs.Screen key={it.name} name={it.name} options={{ title: it.label }} />
+        <Tabs.Screen
+          key={it.name}
+          name={it.name}
+          options={{
+            title: it.label,
+            // Hide tab bar on chat screen — full-screen like WhatsApp
+            ...(it.name === "chat" ? { tabBarStyle: { display: "none" } } : {}),
+          }}
+        />
       ))}
     </Tabs>
   );
@@ -40,6 +48,10 @@ function GlassTabBar({ state, navigation }: { state: any; navigation: any }) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === "web";
+
+  // Hide tab bar on the chat screen (full-screen WhatsApp mode)
+  const activeRouteName = state.routes[state.index]?.name;
+  if (activeRouteName === "chat") return null;
 
   const visibleRoutes = state.routes.filter((r: any) =>
     TAB_ITEMS.some((t) => t.name === r.name),
