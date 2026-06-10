@@ -8,6 +8,7 @@ import {
   Animated,
   Clipboard,
   FlatList,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -24,7 +25,7 @@ import * as Haptics from "expo-haptics";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { useToast } from "@/context/ToastContext";
-import { apiService } from "@/services/api";
+import { apiService, getMediaUrl } from "@/services/api";
 
 type Contact = {
   id: number | "group";
@@ -264,10 +265,14 @@ export default function EmployeeChatScreen() {
         style={[styles.msgRow, mine ? styles.msgRight : styles.msgLeft]}
       >
         {!mine && (
-          <View style={[styles.avatar, { backgroundColor: colors.primary + "33" }]}>
-            <Text style={[styles.avatarTxt, { color: colors.primary, fontFamily: "Inter_700Bold" }]}>
-              {msg.sender_initials}
-            </Text>
+          <View style={[styles.avatar, { backgroundColor: colors.primary + "33" }, msg.sender_avatar ? { overflow: "hidden" } : {}]}>
+            {msg.sender_avatar ? (
+              <Image source={{ uri: getMediaUrl(msg.sender_avatar) }} style={{ width: "100%", height: "100%" }} />
+            ) : (
+              <Text style={[styles.avatarTxt, { color: colors.primary, fontFamily: "Inter_700Bold" }]}>
+                {msg.sender_initials}
+              </Text>
+            )}
           </View>
         )}
 
@@ -336,10 +341,14 @@ export default function EmployeeChatScreen() {
         </Pressable>
 
         {/* Contact avatar */}
-        <View style={[styles.headerAvatar, { backgroundColor: activeContact.type === "group" ? colors.primary : colors.accent }]}>
-          <Text style={[styles.headerAvatarTxt, { fontFamily: "Inter_700Bold" }]}>
-            {activeContact.initials}
-          </Text>
+        <View style={[styles.headerAvatar, { backgroundColor: activeContact.type === "group" ? colors.primary : colors.accent, overflow: "hidden" }]}>
+          {activeContact.avatar ? (
+            <Image source={{ uri: getMediaUrl(activeContact.avatar) }} style={{ width: "100%", height: "100%" }} />
+          ) : (
+            <Text style={[styles.headerAvatarTxt, { fontFamily: "Inter_700Bold" }]}>
+              {activeContact.initials}
+            </Text>
+          )}
         </View>
 
         <View style={{ flex: 1 }}>
@@ -509,9 +518,9 @@ export default function EmployeeChatScreen() {
                 ]}
               >
                 {sending ? (
-                  <ActivityIndicator size={14} color="#fff" />
+                  <ActivityIndicator size={14} color={inputText.trim() ? colors.primaryForeground : "#fff"} />
                 ) : (
-                  <Feather name={editingMsg ? "check" : "send"} size={16} color="#fff" />
+                  <Feather name={editingMsg ? "check" : "send"} size={16} color={inputText.trim() ? colors.primaryForeground : "#fff"} />
                 )}
               </Pressable>
             </View>

@@ -226,9 +226,9 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.UserRateThrottle',
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'anon': '1000/minute' if DEBUG else '60/minute',
-        'user': '100000/day' if DEBUG else '1000/day',
-        'auth': '100/minute' if DEBUG else '5/minute',  # Generous in dev, strict rate limit for login/register in prod
+        'anon': '1000/minute' if DEBUG else '200/minute',
+        'user': '100000/day' if DEBUG else '100000/day',
+        'auth': '100/minute' if DEBUG else '30/minute',  # Generous in dev, safe but realistic limit for login/register in prod
     }
 }
 

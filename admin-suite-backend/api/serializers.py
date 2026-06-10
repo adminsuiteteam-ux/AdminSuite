@@ -180,6 +180,8 @@ class EmployeeSerializer(serializers.ModelSerializer):
         profile.role = 'employee'
         profile.is_first_login = True
         profile.profile_complete = True
+        if validated_data.get('avatar'):
+            profile.avatar = validated_data.get('avatar')
         profile.save()
         
         validated_data['linked_user'] = emp_user
@@ -205,7 +207,12 @@ class EmployeeSerializer(serializers.ModelSerializer):
                     setattr(instance.finance, attr, value)
             instance.finance.save() # type: ignore
             
-        return super().update(instance, validated_data)
+        employee = super().update(instance, validated_data)
+        if employee.linked_user:
+            profile, _ = UserProfile.objects.get_or_create(user=employee.linked_user)
+            profile.avatar = employee.avatar
+            profile.save()
+        return employee
 
 class ProjectSerializer(serializers.ModelSerializer):
     client_name = serializers.ReadOnlyField(source='client.company')
@@ -303,6 +310,26 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'social_handles', 'total_workers', 'opening_time', 'closing_time',
             'working_days', 'average_revenue', 'company_logo',
         ]
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        request = self.context.get('request')
+        if instance.avatar:
+            if request is not None:
+                ret['avatar'] = request.build_absolute_uri(instance.avatar.url)
+            else:
+                ret['avatar'] = instance.avatar.url
+        else:
+            ret['avatar'] = None
+
+        if instance.company_logo:
+            if request is not None:
+                ret['company_logo'] = request.build_absolute_uri(instance.company_logo.url)
+            else:
+                ret['company_logo'] = instance.company_logo.url
+        else:
+            ret['company_logo'] = None
+        return ret
 
 
 class RegisterSerializer(serializers.Serializer):

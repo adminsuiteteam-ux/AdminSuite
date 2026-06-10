@@ -315,6 +315,12 @@ def me(request):
         profile_serializer = UserProfileSerializer(profile, data=request.data, partial=True)
         if profile_serializer.is_valid():
             profile_serializer.save(profile_complete=True)
+            # Sync to Employee profile if it exists
+            if profile.role == 'employee':
+                employee = getattr(user, 'employee_profile', None)
+                if employee:
+                    employee.avatar = profile.avatar
+                    employee.save(update_fields=['avatar'])
         else:
             return Response(profile_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -1577,12 +1583,16 @@ def chat_contacts(request):
     if is_employee:
         # Employee can only DM the admin
         admin_name = f"{company_user.first_name} {company_user.last_name}".strip() or company_user.username
+        admin_profile = getattr(company_user, 'profile', None)
+        admin_avatar = None
+        if admin_profile and admin_profile.avatar:
+            admin_avatar = request.build_absolute_uri(admin_profile.avatar.url)
         contacts.append({
             'id': company_user.id,
             'type': 'private',
             'name': admin_name,
             'initials': admin_name[:2].upper(),
-            'avatar': None,
+            'avatar': admin_avatar,
             'group_locked': False,
             'is_blocked_from_group': False,
         })
@@ -1592,12 +1602,15 @@ def chat_contacts(request):
         for emp in employees:
             if emp.linked_user:
                 is_blocked = emp.linked_user.id in (settings_obj.blocked_user_ids or [])
+                emp_avatar = None
+                if emp.avatar:
+                    emp_avatar = request.build_absolute_uri(emp.avatar.url)
                 contacts.append({
                     'id': emp.linked_user.id,
                     'type': 'private',
                     'name': emp.name,
                     'initials': emp.initials or emp.name[:2].upper(),
-                    'avatar': None,
+                    'avatar': emp_avatar,
                     'employee_id': emp.id,
                     'group_locked': False,
                     'is_blocked_from_group': is_blocked,

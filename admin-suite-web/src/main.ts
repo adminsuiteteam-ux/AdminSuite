@@ -4751,7 +4751,7 @@ function bindForgotPasswordEvents() {
 document.addEventListener('DOMContentLoaded', async () => {
   // Set tab based on router hash
   const hash = window.location.hash.slice(2);
-  const validTabs: Array<typeof state.activeTab> = ['dashboard', 'employees', 'clients', 'finance', 'settings'];
+  const validTabs: Array<typeof state.activeTab> = ['dashboard', 'employees', 'clients', 'finance', 'settings', 'pricing'];
   if (validTabs.includes(hash as any)) {
     state.activeTab = hash as any;
   }

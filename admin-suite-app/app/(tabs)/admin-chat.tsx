@@ -12,6 +12,7 @@ import {
   Animated,
   Clipboard,
   FlatList,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -28,7 +29,7 @@ import * as Haptics from "expo-haptics";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { useToast } from "@/context/ToastContext";
-import { apiService } from "@/services/api";
+import { apiService, getMediaUrl } from "@/services/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Contact = {
@@ -296,10 +297,14 @@ export default function AdminChatScreen() {
         style={[styles.msgRow, mine ? styles.msgRight : styles.msgLeft]}
       >
         {!mine && (
-          <View style={[styles.avatar, { backgroundColor: colors.primary + "33" }]}>
-            <Text style={[styles.avatarTxt, { color: colors.primary, fontFamily: "Inter_700Bold" }]}>
-              {msg.sender_initials}
-            </Text>
+          <View style={[styles.avatar, { backgroundColor: colors.primary + "33" }, msg.sender_avatar ? { overflow: "hidden" } : {}]}>
+            {msg.sender_avatar ? (
+              <Image source={{ uri: getMediaUrl(msg.sender_avatar) }} style={{ width: "100%", height: "100%" }} />
+            ) : (
+              <Text style={[styles.avatarTxt, { color: colors.primary, fontFamily: "Inter_700Bold" }]}>
+                {msg.sender_initials}
+              </Text>
+            )}
           </View>
         )}
         <View style={[styles.msgContent, { maxWidth: "75%" }]}>
@@ -442,12 +447,17 @@ export default function AdminChatScreen() {
                       styles.contactAvatarLarge,
                       {
                         backgroundColor: isGroup ? colors.primary : colors.accent,
+                        overflow: "hidden",
                       },
                     ]}
                   >
-                    <Text style={[styles.contactAvatarTxtLarge, { fontFamily: "Inter_700Bold" }]}>
-                      {contact.initials}
-                    </Text>
+                    {contact.avatar ? (
+                      <Image source={{ uri: getMediaUrl(contact.avatar) }} style={{ width: "100%", height: "100%" }} />
+                    ) : (
+                      <Text style={[styles.contactAvatarTxtLarge, { fontFamily: "Inter_700Bold" }]}>
+                        {contact.initials}
+                      </Text>
+                    )}
                   </View>
 
                   {/* Info */}
@@ -527,12 +537,17 @@ export default function AdminChatScreen() {
             styles.headerAvatar,
             {
               backgroundColor: isGroupChat ? colors.primary : colors.accent,
+              overflow: "hidden",
             },
           ]}
         >
-          <Text style={[styles.headerAvatarTxt, { fontFamily: "Inter_700Bold" }]}>
-            {activeContact.initials}
-          </Text>
+          {activeContact.avatar ? (
+            <Image source={{ uri: getMediaUrl(activeContact.avatar) }} style={{ width: "100%", height: "100%" }} />
+          ) : (
+            <Text style={[styles.headerAvatarTxt, { fontFamily: "Inter_700Bold" }]}>
+              {activeContact.initials}
+            </Text>
+          )}
         </View>
         <View style={{ flex: 1 }}>
           <Text style={[styles.headerName, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
@@ -666,9 +681,9 @@ export default function AdminChatScreen() {
                 ]}
               >
                 {sending ? (
-                  <ActivityIndicator size={14} color="#fff" />
+                  <ActivityIndicator size={14} color={inputText.trim() ? colors.primaryForeground : "#fff"} />
                 ) : (
-                  <Feather name={editingMsg ? "check" : "send"} size={16} color="#fff" />
+                  <Feather name={editingMsg ? "check" : "send"} size={16} color={inputText.trim() ? colors.primaryForeground : "#fff"} />
                 )}
               </Pressable>
             </View>

@@ -3,6 +3,7 @@ import React, { useState, useRef, useCallback } from "react";
 import {
   Alert,
   Animated,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -20,7 +21,8 @@ import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { useToast } from "@/context/ToastContext";
 import { useSettings } from "@/context/SettingsContext";
-import { apiService } from "@/services/api";
+import { apiService, appendFileToFormData, getMediaUrl } from "@/services/api";
+import * as ImagePicker from "expo-image-picker";
 import { spacing, motion, shadows } from "@/constants/theme";
 
 type ThemeMode = "light" | "dark" | "system";
@@ -41,6 +43,7 @@ export default function EmployeeProfileScreen() {
   const [showPass, setShowPass] = useState(false);
   const [showConfirmPass, setShowConfirmPass] = useState(false);
 
+  const [photoUri, setPhotoUri] = useState<string | null>(user?.avatar ? getMediaUrl(user.avatar) : null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -50,7 +53,19 @@ export default function EmployeeProfileScreen() {
   const locGlow = useRef(new Animated.Value(0)).current;
   const bioGlow = useRef(new Animated.Value(0)).current;
   const passGlow = useRef(new Animated.Value(0)).current;
-  const btnPressAnim = useRef(new Animated.Value(0)).current;
+  const [btnPressAnim = new Animated.Value(0)] = useState(() => new Animated.Value(0));
+
+  const pickImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setPhotoUri(result.assets[0].uri);
+    }
+  };
 
   const handleBtnPressIn = useCallback(() => {
     Animated.spring(btnPressAnim, {
@@ -119,18 +134,19 @@ export default function EmployeeProfileScreen() {
     setSaving(true);
     const didChangePassword = !!password;
     try {
-      const payload: any = {
-        first_name: name,
-        phone,
-        location,
-        bio,
-      };
+      const formData = new FormData();
+      formData.append("first_name", name);
+      formData.append("phone", phone);
+      formData.append("location", location);
+      formData.append("bio", bio);
 
       if (password) {
-        payload.password = password;
+        formData.append("password", password);
       }
 
-      const res = await apiService.updateMe(payload);
+      await appendFileToFormData(formData, "avatar", photoUri);
+
+      const res = await apiService.updateMe(formData);
       const updatedUser = res.data;
       updatedUser.initials = (
         updatedUser.name || updatedUser.username || updatedUser.email || "US"
@@ -222,20 +238,31 @@ export default function EmployeeProfileScreen() {
           </Text>
         </View>
 
-        {/* ── Avatar initials ── */}
+        {/* ── Avatar initials / image ── */}
         <View style={styles.avatarRow}>
-          <View style={[styles.avatarCircle, { backgroundColor: colors.primary }]}>
-            <Text style={[styles.avatarTxt, { fontFamily: "Inter_700Bold" }]}>
-              {user?.initials || "ME"}
-            </Text>
-          </View>
-          <View>
+          <Pressable onPress={pickImage} style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1 })}>
+            <View style={[styles.avatarCircle, { backgroundColor: colors.primary, overflow: "hidden" }]}>
+              {photoUri ? (
+                <Image source={{ uri: photoUri }} style={{ width: "100%", height: "100%" }} />
+              ) : (
+                <Text style={[styles.avatarTxt, { fontFamily: "Inter_700Bold" }]}>
+                  {user?.initials || "ME"}
+                </Text>
+              )}
+            </View>
+          </Pressable>
+          <View style={{ flex: 1 }}>
             <Text style={[styles.avatarName, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
               {user?.name || user?.email}
             </Text>
             <Text style={[styles.avatarRole, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
               Employee
             </Text>
+            <Pressable onPress={pickImage} hitSlop={10}>
+              <Text style={{ color: colors.accent, fontFamily: "Inter_600SemiBold", fontSize: 13, marginTop: 4 }}>
+                Change Profile Photo
+              </Text>
+            </Pressable>
           </View>
         </View>
 

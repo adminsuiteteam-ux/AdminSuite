@@ -44,6 +44,9 @@ function GlassTabBar({ state, navigation }: { state: any; navigation: any }) {
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === "web";
 
+  const activeRouteName = state.routes[state.index]?.name;
+  if (activeRouteName === "admin-chat") return null;
+
   const visibleRoutes = state.routes.filter((r: any) =>
     TAB_ITEMS.some((t) => t.name === r.name),
   );
@@ -181,7 +184,7 @@ function ChatFAB({ bottomOffset }: { bottomOffset: number }) {
           style={StyleSheet.absoluteFill}
         />
         <View style={[styles.fabGlass, { backgroundColor: colors.primary + "cc" }]} />
-        <Feather name="message-circle" size={22} color="#fff" />
+        <Feather name="message-circle" size={22} color={colors.primaryForeground} />
       </Pressable>
     </View>
   );
