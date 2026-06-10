@@ -82,7 +82,6 @@ export default function AdminChatScreen() {
   const [showActionSheet, setShowActionSheet] = useState(false);
   const [groupLocked, setGroupLocked] = useState(false);
   const [togglingLock, setTogglingLock] = useState(false);
-  const [showContacts, setShowContacts] = useState(true);
 
   const flatListRef = useRef<FlatList>(null);
   const pollRef = useRef<any>(null);
@@ -96,7 +95,6 @@ export default function AdminChatScreen() {
       // Sync group lock from first contact (the group)
       const group = data.find((c) => c.id === "group");
       if (group?.group_locked !== undefined) setGroupLocked(group.group_locked);
-      if (!activeContact && data.length > 0) setActiveContact(data[0]);
     } catch {
       showToast({ title: "Error", message: "Could not load contacts.", type: "error" });
     } finally {
@@ -367,7 +365,140 @@ export default function AdminChatScreen() {
     );
   }
 
-  const isGroupChat = activeContact?.id === "group";
+  if (!activeContact) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        {/* ── Top Bar ── */}
+        <View
+          style={[
+            styles.topBar,
+            {
+              paddingTop: insets.top + 8,
+              backgroundColor: isDark ? "#09090b" : "#fff",
+              borderBottomColor: colors.border,
+            },
+          ]}
+        >
+          <Pressable
+            onPress={() => router.back()}
+            style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.6 : 1 }]}
+            hitSlop={8}
+          >
+            <Feather name="arrow-left" size={22} color={colors.foreground} />
+          </Pressable>
+          <Text style={[styles.headerName, { color: colors.foreground, fontFamily: "Inter_700Bold", flex: 1, marginLeft: 4 }]}>
+            Messages
+          </Text>
+        </View>
+
+        {/* Contacts Scrollable List */}
+        <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+          <View style={{ paddingVertical: 8 }}>
+            {contacts.map((contact) => {
+              const isGroup = contact.id === "group";
+              return (
+                <Pressable
+                  key={String(contact.id)}
+                  onPress={() => {
+                    setActiveContact(contact);
+                    setMessages([]);
+                    setReplyTo(null);
+                    setEditingMsg(null);
+                    if (Platform.OS !== "web")
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                  }}
+                  onLongPress={() => {
+                    if (isGroup || typeof contact.id !== "number") return;
+                    if (Platform.OS !== "web")
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+                    const blocked = contact.is_blocked_from_group;
+                    Alert.alert(
+                      contact.name,
+                      blocked
+                        ? "This employee is blocked from the group chat."
+                        : "Manage this employee's group access.",
+                      [
+                        { text: "Cancel", style: "cancel" },
+                        {
+                          text: blocked ? "Unblock from Group" : "Block from Group",
+                          style: blocked ? "default" : "destructive",
+                          onPress: () => handleBlockUser(contact, !blocked),
+                        },
+                      ]
+                    );
+                  }}
+                  delayLongPress={400}
+                  style={({ pressed }) => [
+                    styles.contactRowFull,
+                    {
+                      backgroundColor: pressed ? colors.card : "transparent",
+                      borderBottomColor: colors.border,
+                    },
+                  ]}
+                >
+                  {/* Avatar */}
+                  <View
+                    style={[
+                      styles.contactAvatarLarge,
+                      {
+                        backgroundColor: isGroup ? colors.primary : colors.accent,
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.contactAvatarTxtLarge, { fontFamily: "Inter_700Bold" }]}>
+                      {contact.initials}
+                    </Text>
+                  </View>
+
+                  {/* Info */}
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text
+                      numberOfLines={1}
+                      style={[
+                        styles.contactNameLarge,
+                        {
+                          color: colors.foreground,
+                          fontFamily: "Inter_600SemiBold",
+                        },
+                      ]}
+                    >
+                      {contact.name}
+                    </Text>
+                    <Text style={[styles.contactSubLarge, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                      {isGroup ? "Company group chat" : "Employee direct message"}
+                    </Text>
+                  </View>
+
+                  {/* Status indicators / chevron */}
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    {isGroup && groupLocked && (
+                      <View style={[styles.lockBadge, { backgroundColor: (colors.warning ?? "#f59e0b") + "20" }]}>
+                        <Feather name="lock" size={10} color={colors.warning ?? "#f59e0b"} />
+                        <Text style={[styles.lockBadgeTxt, { color: colors.warning ?? "#f59e0b", fontFamily: "Inter_600SemiBold" }]}>
+                          Locked
+                        </Text>
+                      </View>
+                    )}
+                    {!isGroup && contact.is_blocked_from_group && (
+                      <View style={[styles.lockBadge, { backgroundColor: colors.danger + "20" }]}>
+                        <Feather name="slash" size={10} color={colors.danger} />
+                        <Text style={[styles.lockBadgeTxt, { color: colors.danger, fontFamily: "Inter_600SemiBold" }]}>
+                          Blocked
+                        </Text>
+                      </View>
+                    )}
+                    <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        </ScrollView>
+      </View>
+    );
+  }
+
+  const isGroupChat = activeContact.id === "group";
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -383,7 +514,7 @@ export default function AdminChatScreen() {
         ]}
       >
         <Pressable
-          onPress={() => router.back()}
+          onPress={() => setActiveContact(null)}
           style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.6 : 1 }]}
           hitSlop={8}
         >
@@ -391,45 +522,36 @@ export default function AdminChatScreen() {
         </Pressable>
 
         {/* Active contact info */}
-        {activeContact ? (
-          <>
-            <View
-              style={[
-                styles.headerAvatar,
-                {
-                  backgroundColor:
-                    isGroupChat ? colors.primary : colors.accent,
-                },
-              ]}
-            >
-              <Text style={[styles.headerAvatarTxt, { fontFamily: "Inter_700Bold" }]}>
-                {activeContact.initials}
-              </Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.headerName, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-                {activeContact.name}
-              </Text>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                  {isGroupChat ? "Company group" : "Private chat"}
-                </Text>
-                {isGroupChat && groupLocked && (
-                  <View style={[styles.lockBadge, { backgroundColor: colors.warning + "20" }]}>
-                    <Feather name="lock" size={9} color={colors.warning ?? "#f59e0b"} />
-                    <Text style={[styles.lockBadgeTxt, { color: colors.warning ?? "#f59e0b", fontFamily: "Inter_600SemiBold" }]}>
-                      Locked
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </View>
-          </>
-        ) : (
-          <Text style={[styles.headerName, { color: colors.foreground, fontFamily: "Inter_700Bold", flex: 1 }]}>
-            Messages
+        <View
+          style={[
+            styles.headerAvatar,
+            {
+              backgroundColor: isGroupChat ? colors.primary : colors.accent,
+            },
+          ]}
+        >
+          <Text style={[styles.headerAvatarTxt, { fontFamily: "Inter_700Bold" }]}>
+            {activeContact.initials}
           </Text>
-        )}
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.headerName, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+            {activeContact.name}
+          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              {isGroupChat ? "Company group" : "Private chat"}
+            </Text>
+            {isGroupChat && groupLocked && (
+              <View style={[styles.lockBadge, { backgroundColor: colors.warning + "20" }]}>
+                <Feather name="lock" size={9} color={colors.warning ?? "#f59e0b"} />
+                <Text style={[styles.lockBadgeTxt, { color: colors.warning ?? "#f59e0b", fontFamily: "Inter_600SemiBold" }]}>
+                  Locked
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
 
         {/* Admin controls */}
         <View style={{ flexDirection: "row", gap: 6 }}>
@@ -463,233 +585,95 @@ export default function AdminChatScreen() {
               )}
             </Pressable>
           )}
-
-          {/* Contact list toggle */}
-          <Pressable
-            onPress={() => setShowContacts((v) => !v)}
-            style={({ pressed }) => [
-              styles.iconBtn,
-              {
-                backgroundColor: showContacts ? colors.primary + "20" : colors.card,
-                borderColor: showContacts ? colors.primary + "40" : colors.border,
-                borderWidth: 1,
-                opacity: pressed ? 0.7 : 1,
-              },
-            ]}
-            hitSlop={4}
-          >
-            <Feather name="users" size={16} color={showContacts ? colors.primary : colors.mutedForeground} />
-          </Pressable>
         </View>
       </View>
 
-      {/* ── Body: sidebar + chat ── */}
-      <View style={{ flex: 1, flexDirection: "row" }}>
+      {/* ── Body: chat space (no sidebar) ── */}
+      <View style={{ flex: 1 }}>
+        {loadingMessages ? (
+          <View style={styles.center}>
+            <ActivityIndicator color={colors.primary} />
+          </View>
+        ) : (
+          <FlatList
+            ref={flatListRef}
+            data={messages}
+            keyExtractor={(m) => m.id.toString()}
+            renderItem={renderMessage}
+            contentContainerStyle={[styles.listContent, { paddingBottom: 16 }]}
+            onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <View style={styles.emptyList}>
+                <Feather name="message-circle" size={36} color={colors.mutedForeground} />
+                <Text style={[styles.emptyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                  No messages yet. Say hello! 👋
+                </Text>
+              </View>
+            }
+          />
+        )}
 
-        {/* Contact sidebar */}
-        {showContacts && (
-          <View
-            style={[
-              styles.sidebar,
-              {
-                backgroundColor: isDark ? "#0d0d10" : "#f8f8fa",
-                borderRightColor: colors.border,
-              },
-            ]}
-          >
-            <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
-              {contacts.map((contact) => {
-                const active = activeContact?.id === contact.id;
-                const isGroup = contact.id === "group";
-                return (
-                  <Pressable
-                    key={String(contact.id)}
-                    onPress={() => {
-                      setActiveContact(contact);
-                      setMessages([]);
-                      setReplyTo(null);
-                      setEditingMsg(null);
-                      if (Platform.OS !== "web")
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-                    }}
-                    onLongPress={() => {
-                      if (isGroup || typeof contact.id !== "number") return;
-                      if (Platform.OS !== "web")
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-                      const blocked = contact.is_blocked_from_group;
-                      Alert.alert(
-                        contact.name,
-                        blocked
-                          ? "This employee is blocked from the group chat."
-                          : "Manage this employee's group access.",
-                        [
-                          { text: "Cancel", style: "cancel" },
-                          {
-                            text: blocked ? "Unblock from Group" : "Block from Group",
-                            style: blocked ? "default" : "destructive",
-                            onPress: () => handleBlockUser(contact, !blocked),
-                          },
-                        ]
-                      );
-                    }}
-                    delayLongPress={400}
-                    style={({ pressed }) => [
-                      styles.contactRow,
-                      {
-                        backgroundColor: active
-                          ? colors.primary + "18"
-                          : pressed
-                          ? colors.card
-                          : "transparent",
-                        borderLeftColor: active ? colors.primary : "transparent",
-                      },
-                    ]}
-                  >
-                    {/* Avatar */}
-                    <View
-                      style={[
-                        styles.contactAvatar,
-                        {
-                          backgroundColor: isGroup
-                            ? colors.primary
-                            : colors.accent,
-                        },
-                      ]}
-                    >
-                      <Text style={[styles.contactAvatarTxt, { fontFamily: "Inter_700Bold" }]}>
-                        {contact.initials}
-                      </Text>
-                    </View>
-
-                    {/* Info */}
-                    <View style={{ flex: 1 }}>
-                      <Text
-                        numberOfLines={1}
-                        style={[
-                          styles.contactName,
-                          {
-                            color: active ? colors.primary : colors.foreground,
-                            fontFamily: active ? "Inter_700Bold" : "Inter_500Medium",
-                          },
-                        ]}
-                      >
-                        {contact.name}
-                      </Text>
-                      <Text style={[styles.contactSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                        {isGroup ? "Group" : "Employee"}
-                      </Text>
-                    </View>
-
-                    {/* Status icons */}
-                    <View style={{ alignItems: "flex-end", gap: 3 }}>
-                      {isGroup && groupLocked && (
-                        <Feather name="lock" size={11} color={colors.warning ?? "#f59e0b"} />
-                      )}
-                      {!isGroup && contact.is_blocked_from_group && (
-                        <Feather name="slash" size={11} color={colors.danger} />
-                      )}
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
+        {/* Reply / Edit preview */}
+        {(replyTo || editingMsg) && (
+          <View style={[styles.replyBar, { backgroundColor: isDark ? "#18181b" : "#f4f4f5", borderTopColor: colors.border }]}>
+            <View style={[styles.replyBarAccent, { backgroundColor: editingMsg ? colors.accent : colors.primary }]} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.replyBarLabel, { color: editingMsg ? colors.accent : colors.primary, fontFamily: "Inter_600SemiBold" }]}>
+                {editingMsg ? "Edit message" : `Reply to ${replyTo?.sender_name}`}
+              </Text>
+              <Text style={[styles.replyBarText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]} numberOfLines={1}>
+                {editingMsg ? editingMsg.text : replyTo?.text}
+              </Text>
+            </View>
+            <Pressable onPress={() => { setReplyTo(null); setEditingMsg(null); setInputText(""); }} hitSlop={8}>
+              <Feather name="x" size={18} color={colors.mutedForeground} />
+            </Pressable>
           </View>
         )}
 
-        {/* ── Chat Panel ── */}
-        <View style={{ flex: 1 }}>
-          {!activeContact ? (
-            <View style={styles.center}>
-              <Feather name="message-square" size={40} color={colors.mutedForeground} />
-              <Text style={[styles.emptyText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-                Select a contact
-              </Text>
-            </View>
-          ) : loadingMessages ? (
-            <View style={styles.center}>
-              <ActivityIndicator color={colors.primary} />
-            </View>
-          ) : (
-            <FlatList
-              ref={flatListRef}
-              data={messages}
-              keyExtractor={(m) => m.id.toString()}
-              renderItem={renderMessage}
-              contentContainerStyle={[styles.listContent, { paddingBottom: 16 }]}
-              onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
-              showsVerticalScrollIndicator={false}
-              ListEmptyComponent={
-                <View style={styles.emptyList}>
-                  <Feather name="message-circle" size={36} color={colors.mutedForeground} />
-                  <Text style={[styles.emptyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                    No messages yet. Say hello! 👋
-                  </Text>
-                </View>
-              }
-            />
-          )}
-
-          {/* Reply / Edit preview */}
-          {(replyTo || editingMsg) && (
-            <View style={[styles.replyBar, { backgroundColor: isDark ? "#18181b" : "#f4f4f5", borderTopColor: colors.border }]}>
-              <View style={[styles.replyBarAccent, { backgroundColor: editingMsg ? colors.accent : colors.primary }]} />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.replyBarLabel, { color: editingMsg ? colors.accent : colors.primary, fontFamily: "Inter_600SemiBold" }]}>
-                  {editingMsg ? "Edit message" : `Reply to ${replyTo?.sender_name}`}
-                </Text>
-                <Text style={[styles.replyBarText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]} numberOfLines={1}>
-                  {editingMsg ? editingMsg.text : replyTo?.text}
-                </Text>
-              </View>
-              <Pressable onPress={() => { setReplyTo(null); setEditingMsg(null); setInputText(""); }} hitSlop={8}>
-                <Feather name="x" size={18} color={colors.mutedForeground} />
+        {/* Input bar */}
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} keyboardVerticalOffset={0}>
+          <View
+            style={[
+              styles.inputBar,
+              {
+                paddingBottom: Math.max(insets.bottom, 16),
+                backgroundColor: isDark ? "#09090b" : "#fff",
+                borderTopColor: colors.border,
+              },
+            ]}
+          >
+            <View style={[styles.inputWrap, { backgroundColor: isDark ? "#27272a" : "#f4f4f5", borderColor: colors.border }]}>
+              <TextInput
+                value={inputText}
+                onChangeText={setInputText}
+                placeholder={editingMsg ? "Edit message..." : "Type a message..."}
+                placeholderTextColor={colors.mutedForeground}
+                multiline
+                style={[styles.input, { color: colors.text, fontFamily: "Inter_400Regular" }]}
+                onSubmitEditing={handleSend}
+              />
+              <Pressable
+                onPress={handleSend}
+                disabled={!inputText.trim() || sending}
+                style={({ pressed }) => [
+                  styles.sendBtn,
+                  {
+                    backgroundColor: inputText.trim() ? colors.primary : isDark ? "#3f3f46" : "#d4d4d8",
+                    opacity: pressed ? 0.8 : 1,
+                  },
+                ]}
+              >
+                {sending ? (
+                  <ActivityIndicator size={14} color="#fff" />
+                ) : (
+                  <Feather name={editingMsg ? "check" : "send"} size={16} color="#fff" />
+                )}
               </Pressable>
             </View>
-          )}
-
-          {/* Input bar */}
-          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} keyboardVerticalOffset={0}>
-            <View
-              style={[
-                styles.inputBar,
-                {
-                  paddingBottom: Math.max(insets.bottom, 16),
-                  backgroundColor: isDark ? "#09090b" : "#fff",
-                  borderTopColor: colors.border,
-                },
-              ]}
-            >
-              <View style={[styles.inputWrap, { backgroundColor: isDark ? "#27272a" : "#f4f4f5", borderColor: colors.border }]}>
-                <TextInput
-                  value={inputText}
-                  onChangeText={setInputText}
-                  placeholder={editingMsg ? "Edit message..." : "Type a message..."}
-                  placeholderTextColor={colors.mutedForeground}
-                  multiline
-                  style={[styles.input, { color: colors.text, fontFamily: "Inter_400Regular" }]}
-                  onSubmitEditing={handleSend}
-                />
-                <Pressable
-                  onPress={handleSend}
-                  disabled={!inputText.trim() || sending}
-                  style={({ pressed }) => [
-                    styles.sendBtn,
-                    {
-                      backgroundColor: inputText.trim() ? colors.primary : isDark ? "#3f3f46" : "#d4d4d8",
-                      opacity: pressed ? 0.8 : 1,
-                    },
-                  ]}
-                >
-                  {sending ? (
-                    <ActivityIndicator size={14} color="#fff" />
-                  ) : (
-                    <Feather name={editingMsg ? "check" : "send"} size={16} color="#fff" />
-                  )}
-                </Pressable>
-              </View>
-            </View>
-          </KeyboardAvoidingView>
-        </View>
+          </View>
+        </KeyboardAvoidingView>
       </View>
 
       {/* ── Message Action Modal ── */}
@@ -964,4 +948,29 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   actionLabel: { fontSize: 16 },
+  contactRowFull: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  contactAvatarLarge: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  contactAvatarTxtLarge: {
+    color: "#fff",
+    fontSize: 16,
+  },
+  contactNameLarge: {
+    fontSize: 15,
+  },
+  contactSubLarge: {
+    fontSize: 12,
+  },
 });
