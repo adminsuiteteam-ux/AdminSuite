@@ -383,6 +383,14 @@ export const apiService = {
     apiClient.delete(`chat/messages/${id}/`),
   pinChatMessage: (id: number) =>
     apiClient.post(`chat/messages/${id}/pin/`),
+
+  // Admin Chat Controls
+  getChatSettings: () =>
+    apiClient.get('chat/settings/'),
+  updateChatSettings: (data: { group_locked?: boolean }) =>
+    apiClient.patch('chat/settings/', data),
+  blockChatUser: (userId: number, block: boolean) =>
+    apiClient.post('chat/block-user/', { user_id: userId, block }),
 };
 
 export default apiClient;

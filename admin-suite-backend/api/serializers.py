@@ -8,7 +8,7 @@ from .models import (
     Transaction, Notification, Debt, BudgetCategory, Savings,
     UserProfile, EmployeeActivityLog, EmployeeQuery, EmployeeTask,
     EmployeeLeave, EmployeeMessage, EmployeeDocument, SalaryAdjustment,
-    ChatMessage
+    ChatMessage, ChatSettings
 )
 
 from django.contrib.auth.password_validation import validate_password
@@ -407,3 +407,10 @@ class ChatMessageSerializer(serializers.ModelSerializer):
         if obj.is_deleted:
             return "This message was deleted"
         return obj.text
+
+
+class ChatSettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ChatSettings
+        fields = ['group_locked', 'blocked_user_ids', 'updated_at']
+        read_only_fields = ['updated_at']

@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
-import { Tabs } from "expo-router";
+import { Tabs, router } from "expo-router";
 import React, { useEffect, useRef } from "react";
 import {
   Animated,
@@ -33,6 +33,8 @@ export default function TabLayout() {
         <Tabs.Screen key={it.name} name={it.name} options={{ title: it.label }} />
       ))}
       <Tabs.Screen name="projects" options={{ href: null }} />
+      {/* Hidden — accessed via Chat FAB only */}
+      <Tabs.Screen name="admin-chat" options={{ href: null }} />
     </Tabs>
   );
 }
@@ -46,53 +48,146 @@ function GlassTabBar({ state, navigation }: { state: any; navigation: any }) {
     TAB_ITEMS.some((t) => t.name === r.name),
   );
 
+  // Estimate the tab bar height so the FAB can sit just above it
+  const tabBarHeight = Math.max(insets.bottom, 14) + 62;
+
+  return (
+    <>
+      {/* ── Floating Chat FAB ── */}
+      <ChatFAB bottomOffset={tabBarHeight} />
+
+      {/* ── Glass Tab Bar ── */}
+      <View
+        pointerEvents="box-none"
+        style={[
+          styles.barWrap,
+          { paddingBottom: Math.max(insets.bottom, 14) },
+        ]}
+      >
+        <View style={styles.barOuter}>
+          <BlurView
+            intensity={isWeb ? 30 : 60}
+            tint="dark"
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={styles.barTint} />
+          <View style={styles.barInner}>
+            {visibleRoutes.map((route: any) => {
+              const item = TAB_ITEMS.find((t) => t.name === route.name);
+              if (!item) return null;
+              const focused =
+                state.routes[state.index]?.name === route.name;
+              const onPress = () => {
+                const event = navigation.emit({
+                  type: "tabPress",
+                  target: route.key,
+                  canPreventDefault: true,
+                });
+                if (!focused && !event.defaultPrevented) {
+                  navigation.navigate(route.name);
+                }
+              };
+              return (
+                <TabButton
+                  key={route.key}
+                  focused={focused}
+                  icon={item.icon as any}
+                  label={item.label}
+                  onPress={onPress}
+                />
+              );
+            })}
+          </View>
+        </View>
+      </View>
+    </>
+  );
+}
+
+// ─── Floating Chat FAB ────────────────────────────────────────────────────────
+function ChatFAB({ bottomOffset }: { bottomOffset: number }) {
+  const colors = useColors();
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const pulseOpacity = useRef(new Animated.Value(0.6)).current;
+
+  useEffect(() => {
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(pulseAnim, {
+            toValue: 1.55,
+            duration: 1100,
+            easing: Easing.out(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseOpacity, {
+            toValue: 0,
+            duration: 1100,
+            easing: Easing.out(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 0,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseOpacity, {
+            toValue: 0.5,
+            duration: 0,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.delay(600),
+      ])
+    );
+    pulse.start();
+    return () => pulse.stop();
+  }, []);
+
   return (
     <View
       pointerEvents="box-none"
-      style={[
-        styles.barWrap,
-        { paddingBottom: Math.max(insets.bottom, 14) },
-      ]}
+      style={[styles.fabWrap, { bottom: bottomOffset + 16 }]}
     >
-      <View style={styles.barOuter}>
+      {/* Pulse ring */}
+      <Animated.View
+        style={[
+          styles.fabPulse,
+          {
+            backgroundColor: colors.primary + "55",
+            transform: [{ scale: pulseAnim }],
+            opacity: pulseOpacity,
+          },
+        ]}
+      />
+
+      {/* Main FAB button */}
+      <Pressable
+        onPress={() => router.push("/(tabs)/admin-chat")}
+        style={({ pressed }) => [
+          styles.fab,
+          {
+            opacity: pressed ? 0.88 : 1,
+            transform: [{ scale: pressed ? 0.93 : 1 }],
+          },
+        ]}
+      >
+        {/* Glass layer */}
         <BlurView
-          intensity={isWeb ? 30 : 60}
+          intensity={Platform.OS === "web" ? 20 : 50}
           tint="dark"
           style={StyleSheet.absoluteFill}
         />
-        <View style={styles.barTint} />
-        <View style={styles.barInner}>
-          {visibleRoutes.map((route: any) => {
-            const item = TAB_ITEMS.find((t) => t.name === route.name);
-            if (!item) return null;
-            const focused =
-              state.routes[state.index]?.name === route.name;
-            const onPress = () => {
-              const event = navigation.emit({
-                type: "tabPress",
-                target: route.key,
-                canPreventDefault: true,
-              });
-              if (!focused && !event.defaultPrevented) {
-                navigation.navigate(route.name);
-              }
-            };
-            return (
-              <TabButton
-                key={route.key}
-                focused={focused}
-                icon={item.icon as any}
-                label={item.label}
-                onPress={onPress}
-              />
-            );
-          })}
-        </View>
-      </View>
+        <View style={[styles.fabGlass, { backgroundColor: colors.primary + "cc" }]} />
+        <Feather name="message-circle" size={22} color="#fff" />
+      </Pressable>
     </View>
   );
 }
 
+// ─── Tab Button ───────────────────────────────────────────────────────────────
 function TabButton({ focused, icon, label, onPress }: { focused: boolean; icon: keyof typeof Feather.glyphMap; label: string; onPress: () => void }) {
   const scale = useRef(new Animated.Value(focused ? 1 : 0)).current;
 
@@ -202,4 +297,36 @@ const styles = StyleSheet.create({
     fontSize: 12,
     letterSpacing: 0.1,
   },
+  // ── FAB styles ──
+  fabWrap: {
+    position: "absolute",
+    right: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 999,
+  },
+  fabPulse: {
+    position: "absolute",
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+  },
+  fab: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#2563eb",
+    shadowOpacity: 0.55,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 18,
+  },
+  fabGlass: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 26,
+  },
 });
+

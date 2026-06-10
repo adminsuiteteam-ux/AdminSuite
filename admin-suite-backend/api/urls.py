@@ -13,6 +13,7 @@ from .views import (
     SalaryAdjustmentViewSet, toggle_payroll_month,
     employee_dashboard, employee_finance, employee_update_task,
     chat_messages, chat_send, chat_message_detail, chat_pin_message, chat_contacts,
+    chat_settings, chat_block_user,
 )
 
 router = DefaultRouter()
@@ -63,5 +64,7 @@ urlpatterns = [
     path('chat/messages/<int:pk>/', chat_message_detail, name='chat-message-detail'),
     path('chat/messages/<int:pk>/pin/', chat_pin_message, name='chat-pin-message'),
     path('chat/contacts/', chat_contacts, name='chat-contacts'),
+    path('chat/settings/', chat_settings, name='chat-settings'),
+    path('chat/block-user/', chat_block_user, name='chat-block-user'),
     path('export/', export_data, name='export-data'),
 ]

@@ -32,6 +32,8 @@ type Contact = {
   name: string;
   initials: string;
   avatar: string | null;
+  group_locked?: boolean;
+  is_blocked_from_group?: boolean;
 };
 
 type ChatMessage = {
@@ -75,18 +77,31 @@ export default function EmployeeChatScreen() {
   const pollRef = useRef<any>(null);
 
   // ─── Load contacts ──────────────────────────────────────────────────────────
+  const loadContacts = useCallback(async () => {
+    try {
+      const res = await apiService.getChatContacts();
+      const data: Contact[] = res.data;
+      setContacts(data);
+      setActiveContact((prev) => {
+        if (!prev) return data.length > 0 ? data[0] : null;
+        const updated = data.find((c) => c.id === prev.id);
+        return updated || prev;
+      });
+    } catch {
+      showToast({ title: "Error", message: "Could not load contacts.", type: "error" });
+    }
+  }, [showToast]);
+
   useEffect(() => {
-    apiService
-      .getChatContacts()
-      .then((res) => {
-        setContacts(res.data);
-        if (res.data.length > 0) setActiveContact(res.data[0]);
-      })
-      .catch(() =>
-        showToast({ title: "Error", message: "Could not load contacts.", type: "error" })
-      )
-      .finally(() => setLoadingContacts(false));
-  }, []);
+    setLoadingContacts(true);
+    loadContacts().finally(() => setLoadingContacts(false));
+  }, [loadContacts]);
+
+  // Poll contacts every 8 seconds to update group lock/block status
+  useEffect(() => {
+    const interval = setInterval(loadContacts, 8000);
+    return () => clearInterval(interval);
+  }, [loadContacts]);
 
   // ─── Load messages when active contact changes ──────────────────────────────
   const fetchMessages = useCallback(async () => {
@@ -207,6 +222,11 @@ export default function EmployeeChatScreen() {
   const isDark = colors.isDark;
   const myId = user?.id;
 
+  const isGroup = activeContact?.id === "group";
+  const isLocked = isGroup && activeContact?.group_locked;
+  const isBlocked = isGroup && activeContact?.is_blocked_from_group;
+  const isDisabled = isLocked || isBlocked;
+
   // ─── If no active contact (full-screen chat) ─────────────────────────────────
   if (!activeContact || contacts.length === 0) {
     if (loadingContacts) {
@@ -326,9 +346,27 @@ export default function EmployeeChatScreen() {
           <Text style={[styles.headerName, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
             {activeContact.name}
           </Text>
-          <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-            {activeContact.type === "group" ? "Team group chat" : "Direct message"}
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              {activeContact.type === "group" ? "Team group chat" : "Direct message"}
+            </Text>
+            {isGroup && isLocked && (
+              <View style={[styles.lockBadge, { backgroundColor: (colors.warning ?? "#f59e0b") + "20" }]}>
+                <Feather name="lock" size={9} color={colors.warning ?? "#f59e0b"} />
+                <Text style={[styles.lockBadgeTxt, { color: colors.warning ?? "#f59e0b", fontFamily: "Inter_600SemiBold" }]}>
+                  Locked
+                </Text>
+              </View>
+            )}
+            {isGroup && isBlocked && (
+              <View style={[styles.lockBadge, { backgroundColor: colors.danger + "20" }]}>
+                <Feather name="slash" size={9} color={colors.danger} />
+                <Text style={[styles.lockBadgeTxt, { color: colors.danger, fontFamily: "Inter_600SemiBold" }]}>
+                  Blocked
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
 
         {/* Contact switcher */}
@@ -415,34 +453,69 @@ export default function EmployeeChatScreen() {
             },
           ]}
         >
-          <View style={[styles.inputWrap, { backgroundColor: isDark ? "#27272a" : "#f4f4f5", borderColor: colors.border }]}>
-            <TextInput
-              value={inputText}
-              onChangeText={setInputText}
-              placeholder={editingMsg ? "Edit message..." : "Type a message..."}
-              placeholderTextColor={colors.mutedForeground}
-              multiline
-              style={[styles.input, { color: colors.text, fontFamily: "Inter_400Regular" }]}
-              onSubmitEditing={handleSend}
-            />
-            <Pressable
-              onPress={handleSend}
-              disabled={!inputText.trim() || sending}
-              style={({ pressed }) => [
-                styles.sendBtn,
+          {isDisabled ? (
+            <View
+              style={[
+                styles.lockBanner,
                 {
-                  backgroundColor: inputText.trim() ? colors.primary : (isDark ? "#3f3f46" : "#d4d4d8"),
-                  opacity: pressed ? 0.8 : 1,
+                  backgroundColor: isBlocked
+                    ? colors.danger + "15"
+                    : (colors.warning ?? "#f59e0b") + "15",
+                  borderColor: isBlocked
+                    ? colors.danger + "30"
+                    : (colors.warning ?? "#f59e0b") + "30",
                 },
               ]}
             >
-              {sending ? (
-                <ActivityIndicator size={14} color="#fff" />
-              ) : (
-                <Feather name={editingMsg ? "check" : "send"} size={16} color="#fff" />
-              )}
-            </Pressable>
-          </View>
+              <Feather
+                name={isBlocked ? "slash" : "lock"}
+                size={14}
+                color={isBlocked ? colors.danger : (colors.warning ?? "#f59e0b")}
+              />
+              <Text
+                style={[
+                  styles.lockBannerText,
+                  {
+                    color: isBlocked ? colors.danger : (colors.warning ?? "#f59e0b"),
+                    fontFamily: "Inter_600SemiBold",
+                  },
+                ]}
+              >
+                {isBlocked
+                  ? "You have been blocked from posting in this group."
+                  : "Group is locked — only the admin can post."}
+              </Text>
+            </View>
+          ) : (
+            <View style={[styles.inputWrap, { backgroundColor: isDark ? "#27272a" : "#f4f4f5", borderColor: colors.border }]}>
+              <TextInput
+                value={inputText}
+                onChangeText={setInputText}
+                placeholder={editingMsg ? "Edit message..." : "Type a message..."}
+                placeholderTextColor={colors.mutedForeground}
+                multiline
+                style={[styles.input, { color: colors.text, fontFamily: "Inter_400Regular" }]}
+                onSubmitEditing={handleSend}
+              />
+              <Pressable
+                onPress={handleSend}
+                disabled={!inputText.trim() || sending}
+                style={({ pressed }) => [
+                  styles.sendBtn,
+                  {
+                    backgroundColor: inputText.trim() ? colors.primary : (isDark ? "#3f3f46" : "#d4d4d8"),
+                    opacity: pressed ? 0.8 : 1,
+                  },
+                ]}
+              >
+                {sending ? (
+                  <ActivityIndicator size={14} color="#fff" />
+                ) : (
+                  <Feather name={editingMsg ? "check" : "send"} size={16} color="#fff" />
+                )}
+              </Pressable>
+            </View>
+          )}
         </View>
       </KeyboardAvoidingView>
 
@@ -458,9 +531,9 @@ export default function EmployeeChatScreen() {
             <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
 
             {[
-              { id: "reply", icon: "corner-up-left", label: "Reply" },
+              ...(!isDisabled ? [{ id: "reply", icon: "corner-up-left", label: "Reply" }] : []),
               { id: "copy", icon: "copy", label: "Copy" },
-              ...(selectedMsg?.sender_id === myId && !selectedMsg?.is_deleted
+              ...(selectedMsg?.sender_id === myId && !selectedMsg?.is_deleted && !isDisabled
                 ? [
                     { id: "edit", icon: "edit-2", label: "Edit" },
                     { id: "delete", icon: "trash-2", label: "Delete", danger: true },
@@ -657,4 +730,25 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   actionLabel: { fontSize: 16 },
+  lockBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  lockBadgeTxt: { fontSize: 9 },
+  lockBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: 22,
+    borderWidth: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    marginVertical: 4,
+  },
+  lockBannerText: { fontSize: 12.5 },
 });

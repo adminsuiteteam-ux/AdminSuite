@@ -405,3 +405,20 @@ class ChatMessage(models.Model):
     def __str__(self):
         dest = f"→ {self.recipient.username}" if self.recipient else "→ Group"
         return f"[{self.sender.username} {dest}]: {self.text[:40]}"
+
+
+class ChatSettings(models.Model):
+    """
+    Per-admin-workspace chat configuration.
+    - group_locked: when True, only the admin (company_user) can post to the group.
+    - blocked_user_ids: list of user PKs blocked from posting in the group chat.
+    """
+    company_user = models.OneToOneField(
+        'auth.User', on_delete=models.CASCADE, related_name='chat_settings'
+    )
+    group_locked = models.BooleanField(default=False)
+    blocked_user_ids = models.JSONField(default=list, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"ChatSettings for {self.company_user.username} (locked={self.group_locked})"

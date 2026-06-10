@@ -13,7 +13,7 @@ from .models import (
     Employee, EmployeeFinance, PayHistory, Client, Project, Transaction,
     Notification, Debt, BudgetCategory, Savings, EmployeeActivityLog,
     EmployeeQuery, EmployeeTask, EmployeeLeave, EmployeeMessage,
-    EmployeeDocument, SalaryAdjustment, PayrollStatus, ChatMessage
+    EmployeeDocument, SalaryAdjustment, PayrollStatus, ChatMessage, ChatSettings
 )
 from .serializers import (
     EmployeeSerializer, ClientSerializer, ProjectSerializer,
@@ -22,7 +22,8 @@ from .serializers import (
     UserProfileSerializer, RegisterSerializer, EmployeeActivityLogSerializer,
     EmployeeQuerySerializer, EmployeeTaskSerializer, EmployeeLeaveSerializer,
     EmployeeMessageSerializer, EmployeeDocumentSerializer, SalaryAdjustmentSerializer,
-    EmployeeFinanceSerializer, PayHistorySerializer, ChatMessageSerializer
+    EmployeeFinanceSerializer, PayHistorySerializer, ChatMessageSerializer,
+    ChatSettingsSerializer
 )
 
 
@@ -1426,6 +1427,7 @@ def chat_send(request):
     """
     POST /api/chat/send/
     Body: { text, recipient_id? (for DM), reply_to_id? }
+    Enforces group lock and per-user group blocks (admin controls).
     """
     company_user = _get_company_user(request)
     if not company_user:
@@ -1446,6 +1448,28 @@ def chat_send(request):
             recipient = User.objects.get(id=recipient_id)
         except User.DoesNotExist:
             return Response({'error': 'Recipient not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    # ── Group chat enforcement ──────────────────────────────────────────────────
+    is_group_message = recipient is None
+    is_admin = (request.user == company_user)
+
+    if is_group_message and not is_admin:
+        # Fetch settings lazily (create with defaults if not yet created)
+        settings_obj, _ = ChatSettings.objects.get_or_create(company_user=company_user)
+
+        # Check if group is locked
+        if settings_obj.group_locked:
+            return Response(
+                {'error': 'The group chat is currently locked. Only the admin can post.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Check if this user is blocked from the group
+        if request.user.id in (settings_obj.blocked_user_ids or []):
+            return Response(
+                {'error': 'You have been blocked from posting in the group chat.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
 
     reply_to = None
     if reply_to_id:
@@ -1534,6 +1558,9 @@ def chat_contacts(request):
     profile = getattr(request.user, 'profile', None)
     is_employee = profile and profile.role == 'employee'
 
+    # Get chat settings for blocked user awareness
+    settings_obj, _ = ChatSettings.objects.get_or_create(company_user=company_user)
+
     contacts = []
 
     # Always include group chat
@@ -1543,11 +1570,12 @@ def chat_contacts(request):
         'name': 'Team Chat',
         'initials': '#',
         'avatar': None,
+        'group_locked': settings_obj.group_locked,
+        'is_blocked_from_group': request.user.id in (settings_obj.blocked_user_ids or []),
     })
 
     if is_employee:
         # Employee can only DM the admin
-        admin_profile = getattr(company_user, 'profile', None)
         admin_name = f"{company_user.first_name} {company_user.last_name}".strip() or company_user.username
         contacts.append({
             'id': company_user.id,
@@ -1555,18 +1583,100 @@ def chat_contacts(request):
             'name': admin_name,
             'initials': admin_name[:2].upper(),
             'avatar': None,
+            'group_locked': False,
+            'is_blocked_from_group': False,
         })
     else:
         # Admin can DM any employee
         employees = Employee.objects.filter(user=company_user, is_archived=False).select_related('linked_user')
         for emp in employees:
             if emp.linked_user:
+                is_blocked = emp.linked_user.id in (settings_obj.blocked_user_ids or [])
                 contacts.append({
                     'id': emp.linked_user.id,
                     'type': 'private',
                     'name': emp.name,
                     'initials': emp.initials or emp.name[:2].upper(),
                     'avatar': None,
+                    'employee_id': emp.id,
+                    'group_locked': False,
+                    'is_blocked_from_group': is_blocked,
                 })
 
     return Response(contacts)
+
+
+@api_view(['GET', 'PATCH'])
+@permission_classes([IsAuthenticated])
+def chat_settings(request):
+    """
+    GET  /api/chat/settings/  → Returns current group lock state and blocked users
+    PATCH /api/chat/settings/ → Admin updates group_locked and/or blocked_user_ids
+    """
+    from .serializers import ChatSettingsSerializer
+    company_user = _get_company_user(request)
+    if not company_user:
+        return Response({'error': 'Company profile not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    # Only admin can manage settings
+    if request.user != company_user:
+        return Response({'error': 'Only the admin can manage chat settings.'}, status=status.HTTP_403_FORBIDDEN)
+
+    settings_obj, _ = ChatSettings.objects.get_or_create(company_user=company_user)
+
+    if request.method == 'GET':
+        serializer = ChatSettingsSerializer(settings_obj)
+        return Response(serializer.data)
+
+    elif request.method == 'PATCH':
+        serializer = ChatSettingsSerializer(settings_obj, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def chat_block_user(request):
+    """
+    POST /api/chat/block-user/
+    Body: { user_id: int, block: bool }
+    Toggles a user in/out of the blocked_user_ids list for the group chat.
+    Admin only.
+    """
+    company_user = _get_company_user(request)
+    if not company_user:
+        return Response({'error': 'Company profile not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.user != company_user:
+        return Response({'error': 'Only the admin can block/unblock users.'}, status=status.HTTP_403_FORBIDDEN)
+
+    user_id = request.data.get('user_id')
+    block = request.data.get('block', True)
+
+    if not user_id:
+        return Response({'error': 'user_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        target_user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    settings_obj, _ = ChatSettings.objects.get_or_create(company_user=company_user)
+    blocked = list(settings_obj.blocked_user_ids or [])
+
+    if block:
+        if user_id not in blocked:
+            blocked.append(user_id)
+    else:
+        blocked = [uid for uid in blocked if uid != user_id]
+
+    settings_obj.blocked_user_ids = blocked
+    settings_obj.save(update_fields=['blocked_user_ids', 'updated_at'])
+
+    return Response({
+        'status': 'blocked' if block else 'unblocked',
+        'user_id': user_id,
+        'blocked_user_ids': blocked,
+    })
