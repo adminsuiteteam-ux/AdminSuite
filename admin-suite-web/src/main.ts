@@ -1,4 +1,5 @@
 import './index.css';
+import { sanitizeHtml } from './utils/security';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import type { CountryCode } from 'libphonenumber-js';
 
@@ -219,10 +220,10 @@ const COUNTRIES: CountryEntry[] = [
 ];
 
 // Per-instance state for which country is selected on each phone input
-const _phoneCountryState: Record<string, CountryCode> = {};
+const _phoneCountryState = new Map<string, CountryCode>();
 
 function getSelectedCountry(inputId: string): CountryEntry {
-  const code = _phoneCountryState[inputId] || 'US';
+  const code = _phoneCountryState.get(inputId) || 'US';
   return COUNTRIES.find(c => c.code === code) || COUNTRIES.find(c => c.code === 'US')!;
 }
 
@@ -255,8 +256,8 @@ function parseInitialPhone(value: string, defaultCountry: CountryCode = 'US'): {
  * that opens a searchable country dropdown.
  */
 function drawPhoneInput(inputId: string, value: string = '', placeholder: string = 'Mobile number'): string {
-  const parsed = parseInitialPhone(value, _phoneCountryState[inputId] || 'US');
-  _phoneCountryState[inputId] = parsed.country;
+  const parsed = parseInitialPhone(value, _phoneCountryState.get(inputId) || 'US');
+  _phoneCountryState.set(inputId, parsed.country);
   const displayValue = parsed.nationalNumber;
   const country = getSelectedCountry(inputId);
 
@@ -334,7 +335,7 @@ function bindPhoneInputEvents(inputId: string, onChange?: (fullNumber: string) =
     e.stopPropagation();
 
     const code = item.dataset.code as CountryCode;
-    _phoneCountryState[inputId] = code;
+    _phoneCountryState.set(inputId, code);
 
     const country = getSelectedCountry(inputId);
 
@@ -491,7 +492,7 @@ interface AppState {
     company_logo?: string;
   } | null;
   authToken: string | null;
-  activeTab: 'dashboard' | 'employees' | 'clients' | 'finance' | 'settings';
+  activeTab: 'dashboard' | 'employees' | 'clients' | 'finance' | 'settings' | 'pricing';
   theme: 'light' | 'dark';
   isMobileSidebarOpen: boolean;
   isNotificationsOpen: boolean;
@@ -887,37 +888,37 @@ const ROLE_OPTIONS = [
 // ICON DICTIONARY (Feather SVGs)
 // ============================================================
 
-const ICONS: Record<string, string> = {
-  grid: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>`,
-  users: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>`,
-  briefcase: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>`,
-  'trending-up': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>`,
-  user: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`,
-  settings: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`,
-  bell: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>`,
-  sun: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>`,
-  moon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>`,
-  shield: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>`,
-  search: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>`,
-  plus: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>`,
-  trash: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>`,
-  menu: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>`,
-  'log-out': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>`,
-  download: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>`,
-  x: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`,
-  alert: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`,
-  check: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>`,
-  info: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>`,
-  chevron: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>`,
-  lock: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>`,
-  mail: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>`,
-  eye: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`,
-  'eye-off': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>`,
-  'wifi-off': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="23" y2="23"></line><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.5"></path><path d="M5 12.5a10.94 10.94 0 0 1 5.17-2.39"></path><path d="M10.71 5.05A16 16 0 0 1 22.5 8"></path><path d="M1.5 8a16 16 0 0 1 7.72-2.88"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>`
-};
+const ICONS = new Map<string, string>([
+  ['grid', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>`],
+  ['users', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>`],
+  ['briefcase', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>`],
+  ['trending-up', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>`],
+  ['user', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`],
+  ['settings', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`],
+  ['bell', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>`],
+  ['sun', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>`],
+  ['moon', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>`],
+  ['shield', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>`],
+  ['search', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>`],
+  ['plus', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>`],
+  ['trash', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>`],
+  ['menu', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>`],
+  ['log-out', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>`],
+  ['download', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>`],
+  ['x', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`],
+  ['alert', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`],
+  ['check', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>`],
+  ['info', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>`],
+  ['chevron', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>`],
+  ['lock', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>`],
+  ['mail', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>`],
+  ['eye', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`],
+  ['eye-off', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>`],
+  ['wifi-off', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="23" y2="23"></line><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.5"></path><path d="M5 12.5a10.94 10.94 0 0 1 5.17-2.39"></path><path d="M10.71 5.05A16 16 0 0 1 22.5 8"></path><path d="M1.5 8a16 16 0 0 1 7.72-2.88"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>`]
+]);
 
 function getIconSvg(name: string, className = ''): string {
-  const raw = ICONS[name] || ICONS['info'];
+  const raw = ICONS.get(name) || ICONS.get('info')!;
   if (className) {
     return raw.replace('<svg ', `<svg class="${className}" `);
   }
@@ -971,7 +972,7 @@ function renderToast() {
   
   toastContainer.innerHTML = `
     ${getIconSvg(iconName, 'toast-icon')}
-    <span>${state.toast.message}</span>
+    <span>${sanitizeHtml(state.toast.message)}</span>
   `;
   
   document.body.appendChild(toastContainer);
@@ -1245,7 +1246,7 @@ function bindSplashEvents() {
 // ------------------------------------------------------------
 
 function drawTour(): string {
-  const slide = TOUR_SLIDES[state.activeTourSlide];
+  const slide = TOUR_SLIDES.at(state.activeTourSlide)!;
   
   const dotsHtml = TOUR_SLIDES.map((_, i) => `
     <span class="tour-dot ${i === state.activeTourSlide ? 'active' : ''}" 
@@ -1548,7 +1549,7 @@ function drawRegister(): string {
   } else {
     // OTP entry view (8 boxes)
     const boxes = Array(8).fill(0).map((_, i) => `
-      <input type="text" maxlength="1" class="otp-box" data-index="${i}" value="${state.otpValues[i]}" pattern="[0-9]*" inputmode="numeric">
+      <input type="text" maxlength="1" class="otp-box" data-index="${i}" value="${state.otpValues.at(i) || ''}" pattern="[0-9]*" inputmode="numeric">
     `).join('');
 
     const padZero = (n: number) => n < 10 ? '0' + n : n;
@@ -1668,7 +1669,7 @@ function bindRegisterEvents() {
         const val = target.value.replace(/[^0-9]/g, '');
         target.value = val;
         
-        state.otpValues[idx] = val;
+        state.otpValues.splice(idx, 1, val);
 
         if (val && idx < 7) {
           const next = document.querySelector(`.otp-box[data-index="${idx + 1}"]`) as HTMLInputElement;
@@ -1685,7 +1686,7 @@ function bindRegisterEvents() {
           if (prev) {
             prev.focus();
             prev.value = '';
-            state.otpValues[idx - 1] = '';
+            state.otpValues.splice(idx - 1, 1, '');
           }
         }
       });
@@ -1950,23 +1951,23 @@ function drawCompleteProfileSlideBody(): string {
         <div style="background:var(--muted); border-radius:var(--radius-sm); padding:20px; border:1px solid var(--border); display:flex; flex-direction:column; gap:12px; font-size:13px;">
           <div style="display:flex; justify-content:space-between; border-bottom: 1px solid var(--border); padding-bottom: 6px;">
             <span style="color:var(--muted-foreground);">Full Name</span>
-            <span style="font-weight:600;">${d.name}</span>
+            <span style="font-weight:600;">${sanitizeHtml(d.name)}</span>
           </div>
           <div style="display:flex; justify-content:space-between; border-bottom: 1px solid var(--border); padding-bottom: 6px;">
             <span style="color:var(--muted-foreground);">Location</span>
-            <span style="font-weight:600;">${d.location}</span>
+            <span style="font-weight:600;">${sanitizeHtml(d.location)}</span>
           </div>
           <div style="display:flex; justify-content:space-between; border-bottom: 1px solid var(--border); padding-bottom: 6px;">
             <span style="color:var(--muted-foreground);">Phone Number</span>
-            <span style="font-weight:600;">${d.phone}</span>
+            <span style="font-weight:600;">${sanitizeHtml(d.phone)}</span>
           </div>
           <div style="display:flex; justify-content:space-between; border-bottom: 1px solid var(--border); padding-bottom: 6px;">
             <span style="color:var(--muted-foreground);">Workspace Role</span>
-            <span style="font-weight:700; text-transform:capitalize;">${d.role}</span>
+            <span style="font-weight:700; text-transform:capitalize;">${sanitizeHtml(d.role)}</span>
           </div>
           <div style="display:flex; justify-content:space-between; border-bottom: 1px solid var(--border); padding-bottom: 6px;">
             <span style="color:var(--muted-foreground);">Business Name</span>
-            <span style="font-weight:600;">${d.business_name || 'N/A'}</span>
+            <span style="font-weight:600;">${sanitizeHtml(d.business_name || 'N/A')}</span>
           </div>
           <div style="display:flex; justify-content:space-between;">
             <span style="color:var(--muted-foreground);">Security Switchlock</span>
@@ -2075,7 +2076,7 @@ function bindCompleteProfileEvents() {
           showToast('Please complete all required personal info fields', 'error');
           return;
         }
-        const selectedCountry = _phoneCountryState['cp-phone'] || 'US';
+        const selectedCountry = _phoneCountryState.get('cp-phone') || 'US';
         const phoneCheck = validateAndFormatPhone(d.phone, selectedCountry);
         if (!phoneCheck.isValid) {
           showToast('Please enter a valid phone number', 'error');
@@ -2161,7 +2162,7 @@ function drawLockScreen(): string {
 
         <div style="font-size: 13px; font-weight: 500; height: 20px; margin-bottom: 24px;">
           ${state.isScanning ? '<span style="color:var(--accent);">Scanning fingerprint key...</span>' : ''}
-          ${state.lockError ? `<span class="lock-error">${state.lockError}</span>` : ''}
+          ${state.lockError ? `<span class="lock-error">${sanitizeHtml(state.lockError)}</span>` : ''}
         </div>
 
         <button class="btn btn-outline" id="lock-logout-btn" style="width:100%;">Sign out and use password</button>
@@ -2292,10 +2293,10 @@ function drawSidebar(): string {
       <div class="sidebar-footer">
         <div class="sidebar-user">
           <div class="sidebar-avatar" style="font-weight:700;">
-            ${((state.user?.name || state.user?.username || 'A')).slice(0, 2).toUpperCase()}
+            ${sanitizeHtml((state.user?.name || state.user?.username || 'A').slice(0, 2).toUpperCase())}
           </div>
           <div class="sidebar-user-info">
-            <div class="sidebar-user-name">${state.user?.name || state.user?.username || 'User'}</div>
+            <div class="sidebar-user-name">${sanitizeHtml(state.user?.name || state.user?.username || 'User')}</div>
             <div class="sidebar-user-role" style="color:var(--success);">Connected Live</div>
           </div>
           <button class="btn-ghost" id="logout-sidebar-btn" style="padding: 4px; border-radius: var(--radius-sm);" title="Logout">
@@ -2514,10 +2515,10 @@ function drawDashboardTab(): string {
   return `
     <div class="gradient-header">
       <h2>Welcome Back,</h2>
-      <h1>${state.user?.name || state.user?.username || 'Administrator'}</h1>
+      <h1>${sanitizeHtml(state.user?.name || state.user?.username || 'Administrator')}</h1>
       <div class="role-chip">
         ${getIconSvg('shield')}
-        <span>${(state.user?.role || 'admin').toUpperCase()} ACCOUNT</span>
+        <span>${sanitizeHtml((state.user?.role || 'admin').toUpperCase())} ACCOUNT</span>
       </div>
     </div>
 
@@ -2631,12 +2632,12 @@ function drawDashboardTab(): string {
 function drawDashboardSvgChart(): string {
   function smoothPath(points: { x: number; y: number }[]) {
     if (points.length < 2) return "";
-    let d = `M ${points[0].x.toFixed(2)} ${points[0].y.toFixed(2)}`;
+    let d = `M ${(points.at(0) || {x:0, y:0}).x.toFixed(2)} ${(points.at(0) || {x:0, y:0}).y.toFixed(2)}`;
     for (let i = 0; i < points.length - 1; i++) {
-      const p0 = points[i - 1] || points[i];
-      const p1 = points[i];
-      const p2 = points[i + 1];
-      const p3 = points[i + 2] || p2;
+      const p0 = points.at(i - 1) || points.at(i) || { x: 0, y: 0 };
+      const p1 = points.at(i) || { x: 0, y: 0 };
+      const p2 = points.at(i + 1) || { x: 0, y: 0 };
+      const p3 = points.at(i + 2) || p2;
       const cp1x = p1.x + (p2.x - p0.x) / 6;
       const cp1y = p1.y + (p2.y - p0.y) / 6;
       const cp2x = p2.x - (p3.x - p1.x) / 6;
@@ -2725,7 +2726,7 @@ function drawDashboardSvgChart(): string {
     });
   }
 
-  const profit = res.income.map((v, i) => v - res.expense[i]);
+  const profit = res.income.map((v, i) => v - (res.expense.at(i) || 0));
   const allValues = [...res.income, ...res.expense, ...profit];
   const rawMin = Math.min(...allValues, 0);
   const rawMax = Math.max(...allValues, 100);
@@ -2755,7 +2756,7 @@ function drawDashboardSvgChart(): string {
 
   const areaPath = incomePts.length > 0 ? (
     incomePath +
-    ` L ${incomePts[incomePts.length - 1].x.toFixed(2)} ${(PADDING.top + innerH).toFixed(2)} L ${incomePts[0].x.toFixed(2)} ${(PADDING.top + innerH).toFixed(2)} Z`
+    ` L ${(incomePts.at(-1) || {x:0}).x.toFixed(2)} ${(PADDING.top + innerH).toFixed(2)} L ${(incomePts.at(0) || {x:0}).x.toFixed(2)} ${(PADDING.top + innerH).toFixed(2)} Z`
   ) : "";
 
   const totalIncome = res.income.reduce((s: number, v: number) => s + v, 0);
@@ -2875,9 +2876,9 @@ function drawDashboardSvgChart(): string {
 
           <!-- Pulsing Pin Points for Last Coordinates -->
           ${[
-            { last: incomePts[incomePts.length - 1], color: '#22c55e' },
-            { last: profitPts[profitPts.length - 1], color: '#f97316' },
-            { last: expensePts[expensePts.length - 1], color: '#ef4444' }
+            { last: incomePts.at(-1), color: '#22c55e' },
+            { last: profitPts.at(-1), color: '#f97316' },
+            { last: expensePts.at(-1), color: '#ef4444' }
           ].map(s => {
             if (!s.last) return '';
             return `
@@ -2890,9 +2891,9 @@ function drawDashboardSvgChart(): string {
 
           <!-- Tooltip Interactive Circles & Groups -->
           ${res.labels.map((lab, i) => {
-            const incP = incomePts[i];
-            const expP = expensePts[i];
-            const prfP = profitPts[i];
+            const incP = incomePts.at(i);
+            const expP = expensePts.at(i);
+            const prfP = profitPts.at(i);
             if (!incP || !expP || !prfP) return '';
             const tooltipY = Math.min(incP.y, expP.y, prfP.y);
             return `
@@ -2908,9 +2909,9 @@ function drawDashboardSvgChart(): string {
                 <g class="chart-tooltip-g" style="display:none; pointer-events:none;">
                   <rect x="${incP.x - 65}" y="${tooltipY - 62}" width="130" height="52" rx="6" fill="var(--foreground)" opacity="0.96" filter="drop-shadow(0 4px 6px rgba(0,0,0,0.15))"></rect>
                   <text x="${incP.x}" y="${tooltipY - 48}" fill="var(--background)" font-size="9" font-weight="700" text-anchor="middle">${lab}</text>
-                  <text x="${incP.x}" y="${tooltipY - 36}" fill="#22c55e" font-size="8.5" font-weight="700" text-anchor="middle">In: ${formatCurrency(res.income[i])}</text>
-                  <text x="${incP.x}" y="${tooltipY - 24}" fill="#ef4444" font-size="8.5" font-weight="700" text-anchor="middle">Out: ${formatCurrency(res.expense[i])}</text>
-                  <text x="${incP.x}" y="${tooltipY - 14}" fill="#f97316" font-size="8.5" font-weight="700" text-anchor="middle">Net: ${formatCurrency(profit[i])}</text>
+                  <text x="${incP.x}" y="${tooltipY - 36}" fill="#22c55e" font-size="8.5" font-weight="700" text-anchor="middle">In: ${formatCurrency(res.income.at(i) || 0)}</text>
+                  <text x="${incP.x}" y="${tooltipY - 24}" fill="#ef4444" font-size="8.5" font-weight="700" text-anchor="middle">Out: ${formatCurrency(res.expense.at(i) || 0)}</text>
+                  <text x="${incP.x}" y="${tooltipY - 14}" fill="#f97316" font-size="8.5" font-weight="700" text-anchor="middle">Net: ${formatCurrency(profit.at(i) || 0)}</text>
                 </g>
               </g>
             `;
@@ -3127,25 +3128,25 @@ function openEmployeeDetailModal(id: number) {
         </div>
         <div class="modal-body">
           <div style="display:flex; align-items:center; gap:16px; margin-bottom:24px;">
-            <div class="avatar blue" style="width:64px; height:64px; font-size:24px;">${emp.name[0]}</div>
+            <div class="avatar blue" style="width:64px; height:64px; font-size:24px;">${sanitizeHtml(emp.name[0])}</div>
             <div>
-              <h2 style="font-size:18px; font-weight:700;">${emp.name}</h2>
-              <p style="color:var(--muted-foreground); font-size:13px;">${emp.role} · ${emp.department}</p>
+              <h2 style="font-size:18px; font-weight:700;">${sanitizeHtml(emp.name)}</h2>
+              <p style="color:var(--muted-foreground); font-size:13px;">${sanitizeHtml(emp.role)} · ${sanitizeHtml(emp.department)}</p>
             </div>
           </div>
           
           <div style="display:flex; flex-direction:column; gap:12px; font-size:14px; margin-bottom:24px;">
             <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:8px;">
               <span style="color:var(--muted-foreground);">Direct Email</span>
-              <span style="font-weight:600;">${emp.email}</span>
+              <span style="font-weight:600;">${sanitizeHtml(emp.email)}</span>
             </div>
             <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:8px;">
               <span style="color:var(--muted-foreground);">Contact Phone</span>
-              <span style="font-weight:600;">${emp.phone || 'N/A'}</span>
+              <span style="font-weight:600;">${sanitizeHtml(emp.phone || 'N/A')}</span>
             </div>
             <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:8px;">
               <span style="color:var(--muted-foreground);">Location</span>
-              <span style="font-weight:600;">${emp.location || 'N/A'}</span>
+              <span style="font-weight:600;">${sanitizeHtml(emp.location || 'N/A')}</span>
             </div>
             <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:8px;">
               <span style="color:var(--muted-foreground);">Compensation</span>
@@ -3153,7 +3154,7 @@ function openEmployeeDetailModal(id: number) {
             </div>
             <div style="display:flex; justify-content:space-between;">
               <span style="color:var(--muted-foreground);">Activity Status</span>
-              <span class="status-badge ${emp.status === 'active' ? 'active' : 'inactive'}">${emp.status}</span>
+              <span class="status-badge ${emp.status === 'active' ? 'active' : 'inactive'}">${sanitizeHtml(emp.status)}</span>
             </div>
           </div>
           
@@ -3298,7 +3299,7 @@ function openAddEmployeeModal() {
     submitBtn.disabled = true;
     submitBtn.innerText = 'Saving...';
 
-    const selectedCountry = _phoneCountryState['emp-phone'] || 'US';
+    const selectedCountry = _phoneCountryState.get('emp-phone') || 'US';
     const phoneCheck = validateAndFormatPhone(empPhoneVal, selectedCountry);
     if (!phoneCheck.isValid) {
       showToast('Please enter a valid phone number', 'error');
@@ -3359,11 +3360,11 @@ function drawClientsTab(): string {
     <div class="stat-card" style="cursor: pointer; display: flex; flex-direction: column; justify-content: space-between; min-height: 160px;" data-client-id="${c.id}">
       <div>
         <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;">
-          <span style="font-weight:700; font-size:16px;">${c.company}</span>
-          <span class="status-badge ${c.status === 'active' ? 'active' : c.status === 'pending' ? 'pending' : 'completed'}">${c.status}</span>
+          <span style="font-weight:700; font-size:16px;">${sanitizeHtml(c.company)}</span>
+          <span class="status-badge ${c.status === 'active' ? 'active' : c.status === 'pending' ? 'pending' : 'completed'}">${sanitizeHtml(c.status)}</span>
         </div>
-        <div style="font-size:13px; color:var(--muted-foreground); margin-bottom:4px;">Lead Account: ${c.contact}</div>
-        <div style="font-size:12px; color:var(--muted-foreground);">${c.email}</div>
+        <div style="font-size:13px; color:var(--muted-foreground); margin-bottom:4px;">Lead Account: ${sanitizeHtml(c.contact)}</div>
+        <div style="font-size:12px; color:var(--muted-foreground);">${sanitizeHtml(c.email)}</div>
       </div>
       <div style="margin-top:16px; border-top:1px solid var(--border); padding-top:12px; display:flex; justify-content:space-between; align-items:center;">
         <span style="font-size:11px; font-weight:600; text-transform:uppercase; color:var(--muted-foreground);">Retainer Contract</span>
@@ -3606,7 +3607,7 @@ function drawFinanceTab(): string {
     return `
       <div style="margin-bottom: 20px;">
         <div style="display:flex; justify-content:space-between; font-size:13px; font-weight:600; margin-bottom:6px;">
-          <span>${b.name}</span>
+          <span>${sanitizeHtml(b.name)}</span>
           <span style="font-variant-numeric: tabular-nums">${formatCurrency(spent)} / ${formatCurrency(allocated)} (${pct}%)</span>
         </div>
         <div class="progress-bar">
@@ -3621,8 +3622,8 @@ function drawFinanceTab(): string {
   const weOweHtml = debts.weOwe.map(d => `
     <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid var(--border);">
       <div>
-        <div style="font-weight:600; font-size:13px;">${d.party}</div>
-        <div style="font-size:11px; color:var(--muted-foreground); margin-top:2px;">Due: ${d.due || 'N/A'}</div>
+        <div style="font-weight:600; font-size:13px;">${sanitizeHtml(d.party)}</div>
+        <div style="font-size:11px; color:var(--muted-foreground); margin-top:2px;">Due: ${sanitizeHtml(d.due || 'N/A')}</div>
       </div>
       <div style="display:flex; align-items:center; gap:12px;">
         <span class="status-badge pending">We Owe</span>
@@ -3634,8 +3635,8 @@ function drawFinanceTab(): string {
   const owedToUsHtml = debts.owedToUs.map(d => `
     <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid var(--border);">
       <div>
-        <div style="font-weight:600; font-size:13px;">${d.party}</div>
-        <div style="font-size:11px; color:var(--muted-foreground); margin-top:2px;">Due: ${d.due || 'N/A'}</div>
+        <div style="font-weight:600; font-size:13px;">${sanitizeHtml(d.party)}</div>
+        <div style="font-size:11px; color:var(--muted-foreground); margin-top:2px;">Due: ${sanitizeHtml(d.due || 'N/A')}</div>
       </div>
       <div style="display:flex; align-items:center; gap:12px;">
         <span class="status-badge active">Owed To Us</span>
@@ -3816,7 +3817,7 @@ function drawSettingsTab(): string {
           <form id="settings-profile-form">
             <div class="form-group">
               <label class="form-label" for="set-name">Administrator Name</label>
-              <input type="text" class="form-input" id="set-name" required value="${u.name || ''}">
+              <input type="text" class="form-input" id="set-name" required value="${sanitizeHtml(u.name || '')}">
             </div>
             
             <div class="form-row">
@@ -3826,13 +3827,13 @@ function drawSettingsTab(): string {
               </div>
               <div class="form-group">
                 <label class="form-label" for="set-location">Location</label>
-                <input type="text" class="form-input" id="set-location" required value="${u.location || ''}">
+                <input type="text" class="form-input" id="set-location" required value="${sanitizeHtml(u.location || '')}">
               </div>
             </div>
 
             <div class="form-group">
               <label class="form-label" for="set-bio">Brief Biography</label>
-              <textarea class="form-input" id="set-bio" rows="3">${u.bio || ''}</textarea>
+              <textarea class="form-input" id="set-bio" rows="3">${sanitizeHtml(u.bio || '')}</textarea>
             </div>
             
             <button type="submit" class="btn btn-primary" id="set-submit-btn" style="width:100%; margin-top:8px;">Update Admin Profile</button>
@@ -3908,7 +3909,7 @@ function bindSettingsEvents() {
       submitBtn.disabled = true;
       submitBtn.innerText = 'Updating...';
 
-      const selectedCountry = _phoneCountryState['set-phone'] || 'US';
+      const selectedCountry = _phoneCountryState.get('set-phone') || 'US';
       const phoneCheck = validateAndFormatPhone(setPhoneVal, selectedCountry);
       if (!phoneCheck.isValid) {
         showToast('Please enter a valid phone number', 'error');

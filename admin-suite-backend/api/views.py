@@ -13,7 +13,7 @@ from .models import (
     Employee, EmployeeFinance, PayHistory, Client, Project, Transaction,
     Notification, Debt, BudgetCategory, Savings, EmployeeActivityLog,
     EmployeeQuery, EmployeeTask, EmployeeLeave, EmployeeMessage,
-    EmployeeDocument, SalaryAdjustment, PayrollStatus, ChatMessage, ChatSettings
+    EmployeeDocument, SalaryAdjustment, PayrollStatus, ChatMessage, ChatSettings, ChatGroup
 )
 from .serializers import (
     EmployeeSerializer, ClientSerializer, ProjectSerializer,
@@ -23,7 +23,7 @@ from .serializers import (
     EmployeeQuerySerializer, EmployeeTaskSerializer, EmployeeLeaveSerializer,
     EmployeeMessageSerializer, EmployeeDocumentSerializer, SalaryAdjustmentSerializer,
     EmployeeFinanceSerializer, PayHistorySerializer, ChatMessageSerializer,
-    ChatSettingsSerializer
+    ChatSettingsSerializer, ChatGroupSerializer
 )
 
 
@@ -1393,16 +1393,27 @@ def chat_messages(request):
     Returns messages for a conversation.
     Query params:
       - recipient_id: user ID for private chat (omit for group chat)
+      - group_id: custom ChatGroup ID
     """
     company_user = _get_company_user(request)
     if not company_user:
         return Response({'error': 'Company profile not found.'}, status=status.HTTP_404_NOT_FOUND)
 
     recipient_id = request.GET.get('recipient_id')
+    group_id = request.GET.get('group_id')
     profile = getattr(request.user, 'profile', None)
     is_employee = profile and profile.role == 'employee'
 
-    if recipient_id:
+    if group_id:
+        try:
+            chat_group = ChatGroup.objects.get(id=group_id, company_user=company_user)
+        except ChatGroup.DoesNotExist:
+            return Response({'error': 'Chat group not found.'}, status=status.HTTP_404_NOT_FOUND)
+        msgs = ChatMessage.objects.filter(
+            company_user=company_user,
+            group=chat_group
+        ).select_related('sender', 'reply_to', 'reply_to__sender')
+    elif recipient_id:
         try:
             recipient = User.objects.get(id=recipient_id)
         except User.DoesNotExist:
@@ -1417,10 +1428,11 @@ def chat_messages(request):
             models.Q(sender=recipient, recipient=request.user)
         ).select_related('sender', 'recipient', 'reply_to', 'reply_to__sender')
     else:
-        # Group messages (recipient=None)
+        # Group messages (recipient=None, group=None)
         msgs = ChatMessage.objects.filter(
             company_user=company_user,
-            recipient__isnull=True
+            recipient__isnull=True,
+            group__isnull=True
         ).select_related('sender', 'reply_to', 'reply_to__sender')
 
     serializer = ChatMessageSerializer(msgs, many=True, context={'request': request})
@@ -1432,7 +1444,7 @@ def chat_messages(request):
 def chat_send(request):
     """
     POST /api/chat/send/
-    Body: { text, recipient_id? (for DM), reply_to_id? }
+    Body: { text, recipient_id? (for DM), group_id? (for custom group), reply_to_id? }
     Enforces group lock and per-user group blocks (admin controls).
     """
     company_user = _get_company_user(request)
@@ -1446,20 +1458,27 @@ def chat_send(request):
         return Response({'error': 'Message too long (max 2000 chars).'}, status=status.HTTP_400_BAD_REQUEST)
 
     recipient_id = request.data.get('recipient_id')
+    group_id = request.data.get('group_id')
     reply_to_id = request.data.get('reply_to_id')
 
     recipient = None
-    if recipient_id:
+    chat_group = None
+    if group_id:
+        try:
+            chat_group = ChatGroup.objects.get(id=group_id, company_user=company_user)
+        except ChatGroup.DoesNotExist:
+            return Response({'error': 'Chat group not found.'}, status=status.HTTP_404_NOT_FOUND)
+    elif recipient_id:
         try:
             recipient = User.objects.get(id=recipient_id)
         except User.DoesNotExist:
             return Response({'error': 'Recipient not found.'}, status=status.HTTP_404_NOT_FOUND)
 
     # ── Group chat enforcement ──────────────────────────────────────────────────
-    is_group_message = recipient is None
+    is_general_group = recipient is None and chat_group is None
     is_admin = (request.user == company_user)
 
-    if is_group_message and not is_admin:
+    if is_general_group and not is_admin:
         # Fetch settings lazily (create with defaults if not yet created)
         settings_obj, _ = ChatSettings.objects.get_or_create(company_user=company_user)
 
@@ -1477,6 +1496,15 @@ def chat_send(request):
                 status=status.HTTP_403_FORBIDDEN
             )
 
+    if chat_group:
+        # Check if user is member
+        if request.user not in chat_group.members.all() and not is_admin:
+            return Response({'error': 'You are not a member of this group.'}, status=status.HTTP_403_FORBIDDEN)
+        
+        # Check admin-only locks
+        if chat_group.only_admins_can_chat and request.user not in chat_group.admins.all() and not is_admin:
+            return Response({'error': 'Only group admins can post in this group.'}, status=status.HTTP_403_FORBIDDEN)
+
     reply_to = None
     if reply_to_id:
         try:
@@ -1488,6 +1516,7 @@ def chat_send(request):
         company_user=company_user,
         sender=request.user,
         recipient=recipient,
+        group=chat_group,
         text=text,
         reply_to=reply_to,
     )
@@ -1554,8 +1583,8 @@ def chat_contacts(request):
     """
     GET /api/chat/contacts/
     Returns the list of people the current user can chat with.
-    - Admin: group + all employees
-    - Employee: group + admin only
+    - Admin: group + all employees + all custom groups
+    - Employee: group + admin only + custom groups they are members of
     """
     company_user = _get_company_user(request)
     if not company_user:
@@ -1569,7 +1598,7 @@ def chat_contacts(request):
 
     contacts = []
 
-    # Always include group chat
+    # Always include general team chat group
     contacts.append({
         'id': 'group',
         'type': 'group',
@@ -1579,6 +1608,27 @@ def chat_contacts(request):
         'group_locked': settings_obj.group_locked,
         'is_blocked_from_group': request.user.id in (settings_obj.blocked_user_ids or []),
     })
+
+    # Include custom chat groups
+    if is_employee:
+        custom_groups = ChatGroup.objects.filter(company_user=company_user, members=request.user, is_archived=False)
+    else:
+        custom_groups = ChatGroup.objects.filter(company_user=company_user, is_archived=False)
+
+    for g in custom_groups:
+        g_avatar = None
+        if g.avatar:
+            g_avatar = request.build_absolute_uri(g.avatar.url)
+        contacts.append({
+            'id': g.id,
+            'type': 'group',
+            'name': g.name,
+            'initials': g.name[:2].upper(),
+            'avatar': g_avatar,
+            'group_locked': g.only_admins_can_chat,
+            'is_blocked_from_group': False,
+            'members': list(g.members.values_list('id', flat=True)),
+        })
 
     if is_employee:
         # Employee can only DM the admin
@@ -1617,6 +1667,151 @@ def chat_contacts(request):
                 })
 
     return Response(contacts)
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def chat_groups(request):
+    """
+    GET: list all custom groups.
+    POST: create a custom group.
+    """
+    company_user = _get_company_user(request)
+    if not company_user:
+        return Response({'error': 'Company profile not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        profile = getattr(request.user, 'profile', None)
+        if profile and profile.role == 'employee':
+            groups = ChatGroup.objects.filter(company_user=company_user, members=request.user)
+        else:
+            groups = ChatGroup.objects.filter(company_user=company_user)
+        serializer = ChatGroupSerializer(groups, many=True, context={'request': request})
+        return Response(serializer.data)
+
+    elif request.method == 'POST':
+        name = request.data.get('name', '').strip()
+        if not name:
+            return Response({'error': 'Group name is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        group = ChatGroup.objects.create(
+            company_user=company_user,
+            name=name,
+            only_admins_can_chat=str(request.data.get('only_admins_can_chat', 'false')).lower() == 'true'
+        )
+
+        if 'avatar' in request.FILES:
+            group.avatar = request.FILES['avatar']
+            group.save()
+
+        # Add admin and members
+        group.members.add(request.user)
+        group.admins.add(request.user)
+
+        members_data = request.data.get('members')
+        if members_data:
+            import json
+            try:
+                if isinstance(members_data, str):
+                    member_ids = json.loads(members_data)
+                else:
+                    member_ids = members_data
+                for mid in member_ids:
+                    try:
+                        u = User.objects.get(id=int(mid))
+                        group.members.add(u)
+                    except (User.DoesNotExist, ValueError):
+                        pass
+            except Exception as e:
+                print("Failed to add members:", e)
+
+        serializer = ChatGroupSerializer(group, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    return Response({'error': 'Method not allowed.'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+
+@api_view(['GET', 'PUT', 'PATCH', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def chat_group_detail(request, pk):
+    """
+    GET/PUT/PATCH/DELETE /api/chat/groups/<pk>/
+    """
+    company_user = _get_company_user(request)
+    try:
+        group = ChatGroup.objects.get(id=pk, company_user=company_user)
+    except ChatGroup.DoesNotExist:
+        return Response({'error': 'Chat group not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    is_admin = (request.user == company_user or request.user in group.admins.all())
+
+    if request.method == 'GET':
+        serializer = ChatGroupSerializer(group, context={'request': request})
+        return Response(serializer.data)
+
+    if not is_admin:
+        return Response({'error': 'Only group administrators can modify group settings.'}, status=status.HTTP_403_FORBIDDEN)
+
+    if request.method == 'DELETE':
+        group.delete()
+        return Response({'status': 'deleted'})
+
+    elif request.method in ['PUT', 'PATCH']:
+        name = request.data.get('name', '').strip()
+        if name:
+            group.name = name
+
+        if 'avatar' in request.FILES:
+            group.avatar = request.FILES['avatar']
+        elif 'avatar' in request.data and request.data['avatar'] == 'null':
+            group.avatar = None
+
+        only_admins = request.data.get('only_admins_can_chat')
+        if only_admins is not None:
+            group.only_admins_can_chat = str(only_admins).lower() == 'true'
+
+        group.save()
+
+        members_data = request.data.get('members')
+        if members_data is not None:
+            import json
+            try:
+                if isinstance(members_data, str):
+                    member_ids = json.loads(members_data)
+                else:
+                    member_ids = members_data
+                group.members.clear()
+                group.members.add(request.user)  # Always keep admin/creator
+                for mid in member_ids:
+                    try:
+                        u = User.objects.get(id=int(mid))
+                        group.members.add(u)
+                    except (User.DoesNotExist, ValueError):
+                        pass
+            except Exception as e:
+                print("Failed to update members:", e)
+
+        admins_data = request.data.get('admins')
+        if admins_data is not None:
+            import json
+            try:
+                if isinstance(admins_data, str):
+                    admin_ids = json.loads(admins_data)
+                else:
+                    admin_ids = admins_data
+                group.admins.clear()
+                group.admins.add(request.user)  # Always keep admin/creator
+                for aid in admin_ids:
+                    try:
+                        u = User.objects.get(id=int(aid))
+                        group.admins.add(u)
+                    except (User.DoesNotExist, ValueError):
+                        pass
+            except Exception as e:
+                print("Failed to update admins:", e)
+
+        serializer = ChatGroupSerializer(group, context={'request': request})
+        return Response(serializer.data)
 
 
 @api_view(['GET', 'PATCH'])

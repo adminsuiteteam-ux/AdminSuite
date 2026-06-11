@@ -183,7 +183,7 @@ export default function AppSettingsScreen() {
         </Group>
 
         <Text style={[styles.version, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-          Admin Suite · v1.0.0
+          Powered by Dimacode
         </Text>
       </ScrollView>
 
@@ -247,7 +247,7 @@ function CurrencyPicker({ visible, onClose, selectedCode, onSelect }: { visible:
               <Pressable key={c.code} onPress={() => onSelect(c.code)}>
                 <View style={[styles.currRow, { borderColor: active ? colors.primary : colors.border, backgroundColor: active ? colors.primary + "10" : colors.background, borderRadius: colors.radius }]}>
                   <View style={[styles.currSymbol, { backgroundColor: active ? colors.primary : colors.muted }]}>
-                    <Text style={{ color: active ? "#fff" : colors.foreground, fontFamily: "Inter_700Bold", fontSize: 16 }}>{c.symbol}</Text>
+                    <Text style={{ color: active ? colors.primaryForeground : colors.foreground, fontFamily: "Inter_700Bold", fontSize: 16 }}>{c.symbol}</Text>
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 14 }}>{c.name}</Text>
@@ -293,7 +293,7 @@ function AppearancePicker({ visible, onClose, selectedTheme, onSelect }: { visib
               <Pressable key={m.id} onPress={() => onSelect(m.id)}>
                 <View style={[styles.currRow, { borderColor: active ? colors.primary : colors.border, backgroundColor: active ? colors.primary + "10" : colors.background, borderRadius: colors.radius }]}>
                   <View style={[styles.currSymbol, { backgroundColor: active ? colors.primary : colors.muted }]}>
-                    <Feather name={m.icon as any} size={18} color={active ? "#fff" : colors.foreground} />
+                    <Feather name={m.icon as any} size={18} color={active ? colors.primaryForeground : colors.foreground} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 14 }}>{m.label}</Text>

@@ -134,24 +134,7 @@ export default function MoreHubScreen() {
               hint="View & edit business information"
               onPress={() => router.push("/settings/organisation" as any)}
             />
-            <Row
-              icon="help-circle"
-              label="Replay App Tour"
-              hint="See the onboarding walkthrough slides"
-              onPress={async () => {
-                await AsyncStorage.removeItem("admin-suite.tour-complete");
-                router.push("/tour");
-              }}
-            />
-            <Row
-              icon="compass"
-              label="Replay Dashboard Tour"
-              hint="Re-run the 10-step dashboard walkthrough"
-              onPress={async () => {
-                await AsyncStorage.removeItem("admin-suite.dashboard-tour-complete");
-                router.replace("/(tabs)");
-              }}
-            />
+
             <Row
               icon="globe"
               label="All clients"

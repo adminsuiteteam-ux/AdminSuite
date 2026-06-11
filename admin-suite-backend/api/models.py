@@ -373,6 +373,21 @@ class PayrollStatus(models.Model):
         return f"{self.user.username} - {self.month}: {'Paid' if self.paid else 'Pending'}"
 
 
+class ChatGroup(models.Model):
+    company_user = models.ForeignKey('auth.User', on_delete=models.CASCADE, related_name='company_chat_groups')
+    name = models.CharField(max_length=255)
+    avatar = models.ImageField(upload_to='group_avatars/', blank=True, null=True)
+    members = models.ManyToManyField('auth.User', related_name='chat_groups')
+    admins = models.ManyToManyField('auth.User', related_name='admin_chat_groups')
+    only_admins_can_chat = models.BooleanField(default=False)
+    is_archived = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
+
 class ChatMessage(models.Model):
     """
     Stores chat messages between the admin and employees.
@@ -389,6 +404,9 @@ class ChatMessage(models.Model):
     recipient = models.ForeignKey(
         'auth.User', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='received_chat_messages'
+    )
+    group = models.ForeignKey(
+        'ChatGroup', on_delete=models.CASCADE, null=True, blank=True, related_name='messages'
     )
     text = models.TextField()
     is_pinned = models.BooleanField(default=False)

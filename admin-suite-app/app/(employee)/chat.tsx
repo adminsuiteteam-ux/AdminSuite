@@ -108,8 +108,16 @@ export default function EmployeeChatScreen() {
   const fetchMessages = useCallback(async () => {
     if (!activeContact) return;
     try {
-      const rid = activeContact.id === "group" ? undefined : (activeContact.id as number);
-      const res = await apiService.getChatMessages(rid);
+      let res;
+      if (activeContact.type === "group") {
+        if (activeContact.id === "group") {
+          res = await apiService.getChatMessages("group");
+        } else {
+          res = await apiService.getChatMessages(undefined, activeContact.id as number);
+        }
+      } else {
+        res = await apiService.getChatMessages(activeContact.id as number);
+      }
       setMessages(res.data);
     } catch {}
   }, [activeContact]);
@@ -136,7 +144,13 @@ export default function EmployeeChatScreen() {
         setEditingMsg(null);
       } else {
         const payload: any = { text };
-        if (activeContact?.id !== "group") payload.recipient_id = activeContact?.id;
+        if (activeContact?.type === "group") {
+          if (activeContact.id !== "group") {
+            payload.group_id = activeContact.id;
+          }
+        } else if (activeContact?.id) {
+          payload.recipient_id = activeContact.id;
+        }
         if (replyTo) payload.reply_to_id = replyTo.id;
         await apiService.sendChatMessage(payload);
         setReplyTo(null);
@@ -265,7 +279,7 @@ export default function EmployeeChatScreen() {
         style={[styles.msgRow, mine ? styles.msgRight : styles.msgLeft]}
       >
         {!mine && (
-          <View style={[styles.avatar, { backgroundColor: colors.primary + "33" }, msg.sender_avatar ? { overflow: "hidden" } : {}]}>
+          <View style={[styles.avatar, { backgroundColor: colors.primary + "30", overflow: "hidden", borderWidth: 1.5, borderColor: colors.primary + "40" }]}>
             {msg.sender_avatar ? (
               <Image source={{ uri: getMediaUrl(msg.sender_avatar) }} style={{ width: "100%", height: "100%" }} />
             ) : (

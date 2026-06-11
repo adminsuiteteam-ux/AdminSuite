@@ -208,19 +208,6 @@ export default function DashboardScreen() {
             </View>
             <View style={{ flexDirection: "row", gap: 8 }}>
               <Pressable
-                onPress={() => router.push("/settings" as any)}
-                style={({ pressed }) => [
-                  styles.bellBtn,
-                  {
-                    transform: [{ scale: pressed ? 0.92 : 1 }],
-                    opacity: pressed ? 0.8 : 1,
-                  }
-                ]}
-                hitSlop={8}
-              >
-                <Feather name="settings" size={19} color="#fff" />
-              </Pressable>
-              <Pressable
                 onPress={() => setNotifOpen(true)}
                 style={({ pressed }) => [
                   styles.bellBtn,

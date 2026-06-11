@@ -226,15 +226,7 @@ export default function UserProfileDetailScreen() {
               hint="View & edit business information"
               onPress={() => router.push("/settings/organisation" as any)}
             />
-            <Row
-              icon="help-circle"
-              label="Replay App Tour"
-              hint="See the onboarding walkthrough slides"
-              onPress={async () => {
-                await AsyncStorage.removeItem("admin-suite.tour-complete");
-                router.push("/tour");
-              }}
-            />
+
             <Row
               icon="globe"
               label="All clients"

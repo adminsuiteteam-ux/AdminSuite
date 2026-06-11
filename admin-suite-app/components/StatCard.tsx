@@ -73,12 +73,12 @@ export function StatCard({
         style={[
           styles.card,
           {
-            backgroundColor: colors.glass,
+            backgroundColor: colors.isDark ? colors.glass : colors.card,
             borderRadius: colors.radius,
-            borderColor: colors.glassBorder,
+            borderColor: colors.isDark ? colors.glassBorder : colors.border,
             transform: [{ translateY }, { scale }],
           },
-          shadows.md,
+          colors.isDark ? shadows.md : null,
         ]}
       >
         {/* Accent glow strip at top */}

@@ -1,1 +1,34 @@
-// pricing-section-4.tsx – UI component for the pricing section\n// This file follows the shadcn UI structure (placed under components/ui)\n\n"use client";\nimport { Card, CardContent, CardHeader } from "@/components/ui/card";\nimport { Sparkles as SparklesComp } from "@/components/ui/sparkles";\nimport { TimelineContent } from "@/components/ui/timeline-animation";\nimport { VerticalCutReveal } from "@/components/ui/vertical-cut-reveal";\nimport { cn } from "@/lib/utils";\nimport NumberFlow from "@number-flow/react";\n\n// NOTE: The original component implementation was omitted for brevity.\n// Insert the actual JSX/logic here, ensuring all imported shadcn UI components\n// (Card, Sparkles, etc.) are used as intended.\n\nexport default function PricingSection4() {\n  return (\n    <Card className={cn("p-6")}>\n      <CardHeader>Pricing Section 4</CardHeader>\n      <CardContent>\n        {/* Replace with actual UI */}\n        <div className="flex items-center space-x-2">\n          <SparklesComp />\n          <NumberFlow end={99} />\n        </div>\n        <TimelineContent />\n        <VerticalCutReveal />\n      </CardContent>\n    </Card>\n  );\n}\n
+// pricing-section-4.tsx – UI component for the pricing section
+// This file follows the shadcn UI structure (placed under components/ui)
+
+"use client";
+import { Card, CardContent, CardHeader } from "./card";
+import { Sparkles as SparklesComp } from "./sparkles";
+import { TimelineContent } from "./timeline-animation";
+import { VerticalCutReveal } from "./vertical-cut-reveal";
+import { cn } from "@/lib/utils";
+import NumberFlow from "@number-flow/react";
+
+const t = (key: string) => {
+  const translations = new Map<string, string>([
+    ["pricing_section_title", "Pricing Section 4"]
+  ]);
+  return translations.get(key) || key;
+};
+
+export default function PricingSection4() {
+  return (
+    <Card className={cn("p-6")}>
+      <CardHeader>{t("pricing_section_title")}</CardHeader>
+      <CardContent>
+        {/* Replace with actual UI */}
+        <div className="flex items-center space-x-2">
+          <SparklesComp />
+          <NumberFlow value={99} />
+        </div>
+        <TimelineContent />
+        <VerticalCutReveal />
+      </CardContent>
+    </Card>
+  );
+}

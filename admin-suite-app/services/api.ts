@@ -369,13 +369,16 @@ export const apiService = {
 
   // Chat Endpoints
   getChatContacts: () => apiClient.get('chat/contacts/'),
-  getChatMessages: (recipientId?: number | 'group') => {
+  getChatMessages: (recipientId?: number | 'group', groupId?: number) => {
+    if (groupId) {
+      return apiClient.get(`chat/messages/?group_id=${groupId}`);
+    }
     if (!recipientId || recipientId === 'group') {
       return apiClient.get('chat/messages/');
     }
     return apiClient.get(`chat/messages/?recipient_id=${recipientId}`);
   },
-  sendChatMessage: (data: { text: string; recipient_id?: number; reply_to_id?: number }) =>
+  sendChatMessage: (data: { text: string; recipient_id?: number; group_id?: number; reply_to_id?: number }) =>
     apiClient.post('chat/send/', data),
   editChatMessage: (id: number, text: string) =>
     apiClient.put(`chat/messages/${id}/`, { text }),
@@ -383,6 +386,8 @@ export const apiService = {
     apiClient.delete(`chat/messages/${id}/`),
   pinChatMessage: (id: number) =>
     apiClient.post(`chat/messages/${id}/pin/`),
+  createChatGroup: (data: { name: string; only_admins_can_chat?: boolean; members?: number[] }) =>
+    apiClient.post('chat/groups/', data),
 
   // Admin Chat Controls
   getChatSettings: () =>

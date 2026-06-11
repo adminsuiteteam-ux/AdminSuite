@@ -101,9 +101,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const u = res.data;
           u.initials = ((u.name || u.username || u.email || "US")).slice(0, 2).toUpperCase();
           setUser(u);
+          await AsyncStorage.setItem(TOUR_KEY, "true");
+          setTourComplete(true);
+        } else if (tourRaw === "true") {
+          setTourComplete(true);
         }
-        
-        if (tourRaw === "true") setTourComplete(true);
       } catch (err: any) {
         if (err.response && (err.response.status === 401 || err.response.status === 403)) {
           console.log("Auth session expired (401/403). Clearing token.");

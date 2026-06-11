@@ -8,7 +8,7 @@ from .models import (
     Transaction, Notification, Debt, BudgetCategory, Savings,
     UserProfile, EmployeeActivityLog, EmployeeQuery, EmployeeTask,
     EmployeeLeave, EmployeeMessage, EmployeeDocument, SalaryAdjustment,
-    ChatMessage, ChatSettings
+    ChatMessage, ChatSettings, ChatGroup
 )
 from .extended_models import Organization, Branch, Subscription, UserExtension  # multi‑branch models
 
@@ -387,12 +387,44 @@ class RegisterSerializer(serializers.Serializer):
         return user
 
 
+class ChatGroupSerializer(serializers.ModelSerializer):
+    members_details = serializers.SerializerMethodField()
+    admins_details = serializers.SerializerMethodField()
+    avatar = serializers.ImageField(required=False, allow_null=True)
+
+    class Meta:
+        model = ChatGroup
+        fields = [
+            'id', 'name', 'avatar', 'members', 'admins', 'only_admins_can_chat', 
+            'is_archived', 'members_details', 'admins_details', 'created_at', 'updated_at'
+        ]
+
+    def get_members_details(self, obj):
+        return [{'id': u.id, 'name': f"{u.first_name} {u.last_name}".strip() or u.username} for u in obj.members.all()]
+
+    def get_admins_details(self, obj):
+        return [{'id': u.id, 'name': f"{u.first_name} {u.last_name}".strip() or u.username} for u in obj.admins.all()]
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        if instance.avatar:
+            request = self.context.get('request')
+            if request is not None:
+                ret['avatar'] = request.build_absolute_uri(instance.avatar.url)
+            else:
+                ret['avatar'] = instance.avatar.url
+        else:
+            ret['avatar'] = None
+        return ret
+
+
 class ChatMessageSerializer(serializers.ModelSerializer):
     sender_id = serializers.ReadOnlyField(source='sender.id')
     sender_name = serializers.SerializerMethodField()
     sender_initials = serializers.SerializerMethodField()
     sender_avatar = serializers.SerializerMethodField()
     recipient_id = serializers.ReadOnlyField(source='recipient.id', default=None)
+    group_id = serializers.ReadOnlyField(source='group.id', default=None)
     reply_to_id = serializers.PrimaryKeyRelatedField(
         queryset=ChatMessage.objects.all(), source='reply_to', required=False, allow_null=True
     )
@@ -404,7 +436,7 @@ class ChatMessageSerializer(serializers.ModelSerializer):
         model = ChatMessage
         fields = [
             'id', 'sender_id', 'sender_name', 'sender_initials', 'sender_avatar',
-            'recipient_id', 'text', 'display_text', 'is_pinned', 'is_edited', 'is_deleted',
+            'recipient_id', 'group_id', 'text', 'display_text', 'is_pinned', 'is_edited', 'is_deleted',
             'reply_to_id', 'reply_to_text', 'reply_to_sender',
             'created_at', 'updated_at',
         ]

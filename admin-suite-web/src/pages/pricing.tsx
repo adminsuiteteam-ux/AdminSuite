@@ -1,4 +1,4 @@
-import PricingSection4 from '@/components/ui/pricing-section-4';
+import PricingSection4 from '../components/ui/pricing-section-4.tsx';
 
 export default function PricingPage() {
   return (
