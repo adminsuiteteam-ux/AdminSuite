@@ -1,4 +1,5 @@
 from django.db import models
+from .extended_models import *
 
 class EmployeeFinance(models.Model):
     current_pay = models.DecimalField(max_digits=10, decimal_places=2, default=0)

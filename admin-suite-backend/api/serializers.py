@@ -10,9 +10,32 @@ from .models import (
     EmployeeLeave, EmployeeMessage, EmployeeDocument, SalaryAdjustment,
     ChatMessage, ChatSettings
 )
+from .extended_models import Organization, Branch, Subscription, UserExtension  # multi‑branch models
 
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
+
+# Multi‑branch and subscription serializers
+class OrganizationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Organization
+        fields = ['id', 'name', 'created_by', 'created_at']
+
+class BranchSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Branch
+        fields = ['id', 'name', 'organization', 'created_by', 'is_active', 'archived_at']
+
+class SubscriptionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Subscription
+        fields = ['id', 'organization', 'plan', 'start_date', 'end_date', 'max_records_per_field', 'features']
+
+class UserExtensionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserExtension
+        fields = ['user', 'role', 'organization', 'branch', 'updated_at']
+
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -195,7 +218,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
         employee = Employee.objects.create(finance=finance, **validated_data) # type: ignore
         
         # Save temp password to display to Admin
-        employee._temp_password = temp_password
+        employee._temp_password = temp_password  # type: ignore[attr-defined]
         return employee
 
     def update(self, instance, validated_data):
@@ -441,3 +464,38 @@ class ChatSettingsSerializer(serializers.ModelSerializer):
         model = ChatSettings
         fields = ['group_locked', 'blocked_user_ids', 'updated_at']
         read_only_fields = ['updated_at']
+
+# ------------------------------
+# New serializers for multi-branch architecture
+# ------------------------------
+
+class OrganizationSerializer(serializers.ModelSerializer):
+    created_by = serializers.ReadOnlyField(source='created_by.id')
+    class Meta:
+        model = Organization
+        fields = ['id', 'name', 'created_by', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+class BranchSerializer(serializers.ModelSerializer):
+    organization = serializers.PrimaryKeyRelatedField(queryset=Organization.objects.all())
+    created_by = serializers.ReadOnlyField(source='created_by.id')
+    class Meta:
+        model = Branch
+        fields = ['id', 'name', 'organization', 'created_by', 'is_active', 'archived_at']
+        read_only_fields = ['id', 'archived_at']
+
+class SubscriptionSerializer(serializers.ModelSerializer):
+    organization = serializers.PrimaryKeyRelatedField(queryset=Organization.objects.all())
+    class Meta:
+        model = Subscription
+        fields = ['id', 'organization', 'plan', 'start_date', 'end_date', 'max_records_per_field', 'features']
+        read_only_fields = ['id']
+
+class UserExtensionSerializer(serializers.ModelSerializer):
+    user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
+    organization = serializers.PrimaryKeyRelatedField(queryset=Organization.objects.all())
+    branch = serializers.PrimaryKeyRelatedField(queryset=Branch.objects.all(), allow_null=True, required=False)
+    class Meta:
+        model = UserExtension
+        fields = ['id', 'user', 'role', 'organization', 'branch']
+        read_only_fields = ['id']
