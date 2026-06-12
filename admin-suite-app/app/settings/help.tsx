@@ -13,6 +13,7 @@ import {
   LayoutAnimation,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 
 import { useColors } from "@/hooks/useColors";
 
@@ -53,6 +54,7 @@ const GUIDES = [
 
 export default function HelpSupportScreen() {
   const colors = useColors();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const isDark = colors.isDark;
 
@@ -108,7 +110,7 @@ export default function HelpSupportScreen() {
           <Feather name="chevron-left" size={22} color={colors.foreground} />
         </Pressable>
         <Text style={[styles.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-          Help & Support
+          {t("help.title")}
         </Text>
         <View style={{ width: 38 }} />
       </View>
@@ -125,22 +127,22 @@ export default function HelpSupportScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={{ color: colors.foreground, fontFamily: "Inter_700Bold", fontSize: 16 }}>
-                Admin Suite
+                {t("help.appName")}
               </Text>
               <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_500Medium", fontSize: 12, marginTop: 2 }}>
-                Version 2.0.0 · Unified Corporate Workspace
+                {t("help.appVersion")}
               </Text>
             </View>
           </View>
           <Text style={{ color: colors.mutedForeground, fontSize: 13, lineHeight: 20, marginTop: 12, fontFamily: "Inter_400Regular" }}>
-            Admin Suite is a fully featured glassmorphic enterprise portal. It syncs real-time financial tracking, employee listings, tasks boards, group leaves, and team conversations into a single, volumetric workspace.
+            {t("help.appDescription")}
           </Text>
         </View>
 
         {/* ── Quick Guide Checklist ── */}
         <View style={{ marginTop: 24 }}>
           <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-            Getting Started Guide
+            {t("help.gettingStarted")}
           </Text>
           <View style={{ gap: 10, marginTop: 12 }}>
             {GUIDES.map((g) => (
@@ -172,7 +174,7 @@ export default function HelpSupportScreen() {
         {/* ── FAQ Search & Accordions ── */}
         <View style={{ marginTop: 24 }}>
           <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-            Frequently Asked Questions
+            {t("help.faq")}
           </Text>
 
           {/* Search bar */}
@@ -265,7 +267,7 @@ export default function HelpSupportScreen() {
               <View style={{ padding: 20, alignItems: "center" }}>
                 <Feather name="help-circle" size={32} color={colors.mutedForeground} style={{ marginBottom: 8 }} />
                 <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_500Medium", fontSize: 14 }}>
-                  No matches found for your query.
+                  {t("help.noMatches")}
                 </Text>
               </View>
             )}
@@ -275,7 +277,7 @@ export default function HelpSupportScreen() {
         {/* ── Mock Location & Interactive Map Card ── */}
         <View style={{ marginTop: 28 }}>
           <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-            Our HQ Location
+            {t("help.hqLocation")}
           </Text>
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, marginTop: 12, padding: 0 }]}>
             
@@ -308,7 +310,7 @@ export default function HelpSupportScreen() {
             {/* Map Info Details */}
             <View style={{ padding: 16 }}>
               <Text style={{ color: colors.foreground, fontFamily: "Inter_700Bold", fontSize: 15 }}>
-                Admin Suite Headquarters
+                {t("help.hqName")}
               </Text>
               <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_500Medium", fontSize: 12, marginTop: 4 }}>
                 100 Pine Street, 15th Floor, San Francisco, CA 94111
@@ -327,7 +329,7 @@ export default function HelpSupportScreen() {
               >
                 <Feather name="navigation" size={16} color={colors.primaryForeground} />
                 <Text style={{ color: colors.primaryForeground, fontFamily: "Inter_600SemiBold", fontSize: 14 }}>
-                  Open in Device Maps
+                  {t("help.openMaps")}
                 </Text>
               </Pressable>
             </View>
@@ -337,7 +339,7 @@ export default function HelpSupportScreen() {
         {/* ── Contact Details card ── */}
         <View style={{ marginTop: 24 }}>
           <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-            Still need help?
+            {t("help.needHelp")}
           </Text>
           <View style={[styles.contactCard, { backgroundColor: colors.card, borderColor: colors.border, marginTop: 12 }]}>
             <View style={[styles.contactItem, { borderRightWidth: 1, borderRightColor: colors.border }]}>
@@ -345,13 +347,13 @@ export default function HelpSupportScreen() {
                 <Feather name="mail" size={18} color="#3b82f6" />
               </View>
               <Text style={{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 13, marginTop: 10 }}>
-                Email Support
+                {t("help.emailSupport")}
               </Text>
               <Text
                 onPress={() => Linking.openURL("mailto:support@adminsuite.app")}
                 style={{ color: colors.accent, fontFamily: "Inter_500Medium", fontSize: 12, marginTop: 4, textDecorationLine: "underline" }}
               >
-                support@adminsuite.app
+                {t("help.supportEmail")}
               </Text>
             </View>
             
@@ -360,7 +362,7 @@ export default function HelpSupportScreen() {
                 <Feather name="phone" size={18} color="#10b981" />
               </View>
               <Text style={{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 13, marginTop: 10 }}>
-                Phone Support
+                {t("help.phoneSupport")}
               </Text>
               <Text
                 onPress={() => Linking.openURL("tel:+18005550199")}

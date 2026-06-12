@@ -13,7 +13,7 @@ from .models import (
     Employee, EmployeeFinance, PayHistory, Client, Project, Transaction,
     Notification, Debt, BudgetCategory, Savings, EmployeeActivityLog,
     EmployeeQuery, EmployeeTask, EmployeeLeave, EmployeeMessage,
-    EmployeeDocument, SalaryAdjustment, PayrollStatus, ChatMessage, ChatSettings, ChatGroup
+    EmployeeDocument, SalaryAdjustment, PayrollStatus, ChatMessage, ChatSettings, ChatGroup, ChatTypingStatus
 )
 from .serializers import (
     EmployeeSerializer, ClientSerializer, ProjectSerializer,
@@ -1435,6 +1435,16 @@ def chat_messages(request):
             group__isnull=True
         ).select_related('sender', 'reply_to', 'reply_to__sender')
 
+    # Mark messages as read by adding the current user to read_by relationship
+    unread_msgs = msgs.exclude(sender=request.user).exclude(read_by=request.user)
+    through_model = ChatMessage.read_by.through
+    through_objs = [
+        through_model(chatmessage_id=m.id, user_id=request.user.id)
+        for m in unread_msgs
+    ]
+    if through_objs:
+        through_model.objects.bulk_create(through_objs, ignore_conflicts=True)
+
     serializer = ChatMessageSerializer(msgs, many=True, context={'request': request})
     return Response(serializer.data)
 
@@ -1454,8 +1464,8 @@ def chat_send(request):
     text = request.data.get('text', '').strip()
     if not text:
         return Response({'error': 'Message text is required.'}, status=status.HTTP_400_BAD_REQUEST)
-    if len(text) > 2000:
-        return Response({'error': 'Message too long (max 2000 chars).'}, status=status.HTTP_400_BAD_REQUEST)
+    if len(text) > 50000:
+        return Response({'error': 'Message too long (max 50000 chars).'}, status=status.HTTP_400_BAD_REQUEST)
 
     recipient_id = request.data.get('recipient_id')
     group_id = request.data.get('group_id')
@@ -1520,6 +1530,7 @@ def chat_send(request):
         text=text,
         reply_to=reply_to,
     )
+    msg.read_by.add(request.user)
     serializer = ChatMessageSerializer(msg, context={'request': request})
     return Response(serializer.data, status=status.HTTP_201_CREATED)
 
@@ -1599,6 +1610,18 @@ def chat_contacts(request):
     contacts = []
 
     # Always include general team chat group
+    tc_latest = ChatMessage.objects.filter(
+        company_user=company_user,
+        recipient__isnull=True,
+        group__isnull=True
+    ).order_by('-created_at').first()
+    
+    tc_unread = ChatMessage.objects.filter(
+        company_user=company_user,
+        recipient__isnull=True,
+        group__isnull=True
+    ).exclude(sender=request.user).exclude(read_by=request.user).count()
+
     contacts.append({
         'id': 'group',
         'type': 'group',
@@ -1607,6 +1630,9 @@ def chat_contacts(request):
         'avatar': None,
         'group_locked': settings_obj.group_locked,
         'is_blocked_from_group': request.user.id in (settings_obj.blocked_user_ids or []),
+        'last_message': tc_latest.text if tc_latest and not tc_latest.is_deleted else ("This message was deleted" if tc_latest and tc_latest.is_deleted else None),
+        'last_message_time': tc_latest.created_at.isoformat() if tc_latest else None,
+        'unread_count': tc_unread,
     })
 
     # Include custom chat groups
@@ -1619,6 +1645,17 @@ def chat_contacts(request):
         g_avatar = None
         if g.avatar:
             g_avatar = request.build_absolute_uri(g.avatar.url)
+        
+        g_latest = ChatMessage.objects.filter(
+            company_user=company_user,
+            group=g
+        ).order_by('-created_at').first()
+
+        g_unread = ChatMessage.objects.filter(
+            company_user=company_user,
+            group=g
+        ).exclude(sender=request.user).exclude(read_by=request.user).count()
+
         contacts.append({
             'id': g.id,
             'type': 'group',
@@ -1628,6 +1665,9 @@ def chat_contacts(request):
             'group_locked': g.only_admins_can_chat,
             'is_blocked_from_group': False,
             'members': list(g.members.values_list('id', flat=True)),
+            'last_message': g_latest.text if g_latest and not g_latest.is_deleted else ("This message was deleted" if g_latest and g_latest.is_deleted else None),
+            'last_message_time': g_latest.created_at.isoformat() if g_latest else None,
+            'unread_count': g_unread,
         })
 
     if is_employee:
@@ -1637,6 +1677,22 @@ def chat_contacts(request):
         admin_avatar = None
         if admin_profile and admin_profile.avatar:
             admin_avatar = request.build_absolute_uri(admin_profile.avatar.url)
+
+        # DM between request.user and company_user
+        dm_latest = ChatMessage.objects.filter(
+            company_user=company_user,
+            recipient__isnull=False
+        ).filter(
+            (models.Q(sender=request.user) & models.Q(recipient=company_user)) |
+            (models.Q(sender=company_user) & models.Q(recipient=request.user))
+        ).order_by('-created_at').first()
+
+        dm_unread = ChatMessage.objects.filter(
+            company_user=company_user,
+            recipient=request.user,
+            sender=company_user
+        ).exclude(read_by=request.user).count()
+
         contacts.append({
             'id': company_user.id,
             'type': 'private',
@@ -1645,6 +1701,9 @@ def chat_contacts(request):
             'avatar': admin_avatar,
             'group_locked': False,
             'is_blocked_from_group': False,
+            'last_message': dm_latest.text if dm_latest and not dm_latest.is_deleted else ("This message was deleted" if dm_latest and dm_latest.is_deleted else None),
+            'last_message_time': dm_latest.created_at.isoformat() if dm_latest else None,
+            'unread_count': dm_unread,
         })
     else:
         # Admin can DM any employee
@@ -1655,6 +1714,22 @@ def chat_contacts(request):
                 emp_avatar = None
                 if emp.avatar:
                     emp_avatar = request.build_absolute_uri(emp.avatar.url)
+
+                # DM between request.user and emp.linked_user
+                dm_latest = ChatMessage.objects.filter(
+                    company_user=company_user,
+                    recipient__isnull=False
+                ).filter(
+                    (models.Q(sender=request.user) & models.Q(recipient=emp.linked_user)) |
+                    (models.Q(sender=emp.linked_user) & models.Q(recipient=request.user))
+                ).order_by('-created_at').first()
+
+                dm_unread = ChatMessage.objects.filter(
+                    company_user=company_user,
+                    recipient=request.user,
+                    sender=emp.linked_user
+                ).exclude(read_by=request.user).count()
+
                 contacts.append({
                     'id': emp.linked_user.id,
                     'type': 'private',
@@ -1664,6 +1739,9 @@ def chat_contacts(request):
                     'employee_id': emp.id,
                     'group_locked': False,
                     'is_blocked_from_group': is_blocked,
+                    'last_message': dm_latest.text if dm_latest and not dm_latest.is_deleted else ("This message was deleted" if dm_latest and dm_latest.is_deleted else None),
+                    'last_message_time': dm_latest.created_at.isoformat() if dm_latest else None,
+                    'unread_count': dm_unread,
                 })
 
     return Response(contacts)
@@ -1733,7 +1811,7 @@ def chat_groups(request):
 
 @api_view(['GET', 'PUT', 'PATCH', 'DELETE'])
 @permission_classes([IsAuthenticated])
-def chat_group_detail(request, pk):
+def chat_group_detail(request, pk) -> Response:
     """
     GET/PUT/PATCH/DELETE /api/chat/groups/<pk>/
     """
@@ -1813,10 +1891,12 @@ def chat_group_detail(request, pk):
         serializer = ChatGroupSerializer(group, context={'request': request})
         return Response(serializer.data)
 
+    return Response({'error': 'Method not allowed.'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
 
 @api_view(['GET', 'PATCH'])
 @permission_classes([IsAuthenticated])
-def chat_settings(request):
+def chat_settings(request) -> Response:
     """
     GET  /api/chat/settings/  → Returns current group lock state and blocked users
     PATCH /api/chat/settings/ → Admin updates group_locked and/or blocked_user_ids
@@ -1842,6 +1922,8 @@ def chat_settings(request):
             serializer.save()
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    return Response({'error': 'Method not allowed.'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
 
 @api_view(['POST'])
@@ -1888,3 +1970,108 @@ def chat_block_user(request):
         'user_id': user_id,
         'blocked_user_ids': blocked,
     })
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def chat_typing(request):
+    """
+    POST /api/chat/typing/  → Set/update typing status for current user
+      Body: { recipient_id? (for DM), group_id? (for custom group), is_typing?: bool }
+    GET  /api/chat/typing/  → Retrieve list of other users typing in the active conversation
+      Query params: recipient_id? (for DM), group_id? (for custom group)
+    """
+    from django.utils import timezone
+    from datetime import timedelta
+    from .models import ChatTypingStatus, ChatGroup
+
+    company_user = _get_company_user(request)
+    if not company_user:
+        return Response({'error': 'Company profile not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    recipient_id = request.data.get('recipient_id') if request.method == 'POST' else request.GET.get('recipient_id')
+    group_id = request.data.get('group_id') if request.method == 'POST' else request.GET.get('group_id')
+
+    recipient = None
+    chat_group = None
+
+    if group_id and str(group_id) != 'group':
+        try:
+            chat_group = ChatGroup.objects.get(id=group_id, company_user=company_user)
+        except (ChatGroup.DoesNotExist, ValueError):
+            pass
+    elif recipient_id:
+        try:
+            recipient = User.objects.get(id=recipient_id)
+        except (User.DoesNotExist, ValueError):
+            pass
+
+    if request.method == 'POST':
+        is_typing = request.data.get('is_typing', True)
+
+        if not is_typing:
+            ChatTypingStatus.objects.filter(
+                company_user=company_user,
+                user=request.user,
+                recipient=recipient,
+                group=chat_group
+            ).delete()
+            return Response({'status': 'stopped'})
+
+        status_obj, created = ChatTypingStatus.objects.get_or_create(
+            company_user=company_user,
+            user=request.user,
+            recipient=recipient,
+            group=chat_group,
+            defaults={'updated_at': timezone.now()}
+        )
+        if not created:
+            status_obj.updated_at = timezone.now()
+            status_obj.save(update_fields=['updated_at'])
+
+        return Response({'status': 'typing'})
+
+    elif request.method == 'GET':
+        # Clean up very old typing statuses periodically
+        threshold_cleanup = timezone.now() - timedelta(minutes=5)
+        ChatTypingStatus.objects.filter(updated_at__lt=threshold_cleanup).delete()
+
+        # Anyone updated in the last 6 seconds (excluding self)
+        threshold_active = timezone.now() - timedelta(seconds=6)
+        is_all = request.GET.get('all') == 'true'
+
+        if is_all:
+            active_statuses = ChatTypingStatus.objects.filter(
+                company_user=company_user,
+                updated_at__gte=threshold_active
+            ).exclude(user=request.user).select_related('user', 'user__employee_profile', 'recipient', 'group')
+        else:
+            active_statuses = ChatTypingStatus.objects.filter(
+                company_user=company_user,
+                recipient=recipient,
+                group=chat_group,
+                updated_at__gte=threshold_active
+            ).exclude(user=request.user).select_related('user', 'user__employee_profile')
+
+        typing_users = []
+        for status_obj in active_statuses:
+            emp = getattr(status_obj.user, 'employee_profile', None)
+            name = emp.name if emp else f"{status_obj.user.first_name} {status_obj.user.last_name}".strip() or status_obj.user.username
+            initials = emp.initials if emp else (status_obj.user.username[:2].upper() if len(status_obj.user.username) > 1 else status_obj.user.username.upper())
+            avatar = request.build_absolute_uri(emp.avatar.url) if emp and emp.avatar else None
+
+            item = {
+                'id': status_obj.user.id,
+                'name': name,
+                'initials': initials,
+                'avatar': avatar,
+            }
+            if is_all:
+                item['recipient_id'] = status_obj.recipient.id if status_obj.recipient else None
+                item['group_id'] = status_obj.group.id if status_obj.group else None
+                item['is_general_group'] = status_obj.recipient is None and status_obj.group is None
+            
+            typing_users.append(item)
+
+        return Response({'typing_users': typing_users})
+

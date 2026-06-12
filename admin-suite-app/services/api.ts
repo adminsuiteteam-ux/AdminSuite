@@ -388,6 +388,10 @@ export const apiService = {
     apiClient.post(`chat/messages/${id}/pin/`),
   createChatGroup: (data: { name: string; only_admins_can_chat?: boolean; members?: number[] }) =>
     apiClient.post('chat/groups/', data),
+  updateChatGroup: (id: number, data: { name?: string; only_admins_can_chat?: boolean; members?: number[] }) =>
+    apiClient.patch(`chat/groups/${id}/`, data),
+  deleteChatGroup: (id: number) =>
+    apiClient.delete(`chat/groups/${id}/`),
 
   // Admin Chat Controls
   getChatSettings: () =>
@@ -396,6 +400,22 @@ export const apiService = {
     apiClient.patch('chat/settings/', data),
   blockChatUser: (userId: number, block: boolean) =>
     apiClient.post('chat/block-user/', { user_id: userId, block }),
+
+  // Chat Typing Status
+  sendChatTyping: (data: { recipient_id?: number; group_id?: number; is_typing: boolean }) =>
+    apiClient.post('chat/typing/', data),
+  getChatTypingStatus: (recipientId?: number | 'group' | 'all', groupId?: number) => {
+    if (recipientId === 'all') {
+      return apiClient.get('chat/typing/?all=true');
+    }
+    if (groupId) {
+      return apiClient.get(`chat/typing/?group_id=${groupId}`);
+    }
+    if (!recipientId || recipientId === 'group') {
+      return apiClient.get('chat/typing/');
+    }
+    return apiClient.get(`chat/typing/?recipient_id=${recipientId}`);
+  },
 };
 
 export default apiClient;

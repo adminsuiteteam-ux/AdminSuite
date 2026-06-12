@@ -186,21 +186,21 @@ export default function EmployeeTasksScreen() {
                 <Feather
                   name={tab.icon}
                   size={13}
-                  color={active ? "#fff" : colors.mutedForeground}
+                  color={active ? colors.primaryForeground : colors.foreground}
                 />
                 <Text
                   style={[
                     styles.tabLabel,
                     {
-                      color: active ? "#fff" : colors.mutedForeground,
+                      color: active ? colors.primaryForeground : colors.foreground,
                       fontFamily: active ? "Inter_600SemiBold" : "Inter_400Regular",
                     },
                   ]}
                 >
                   {tab.label}
                 </Text>
-                <View style={[styles.tabBadge, { backgroundColor: active ? "rgba(255,255,255,0.25)" : colors.background }]}>
-                  <Text style={[styles.tabBadgeTxt, { color: active ? "#fff" : colors.mutedForeground, fontFamily: "Inter_700Bold" }]}>
+                <View style={[styles.tabBadge, { backgroundColor: active ? (colors.isDark ? "rgba(0,0,0,0.15)" : "rgba(255,255,255,0.25)") : colors.background }]}>
+                  <Text style={[styles.tabBadgeTxt, { color: active ? colors.primaryForeground : colors.foreground, fontFamily: "Inter_700Bold" }]}>
                     {count}
                   </Text>
                 </View>

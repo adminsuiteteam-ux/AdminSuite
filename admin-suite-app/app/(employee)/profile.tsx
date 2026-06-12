@@ -1,4 +1,5 @@
 import { Feather } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React, { useState, useRef, useCallback } from "react";
 import {
   Alert,
@@ -30,7 +31,7 @@ type ThemeMode = "light" | "dark" | "system";
 export default function EmployeeProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { user, setUser } = useAuth();
+  const { user, setUser, logout } = useAuth();
   const { showToast } = useToast();
   const { theme, setTheme, biometricsEnabled, setBiometricsEnabled } = useSettings();
 
@@ -290,13 +291,13 @@ export default function EmployeeProfileScreen() {
                   <Feather
                     name={opt.icon}
                     size={16}
-                    color={active ? "#fff" : colors.mutedForeground}
+                    color={active ? colors.primaryForeground : colors.foreground}
                   />
                   <Text
                     style={[
                       styles.themeTxt,
                       {
-                        color: active ? "#fff" : colors.mutedForeground,
+                        color: active ? colors.primaryForeground : colors.foreground,
                         fontFamily: active ? "Inter_600SemiBold" : "Inter_400Regular",
                       },
                     ]}
@@ -540,6 +541,39 @@ export default function EmployeeProfileScreen() {
               </Animated.View>
             </Pressable>
           </View>
+
+          {/* Sign Out Button */}
+          <Pressable
+            onPress={async () => {
+              if (Platform.OS !== "web") {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+              }
+              Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Sign Out",
+                  style: "destructive",
+                  onPress: async () => {
+                    await logout();
+                    router.replace("/(auth)/login");
+                  },
+                },
+              ]);
+            }}
+            style={({ pressed }) => [
+              styles.logoutBtn,
+              {
+                borderColor: colors.danger,
+                backgroundColor: colors.isDark ? "rgba(239, 68, 68, 0.1)" : "rgba(239, 68, 68, 0.05)",
+                opacity: pressed ? 0.8 : 1,
+              },
+            ]}
+          >
+            <Feather name="log-out" size={16} color={colors.danger} />
+            <Text style={[styles.logoutBtnText, { color: colors.danger, fontFamily: "Inter_600SemiBold" }]}>
+              Sign Out
+            </Text>
+          </Pressable>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -636,4 +670,17 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   primaryBtnText: { fontSize: 16 },
+  logoutBtn: {
+    height: 56,
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 16,
+  },
+  logoutBtnText: {
+    fontSize: 16,
+  },
 });

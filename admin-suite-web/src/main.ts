@@ -1,5 +1,6 @@
 import './index.css';
 import { sanitizeHtml } from './utils/security';
+import DOMPurify from 'dompurify';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import type { CountryCode } from 'libphonenumber-js';
 
@@ -970,10 +971,10 @@ function renderToast() {
   
   const iconName = state.toast.type === 'success' ? 'check' : state.toast.type === 'error' ? 'alert' : 'info';
   
-  toastContainer.innerHTML = `
+toastContainer.innerHTML = DOMPurify.sanitize(`
     ${getIconSvg(iconName, 'toast-icon')}
     <span>${sanitizeHtml(state.toast.message)}</span>
-  `;
+`);
   
   document.body.appendChild(toastContainer);
 }
@@ -1028,7 +1029,7 @@ export function renderApp() {
   if (!root) return;
 
   if (state.suspendedUntil && new Date(state.suspendedUntil) > new Date()) {
-    root.innerHTML = drawSuspended();
+    root.innerHTML = DOMPurify.sanitize(drawSuspended());
     bindSuspendedEvents();
     return;
   }
@@ -1052,39 +1053,39 @@ export function renderApp() {
 
   switch (state.view as string) {
     case 'splash':
-      root.innerHTML = drawSplashGate();
+      root.innerHTML = DOMPurify.sanitize(drawSplashGate());
       bindSplashEvents();
       break;
     case 'tour':
-      root.innerHTML = drawTour();
+      root.innerHTML = DOMPurify.sanitize(drawTour());
       bindTourEvents();
       break;
     case 'login':
-      root.innerHTML = drawLogin();
+      root.innerHTML = DOMPurify.sanitize(drawLogin());
       bindLoginEvents();
       break;
     case 'forgot-password':
-      root.innerHTML = drawForgotPassword();
+      root.innerHTML = DOMPurify.sanitize(drawForgotPassword());
       bindForgotPasswordEvents();
       break;
     case 'register':
-      root.innerHTML = drawRegister();
+      root.innerHTML = DOMPurify.sanitize(drawRegister());
       bindRegisterEvents();
       break;
     case 'complete-profile':
-      root.innerHTML = drawCompleteProfile();
+      root.innerHTML = DOMPurify.sanitize(drawCompleteProfile());
       bindCompleteProfileEvents();
       break;
     case 'lock':
-      root.innerHTML = drawLockScreen();
+      root.innerHTML = DOMPurify.sanitize(drawLockScreen());
       bindLockEvents();
       break;
     case 'offline':
-      root.innerHTML = drawOfflineScreen();
+      root.innerHTML = DOMPurify.sanitize(drawOfflineScreen());
       bindOfflineEvents();
       break;
     case 'app':
-      root.innerHTML = `
+      root.innerHTML = DOMPurify.sanitize(`
         <div class="app-layout">
           <div id="sidebar-overlay" class="sidebar-overlay ${state.isMobileSidebarOpen ? 'open' : ''}"></div>
           ${drawSidebar()}
@@ -1096,7 +1097,7 @@ export function renderApp() {
           </div>
           <div id="modal-container"></div>
         </div>
-      `;
+      `);
       bindNavigationEvents();
       bindTabSpecificEvents();
       break;
@@ -1116,7 +1117,7 @@ function _patchAppView() {
   // 1. Update page content (the main area that changes on tab switch)
   const pageContent = document.querySelector('.page-content');
   if (pageContent) {
-    pageContent.innerHTML = drawTabContent();
+    pageContent.innerHTML = DOMPurify.sanitize(drawTabContent());
     // 3D Spring View Switch Animation Reset
     pageContent.classList.remove('page-content-animate');
     void (pageContent as HTMLElement).offsetWidth; // Trigger layout reflow
@@ -1167,7 +1168,7 @@ function _patchAppView() {
   const topbar = document.querySelector('.topbar');
   if (topbar && topbar.parentElement) {
     const temp = document.createElement('div');
-    temp.innerHTML = drawTopbar();
+    temp.innerHTML = DOMPurify.sanitize(drawTopbar());
     const newTopbar = temp.firstElementChild;
     if (newTopbar) {
       topbar.parentElement.replaceChild(newTopbar, topbar);
@@ -1390,13 +1391,12 @@ function bindLoginEvents() {
   const togglePwd = document.getElementById('login-pwd-toggle');
   const pwdInput = document.getElementById('login-password') as HTMLInputElement;
   const gotoRegBtn = document.getElementById('goto-register-btn');
-  const forgotLink = document.getElementById('forgot-password-link');
-
+  const forgotLink = document.getElementById('forgot-link');
   if (togglePwd && pwdInput) {
     togglePwd.addEventListener('click', () => {
       const isPwd = pwdInput.type === 'password';
       pwdInput.type = isPwd ? 'text' : 'password';
-      togglePwd.innerHTML = getIconSvg(isPwd ? 'eye-off' : 'eye');
+      togglePwd.innerHTML = DOMPurify.sanitize(getIconSvg(isPwd ? 'eye-off' : 'eye'));
     });
   }
 
@@ -1563,7 +1563,7 @@ function drawRegister(): string {
           <div class="split-right-panel" style="text-align: center;">
             <div class="login-logo" style="text-align: center; margin-bottom: 24px;">
               <h1 style="font-size: 28px; font-weight: 800; letter-spacing: -0.5px;">Verify OTP</h1>
-              <p style="color: var(--muted-foreground); font-size: 14px; margin-top: 4px;">Enter the 8-digit verification code sent to<br/><strong>${state.otpEmail}</strong></p>
+              <p style="color: var(--muted-foreground); font-size: 14px; margin-top: 4px;">Enter the 8-digit verification code sent to<br/><strong>${sanitizeHtml(state.otpEmail)}</strong></p>
             </div>
             
             <div class="otp-container">
@@ -1598,7 +1598,7 @@ function bindRegisterEvents() {
       togglePwd.addEventListener('click', () => {
         const isPwd = pwdInput.type === 'password';
         pwdInput.type = isPwd ? 'text' : 'password';
-        togglePwd.innerHTML = getIconSvg(isPwd ? 'eye-off' : 'eye');
+        togglePwd.innerHTML = DOMPurify.sanitize(getIconSvg(isPwd ? 'eye-off' : 'eye'));
       });
     }
 
@@ -1774,7 +1774,7 @@ function startOTPTimer() {
         const padZero = (n: number) => n < 10 ? '0' + n : n;
         const mins = Math.floor(state.otpCountdown / 60);
         const secs = state.otpCountdown % 60;
-        span.innerHTML = `${padZero(mins)}:${padZero(secs)}`;
+        span.innerHTML = DOMPurify.sanitize(`${padZero(mins)}:${padZero(secs)}`);
       }
       if (state.otpCountdown === 0) {
         clearInterval(state.otpTimer);
@@ -1863,12 +1863,12 @@ function drawCompleteProfileSlideBody(): string {
         
         <div class="form-group">
           <label class="form-label" for="cp-name">Full Name</label>
-          <input type="text" class="form-input" id="cp-name" value="${d.name || ''}" placeholder="Jane Doe" required>
+          <input type="text" class="form-input" id="cp-name" value="${sanitizeHtml(d.name || '')}" placeholder="Jane Doe" required>
         </div>
         
         <div class="form-group">
           <label class="form-label" for="cp-location">Personal Location</label>
-          <input type="text" class="form-input" id="cp-location" value="${d.location || ''}" placeholder="London, UK" required>
+          <input type="text" class="form-input" id="cp-location" value="${sanitizeHtml(d.location || '')}" placeholder="London, UK" required>
         </div>
         
         <div class="form-group">
@@ -2343,9 +2343,9 @@ function drawNotificationDropdown(): string {
   
   const notificationsHtml = state.notifications.map(n => `
     <div class="notif-row" style="padding: 12px; border-bottom: 1px solid var(--border);">
-      <div style="font-size: 13px; color: var(--foreground); font-weight:600; margin-bottom: 2px;">${n.title}</div>
-      <div style="font-size: 11px; color: var(--muted-foreground); margin-bottom: 4px;">${n.body}</div>
-      <div style="font-size: 10px; color: var(--accent);">${n.time}</div>
+      <div style="font-size: 13px; color: var(--foreground); font-weight:600; margin-bottom: 2px;">${sanitizeHtml(n.title)}</div>
+      <div style="font-size: 11px; color: var(--muted-foreground); margin-bottom: 4px;">${sanitizeHtml(n.body)}</div>
+      <div style="font-size: 10px; color: var(--accent);">${sanitizeHtml(n.time)}</div>
     </div>
   `).join('');
   
@@ -2487,8 +2487,8 @@ function drawDashboardTab(): string {
         <div class="transaction-info">
           <div class="transaction-icon ${isIncome ? 'income' : 'expense'}">${isIncome ? '↓' : '↑'}</div>
           <div>
-            <div class="transaction-name">${t.description}</div>
-            <div class="transaction-date">${t.category}</div>
+            <div class="transaction-name">${sanitizeHtml(t.description)}</div>
+            <div class="transaction-date">${sanitizeHtml(t.category)}</div>
           </div>
         </div>
         <div class="transaction-amount ${isIncome ? 'income' : 'expense'}">
@@ -2503,7 +2503,7 @@ function drawDashboardTab(): string {
   const projHtml = activeProj.map(p => `
     <div style="margin-bottom: 16px;">
       <div style="display:flex; justify-content:space-between; font-size:13px; font-weight:600; margin-bottom:6px;">
-        <span>${p.name} <span style="font-weight:400; color:var(--muted-foreground)">(${p.client_name || 'Project Client'})</span></span>
+        <span>${sanitizeHtml(p.name)} <span style="font-weight:400; color:var(--muted-foreground)">(${sanitizeHtml(p.client_name || 'Project Client')})</span></span>
         <span>${p.progress}%</span>
       </div>
       <div class="progress-bar">
@@ -3016,28 +3016,28 @@ function drawEmployeesTab(): string {
   });
 
   const chipsHtml = departments.map(d => `
-    <button class="chip ${employeeDeptFilter === d ? 'active' : ''}" data-dept="${d}">${d}</button>
+    <button class="chip ${employeeDeptFilter === d ? 'active' : ''}" data-dept="${sanitizeHtml(d)}">${sanitizeHtml(d)}</button>
   `).join('');
 
   const rowsHtml = filtered.map(e => `
     <tr style="cursor: pointer;" data-employee-id="${e.id}">
       <td>
         <div class="user-row">
-          <div class="avatar blue">${(e.initials || e.name[0] || 'E')}</div>
+          <div class="avatar blue">${sanitizeHtml(e.initials || e.name[0] || 'E')}</div>
           <div>
-            <div class="cell-primary">${e.name}</div>
-            <div class="cell-muted">${e.email}</div>
+            <div class="cell-primary">${sanitizeHtml(e.name)}</div>
+            <div class="cell-muted">${sanitizeHtml(e.email)}</div>
           </div>
         </div>
       </td>
       <td>
-        <div class="cell-primary">${e.role}</div>
-        <div class="cell-muted">${e.department}</div>
+        <div class="cell-primary">${sanitizeHtml(e.role)}</div>
+        <div class="cell-muted">${sanitizeHtml(e.department)}</div>
       </td>
       <td class="cell-mono">${formatCurrency(e.salary)}/mo</td>
       <td>
         <span class="status-badge ${e.status === 'active' ? 'active' : 'inactive'}">
-          ${e.status}
+          ${sanitizeHtml(e.status)}
         </span>
       </td>
     </tr>
@@ -3047,7 +3047,7 @@ function drawEmployeesTab(): string {
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
       <div class="search-box">
         ${getIconSvg('search')}
-        <input type="text" class="form-input" id="employee-search" placeholder="Search staff..." value="${employeeSearchQuery}">
+        <input type="text" class="form-input" id="employee-search" placeholder="Search staff..." value="${sanitizeHtml(employeeSearchQuery)}">
       </div>
       <button class="btn btn-primary" id="add-employee-btn">
         ${getIconSvg('plus')} Add Member
@@ -3119,7 +3119,7 @@ function openEmployeeDetailModal(id: number) {
   const modalContainer = document.getElementById('modal-container');
   if (!modalContainer) return;
 
-  modalContainer.innerHTML = `
+  modalContainer.innerHTML = DOMPurify.sanitize(`
     <div class="modal-overlay">
       <div class="modal">
         <div class="modal-header">
@@ -3167,9 +3167,9 @@ function openEmployeeDetailModal(id: number) {
         </div>
       </div>
     </div>
-  `;
+  `);
 
-  const close = () => modalContainer.innerHTML = '';
+  const close = () => modalContainer.innerHTML = DOMPurify.sanitize('');
   document.getElementById('modal-close-btn')?.addEventListener('click', close);
 
   // Toggle employee status
@@ -3216,7 +3216,7 @@ function openAddEmployeeModal() {
   const modalContainer = document.getElementById('modal-container');
   if (!modalContainer) return;
 
-  modalContainer.innerHTML = `
+  modalContainer.innerHTML = DOMPurify.sanitize(`
     <div class="modal-overlay">
       <div class="modal">
         <div class="modal-header">
@@ -3271,9 +3271,9 @@ function openAddEmployeeModal() {
         </form>
       </div>
     </div>
-  `;
+  `);
 
-  const close = () => modalContainer.innerHTML = '';
+  const close = () => modalContainer.innerHTML = DOMPurify.sanitize('');
   document.getElementById('modal-close-btn')?.addEventListener('click', close);
   document.getElementById('modal-cancel-btn')?.addEventListener('click', close);
 
@@ -3436,7 +3436,7 @@ function openClientDetailModal(id: number) {
   const modalContainer = document.getElementById('modal-container');
   if (!modalContainer) return;
 
-  modalContainer.innerHTML = `
+  modalContainer.innerHTML = DOMPurify.sanitize(`
     <div class="modal-overlay">
       <div class="modal">
         <div class="modal-header">
@@ -3476,9 +3476,9 @@ function openClientDetailModal(id: number) {
         </div>
       </div>
     </div>
-  `;
+  `);
 
-  const close = () => modalContainer.innerHTML = '';
+  const close = () => modalContainer.innerHTML = DOMPurify.sanitize('');
   document.getElementById('modal-close-btn')?.addEventListener('click', close);
 }
 
@@ -3486,7 +3486,7 @@ function openAddClientModal() {
   const modalContainer = document.getElementById('modal-container');
   if (!modalContainer) return;
 
-  modalContainer.innerHTML = `
+  modalContainer.innerHTML = DOMPurify.sanitize(`
     <div class="modal-overlay">
       <div class="modal">
         <div class="modal-header">
@@ -3545,9 +3545,9 @@ function openAddClientModal() {
         </form>
       </div>
     </div>
-  `;
+  `);
 
-  const close = () => modalContainer.innerHTML = '';
+  const close = () => modalContainer.innerHTML = DOMPurify.sanitize('');
   document.getElementById('modal-close-btn')?.addEventListener('click', close);
   document.getElementById('modal-cancel-btn')?.addEventListener('click', close);
 
@@ -3715,7 +3715,7 @@ function openAddTransactionModal() {
   const modalContainer = document.getElementById('modal-container');
   if (!modalContainer) return;
 
-  modalContainer.innerHTML = `
+  modalContainer.innerHTML = DOMPurify.sanitize(`
     <div class="modal-overlay">
       <div class="modal">
         <div class="modal-header">
@@ -3757,9 +3757,9 @@ function openAddTransactionModal() {
         </form>
       </div>
     </div>
-  `;
+  `);
 
-  const close = () => modalContainer.innerHTML = '';
+  const close = () => modalContainer.innerHTML = DOMPurify.sanitize('');
   document.getElementById('modal-close-btn')?.addEventListener('click', close);
   document.getElementById('modal-cancel-btn')?.addEventListener('click', close);
 
@@ -4021,7 +4021,7 @@ function bindSettingsEvents() {
     iconWrap.style.justifyContent = 'center';
     
     const iconSvg = document.createElement('div');
-    iconSvg.innerHTML = getIconSvg('alert');
+    iconSvg.innerHTML = DOMPurify.sanitize(getIconSvg('alert'));
     iconSvg.style.width = '28px';
     iconSvg.style.height = '28px';
     iconSvg.style.color = 'var(--primary)';
@@ -4099,14 +4099,14 @@ function bindSettingsEvents() {
       const type = (document.getElementById('export-type-select') as HTMLSelectElement).value;
       
       exportBtn.setAttribute('disabled', 'true');
-      exportBtn.innerHTML = 'Checking profile...';
+      exportBtn.innerHTML = DOMPurify.sanitize('Checking profile...');
 
       try {
         const isProfileComplete = await checkWebProfileCompleteness();
         
         const executeExport = async (skipBranding: boolean) => {
           exportBtn.setAttribute('disabled', 'true');
-          exportBtn.innerHTML = 'Compiling File...';
+          exportBtn.innerHTML = DOMPurify.sanitize('Compiling File...');
           try {
             const token = localStorage.getItem('admin-suite.token');
             const url = `${API_BASE}export/?format=${format}&type=${type}&time_filter=all&id=&skip_branding=${skipBranding}`;
@@ -4136,7 +4136,7 @@ function bindSettingsEvents() {
             showToast(err.message || 'Trigger export failed', 'error');
           } finally {
             exportBtn.removeAttribute('disabled');
-            exportBtn.innerHTML = `${getIconSvg('download')} Trigger Remote Export`;
+            exportBtn.innerHTML = DOMPurify.sanitize(`${getIconSvg('download')} Trigger Remote Export`);
           }
         };
 
@@ -4144,7 +4144,7 @@ function bindSettingsEvents() {
           await executeExport(false);
         } else {
           exportBtn.removeAttribute('disabled');
-          exportBtn.innerHTML = `${getIconSvg('download')} Trigger Remote Export`;
+          exportBtn.innerHTML = DOMPurify.sanitize(`${getIconSvg('download')} Trigger Remote Export`);
           showBrandingWarningModal(
             () => {
               navigateToTab('settings');
@@ -4157,7 +4157,7 @@ function bindSettingsEvents() {
       } catch (err: any) {
         showToast(err.message || 'Verification check failed', 'error');
         exportBtn.removeAttribute('disabled');
-        exportBtn.innerHTML = `${getIconSvg('download')} Trigger Remote Export`;
+        exportBtn.innerHTML = DOMPurify.sanitize(`${getIconSvg('download')} Trigger Remote Export`);
       }
     });
   }
@@ -4257,7 +4257,7 @@ function renderDashboardTourStep() {
     // NOTE(security): All content is developer-defined static strings, no user input.
     const tooltip = document.createElement('div');
     tooltip.className = 'dashboard-tour-tooltip';
-    tooltip.innerHTML = `
+    tooltip.innerHTML = DOMPurify.sanitize(`
       <div class="tour-step-badge">
         <span>Step ${stepNum} of ${totalSteps}</span>
       </div>
@@ -4271,7 +4271,7 @@ function renderDashboardTourStep() {
           : '<button class="tour-btn-continue" id="tour-btn-continue">Continue \u2192</button>'
         }
       </div>
-    `;
+    `);
 
     // Position tooltip relative to target
     positionTourTooltip(tooltip, rect, step.position);

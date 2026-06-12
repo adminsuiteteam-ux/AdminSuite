@@ -131,11 +131,11 @@ export default function EmployeeFinanceScreen() {
                 <View style={[styles.miniIcon, { backgroundColor: colors.primary + "1A" }]}>
                   <Feather name="pie-chart" size={16} color={colors.primary} />
                 </View>
-                <View>
-                  <Text style={[styles.miniLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.miniLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]} numberOfLines={1} adjustsFontSizeToFit>
                     Company Shares
                   </Text>
-                  <Text style={[styles.miniVal, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+                  <Text style={[styles.miniVal, { color: colors.foreground, fontFamily: "Inter_700Bold" }]} numberOfLines={1} adjustsFontSizeToFit>
                     {shares}%
                   </Text>
                 </View>
@@ -145,11 +145,11 @@ export default function EmployeeFinanceScreen() {
                 <View style={[styles.miniIcon, { backgroundColor: colors.success + "1A" }]}>
                   <Feather name="credit-card" size={16} color={colors.success} />
                 </View>
-                <View>
-                  <Text style={[styles.miniLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.miniLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]} numberOfLines={1} adjustsFontSizeToFit>
                     Owed to Company
                   </Text>
-                  <Text style={[styles.miniVal, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+                  <Text style={[styles.miniVal, { color: colors.foreground, fontFamily: "Inter_700Bold" }]} numberOfLines={1} adjustsFontSizeToFit>
                     {fmt(parseFloat(finance.employee_owes_company || "0"))}
                   </Text>
                 </View>

@@ -15,6 +15,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 import * as SecureStore from "@/services/storage";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
@@ -32,6 +33,7 @@ export default function MoreHubScreen() {
   const insets = useSafeAreaInsets();
   const { user, logout } = useAuth();
   const { clients, projects } = useData();
+  const { t } = useTranslation();
 
   // Export Data State
   const [exportOpen, setExportOpen] = useState(false);
@@ -60,7 +62,7 @@ export default function MoreHubScreen() {
               { color: colors.foreground, fontFamily: "Inter_700Bold" },
             ]}
           >
-            More
+          {t("settings.more")}
           </Text>
 
           {/* ─── Grid Menu (Projects & Profile) ─── */}
@@ -83,10 +85,10 @@ export default function MoreHubScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.gridTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-                  Projects
+                  {t("settings.projects")}
                 </Text>
                 <Text style={[styles.gridDesc, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-                  {projects.length} Total Projects
+                  {projects.length} {t("settings.projects")}
                 </Text>
               </View>
               <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
@@ -116,10 +118,10 @@ export default function MoreHubScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.gridTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-                  Profile
+                  {t("settings.profile")}
                 </Text>
                 <Text style={[styles.gridDesc, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-                  View & edit profile
+                  {t("settings.viewEditProfile")}
                 </Text>
               </View>
               <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
@@ -127,37 +129,37 @@ export default function MoreHubScreen() {
           </View>
 
           {/* Workspace Settings */}
-          <Group title="Workspace">
+          <Group title={t("settings.workspace")}>
             <Row
               icon="briefcase"
-              label="Organisation Details"
-              hint="View & edit business information"
+              label={t("settings.orgDetails")}
+              hint={t("settings.viewEditBusiness")}
               onPress={() => router.push("/settings/organisation" as any)}
             />
 
             <Row
               icon="globe"
-              label="All clients"
+              label={t("settings.allClients")}
               hint={`${clients.length} companies`}
               onPress={() => router.push("/clients")}
             />
-            <Row icon="sliders" label="Custom fields" hint="Manage extras" onPress={() => Alert.alert("Custom fields settings coming soon!")} />
-            <Row icon="users" label="Team & roles" hint="Admin only" onPress={() => router.push("/employees")} />
-            <Row icon="download" label="Export data" hint="CSV / PDF" onPress={() => setExportOpen(true)} />
+            <Row icon="sliders" label={t("settings.customFields")} hint={t("settings.manageExtras")} onPress={() => Alert.alert("Custom fields settings coming soon!")} />
+            <Row icon="users" label={t("settings.teamRoles")} hint={t("settings.adminOnly")} onPress={() => router.push("/employees")} />
+            <Row icon="download" label={t("settings.exportData")} hint={t("settings.csvPdf")} onPress={() => setExportOpen(true)} />
           </Group>
 
           {/* System Settings */}
-          <Group title="System">
+          <Group title={t("settings.system")}>
             <Row
               icon="settings"
-              label="App Settings"
-              hint="Preferences & Account"
+              label={t("settings.appSettings")}
+              hint={t("settings.preferencesAccount")}
               onPress={() => router.push("/settings" as any)}
             />
             <Row
               icon="log-out"
-              label="Log Out"
-              hint="Sign out of your account"
+              label={t("settings.logOut")}
+              hint={t("settings.signOutOfAccount")}
               onPress={() => setSignOutOpen(true)}
             />
           </Group>
@@ -183,9 +185,9 @@ export default function MoreHubScreen() {
               }}>
                 <Feather name="log-out" size={28} color="#ef4444" />
               </View>
-              <Text style={{ color: colors.foreground, fontSize: 20, fontFamily: "Inter_700Bold", marginBottom: 8 }}>Sign Out?</Text>
+              <Text style={{ color: colors.foreground, fontSize: 20, fontFamily: "Inter_700Bold", marginBottom: 8 }}>{t("settings.signOutTitle")}</Text>
               <Text style={{ color: colors.mutedForeground, fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20, paddingHorizontal: 12 }}>
-                You will be logged out of your account and need to sign in again to access your workspace.
+                {t("settings.signOutBody")}
               </Text>
             </View>
 
@@ -201,7 +203,7 @@ export default function MoreHubScreen() {
                 ]}
                 onPress={() => setSignOutOpen(false)}
               >
-                <Text style={[modalStyles.cancelText, { color: colors.foreground }]}>Cancel</Text>
+                <Text style={[modalStyles.cancelText, { color: colors.foreground }]}>{t("settings.cancel")}</Text>
               </Pressable>
               <Pressable
                 style={({ pressed }) => [
@@ -230,7 +232,7 @@ export default function MoreHubScreen() {
                 {signOutLoading ? <ActivityIndicator size="small" color="#fff" /> : (
                   <>
                     <Feather name="log-out" size={16} color="#fff" />
-                    <Text style={modalStyles.saveBtnText}>Sign Out</Text>
+                    <Text style={modalStyles.saveBtnText}>{t("settings.signOut")}</Text>
                   </>
                 )}
               </Pressable>

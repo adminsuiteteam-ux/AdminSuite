@@ -272,6 +272,15 @@ class ProjectSerializer(serializers.ModelSerializer):
 
 class ClientSerializer(serializers.ModelSerializer):
     projects = ProjectSerializer(many=True, read_only=True)
+
+    def to_internal_value(self, data):
+        if 'website' in data and data['website']:
+            mutable_data = dict(data)
+            val = str(mutable_data['website']).strip()
+            if val and not val.startswith(('http://', 'https://')):
+                mutable_data['website'] = 'https://' + val
+            data = mutable_data
+        return super().to_internal_value(data)
     
     class Meta:
         model = Client
@@ -283,10 +292,10 @@ class ClientSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['user']
         extra_kwargs = {
-            'location': {'required': False, 'allow_blank': True, 'default': ''},
-            'website': {'required': False, 'allow_blank': True, 'default': ''},
-            'description': {'required': False, 'allow_blank': True, 'default': ''},
-            'remark': {'required': False, 'allow_blank': True, 'default': ''},
+            'location': {'required': False, 'allow_blank': True, 'allow_null': True, 'default': ''},
+            'website': {'required': False, 'allow_blank': True, 'allow_null': True, 'default': ''},
+            'description': {'required': False, 'allow_blank': True, 'allow_null': True, 'default': ''},
+            'remark': {'required': False, 'allow_blank': True, 'allow_null': True, 'default': ''},
             'coords': {'required': False},
             'paid': {'required': False, 'default': 0},
             'projects_count': {'required': False, 'default': 0},

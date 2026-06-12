@@ -415,6 +415,9 @@ class ChatMessage(models.Model):
     reply_to = models.ForeignKey(
         'self', on_delete=models.SET_NULL, null=True, blank=True, related_name='replies'
     )
+    read_by = models.ManyToManyField(
+        'auth.User', blank=True, related_name='read_chat_messages'
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -441,3 +444,30 @@ class ChatSettings(models.Model):
 
     def __str__(self):
         return f"ChatSettings for {self.company_user.username} (locked={self.group_locked})"
+
+
+class ChatTypingStatus(models.Model):
+    company_user = models.ForeignKey(
+        'auth.User', on_delete=models.CASCADE, related_name='chat_typing_statuses'
+    )
+    user = models.ForeignKey(
+        'auth.User', on_delete=models.CASCADE, related_name='typing_statuses'
+    )
+    recipient = models.ForeignKey(
+        'auth.User', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='received_typing_statuses'
+    )
+    group = models.ForeignKey(
+        'ChatGroup', on_delete=models.CASCADE, null=True, blank=True,
+        related_name='typing_statuses'
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name_plural = 'Chat typing statuses'
+        unique_together = ('company_user', 'user', 'recipient', 'group')
+
+    def __str__(self):
+        dest = f"→ {self.recipient.username}" if self.recipient else (f"→ Group {self.group.name}" if self.group else "→ Team Chat")
+        return f"{self.user.username} is typing {dest}"
+

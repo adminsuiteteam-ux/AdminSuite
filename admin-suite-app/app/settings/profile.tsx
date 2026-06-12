@@ -28,6 +28,7 @@ import { useColors } from "@/hooks/useColors";
 import { useToast } from "@/context/ToastContext";
 import { apiService, BASE_URL, appendFileToFormData, getMediaUrl } from "@/services/api";
 import ExportBrandingModal from "@/components/ExportBrandingModal";
+import { useTranslation } from "react-i18next";
 
 export default function UserProfileDetailScreen() {
   const colors = useColors();
@@ -35,6 +36,7 @@ export default function UserProfileDetailScreen() {
   const { user, logout, setUser } = useAuth();
   const { employees, clients } = useData();
   const { showToast } = useToast();
+  const { t } = useTranslation();
 
   // Profile Edit State
   const [editOpen, setEditOpen] = useState(false);
@@ -130,7 +132,7 @@ export default function UserProfileDetailScreen() {
           <Feather name="chevron-left" size={22} color={colors.foreground} />
         </Pressable>
         <Text style={{ color: colors.foreground, fontFamily: "Inter_700Bold", fontSize: 28, letterSpacing: -0.5 }}>
-          Profile
+          {t("profile.title")}
         </Text>
       </View>
       <ScrollView
@@ -178,7 +180,7 @@ export default function UserProfileDetailScreen() {
                 }}
               >
                 <Feather name="edit-2" size={14} color="#fff" />
-                <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 12 }}>Edit</Text>
+                <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 12 }}>{t("profile.edit")}</Text>
               </Pressable>
             </View>
 
@@ -198,7 +200,7 @@ export default function UserProfileDetailScreen() {
               <View style={styles.contactRow}>
                 <Feather name="mail" size={14} color="rgba(255,255,255,0.6)" />
                 <Text style={[styles.contactText, { fontFamily: "Inter_500Medium" }]}>
-                  {user?.email || "No email provided"}
+                  {user?.email || t("profile.noEmail")}
                 </Text>
               </View>
             </View>
@@ -208,52 +210,52 @@ export default function UserProfileDetailScreen() {
           <View style={[styles.detailsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.cardHeader}>
               <Feather name="user" size={18} color={colors.primary} />
-              <Text style={[styles.cardTitle, { color: colors.foreground }]}>Personal Details</Text>
+              <Text style={[styles.cardTitle, { color: colors.foreground }]}>{t("profile.personalDetails")}</Text>
             </View>
             <View style={styles.cardDivider} />
             <View style={styles.detailGrid}>
-              <DetailRow label="Location" value={user?.location || "Not set"} icon="map-pin" />
-              <DetailRow label="Phone" value={user?.phone || "Not set"} icon="phone" />
-              <DetailRow label="Bio" value={user?.bio || "Not set"} icon="file-text" />
-              <DetailRow label="Social Link" value={user?.social_link || "Not set"} icon="globe" isLink />
+              <DetailRow label="Location" value={user?.location || t("profile.notSet")} icon="map-pin" />
+              <DetailRow label="Phone" value={user?.phone || t("profile.notSet")} icon="phone" />
+              <DetailRow label="Bio" value={user?.bio || t("profile.notSet")} icon="file-text" />
+              <DetailRow label="Social Link" value={user?.social_link || t("profile.notSet")} icon="globe" isLink />
             </View>
           </View>
 
-          <Group title="Workspace">
+          <Group title={t("settings.workspace")}>
             <Row
               icon="briefcase"
-              label="Organisation Details"
-              hint="View & edit business information"
+              label={t("profile.orgDetails")}
+              hint={t("profile.viewEditBusiness")}
               onPress={() => router.push("/settings/organisation" as any)}
             />
 
             <Row
               icon="globe"
-              label="All clients"
+              label={t("profile.allClients")}
               hint={`${clients.length} companies`}
               onPress={() => router.push("/clients")}
             />
-            <Row icon="sliders" label="Custom fields" hint="Manage extras" onPress={() => Alert.alert("Custom fields settings coming soon!")} />
-            <Row icon="users" label="Team & roles" hint="Admin only" onPress={() => router.push("/employees")} />
+            <Row icon="sliders" label={t("profile.customFields")} hint={t("profile.manageExtras")} onPress={() => Alert.alert("Custom fields settings coming soon!")} />
+            <Row icon="users" label={t("profile.teamRoles")} hint={t("profile.adminOnly")} onPress={() => router.push("/employees")} />
             <Row
               icon="download"
-              label="Export data"
-              hint="CSV / PDF"
+              label={t("profile.exportData")}
+              hint={t("profile.csvPdf")}
               onPress={() => setExportOpen(true)}
             />
           </Group>
 
-          <Group title="System">
+          <Group title={t("settings.system")}>
             <Row
               icon="settings"
-              label="App Settings"
-              hint="Preferences & Account"
+              label={t("profile.appSettings")}
+              hint={t("profile.preferencesAccount")}
               onPress={() => router.push("/settings" as any)}
             />
             <Row
               icon="log-out"
-              label="Log Out"
-              hint="Sign out of your account"
+              label={t("profile.logOut")}
+              hint={t("profile.signOutOfAccount")}
               onPress={() => setSignOutOpen(true)}
             />
           </Group>
@@ -270,7 +272,7 @@ export default function UserProfileDetailScreen() {
                 <View style={[modalStyles.headerIconWrap, { backgroundColor: colors.primary + "1A" }]}>
                   <Feather name="user" size={18} color={colors.primary} />
                 </View>
-                <Text style={[modalStyles.headerTitle, { color: colors.foreground }]}>Edit Profile</Text>
+                <Text style={[modalStyles.headerTitle, { color: colors.foreground }]}>{t("profile.editProfile")}</Text>
               </View>
               <Pressable onPress={() => setEditOpen(false)} style={[modalStyles.closeBtn, { backgroundColor: colors.muted }]}>
                 <Feather name="x" size={18} color={colors.mutedForeground} />
@@ -308,7 +310,7 @@ export default function UserProfileDetailScreen() {
                           paddingVertical: 2,
                           alignItems: "center"
                         }}>
-                          <Text style={{ color: "#fff", fontSize: 9, fontFamily: "Inter_600SemiBold" }}>EDIT</Text>
+                          <Text style={{ color: "#fff", fontSize: 9, fontFamily: "Inter_600SemiBold" }}>{t("profile.editUpper")}</Text>
                         </View>
                       </View>
                     )}
@@ -340,7 +342,7 @@ export default function UserProfileDetailScreen() {
                 ]}
                 onPress={() => setEditOpen(false)}
               >
-                <Text style={[modalStyles.cancelText, { color: colors.foreground }]}>Cancel</Text>
+                <Text style={[modalStyles.cancelText, { color: colors.foreground }]}>{t("profile.cancel")}</Text>
               </Pressable>
               <Pressable
                 style={({ pressed }) => [
@@ -357,7 +359,7 @@ export default function UserProfileDetailScreen() {
                 {editLoading ? <ActivityIndicator size="small" color={colors.primaryForeground} /> : (
                   <>
                     <Feather name="check" size={16} color={colors.primaryForeground} />
-                    <Text style={[modalStyles.saveBtnText, { color: colors.primaryForeground }]}>Save Changes</Text>
+                    <Text style={[modalStyles.saveBtnText, { color: colors.primaryForeground }]}>{t("profile.saveChanges")}</Text>
                   </>
                 )}
               </Pressable>
@@ -384,9 +386,9 @@ export default function UserProfileDetailScreen() {
               }}>
                 <Feather name="log-out" size={28} color="#ef4444" />
               </View>
-              <Text style={{ color: colors.foreground, fontSize: 20, fontFamily: "Inter_700Bold", marginBottom: 8 }}>Sign Out?</Text>
+              <Text style={{ color: colors.foreground, fontSize: 20, fontFamily: "Inter_700Bold", marginBottom: 8 }}>{t("profile.signOutTitle")}</Text>
               <Text style={{ color: colors.mutedForeground, fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20, paddingHorizontal: 12 }}>
-                You will be logged out of your account and need to sign in again to access your workspace.
+                {t("profile.signOutBody")}
               </Text>
             </View>
 
@@ -402,7 +404,7 @@ export default function UserProfileDetailScreen() {
                 ]}
                 onPress={() => setSignOutOpen(false)}
               >
-                <Text style={[modalStyles.cancelText, { color: colors.foreground }]}>Cancel</Text>
+                <Text style={[modalStyles.cancelText, { color: colors.foreground }]}>{t("profile.cancel")}</Text>
               </Pressable>
               <Pressable
                 style={({ pressed }) => [
@@ -431,7 +433,7 @@ export default function UserProfileDetailScreen() {
                 {signOutLoading ? <ActivityIndicator size="small" color="#fff" /> : (
                   <>
                     <Feather name="log-out" size={16} color="#fff" />
-                    <Text style={modalStyles.saveBtnText}>Sign Out</Text>
+                    <Text style={modalStyles.saveBtnText}>{t("profile.signOut")}</Text>
                   </>
                 )}
               </Pressable>

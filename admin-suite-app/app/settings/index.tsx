@@ -20,6 +20,7 @@ import { useAuth } from "@/context/AuthContext";
 import { CURRENCIES, useSettings } from "@/context/SettingsContext";
 import { useColors } from "@/hooks/useColors";
 import { apiService } from "@/services/api";
+import { useTranslation } from "react-i18next";
 
 export default function AppSettingsScreen() {
   const colors = useColors();
@@ -33,6 +34,7 @@ export default function AppSettingsScreen() {
     biometricsEnabled,
     setBiometricsEnabled,
   } = useSettings();
+  const { t } = useTranslation();
   const [notif, setNotif] = useState(true);
   const [currencyOpen, setCurrencyOpen] = useState(false);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
@@ -108,37 +110,37 @@ export default function AppSettingsScreen() {
           <Feather name="chevron-left" size={22} color={colors.foreground} />
         </Pressable>
         <Text style={[styles.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-          Settings
+          {t("settings.settingsTitle")}
         </Text>
         <View style={{ width: 38 }} />
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 40 }} showsVerticalScrollIndicator={false}>
-        <Group title="Preferences">
+        <Group title={t("settings.preferences")}>
           <Row
             icon="dollar-sign"
-            label="Currency"
+            label={t("settings.currency")}
             hint={`${currency.symbol}  ${currency.code} · ${currency.name}`}
             onPress={() => setCurrencyOpen(true)}
           />
           <ToggleRow
             icon="bell"
-            label="Push notifications"
+            label={t("settings.pushNotifications")}
             value={notif}
             onValueChange={setNotif}
           />
           <ToggleRow
             icon="lock"
-            label="Biometric login"
+            label={t("settings.biometricLogin")}
             value={biometricsEnabled}
             onValueChange={handleToggleBiometrics}
           />
-          <Row icon="moon" label="Appearance" hint={theme === "system" ? "System" : theme === "dark" ? "Dark" : "Light"} onPress={() => setAppearanceOpen(true)} />
+          <Row icon="moon" label={t("settings.appearance")} hint={theme === "system" ? t("settings.systemDefault") : theme === "dark" ? t("settings.darkMode") : t("settings.lightMode")} onPress={() => setAppearanceOpen(true)} />
         </Group>
 
-        <Group title="Account">
-          <Row icon="help-circle" label="Help & support" onPress={() => router.push("/settings/help" as any)} />
-          <Row icon="file-text" label="Privacy policy" onPress={() => router.push("/settings/privacy" as any)} />
+        <Group title={t("settings.account")}>
+          <Row icon="help-circle" label={t("settings.helpSupport")} onPress={() => router.push("/settings/help" as any)} />
+          <Row icon="file-text" label={t("settings.privacyPolicy")} onPress={() => router.push("/settings/privacy" as any)} />
           <Pressable onPress={onLogout}>
             <View
               style={[
@@ -154,7 +156,7 @@ export default function AppSettingsScreen() {
                 <Feather name="log-out" size={16} color={colors.danger} />
               </View>
               <Text style={{ color: colors.danger, fontFamily: "Inter_600SemiBold", fontSize: 14, flex: 1 }}>
-                Sign out
+                {t("settings.signOutAction")}
               </Text>
               <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
             </View>
@@ -175,7 +177,7 @@ export default function AppSettingsScreen() {
                 <Feather name="trash-2" size={16} color={colors.danger} />
               </View>
               <Text style={{ color: colors.danger, fontFamily: "Inter_600SemiBold", fontSize: 14, flex: 1 }}>
-                Delete Account
+                {t("settings.deleteAccount")}
               </Text>
               <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
             </View>
@@ -183,7 +185,7 @@ export default function AppSettingsScreen() {
         </Group>
 
         <Text style={[styles.version, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-          Powered by Dimacode
+          {t("settings.poweredBy")}
         </Text>
       </ScrollView>
 
@@ -226,6 +228,7 @@ export default function AppSettingsScreen() {
 function CurrencyPicker({ visible, onClose, selectedCode, onSelect }: { visible: boolean; onClose: () => void; selectedCode: string; onSelect: (code: string) => void }) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={styles.modalBackdrop} onPress={onClose} />
@@ -233,8 +236,8 @@ function CurrencyPicker({ visible, onClose, selectedCode, onSelect }: { visible:
         <View style={styles.sheetHandle} />
         <View style={styles.sheetHeader}>
           <View>
-            <Text style={[styles.sheetTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Choose currency</Text>
-            <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 2 }}>Applied across the entire app</Text>
+            <Text style={[styles.sheetTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>{t("settings.chooseCurrency")}</Text>
+            <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 2 }}>{t("settings.currencySubtitle")}</Text>
           </View>
           <Pressable onPress={onClose} hitSlop={10}>
             <Feather name="x" size={20} color={colors.mutedForeground} />
@@ -267,6 +270,7 @@ function CurrencyPicker({ visible, onClose, selectedCode, onSelect }: { visible:
 function AppearancePicker({ visible, onClose, selectedTheme, onSelect }: { visible: boolean; onClose: () => void; selectedTheme: string; onSelect: (mode: any) => void }) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const modes = [
     { id: "system", label: "System Default", icon: "smartphone" },
     { id: "light", label: "Light Mode", icon: "sun" },
@@ -279,8 +283,8 @@ function AppearancePicker({ visible, onClose, selectedTheme, onSelect }: { visib
         <View style={styles.sheetHandle} />
         <View style={styles.sheetHeader}>
           <View>
-            <Text style={[styles.sheetTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Appearance</Text>
-            <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 2 }}>Choose your app theme</Text>
+            <Text style={[styles.sheetTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>{t("settings.appearance")}</Text>
+            <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 2 }}>{t("settings.appearanceSubtitle")}</Text>
           </View>
           <Pressable onPress={onClose} hitSlop={10}>
             <Feather name="x" size={20} color={colors.mutedForeground} />
@@ -312,6 +316,7 @@ function AppearancePicker({ visible, onClose, selectedTheme, onSelect }: { visib
 function SignOutModal({ visible, onClose, onConfirm }: { visible: boolean; onClose: () => void; onConfirm: () => void }) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={styles.modalBackdrop} onPress={onClose} />
@@ -321,17 +326,17 @@ function SignOutModal({ visible, onClose, onConfirm }: { visible: boolean; onClo
           <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: colors.danger + "1A", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
             <Feather name="log-out" size={28} color={colors.danger} />
           </View>
-          <Text style={[styles.sheetTitle, { color: colors.foreground, fontFamily: "Inter_700Bold", textAlign: "center" }]}>Sign Out</Text>
+          <Text style={[styles.sheetTitle, { color: colors.foreground, fontFamily: "Inter_700Bold", textAlign: "center" }]}>{t("settings.signOut")}</Text>
           <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 14, textAlign: "center", marginTop: 8, paddingHorizontal: 32 }}>
-            You'll need to sign in again to access your account and manage your company.
+            {t("settings.signOutBody")}
           </Text>
         </View>
         <View style={{ gap: 12 }}>
           <Pressable onPress={onConfirm} style={({ pressed }) => [styles.actionBtn, { backgroundColor: colors.danger, opacity: pressed ? 0.8 : 1 }]}>
-            <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 16 }}>Yes, Sign Out</Text>
+            <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 16 }}>{t("settings.yesSignOut")}</Text>
           </Pressable>
           <Pressable onPress={onClose} style={({ pressed }) => [styles.actionBtn, { backgroundColor: colors.muted, opacity: pressed ? 0.8 : 1 }]}>
-            <Text style={{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 16 }}>Cancel</Text>
+            <Text style={{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 16 }}>{t("settings.cancel")}</Text>
           </Pressable>
         </View>
       </View>
@@ -352,6 +357,7 @@ function DeleteAccountModal({
 }) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={styles.modalBackdrop} onPress={onClose} />
@@ -361,9 +367,9 @@ function DeleteAccountModal({
           <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: colors.danger + "1A", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
             <Feather name="trash-2" size={28} color={colors.danger} />
           </View>
-          <Text style={[styles.sheetTitle, { color: colors.foreground, fontFamily: "Inter_700Bold", textAlign: "center" }]}>Delete Account</Text>
+          <Text style={[styles.sheetTitle, { color: colors.foreground, fontFamily: "Inter_700Bold", textAlign: "center" }]}>{t("settings.deleteAccountTitle")}</Text>
           <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 14, textAlign: "center", marginTop: 8, paddingHorizontal: 32, lineHeight: 20 }}>
-            Are you sure you want to delete your account? This will permanently delete your profile, organization, employees, clients, transactions, and all other workspace data. This action is irreversible.
+            {t("settings.deleteAccountBody")}
           </Text>
         </View>
         <View style={{ gap: 12 }}>
@@ -375,7 +381,7 @@ function DeleteAccountModal({
             {loading ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
-              <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 16 }}>Yes, Delete My Account</Text>
+              <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 16 }}>{t("settings.yesDeleteAccount")}</Text>
             )}
           </Pressable>
           <Pressable
@@ -383,7 +389,7 @@ function DeleteAccountModal({
             disabled={loading}
             style={({ pressed }) => [styles.actionBtn, { backgroundColor: colors.muted, opacity: pressed ? 0.8 : 1 }]}
           >
-            <Text style={{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 16 }}>Cancel</Text>
+            <Text style={{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 16 }}>{t("settings.cancel")}</Text>
           </Pressable>
         </View>
       </View>

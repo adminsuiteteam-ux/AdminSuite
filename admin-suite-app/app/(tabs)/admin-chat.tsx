@@ -25,12 +25,15 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
 
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { useToast } from "@/context/ToastContext";
 import { apiService, getMediaUrl } from "@/services/api";
+import { ExpandableText } from "@/components/ExpandableText";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Contact = {
@@ -237,7 +240,18 @@ function SwipeableMessage({
         <Feather name="corner-up-left" size={18} color={replyColor} />
       </Animated.View>
       <Animated.View
-        {...panResponder.panHandlers}
+        onStartShouldSetResponder={panResponder.panHandlers.onStartShouldSetResponder}
+        onStartShouldSetResponderCapture={panResponder.panHandlers.onStartShouldSetResponderCapture}
+        onMoveShouldSetResponder={panResponder.panHandlers.onMoveShouldSetResponder}
+        onMoveShouldSetResponderCapture={panResponder.panHandlers.onMoveShouldSetResponderCapture}
+        onResponderEnd={panResponder.panHandlers.onResponderEnd}
+        onResponderGrant={panResponder.panHandlers.onResponderGrant}
+        onResponderMove={panResponder.panHandlers.onResponderMove}
+        onResponderReject={panResponder.panHandlers.onResponderReject}
+        onResponderRelease={panResponder.panHandlers.onResponderRelease}
+        onResponderStart={panResponder.panHandlers.onResponderStart}
+        onResponderTerminationRequest={panResponder.panHandlers.onResponderTerminationRequest}
+        onResponderTerminate={panResponder.panHandlers.onResponderTerminate}
         style={{ transform: [{ translateX }] }}
       >
         {children}
@@ -276,6 +290,7 @@ function getDateLabel(iso: string): string {
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function AdminChatScreen() {
   const colors = useColors();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const { showToast } = useToast();
@@ -295,7 +310,9 @@ export default function AdminChatScreen() {
   const [showActionSheet, setShowActionSheet] = useState(false);
   const [groupLocked, setGroupLocked] = useState(false);
   const [togglingLock, setTogglingLock] = useState(false);
-  const [showTyping, setShowTyping] = useState(false);
+  const [typingStatus, setTypingStatus] = useState("");
+  const [typingStatuses, setTypingStatuses] = useState<any[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Search & filter
   const [searchQuery, setSearchQuery] = useState("");
@@ -316,51 +333,156 @@ export default function AdminChatScreen() {
   const [newGroupName, setNewGroupName] = useState("");
   const [selectedMembers, setSelectedMembers] = useState<number[]>([]);
   const [creatingGroup, setCreatingGroup] = useState(false);
+  const [newGroupAvatar, setNewGroupAvatar] = useState<string | null>(null);
 
   // Group Profile Modal
   const [showGroupProfile, setShowGroupProfile] = useState(false);
+  const [editingGroupName, setEditingGroupName] = useState(false);
+  const [groupNameInput, setGroupNameInput] = useState("");
+  const [showAddMember, setShowAddMember] = useState(false);
+  const [groupAvatarUri, setGroupAvatarUri] = useState<string | null>(null);
+  const [uploadingGroupAvatar, setUploadingGroupAvatar] = useState(false);
+
+  // Avatar popup (contact list)
+  const [avatarPopupContact, setAvatarPopupContact] = useState<Contact | null>(null);
+
+  // Chat header ⋮ dropdown
+  const [showHeaderMenu, setShowHeaderMenu] = useState(false);
+
+  // Contact profile sheet (DM)
+  const [showContactProfile, setShowContactProfile] = useState(false);
 
   const flatListRef = useRef<FlatList>(null);
   const pollRef = useRef<any>(null);
+  const contactPollRef = useRef<any>(null);
   const fabScale = useRef(new Animated.Value(1)).current;
+  // Track the latest seen message id per contact for badge increments
+  const lastContactMsgRef = useRef<Record<string, number>>({});
+  const lastTypingSentRef = useRef<number>(0);
+  // Keep a ref to activeContact so the background poll can access it without deps
+  const activeContactRef = useRef<Contact | null>(null);
+  useEffect(() => { activeContactRef.current = activeContact; }, [activeContact]);
 
-  // ─── Load contacts ──────────────────────────────────────────────────────────
-  const loadContacts = useCallback(async () => {
+  // ─── Load contacts (always sorted: most recent first) ───────────────────────
+  const loadContacts = useCallback(async (silent = false) => {
     try {
       const res = await apiService.getChatContacts();
       const data: Contact[] = res.data;
-      setContacts(data);
-      const group = data.find((c) => c.id === "group");
+      // Sort by last_message_time desc (most recent at top)
+      const sorted = [...data].sort((a, b) => {
+        const ta = a.last_message_time ? new Date(a.last_message_time).getTime() : 0;
+        const tb = b.last_message_time ? new Date(b.last_message_time).getTime() : 0;
+        return tb - ta;
+      });
+      const group = sorted.find((c) => c.id === "group");
       if (group?.group_locked !== undefined) setGroupLocked(group.group_locked);
+      // Seed the previous-times map so polling doesn't fire false notifications
+      sorted.forEach((c) => {
+        if (c.last_message_time) {
+          prevContactTimesRef.current.set(String(c.id), c.last_message_time);
+        }
+      });
+      setContacts((prev) => {
+        if (silent && prev.length > 0) {
+          return sorted.map((fresh) => {
+            const existing = prev.find((p) => String(p.id) === String(fresh.id));
+            return existing ? { ...fresh, unread_count: fresh.unread_count } : fresh;
+          });
+        }
+        return sorted;
+      });
     } catch {
-      showToast({ title: "Error", message: "Could not load contacts.", type: "error" });
+      if (!silent) showToast({ title: "Error", message: "Could not load contacts.", type: "error" });
     } finally {
-      setLoadingContacts(false);
+      if (!silent) setLoadingContacts(false);
     }
   }, []);
 
   useEffect(() => { loadContacts(); }, [loadContacts]);
 
+  // ─── Background contact polling (badge + ordering + in-app notifications) ─────
+  // Runs regardless of whether we're in the list or a chat view.
+  // Tracks last_message_time per contact to detect new inbound messages.
+  const prevContactTimesRef = useRef<Map<string, string>>(new Map());
+
+  useEffect(() => {
+    contactPollRef.current = setInterval(async () => {
+      try {
+        const res = await apiService.getChatContacts();
+        const fresh: Contact[] = res.data;
+        const sorted = [...fresh].sort((a, b) => {
+          const ta = a.last_message_time ? new Date(a.last_message_time).getTime() : 0;
+          const tb = b.last_message_time ? new Date(b.last_message_time).getTime() : 0;
+          return tb - ta;
+        });
+
+        const openId = activeContactRef.current
+          ? String(activeContactRef.current.id)
+          : null;
+
+        // Detect new messages on contacts NOT currently open → show in-app banner
+        sorted.forEach((contact) => {
+          const cid = String(contact.id);
+          const prevTime = prevContactTimesRef.current.get(cid);
+          const newTime = contact.last_message_time;
+          if (
+            newTime &&
+            prevTime &&
+            newTime !== prevTime &&
+            new Date(newTime) > new Date(prevTime) &&
+            cid !== openId &&
+            (contact.unread_count ?? 0) > 0
+          ) {
+            // New message on a different contact — show notification banner
+            setNotification({
+              title: contact.name,
+              body: contact.last_message || "New message",
+              senderInitials: contact.initials,
+              senderAvatar: contact.avatar,
+            });
+          }
+          if (newTime) {
+            prevContactTimesRef.current.set(cid, newTime);
+          }
+        });
+
+        setContacts(
+          sorted.map((f) =>
+            openId && String(f.id) === openId
+              ? { ...f, unread_count: 0 } // keep badge zero for open chat
+              : f
+          )
+        );
+        const group = sorted.find((c) => c.id === "group");
+        if (group?.group_locked !== undefined) setGroupLocked(group.group_locked);
+      } catch {}
+    }, 5000); // Poll every 5 seconds for real-time badge updates
+    return () => clearInterval(contactPollRef.current);
+  }, []);
+
   // ─── Load messages when active contact changes ───────────────────────────────
   const fetchMessages = useCallback(async () => {
     if (!activeContact) return;
+    const cid = activeContact.id;
+    const ctype = activeContact.type;
     try {
       let res;
-      if (activeContact.type === "group") {
-        if (activeContact.id === "group") {
+      if (ctype === "group") {
+        if (cid === "group") {
           res = await apiService.getChatMessages("group");
         } else {
-          res = await apiService.getChatMessages(undefined, activeContact.id as number);
+          res = await apiService.getChatMessages(undefined, cid as number);
         }
       } else {
-        res = await apiService.getChatMessages(activeContact.id as number);
+        res = await apiService.getChatMessages(cid as number);
       }
       const newMsgs: ChatMessage[] = res.data;
 
       // Check for new incoming message → trigger in-app notification
       if (newMsgs.length > 0) {
-        const latestMsg = newMsgs[newMsgs.length - 1];
+        const latestMsg = newMsgs.at(-1);
         if (
+          latestMsg &&
           lastMsgIdRef.current !== null &&
           latestMsg.id > lastMsgIdRef.current &&
           latestMsg.sender_id !== user?.id
@@ -373,28 +495,149 @@ export default function AdminChatScreen() {
           });
           // Simulate typing that resolves
         }
-        lastMsgIdRef.current = latestMsg.id;
+        if (latestMsg) {
+          lastMsgIdRef.current = latestMsg.id;
+        }
       } else if (lastMsgIdRef.current === null && newMsgs.length > 0) {
-        lastMsgIdRef.current = newMsgs[newMsgs.length - 1].id;
+        lastMsgIdRef.current = newMsgs.at(-1)?.id || null;
       }
 
       setMessages(newMsgs);
     } catch {}
-  }, [activeContact, user?.id]);
+  }, [activeContact?.id, activeContact?.type, user?.id]);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchMessages();
+    setRefreshing(false);
+  }, [fetchMessages]);
 
   useEffect(() => {
     if (!activeContact) return;
     setLoadingMessages(true);
     lastMsgIdRef.current = null;
     fetchMessages().finally(() => setLoadingMessages(false));
-    pollRef.current = setInterval(() => {
-      fetchMessages();
-      // Randomly show typing indicator sometimes to simulate real-time feel
-    }, 3000);
-    return () => clearInterval(pollRef.current);
-  }, [activeContact, fetchMessages]);
+  }, [activeContact?.id, fetchMessages]);
 
-  // ─── Filtered contacts ──────────────────────────────────────────────────────
+  const handleTextChange = (text: string) => {
+    setInputText(text);
+    if (!activeContact) return;
+
+    const trimmed = text.trim();
+    const now = Date.now();
+
+    if (trimmed.length === 0) {
+      lastTypingSentRef.current = 0;
+      const payload: any = { is_typing: false };
+      if (activeContact.type === "group") {
+        if (activeContact.id !== "group") {
+          payload.group_id = activeContact.id;
+        }
+      } else {
+        payload.recipient_id = activeContact.id;
+      }
+      apiService.sendChatTyping(payload).catch(() => {});
+    } else if (now - lastTypingSentRef.current > 3000) {
+      lastTypingSentRef.current = now;
+      const payload: any = { is_typing: true };
+      if (activeContact.type === "group") {
+        if (activeContact.id !== "group") {
+          payload.group_id = activeContact.id;
+        }
+      } else {
+        payload.recipient_id = activeContact.id;
+      }
+      apiService.sendChatTyping(payload).catch(() => {});
+    }
+  };
+
+  useEffect(() => {
+    if (!activeContact) {
+      setTypingStatus("");
+      return;
+    }
+
+    const checkTyping = async () => {
+      try {
+        const cid = activeContact.id;
+        const ctype = activeContact.type;
+        let res;
+        if (ctype === "group") {
+          if (cid === "group") {
+            res = await apiService.getChatTypingStatus("group");
+          } else {
+            res = await apiService.getChatTypingStatus(undefined, cid as number);
+          }
+        } else {
+          res = await apiService.getChatTypingStatus(cid as number);
+        }
+
+        const typingUsers = res.data.typing_users || [];
+        if (typingUsers.length === 0) {
+          setTypingStatus("");
+        } else if (typingUsers.length === 1) {
+          if (ctype === "group") {
+            setTypingStatus(`${typingUsers[0].name} ${t("chat.isTyping") || "is typing..."}`);
+          } else {
+            setTypingStatus(t("chat.typing") || "typing...");
+          }
+        } else {
+          setTypingStatus(`${typingUsers.length} people typing...`);
+        }
+      } catch {
+        setTypingStatus("");
+      }
+    };
+
+    const interval = setInterval(checkTyping, 3000);
+    checkTyping();
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [activeContact?.id, activeContact?.type, t]);
+
+  useEffect(() => {
+    if (activeContact) return;
+
+    const checkAllTyping = async () => {
+      try {
+        const res = await apiService.getChatTypingStatus("all");
+        setTypingStatuses(res.data.typing_users || []);
+      } catch {
+        setTypingStatuses([]);
+      }
+    };
+
+    const interval = setInterval(checkAllTyping, 3000);
+    checkAllTyping();
+
+    return () => clearInterval(interval);
+  }, [activeContact]);
+
+  const getContactTypingStatus = (c: Contact) => {
+    const isGroup = c.id === "group";
+    const isCustomGroup = c.type === "group" && c.id !== "group";
+
+    const matches = typingStatuses.filter((t) => {
+      if (isGroup) {
+        return t.is_general_group === true;
+      }
+      if (isCustomGroup) {
+        return t.group_id === c.id;
+      }
+      return t.recipient_id === myId && t.id === c.id;
+    });
+
+    if (matches.length === 0) return null;
+    if (isGroup || isCustomGroup) {
+      if (matches.length === 1) return `${matches[0].name} is typing...`;
+      return `${matches.length} people typing...`;
+    }
+    return "typing...";
+  };
+
+  // ─── Filtered contacts (already sorted by loadContacts / background poll) ────
   const filteredContacts = contacts.filter((c) => {
     const matchesSearch = !searchQuery || c.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesFilter =
@@ -404,6 +647,9 @@ export default function AdminChatScreen() {
       (activeFilter === "dms" && c.type === "private");
     return matchesSearch && matchesFilter;
   });
+
+  // Total unread across all contacts (used for tab-bar badge & header badge)
+  const totalUnreadLocal = contacts.reduce((sum, c) => sum + (c.unread_count ?? 0), 0);
 
   // ─── Messages with date separators ─────────────────────────────────────────
   type ListItem = { type: "date"; label: string; key: string } | { type: "msg"; msg: ChatMessage; key: string };
@@ -440,7 +686,37 @@ export default function AdminChatScreen() {
         if (replyTo) payload.reply_to_id = replyTo.id;
         await apiService.sendChatMessage(payload);
         setReplyTo(null);
+
+        // Immediately move this contact to top with updated last_message
+        if (activeContact) {
+          const now = new Date().toISOString();
+          setContacts((prev) => {
+            const updated = prev.map((c) =>
+              String(c.id) === String(activeContact.id)
+                ? { ...c, last_message: text, last_message_time: now, unread_count: 0 }
+                : c
+            );
+            // Re-sort so this conversation bubbles to top
+            return [...updated].sort((a, b) => {
+              const ta = a.last_message_time ? new Date(a.last_message_time).getTime() : 0;
+              const tb = b.last_message_time ? new Date(b.last_message_time).getTime() : 0;
+              return tb - ta;
+            });
+          });
+        }
       }
+      // Reset typing status immediately
+      lastTypingSentRef.current = 0;
+      const tPayload: any = { is_typing: false };
+      if (activeContact?.type === "group") {
+        if (activeContact.id !== "group") {
+          tPayload.group_id = activeContact.id;
+        }
+      } else if (activeContact?.id) {
+        tPayload.recipient_id = activeContact.id;
+      }
+      apiService.sendChatTyping(tPayload).catch(() => {});
+
       setInputText("");
       await fetchMessages();
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
@@ -576,6 +852,50 @@ export default function AdminChatScreen() {
     setSelectedMsg(null);
   };
 
+  // ─── Pick group avatar ─────────────────────────────────────────────────────
+  const handlePickGroupAvatar = async (forExisting: boolean) => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.85,
+      });
+      if (!result.canceled && result.assets[0]) {
+        if (forExisting) {
+          setGroupAvatarUri(result.assets[0].uri);
+          // Upload immediately if in group profile edit
+          if (activeContact && activeContact.type === "group" && activeContact.id !== "group") {
+            setUploadingGroupAvatar(true);
+            try {
+              const fd = new FormData();
+              const uri = result.assets[0].uri;
+              const filename = uri.split('/').pop() || 'group.jpg';
+              const match = /\.(\w+)$/.exec(filename);
+              const type = match ? `image/${match[1]}` : 'image/jpeg';
+              fd.append('avatar', { uri, name: filename, type } as any);
+              const res = await apiService.updateChatGroup(activeContact.id as number, fd as any);
+              const updated = res.data;
+              setContacts((prev) =>
+                prev.map((c) => c.id === activeContact.id ? { ...c, avatar: updated.avatar } : c)
+              );
+              setActiveContact((prev) => prev ? { ...prev, avatar: updated.avatar } : null);
+              showToast({ title: "Avatar Updated", message: "Group picture updated.", type: "success" });
+            } catch {
+              showToast({ title: "Error", message: "Could not upload group picture.", type: "error" });
+            } finally {
+              setUploadingGroupAvatar(false);
+            }
+          }
+        } else {
+          setNewGroupAvatar(result.assets[0].uri);
+        }
+      }
+    } catch {
+      showToast({ title: "Error", message: "Could not open image picker.", type: "error" });
+    }
+  };
+
   // ─── FAB press animation ────────────────────────────────────────────────────
   const handleFabPress = () => {
     Animated.sequence([
@@ -585,6 +905,7 @@ export default function AdminChatScreen() {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     setNewGroupName("");
     setSelectedMembers([]);
+    setNewGroupAvatar(null);
     setShowCreateGroup(true);
   };
 
@@ -597,14 +918,28 @@ export default function AdminChatScreen() {
     }
     setCreatingGroup(true);
     try {
-      await apiService.createChatGroup({
-        name,
-        members: selectedMembers,
-      });
+      let groupData: any;
+      if (newGroupAvatar) {
+        const fd = new FormData();
+        fd.append('name', name);
+        if (selectedMembers.length > 0) {
+          selectedMembers.forEach((id) => fd.append('members', String(id)));
+        }
+        const uri = newGroupAvatar;
+        const filename = uri.split('/').pop() || 'group.jpg';
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1]}` : 'image/jpeg';
+        fd.append('avatar', { uri, name: filename, type } as any);
+        groupData = fd;
+      } else {
+        groupData = { name, members: selectedMembers };
+      }
+      await apiService.createChatGroup(groupData);
       showToast({ title: "Group Created", message: `"${name}" group is ready.`, type: "success" });
       setShowCreateGroup(false);
       setNewGroupName("");
       setSelectedMembers([]);
+      setNewGroupAvatar(null);
       loadContacts();
     } catch {
       showToast({ title: "Error", message: "Failed to create group.", type: "error" });
@@ -618,18 +953,174 @@ export default function AdminChatScreen() {
     return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
+  // Smart relative timestamp for contact list cards
+  const formatContactTime = (iso: string) => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+    const msgDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+
+    if (msgDay.getTime() === today.getTime()) {
+      return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    }
+    if (msgDay.getTime() === yesterday.getTime()) {
+      return "Yesterday";
+    }
+    // Within last 7 days → show weekday name
+    const diffDays = Math.floor((today.getTime() - msgDay.getTime()) / 86400000);
+    if (diffDays < 7) {
+      return d.toLocaleDateString([], { weekday: "short" });
+    }
+    // Older: show dd/mm/yyyy
+    return d.toLocaleDateString([], { day: "2-digit", month: "2-digit", year: "numeric" });
+  };
+
   const myId = user?.id;
 
-  // ─── Unread count across all contacts ──────────────────────────────────────
-  const totalUnread = contacts.reduce((sum, c) => sum + (c.unread_count ?? 0), 0);
+  // totalUnreadLocal is defined above (near filteredContacts)
+  const totalUnread = totalUnreadLocal;
+
+  // ─── Clear chat helper ──────────────────────────────────────────────────────
+  const handleClearChat = () => {
+    if (!activeContact) return;
+    Alert.alert(
+      "Clear Chat",
+      "All messages in this conversation will be cleared from your view. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Clear",
+          style: "destructive",
+          onPress: () => {
+            setMessages([]);
+            showToast({ title: "Chat Cleared", message: "Messages have been cleared.", type: "success" });
+          },
+        },
+      ]
+    );
+  };
+
+  // ─── Report user helper ─────────────────────────────────────────────────────
+  const handleReportUser = (contact: Contact) => {
+    Alert.alert(
+      "Report User",
+      `Report ${contact.name} for inappropriate behavior?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Report",
+          style: "destructive",
+          onPress: () =>
+            showToast({ title: "Reported", message: `${contact.name} has been reported.`, type: "success" }),
+        },
+      ]
+    );
+  };
+
+  // ─── Block DM user helper ───────────────────────────────────────────────────
+  const handleBlockDMUser = (contact: Contact) => {
+    if (typeof contact.id !== "number") return;
+    const isBlocked = contact.is_blocked_from_group;
+    Alert.alert(
+      isBlocked ? "Unblock User" : "Block User",
+      isBlocked ? `Allow ${contact.name} to message you again?` : `Block ${contact.name} from messaging you?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: isBlocked ? "Unblock" : "Block",
+          style: isBlocked ? "default" : "destructive",
+          onPress: () => handleBlockUser(contact, !isBlocked),
+        },
+      ]
+    );
+  };
+
+  // ─── Header Menu Actions ───────────────────────────────────────────────────
+  const handleHeaderMenuAction = (actionId: string) => {
+    if (!activeContact) return;
+    if (actionId === "search") {
+      setShowSearch(true);
+    } else if (actionId === "clear") {
+      handleClearChat();
+    } else if (actionId === "block") {
+      handleBlockDMUser(activeContact);
+    } else if (actionId === "report") {
+      handleReportUser(activeContact);
+    }
+  };
+
+  // ─── Group Chat Management ─────────────────────────────────────────────────
+  const handleUpdateGroupName = async () => {
+    if (!activeContact || activeContact.id === "group" || !groupNameInput.trim()) return;
+    try {
+      const res = await apiService.updateChatGroup(activeContact.id as number, { name: groupNameInput.trim() });
+      const updatedGroup = res.data;
+      setContacts((prev) =>
+        prev.map((c) =>
+          c.id === activeContact.id
+            ? { ...c, name: updatedGroup.name, initials: updatedGroup.name.slice(0, 2).toUpperCase() }
+            : c
+        )
+      );
+      setActiveContact((prev) => (prev ? { ...prev, name: updatedGroup.name } : null));
+      setEditingGroupName(false);
+      showToast({ title: "Group Updated", message: "Group name updated successfully.", type: "success" });
+    } catch {
+      showToast({ title: "Error", message: "Could not update group name.", type: "error" });
+    }
+  };
+
+  const handleAddMember = async (userId: number) => {
+    if (!activeContact || activeContact.id === "group") return;
+    try {
+      const currentMembers = (activeContact as any).members || [];
+      if (currentMembers.includes(userId)) return;
+      const newMembers = [...currentMembers, userId];
+      const res = await apiService.updateChatGroup(activeContact.id as number, { members: newMembers });
+      const updatedGroup = res.data;
+
+      setContacts((prev) =>
+        prev.map((c) =>
+          c.id === activeContact.id ? { ...c, members: updatedGroup.members } : c
+        )
+      );
+      setActiveContact((prev) => (prev ? { ...prev, members: updatedGroup.members } : null));
+      showToast({ title: "Member Added", message: "Member added to the group.", type: "success" });
+    } catch {
+      showToast({ title: "Error", message: "Could not add member.", type: "error" });
+    }
+  };
+
+  const handleRemoveMember = async (userId: number) => {
+    if (!activeContact || activeContact.id === "group") return;
+    try {
+      const currentMembers = (activeContact as any).members || [];
+      const newMembers = currentMembers.filter((id: number) => id !== userId);
+      const res = await apiService.updateChatGroup(activeContact.id as number, { members: newMembers });
+      const updatedGroup = res.data;
+
+      setContacts((prev) =>
+        prev.map((c) =>
+          c.id === activeContact.id ? { ...c, members: updatedGroup.members } : c
+        )
+      );
+      setActiveContact((prev) => (prev ? { ...prev, members: updatedGroup.members } : null));
+      showToast({ title: "Member Removed", message: "Member removed from the group.", type: "success" });
+    } catch {
+      showToast({ title: "Error", message: "Could not remove member.", type: "error" });
+    }
+  };
 
   // ─── Render individual message bubble ───────────────────────────────────────
   const renderMessage = ({ item: msg }: { item: ChatMessage }) => {
     const mine = msg.sender_id === myId;
     // Fix: sender bubbles always use primary colour; receiver uses themed card
     const bubbleBg = mine ? colors.primary : isDark ? "#27272a" : "#e4e4e7";
-    // Fix: receiver text always uses foreground; sender always white
-    const textColor = mine ? "#ffffff" : colors.text;
+    // Fix: receiver text always uses foreground; sender uses primaryForeground (dark in dark mode to contrast primary/white bubble)
+    const textColor = mine ? (colors.primaryForeground || "#ffffff") : colors.text;
 
     return (
       <SwipeableMessage
@@ -699,15 +1190,18 @@ export default function AdminChatScreen() {
                 },
               ]}
             >
-              <Text style={[styles.bubbleText, { color: textColor, fontFamily: "Inter_400Regular" }]}>
-                {msg.display_text}
-              </Text>
+              <ExpandableText
+                text={msg.display_text}
+                style={[styles.bubbleText, { fontFamily: "Inter_400Regular" }]}
+                textColor={textColor}
+                activeColor={mine ? textColor : colors.primary}
+              />
             </View>
             <View style={[styles.metaRow, mine ? { justifyContent: "flex-end" } : {}]}>
               {msg.is_pinned && <Feather name="bookmark" size={10} color={colors.accent} style={{ marginRight: 4 }} />}
               {msg.is_edited && !msg.is_deleted && (
                 <Text style={[styles.metaText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                  edited ·{" "}
+                  {t("chat.edited")}{" "}
                 </Text>
               )}
               <Text style={[styles.metaText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
@@ -800,7 +1294,7 @@ export default function AdminChatScreen() {
             </View>
           ) : (
             <Text style={[styles.headerName, { color: colors.foreground, fontFamily: "Inter_700Bold", flex: 1, marginLeft: 4 }]}>
-              Messages
+              {t("chat.messages")}
             </Text>
           )}
           <Pressable
@@ -873,7 +1367,13 @@ export default function AdminChatScreen() {
                   <Pressable
                     key={String(contact.id)}
                     onPress={() => {
-                      setActiveContact(contact);
+                      // Clear unread badge for this contact immediately
+                      setContacts((prev) =>
+                        prev.map((c) =>
+                          c.id === contact.id ? { ...c, unread_count: 0 } : c
+                        )
+                      );
+                      setActiveContact({ ...contact, unread_count: 0 });
                       setMessages([]);
                       setReplyTo(null);
                       setEditingMsg(null);
@@ -909,8 +1409,14 @@ export default function AdminChatScreen() {
                       },
                     ]}
                   >
-                    {/* Avatar with online dot */}
-                    <View style={{ position: "relative" }}>
+                    {/* Avatar with online dot — tappable for DMs */}
+                    <Pressable
+                      onPress={() => {
+                        if (!isGroup) setAvatarPopupContact(contact);
+                      }}
+                      style={{ position: "relative" }}
+                      hitSlop={4}
+                    >
                       <View
                         style={[
                           styles.contactAvatarLarge,
@@ -923,7 +1429,7 @@ export default function AdminChatScreen() {
                         {contact.avatar ? (
                           <Image source={{ uri: getMediaUrl(contact.avatar) }} style={{ width: "100%", height: "100%" }} />
                         ) : (
-                          <Text style={[styles.contactAvatarTxtLarge, { fontFamily: "Inter_700Bold" }]}>
+                          <Text style={[styles.contactAvatarTxtLarge, { color: isGroup ? colors.primaryForeground : (colors.accentForeground || "#fff"), fontFamily: "Inter_700Bold" }]}>
                             {contact.initials}
                           </Text>
                         )}
@@ -931,7 +1437,7 @@ export default function AdminChatScreen() {
                       {isGroup && (
                         <View style={[styles.onlineDot, { backgroundColor: "#22c55e", borderColor: isDark ? "#09090b" : "#fff" }]} />
                       )}
-                    </View>
+                    </Pressable>
 
                     {/* Info */}
                     <View style={{ flex: 1, gap: 2 }}>
@@ -947,16 +1453,30 @@ export default function AdminChatScreen() {
                       >
                         {contact.name}
                       </Text>
-                      <Text style={[styles.contactSubLarge, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]} numberOfLines={1}>
-                        {contact.last_message || (isGroup ? "Company group chat" : "Employee direct message")}
-                      </Text>
+                      {(() => {
+                        const typingTxt = getContactTypingStatus(contact);
+                        return (
+                          <Text
+                            style={[
+                              styles.contactSubLarge,
+                              {
+                                color: typingTxt ? colors.primary : colors.mutedForeground,
+                                fontFamily: typingTxt ? "Inter_600SemiBold" : "Inter_400Regular",
+                              },
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {typingTxt ? typingTxt : (contact.last_message || (isGroup ? "Company group chat" : "Employee direct message"))}
+                          </Text>
+                        );
+                      })()}
                     </View>
 
                     {/* Status indicators */}
                     <View style={{ alignItems: "flex-end", gap: 4 }}>
                       {contact.last_message_time && (
                         <Text style={[styles.contactTime, { color: unread > 0 ? colors.primary : colors.mutedForeground, fontFamily: unread > 0 ? "Inter_600SemiBold" : "Inter_400Regular" }]}>
-                          {formatTime(contact.last_message_time)}
+                          {formatContactTime(contact.last_message_time)}
                         </Text>
                       )}
                       <View style={{ flexDirection: "row", gap: 4, alignItems: "center" }}>
@@ -990,9 +1510,16 @@ export default function AdminChatScreen() {
         <Animated.View style={[styles.fab, { transform: [{ scale: fabScale }], bottom: insets.bottom + 20 }]}>
           <Pressable
             onPress={handleFabPress}
-            style={[styles.fabInner, { backgroundColor: colors.primary }]}
+            style={[
+              styles.fabInner,
+              {
+                backgroundColor: colors.primary,
+                borderWidth: 2,
+                borderColor: isDark ? "rgba(255,255,255,0.25)" : "transparent",
+              },
+            ]}
           >
-            <Feather name="edit-3" size={22} color="#fff" />
+            <Feather name="plus" size={26} color="#fff" />
           </Pressable>
         </Animated.View>
 
@@ -1017,11 +1544,31 @@ export default function AdminChatScreen() {
               >
                 <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
                 <Text style={[styles.createGroupTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-                  New Group Chat
+                  {t("chat.newGroupChat")}
                 </Text>
                 <Text style={[styles.createGroupSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                  Create a new group conversation for your team
+                  {t("chat.newGroupSubtitle")}
                 </Text>
+
+                {/* Group avatar picker */}
+                <Pressable
+                  onPress={() => handlePickGroupAvatar(false)}
+                  style={{ alignItems: "center", marginBottom: 4 }}
+                >
+                  <View style={[
+                    styles.groupProfileAvatar,
+                    { backgroundColor: newGroupAvatar ? "transparent" : colors.primary + "30", overflow: "hidden", borderWidth: 2, borderColor: colors.primary + "50", borderStyle: "dashed" },
+                  ]}>
+                    {newGroupAvatar ? (
+                      <Image source={{ uri: newGroupAvatar }} style={{ width: "100%", height: "100%" }} />
+                    ) : (
+                      <Feather name="camera" size={24} color={colors.primary} />
+                    )}
+                  </View>
+                  <Text style={{ color: colors.primary, fontSize: 12, fontFamily: "Inter_500Medium", marginTop: 4 }}>
+                    {newGroupAvatar ? "Change photo" : "Add group photo"}
+                  </Text>
+                </Pressable>
 
                 {/* Group name input */}
                 <View style={[styles.createGroupInput, { backgroundColor: isDark ? "#27272a" : "#f4f4f5", borderColor: colors.border }]}>
@@ -1039,9 +1586,9 @@ export default function AdminChatScreen() {
 
                 {/* Member selection */}
                 <Text style={[styles.createGroupSectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold", marginTop: 8 }]}>
-                  Select Members
+                  {t("chat.selectMembers")}
                 </Text>
-                <ScrollView style={{ maxHeight: 180, marginVertical: 6 }} showsVerticalScrollIndicator={false}>
+                <ScrollView style={{ maxHeight: 160, marginVertical: 6 }} showsVerticalScrollIndicator={false}>
                   {contacts
                     .filter((c) => c.type === "private" && typeof c.id === "number")
                     .map((emp) => {
@@ -1095,7 +1642,7 @@ export default function AdminChatScreen() {
                     onPress={() => setShowCreateGroup(false)}
                     style={[styles.createGroupBtn, { backgroundColor: isDark ? "#27272a" : "#f4f4f5", flex: 1 }]}
                   >
-                    <Text style={[styles.createGroupBtnTxt, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>Cancel</Text>
+                    <Text style={[styles.createGroupBtnTxt, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>{t("chat.cancel")}</Text>
                   </Pressable>
                   <Pressable
                     onPress={handleCreateGroup}
@@ -1111,7 +1658,7 @@ export default function AdminChatScreen() {
                     {creatingGroup ? (
                       <ActivityIndicator size={16} color="#fff" />
                     ) : (
-                      <Text style={[styles.createGroupBtnTxt, { color: "#fff", fontFamily: "Inter_600SemiBold" }]}>Create</Text>
+                      <Text style={[styles.createGroupBtnTxt, { color: "#fff", fontFamily: "Inter_600SemiBold" }]}>{t("chat.create")}</Text>
                     )}
                   </Pressable>
                 </View>
@@ -1124,13 +1671,14 @@ export default function AdminChatScreen() {
   }
 
   // ─── Active Chat View ────────────────────────────────────────────────────────
-  const isGroupChat = activeContact.id === "group";
+  const isGroupChat = activeContact.type === "group";
+  const isCustomGroup = activeContact.type === "group" && activeContact.id !== "group";
 
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: colors.background }]}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 34 : 0}
     >
       {/* In-App Notification Banner */}
       <InAppNotificationBanner
@@ -1157,9 +1705,12 @@ export default function AdminChatScreen() {
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </Pressable>
 
-        {/* Tappable header → Group Profile */}
+        {/* Tappable header → Contact/Group Profile */}
         <Pressable
-          onPress={() => isGroupChat && setShowGroupProfile(true)}
+          onPress={() => {
+            if (isGroupChat) setShowGroupProfile(true);
+            else setShowContactProfile(true);
+          }}
           style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}
         >
           <View
@@ -1174,7 +1725,7 @@ export default function AdminChatScreen() {
             {activeContact.avatar ? (
               <Image source={{ uri: getMediaUrl(activeContact.avatar) }} style={{ width: "100%", height: "100%" }} />
             ) : (
-              <Text style={[styles.headerAvatarTxt, { fontFamily: "Inter_700Bold" }]}>
+              <Text style={[styles.headerAvatarTxt, { color: isGroupChat ? colors.primaryForeground : (colors.accentForeground || "#fff"), fontFamily: "Inter_700Bold" }]}>
                 {activeContact.initials}
               </Text>
             )}
@@ -1184,23 +1735,23 @@ export default function AdminChatScreen() {
               {activeContact.name}
             </Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-              {showTyping ? (
+              {typingStatus ? (
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                   <TypingIndicator color={colors.primary} />
                   <Text style={[styles.headerSub, { color: colors.primary, fontFamily: "Inter_400Regular" }]}>
-                    typing...
+                    {typingStatus}
                   </Text>
                 </View>
               ) : (
                 <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                  {isGroupChat ? "Tap to view group info" : "Private chat"}
+                  {isGroupChat ? "Tap to view group info" : "Tap to view profile"}
                 </Text>
               )}
               {isGroupChat && groupLocked && (
                 <View style={[styles.lockBadge, { backgroundColor: (colors.warning ?? "#f59e0b") + "20" }]}>
                   <Feather name="lock" size={9} color={colors.warning ?? "#f59e0b"} />
                   <Text style={[styles.lockBadgeTxt, { color: colors.warning ?? "#f59e0b", fontFamily: "Inter_600SemiBold" }]}>
-                    Locked
+                    {t("chat.locked")}
                   </Text>
                 </View>
               )}
@@ -1208,48 +1759,14 @@ export default function AdminChatScreen() {
           </View>
         </Pressable>
 
-        {/* Admin controls */}
-        <View style={{ flexDirection: "row", gap: 6 }}>
-          {isGroupChat && (
-            <Pressable
-              onPress={handleToggleLock}
-              disabled={togglingLock}
-              style={({ pressed }) => [
-                styles.iconBtn,
-                {
-                  backgroundColor: groupLocked
-                    ? (colors.warning ?? "#f59e0b") + "25"
-                    : colors.card,
-                  borderColor: groupLocked
-                    ? (colors.warning ?? "#f59e0b") + "50"
-                    : colors.border,
-                  borderWidth: 1,
-                  opacity: pressed || togglingLock ? 0.7 : 1,
-                },
-              ]}
-              hitSlop={4}
-            >
-              {togglingLock ? (
-                <ActivityIndicator size={14} color={colors.warning ?? "#f59e0b"} />
-              ) : (
-                <Feather
-                  name={groupLocked ? "lock" : "unlock"}
-                  size={16}
-                  color={groupLocked ? (colors.warning ?? "#f59e0b") : colors.mutedForeground}
-                />
-              )}
-            </Pressable>
-          )}
-          {isGroupChat && (
-            <Pressable
-              onPress={() => setShowGroupProfile(true)}
-              style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.6 : 1 }]}
-              hitSlop={4}
-            >
-              <Feather name="info" size={18} color={colors.mutedForeground} />
-            </Pressable>
-          )}
-        </View>
+        {/* Three-dot menu */}
+        <Pressable
+          onPress={() => setShowHeaderMenu(true)}
+          style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.6 : 1 }]}
+          hitSlop={4}
+        >
+          <Feather name="more-vertical" size={20} color={colors.foreground} />
+        </Pressable>
       </View>
 
       {/* ── Body ── */}
@@ -1267,11 +1784,13 @@ export default function AdminChatScreen() {
             contentContainerStyle={[styles.listContent, { paddingBottom: 16 }]}
             onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
             showsVerticalScrollIndicator={false}
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
             ListEmptyComponent={
               <View style={styles.emptyList}>
                 <Feather name="message-circle" size={36} color={colors.mutedForeground} />
                 <Text style={[styles.emptyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                  No messages yet. Say hello! 👋
+                  {t("chat.noMessages")}
                 </Text>
               </View>
             }
@@ -1284,7 +1803,7 @@ export default function AdminChatScreen() {
             <View style={[styles.replyBarAccent, { backgroundColor: editingMsg ? colors.accent : colors.primary }]} />
             <View style={{ flex: 1 }}>
               <Text style={[styles.replyBarLabel, { color: editingMsg ? colors.accent : colors.primary, fontFamily: "Inter_600SemiBold" }]}>
-                {editingMsg ? "Edit message" : `Reply to ${replyTo?.sender_name}`}
+                {editingMsg ? t("chat.editMessage") : t("chat.replyTo", { name: replyTo?.sender_name })}
               </Text>
               <Text style={[styles.replyBarText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]} numberOfLines={1}>
                 {editingMsg ? editingMsg.text : replyTo?.text}
@@ -1310,8 +1829,8 @@ export default function AdminChatScreen() {
           <View style={[styles.inputWrap, { backgroundColor: isDark ? "#27272a" : "#f4f4f5", borderColor: colors.border }]}>
             <TextInput
               value={inputText}
-              onChangeText={setInputText}
-              placeholder={editingMsg ? "Edit message..." : "Type a message..."}
+              onChangeText={handleTextChange}
+              placeholder={editingMsg ? t("chat.editPlaceholder") : t("chat.typePlaceholder")}
               placeholderTextColor={colors.mutedForeground}
               multiline
               style={[styles.input, { color: colors.text, fontFamily: "Inter_400Regular" }]}
@@ -1323,15 +1842,19 @@ export default function AdminChatScreen() {
               style={({ pressed }) => [
                 styles.sendBtn,
                 {
-                  backgroundColor: inputText.trim() ? colors.primary : isDark ? "#3f3f46" : "#d4d4d8",
+                  backgroundColor: inputText.trim() ? colors.primary : (isDark ? "#27272a" : "#e4e4e7"),
                   opacity: pressed ? 0.8 : 1,
                 },
               ]}
             >
               {sending ? (
-                <ActivityIndicator size={14} color="#fff" />
+                <ActivityIndicator size={14} color={inputText.trim() ? (colors.primaryForeground || "#fff") : (isDark ? "#52525b" : "#a1a1aa")} />
               ) : (
-                <Feather name={editingMsg ? "check" : "send"} size={16} color="#fff" />
+                <Feather
+                  name={editingMsg ? "check" : "send"}
+                  size={16}
+                  color={inputText.trim() ? (colors.primaryForeground || "#fff") : (isDark ? "#52525b" : "#a1a1aa")}
+                />
               )}
             </Pressable>
           </View>
@@ -1358,15 +1881,15 @@ export default function AdminChatScreen() {
             )}
 
             {[
-              { id: "reply", icon: "corner-up-left", label: "Reply" },
-              { id: "copy", icon: "copy", label: "Copy" },
+              { id: "reply", icon: "corner-up-left", label: t("chat.actions.reply") },
+              { id: "copy", icon: "copy", label: t("chat.actions.copy") },
               ...(selectedMsg?.sender_id === myId && !selectedMsg?.is_deleted
                 ? [
-                    { id: "edit", icon: "edit-2", label: "Edit" },
-                    { id: "delete", icon: "trash-2", label: "Delete", danger: true },
+                    { id: "edit", icon: "edit-2", label: t("chat.actions.edit") },
+                    { id: "delete", icon: "trash-2", label: t("chat.actions.delete"), danger: true },
                   ]
                 : []),
-              { id: "pin", icon: "bookmark", label: selectedMsg?.is_pinned ? "Unpin" : "Pin" },
+              { id: "pin", icon: "bookmark", label: selectedMsg?.is_pinned ? t("chat.actions.unpin") : t("chat.actions.pin") },
               ...(isGroupChat && selectedMsg?.sender_id !== myId
                 ? [
                     {
@@ -1375,8 +1898,8 @@ export default function AdminChatScreen() {
                         ? "user-check"
                         : "user-x",
                       label: contacts.find((c) => c.id === selectedMsg?.sender_id)?.is_blocked_from_group
-                        ? "Unblock from Group"
-                        : "Block from Group",
+                        ? t("chat.actions.unblockFromGroup")
+                        : t("chat.actions.blockFromGroup"),
                       danger: !contacts.find((c) => c.id === selectedMsg?.sender_id)?.is_blocked_from_group,
                     },
                   ]
@@ -1419,6 +1942,10 @@ export default function AdminChatScreen() {
         animationType="slide"
         onRequestClose={() => setShowGroupProfile(false)}
       >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+        >
         <Pressable style={styles.backdrop} onPress={() => setShowGroupProfile(false)}>
           <Pressable
             style={[
@@ -1429,31 +1956,104 @@ export default function AdminChatScreen() {
           >
             <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
 
-            {/* Group avatar */}
-            <View style={{ alignItems: "center", marginBottom: 20, gap: 10 }}>
-              <View style={[styles.groupProfileAvatar, { backgroundColor: colors.primary }]}>
-                <Feather name="users" size={32} color="#fff" />
-              </View>
-              <Text style={[styles.groupProfileName, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-                {activeContact.name}
-              </Text>
-              <View style={[styles.lockBadge, { backgroundColor: groupLocked ? (colors.warning ?? "#f59e0b") + "20" : colors.primary + "15" }]}>
-                <Feather name={groupLocked ? "lock" : "unlock"} size={11} color={groupLocked ? (colors.warning ?? "#f59e0b") : colors.primary} />
-                <Text style={[styles.lockBadgeTxt, { color: groupLocked ? (colors.warning ?? "#f59e0b") : colors.primary, fontFamily: "Inter_600SemiBold", fontSize: 11 }]}>
-                  {groupLocked ? "Chat Locked" : "Chat Open"}
-                </Text>
-              </View>
+            {/* Group avatar — tappable to change for custom groups */}
+            <View style={{ alignItems: "center", marginBottom: 16, gap: 8 }}>
+              <Pressable
+                onPress={() => isCustomGroup && handlePickGroupAvatar(true)}
+                style={{ position: "relative" }}
+              >
+                <View style={[
+                  styles.groupProfileAvatar,
+                  { backgroundColor: colors.primary, overflow: "hidden" },
+                ]}>
+                  {(groupAvatarUri || activeContact?.avatar) ? (
+                    <Image
+                      source={{ uri: groupAvatarUri ? groupAvatarUri : getMediaUrl(activeContact!.avatar) }}
+                      style={{ width: "100%", height: "100%" }}
+                    />
+                  ) : (
+                    <Feather name="users" size={32} color="#fff" />
+                  )}
+                </View>
+                {isCustomGroup && (
+                  <View style={[
+                    styles.avatarEditBadge,
+                    { backgroundColor: colors.primary },
+                  ]}>
+                    {uploadingGroupAvatar ? (
+                      <ActivityIndicator size={10} color="#fff" />
+                    ) : (
+                      <Feather name="camera" size={12} color="#fff" />
+                    )}
+                  </View>
+                )}
+              </Pressable>
+              {editingGroupName ? (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16 }}>
+                  <TextInput
+                    value={groupNameInput}
+                    onChangeText={setGroupNameInput}
+                    style={{
+                      borderBottomWidth: 1,
+                      borderBottomColor: colors.primary,
+                      color: colors.foreground,
+                      fontSize: 16,
+                      fontFamily: "Inter_600SemiBold",
+                      paddingVertical: 2,
+                      minWidth: 120,
+                      textAlign: "center",
+                    }}
+                    autoFocus
+                  />
+                  <Pressable onPress={handleUpdateGroupName} hitSlop={6}>
+                    <Feather name="check" size={18} color={colors.primary} />
+                  </Pressable>
+                  <Pressable onPress={() => setEditingGroupName(false)} hitSlop={6}>
+                    <Feather name="x" size={18} color={colors.mutedForeground} />
+                  </Pressable>
+                </View>
+              ) : (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Text style={[styles.groupProfileName, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+                    {activeContact.name}
+                  </Text>
+                  {activeContact.id !== "group" && (
+                    <Pressable
+                      onPress={() => {
+                        setGroupNameInput(activeContact.name);
+                        setEditingGroupName(true);
+                      }}
+                      hitSlop={6}
+                    >
+                      <Feather name="edit-2" size={13} color={colors.mutedForeground} />
+                    </Pressable>
+                  )}
+                </View>
+              )}
             </View>
 
-            {/* Members list */}
-            <Text style={[styles.groupProfileSection, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" }]}>
-              MEMBERS ({
-                activeContact.id === "group"
-                  ? contacts.filter((c) => c.type === "private").length
-                  : (activeContact as any).members?.length || 0
-              })
-            </Text>
-            <ScrollView style={{ maxHeight: 200 }} showsVerticalScrollIndicator={false}>
+            {/* Members list header */}
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <Text style={[styles.groupProfileSection, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold", marginBottom: 0 }]}>
+                {t("chat.membersCount", {
+                  count: activeContact.id === "group"
+                    ? contacts.filter((c) => c.type === "private").length
+                    : (activeContact as any).members?.length || 0
+                })}
+              </Text>
+              {activeContact.id !== "group" && (
+                <Pressable
+                  onPress={() => setShowAddMember(true)}
+                  hitSlop={8}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+                >
+                  <Feather name="user-plus" size={13} color={colors.primary} />
+                  <Text style={{ color: colors.primary, fontSize: 13, fontFamily: "Inter_600SemiBold" }}>{t("chat.add")}</Text>
+                </Pressable>
+              )}
+            </View>
+
+            <ScrollView style={{ maxHeight: 160 }} showsVerticalScrollIndicator={false}>
               {contacts
                 .filter((c) => {
                   if (c.type !== "private") return false;
@@ -1475,10 +2075,19 @@ export default function AdminChatScreen() {
                     <Text style={[{ flex: 1, color: colors.foreground, fontSize: 14, fontFamily: "Inter_500Medium" }]}>
                       {c.name}
                     </Text>
+                    {activeContact.id !== "group" && (
+                      <Pressable
+                        onPress={() => handleRemoveMember(c.id as number)}
+                        hitSlop={8}
+                        style={{ padding: 4 }}
+                      >
+                        <Feather name="user-minus" size={14} color={colors.danger} />
+                      </Pressable>
+                    )}
                     {c.is_blocked_from_group && (
                       <View style={[styles.lockBadge, { backgroundColor: colors.danger + "20" }]}>
                         <Feather name="slash" size={10} color={colors.danger} />
-                        <Text style={[styles.lockBadgeTxt, { color: colors.danger }]}>Blocked</Text>
+                        <Text style={[styles.lockBadgeTxt, { color: colors.danger }]}>{t("chat.blocked")}</Text>
                       </View>
                     )}
                   </View>
@@ -1501,6 +2110,317 @@ export default function AdminChatScreen() {
               </Pressable>
             </View>
           </Pressable>
+        </Pressable>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* ── Add Member Modal ── */}
+      <Modal
+        visible={showAddMember}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowAddMember(false)}
+      >
+        <Pressable style={styles.backdrop} onPress={() => setShowAddMember(false)}>
+          <Pressable
+            style={[
+              styles.groupProfileSheet,
+              { backgroundColor: isDark ? "#18181b" : "#fff", borderColor: colors.border },
+            ]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
+            <Text style={{ color: colors.foreground, fontSize: 16, fontFamily: "Inter_700Bold", marginBottom: 12 }}>
+              {t("chat.addMemberTitle")}
+            </Text>
+
+            <ScrollView style={{ maxHeight: 250 }} showsVerticalScrollIndicator={false}>
+              {contacts
+                .filter((c) => {
+                  if (c.type !== "private") return false;
+                  const currentMembers = (activeContact as any).members || [];
+                  return !currentMembers.includes(c.id as number);
+                })
+                .map((c) => (
+                  <Pressable
+                    key={String(c.id)}
+                    onPress={() => {
+                      handleAddMember(c.id as number);
+                      setShowAddMember(false);
+                    }}
+                    style={({ pressed }) => [
+                      styles.groupMemberRow,
+                      { borderBottomColor: colors.border, opacity: pressed ? 0.7 : 1 }
+                    ]}
+                  >
+                    <View style={[styles.groupMemberAvatar, { backgroundColor: colors.accent, overflow: "hidden" }]}>
+                      {c.avatar ? (
+                        <Image source={{ uri: getMediaUrl(c.avatar) }} style={{ width: "100%", height: "100%" }} />
+                      ) : (
+                        <Text style={{ color: "#fff", fontSize: 12, fontFamily: "Inter_700Bold" }}>{c.initials}</Text>
+                      )}
+                    </View>
+                    <Text style={[{ flex: 1, color: colors.foreground, fontSize: 14, fontFamily: "Inter_500Medium" }]}>
+                      {c.name}
+                    </Text>
+                    <Feather name="plus-circle" size={18} color={colors.primary} />
+                  </Pressable>
+                ))}
+              {contacts.filter((c) => c.type === "private" && !((activeContact as any).members || []).includes(c.id as number)).length === 0 && (
+                <Text style={{ color: colors.mutedForeground, fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", marginVertical: 20 }}>
+                  {t("chat.allEmployeesAlreadyMembers")}
+                </Text>
+              )}
+            </ScrollView>
+
+            <Pressable
+              onPress={() => setShowAddMember(false)}
+              style={({ pressed }) => [
+                styles.createGroupBtn,
+                { backgroundColor: isDark ? "#27272a" : "#f4f4f5", marginTop: 12, opacity: pressed ? 0.8 : 1 },
+              ]}
+            >
+              <Text style={{ color: colors.foreground, fontFamily: "Inter_600SemiBold" }}>{t("chat.close")}</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* ── Contact Profile Modal (DM) ── */}
+      <Modal
+        visible={showContactProfile}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowContactProfile(false)}
+      >
+        <Pressable style={styles.backdrop} onPress={() => setShowContactProfile(false)}>
+          <Pressable
+            style={[
+              styles.groupProfileSheet,
+              { backgroundColor: isDark ? "#18181b" : "#fff", borderColor: colors.border },
+            ]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
+
+            {activeContact && activeContact.type === "private" && (
+              <>
+                {/* Avatar */}
+                <View style={{ alignItems: "center", marginBottom: 20, gap: 10 }}>
+                  <View style={[styles.groupProfileAvatar, { backgroundColor: colors.accent, overflow: "hidden" }]}>
+                    {activeContact.avatar ? (
+                      <Image source={{ uri: getMediaUrl(activeContact.avatar) }} style={{ width: "100%", height: "100%" }} />
+                    ) : (
+                      <Text style={{ color: "#fff", fontSize: 24, fontFamily: "Inter_700Bold" }}>{activeContact.initials}</Text>
+                    )}
+                  </View>
+                  <Text style={[styles.groupProfileName, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+                    {activeContact.name}
+                  </Text>
+                  <Text style={{ color: colors.mutedForeground, fontSize: 13, fontFamily: "Inter_400Regular" }}>
+                    {t("chat.directMessageChat")}
+                  </Text>
+                </View>
+
+                {/* Actions */}
+                <View style={{ gap: 10, marginTop: 12 }}>
+                  <Pressable
+                    onPress={() => {
+                      setShowContactProfile(false);
+                      handleClearChat();
+                    }}
+                    style={({ pressed }) => [
+                      styles.actionItem,
+                      { opacity: pressed ? 0.7 : 1, borderBottomColor: colors.border, paddingVertical: 14 },
+                    ]}
+                  >
+                    <Feather name="trash-2" size={18} color={colors.foreground} />
+                    <Text style={[styles.actionLabel, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
+                      {t("chat.clearConversation")}
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => {
+                      setShowContactProfile(false);
+                      handleBlockDMUser(activeContact);
+                    }}
+                    style={({ pressed }) => [
+                      styles.actionItem,
+                      { opacity: pressed ? 0.7 : 1, borderBottomColor: colors.border, paddingVertical: 14 },
+                    ]}
+                  >
+                    <Feather name={activeContact.is_blocked_from_group ? "user-check" : "user-x"} size={18} color={colors.danger} />
+                    <Text style={[styles.actionLabel, { color: colors.danger, fontFamily: "Inter_500Medium" }]}>
+                      {activeContact.is_blocked_from_group ? t("chat.unblockUser") : t("chat.blockUser")}
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => {
+                      setShowContactProfile(false);
+                      handleReportUser(activeContact);
+                    }}
+                    style={({ pressed }) => [
+                      styles.actionItem,
+                      { opacity: pressed ? 0.7 : 1, borderBottomColor: "transparent", paddingVertical: 14 },
+                    ]}
+                  >
+                    <Feather name="alert-triangle" size={18} color={colors.danger} />
+                    <Text style={[styles.actionLabel, { color: colors.danger, fontFamily: "Inter_500Medium" }]}>
+                      {t("chat.reportUser")}
+                    </Text>
+                  </Pressable>
+                </View>
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* ── Avatar Popup Modal ── */}
+      <Modal
+        visible={avatarPopupContact !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAvatarPopupContact(null)}
+      >
+        <Pressable
+          style={[styles.backdrop, { justifyContent: "center", alignItems: "center" }]}
+          onPress={() => setAvatarPopupContact(null)}
+        >
+          <Pressable
+            style={[
+              styles.avatarPopup,
+              { backgroundColor: isDark ? "#18181b" : "#fff", borderColor: colors.border },
+            ]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {avatarPopupContact && (
+              <>
+                <View style={{ alignItems: "center", marginBottom: 12, gap: 6 }}>
+                  <View style={[styles.avatarPopupImg, { backgroundColor: colors.accent, overflow: "hidden" }]}>
+                    {avatarPopupContact.avatar ? (
+                      <Image source={{ uri: getMediaUrl(avatarPopupContact.avatar) }} style={{ width: "100%", height: "100%" }} />
+                    ) : (
+                      <Text style={{ color: "#fff", fontSize: 26, fontFamily: "Inter_700Bold" }}>
+                        {avatarPopupContact.initials}
+                      </Text>
+                    )}
+                  </View>
+                  <Text style={{ color: colors.foreground, fontSize: 16, fontFamily: "Inter_700Bold" }} numberOfLines={1}>
+                    {avatarPopupContact.name}
+                  </Text>
+                </View>
+
+                <Pressable
+                  onPress={() => {
+                    // Clear unread for this contact too
+                    setContacts((prev) =>
+                      prev.map((c) => c.id === avatarPopupContact.id ? { ...c, unread_count: 0 } : c)
+                    );
+                    setActiveContact({ ...avatarPopupContact, unread_count: 0 });
+                    setMessages([]);
+                    setReplyTo(null);
+                    setEditingMsg(null);
+                    setAvatarPopupContact(null);
+                  }}
+                  style={({ pressed }) => [
+                    styles.avatarPopupBtn,
+                    { borderBottomColor: colors.border, opacity: pressed ? 0.7 : 1 },
+                  ]}
+                >
+                  <View style={[styles.avatarPopupBtnIcon, { backgroundColor: colors.primary + "15" }]}>
+                    <Feather name="message-square" size={16} color={colors.primary} />
+                  </View>
+                  <Text style={{ color: colors.foreground, fontFamily: "Inter_500Medium" }}>{t("chat.chat")}</Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => {
+                    setActiveContact(avatarPopupContact);
+                    setShowContactProfile(true);
+                    setAvatarPopupContact(null);
+                  }}
+                  style={({ pressed }) => [
+                    styles.avatarPopupBtn,
+                    { borderBottomColor: "transparent", opacity: pressed ? 0.7 : 1 },
+                  ]}
+                >
+                  <View style={[styles.avatarPopupBtnIcon, { backgroundColor: colors.accent + "15" }]}>
+                    <Feather name="user" size={16} color={colors.accent} />
+                  </View>
+                  <Text style={{ color: colors.foreground, fontFamily: "Inter_500Medium" }}>{t("chat.viewProfile")}</Text>
+                </Pressable>
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* ── Header ⋮ Dropdown Modal ── */}
+      <Modal
+        visible={showHeaderMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowHeaderMenu(false)}
+      >
+        <Pressable style={styles.backdrop} onPress={() => setShowHeaderMenu(false)}>
+          <View
+            style={[
+              styles.headerMenuSheet,
+              { backgroundColor: isDark ? "#18181b" : "#fff", borderColor: colors.border },
+            ]}
+          >
+            {[
+              { id: "search", icon: "search", label: t("chat.actions.search") ?? "Search Messages" },
+              { id: "clear", icon: "trash-2", label: t("chat.actions.clearChat") ?? "Clear Chat" },
+              ...(!isGroupChat
+                ? [
+                    {
+                      id: "block",
+                      icon: activeContact?.is_blocked_from_group ? "user-check" : "user-x",
+                      label: activeContact?.is_blocked_from_group ? "Unblock User" : "Block User",
+                      danger: !activeContact?.is_blocked_from_group,
+                    },
+                    { id: "report", icon: "alert-triangle", label: "Report User", danger: true },
+                  ]
+                : []),
+            ].map((item, i) => (
+              <Pressable
+                key={item.id}
+                onPress={() => {
+                  setShowHeaderMenu(false);
+                  handleHeaderMenuAction(item.id);
+                }}
+                style={({ pressed }) => [
+                  styles.headerMenuItem,
+                  {
+                    borderBottomWidth: i === (isGroupChat ? 1 : 3) ? 0 : StyleSheet.hairlineWidth,
+                    borderBottomColor: colors.border,
+                    opacity: pressed ? 0.7 : 1,
+                  },
+                ]}
+              >
+                <Feather
+                  name={item.icon as any}
+                  size={16}
+                  color={item.danger ? colors.danger : colors.foreground}
+                />
+                <Text
+                  style={[
+                    styles.headerMenuLabel,
+                    {
+                      color: item.danger ? colors.danger : colors.foreground,
+                      fontFamily: "Inter_500Medium",
+                    },
+                  ]}
+                >
+                  {item.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
         </Pressable>
       </Modal>
     </KeyboardAvoidingView>
@@ -1947,4 +2867,77 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   actionLabel: { fontSize: 16 },
+
+  // ── Header ⋮ Menu ──
+  headerMenuSheet: {
+    position: "absolute",
+    top: 70,
+    right: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    overflow: "hidden",
+    minWidth: 200,
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 12,
+    zIndex: 999,
+  },
+  headerMenuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 12,
+  },
+  headerMenuLabel: { fontSize: 15 },
+
+  // ── Avatar Popup ──
+  avatarPopup: {
+    width: 240,
+    borderRadius: 20,
+    borderWidth: 1,
+    paddingTop: 20,
+    paddingBottom: 10,
+    paddingHorizontal: 14,
+    shadowColor: "#000",
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 18,
+  },
+  avatarPopupImg: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarPopupBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    gap: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  avatarPopupBtnIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarEditBadge: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#fff",
+  },
 });

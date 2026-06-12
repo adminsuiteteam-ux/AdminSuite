@@ -84,7 +84,10 @@ export default function CreateClientScreen() {
 
   const canNext = () => {
     if (step === 0) return company.trim().length > 0 && contact.trim().length > 0;
-    if (step === 1) return email.includes("@");
+    if (step === 1) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      return emailRegex.test(email.trim());
+    }
     return true;
   };
 

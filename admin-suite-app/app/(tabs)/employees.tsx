@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 
 import { FloatInView } from "@/components/FloatInView";
 import { useData } from "@/context/DataContext";
@@ -34,8 +35,19 @@ const STATUS_DOT: Record<string, string> = {
   terminated: "#ef4444",
 };
 
+// Safe accessor: only returns a colour for known allowlisted status values.
+const ALLOWED_EMPLOYEE_STATUSES = ["active", "on_leave", "terminated"] as const;
+type EmployeeStatus = (typeof ALLOWED_EMPLOYEE_STATUSES)[number];
+function getStatusDot(status: string): string {
+  const key = ALLOWED_EMPLOYEE_STATUSES.includes(status as EmployeeStatus)
+    ? (status as EmployeeStatus)
+    : null;
+  return key ? STATUS_DOT[key] : "#64748b";
+}
+
 export default function EmployeesScreen() {
   const colors = useColors();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const fmt = useCurrencyFmt();
   const { employees, refresh: refreshData } = useData();
@@ -90,7 +102,7 @@ export default function EmployeesScreen() {
                   { color: colors.foreground, fontFamily: "Inter_700Bold" },
                 ]}
               >
-                Employees
+                {t("employees.title")}
               </Text>
               <Text
                 style={[
@@ -219,7 +231,7 @@ export default function EmployeesScreen() {
                         style={[
                           styles.avatarStatus,
                           {
-                            backgroundColor: STATUS_DOT[e.status] || "#64748b",
+                            backgroundColor: getStatusDot(e.status),
                             borderColor: colors.card,
                           },
                         ]}
@@ -254,7 +266,7 @@ export default function EmployeesScreen() {
                             }}
                           >
                             <Feather name="flag" size={10} color="#ef4444" />
-                            <Text style={{ color: "#ef4444", fontSize: 9, fontFamily: "Inter_700Bold" }}>FLAGGED</Text>
+                            <Text style={{ color: "#ef4444", fontSize: 9, fontFamily: "Inter_700Bold" }}>{t("employees.flagged")}</Text>
                           </View>
                         )}
                       </View>
@@ -324,7 +336,10 @@ function StatusPill({ status }: { status: string }) {
     on_leave: { bg: "#f973161A", color: "#ea580c", label: "On leave" },
     terminated: { bg: "#ef44441A", color: "#dc2626", label: "Inactive" },
   };
-  const s = (map as Record<string, any>)[status] ?? map.active;
+  let s = map.active;
+  if (status === "active") s = map.active;
+  else if (status === "on_leave") s = map.on_leave;
+  else if (status === "terminated") s = map.terminated;
   return (
     <View style={[styles.pill, { backgroundColor: s.bg }]}>
       <Text

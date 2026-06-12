@@ -11,6 +11,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 
 import { FloatInView } from "@/components/FloatInView";
 import { RingChart } from "@/components/RingChart";
@@ -31,8 +32,19 @@ const STATUS_COLORS: Record<string, string> = {
   completed: "#2563eb",
 };
 
+// Safe accessor: validates key against known allowlist before indexing.
+const ALLOWED_CLIENT_STATUSES = ["active", "pending", "completed"] as const;
+type ClientStatus = (typeof ALLOWED_CLIENT_STATUSES)[number];
+function getStatusColor(status: string): string {
+  const key = ALLOWED_CLIENT_STATUSES.includes(status as ClientStatus)
+    ? (status as ClientStatus)
+    : null;
+  return key ? STATUS_COLORS[key] : "#64748b";
+}
+
 export default function ClientsScreen() {
   const colors = useColors();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const fmt = useCurrencyFmt();
   const { clients, clientMetrics: cm } = useData();
@@ -64,7 +76,7 @@ export default function ClientsScreen() {
                     { color: colors.foreground, fontFamily: "Inter_700Bold" },
                   ]}
                 >
-                  Clients
+                  {t("clients.title")}
                 </Text>
                 <Text
                   style={[
@@ -72,7 +84,7 @@ export default function ClientsScreen() {
                     { color: colors.mutedForeground, fontFamily: "Inter_500Medium" },
                   ]}
                 >
-                  Track every account, status & revenue
+                  {t("clients.subtitle")}
                 </Text>
               </View>
               <Pressable
@@ -108,7 +120,7 @@ export default function ClientsScreen() {
 
               <View style={styles.heroLeft}>
                 <Text style={[styles.heroLabel, { fontFamily: "Inter_600SemiBold" }]}>
-                  TOTAL CLIENTS
+                  {t("clients.total")}
                 </Text>
                 <Text style={[styles.heroNum, { fontFamily: "Inter_700Bold", fontVariant: ["tabular-nums"] }]}>
                   {cm.total}
@@ -231,19 +243,19 @@ export default function ClientsScreen() {
                             styles.statusPill,
                             {
                               backgroundColor:
-                                STATUS_COLORS[c.status] + "1A",
+                                getStatusColor(c.status) + "1A",
                             },
                           ]}
                         >
                           <View
                             style={[
                               styles.statusDot,
-                              { backgroundColor: STATUS_COLORS[c.status] },
+                              { backgroundColor: getStatusColor(c.status) },
                             ]}
                           />
                           <Text
                             style={{
-                              color: STATUS_COLORS[c.status],
+                              color: getStatusColor(c.status),
                               fontFamily: "Inter_600SemiBold",
                               fontSize: 10,
                               textTransform: "uppercase",
@@ -296,7 +308,7 @@ export default function ClientsScreen() {
                               },
                             ]}
                           >
-                            Lifetime paid
+                            {t("clients.lifetimePaid")}
                           </Text>
                         </View>
                       </View>

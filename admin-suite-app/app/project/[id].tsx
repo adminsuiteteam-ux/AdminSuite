@@ -21,6 +21,7 @@ import { useData } from "@/context/DataContext";
 import { useCurrencyFmt } from "@/context/SettingsContext";
 import { useColors } from "@/hooks/useColors";
 import { getMediaUrl, apiService } from "@/services/api";
+import { useTranslation } from "react-i18next";
 
 const STATUS_COLORS: Record<string, string> = {
   active: "#2563eb",
@@ -29,12 +30,23 @@ const STATUS_COLORS: Record<string, string> = {
   completed: "#22c55e",
 };
 
+// Safe accessor: validates the status key against an allowlist before lookup.
+const ALLOWED_PROJECT_STATUSES = ["active", "planned", "on_hold", "completed"] as const;
+type ProjectStatus = (typeof ALLOWED_PROJECT_STATUSES)[number];
+function getProjectStatusColor(status: string, fallback: string): string {
+  const key = ALLOWED_PROJECT_STATUSES.includes(status as ProjectStatus)
+    ? (status as ProjectStatus)
+    : null;
+  return key ? STATUS_COLORS[key] : fallback;
+}
+
 export default function ProjectDetailScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const fmt = useCurrencyFmt();
   const { projects, clients, refresh } = useData();
   const { id } = useLocalSearchParams();
+  const { t } = useTranslation();
 
   const [actionsOpen, setActionsOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -45,19 +57,19 @@ export default function ProjectDetailScreen() {
   if (!project) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background }}>
-        <Text style={{ color: colors.foreground }}>Project not found</Text>
+        <Text style={{ color: colors.foreground }}>{t("project.notFound")}</Text>
       </View>
     );
   }
 
   const handleDeleteProject = () => {
     Alert.alert(
-      "Delete Project",
-      `Are you sure you want to permanently delete project ${project.name}?`,
+      t("project.actions"),
+      t("project.deleteConfirm", { name: project.name }),
       [
-        { text: "Cancel", style: "cancel" },
+        { text: t("project.cancel"), style: "cancel" },
         {
-          text: "Delete",
+          text: t("common.delete"),
           style: "destructive",
           onPress: async () => {
             try {
@@ -68,7 +80,7 @@ export default function ProjectDetailScreen() {
               router.back();
             } catch (err) {
               console.error("Delete project failed:", err);
-              Alert.alert("Error", "Failed to delete project. Please try again.");
+              Alert.alert(t("common.error"), t("project.deleteFailed"));
             } finally {
               setIsDeleting(false);
             }
@@ -78,7 +90,7 @@ export default function ProjectDetailScreen() {
     );
   };
 
-  const statusColor = STATUS_COLORS[project.status] || colors.mutedForeground;
+  const statusColor = getProjectStatusColor(project.status, colors.mutedForeground);
 
   const openMaps = () => {
     if (project.location) {
@@ -123,7 +135,7 @@ export default function ProjectDetailScreen() {
                 { color: colors.foreground, fontFamily: "Inter_600SemiBold" },
               ]}
             >
-              Project Details
+              {t("project.details")}
             </Text>
             <Pressable
               onPress={() => setActionsOpen(true)}
@@ -202,7 +214,7 @@ export default function ProjectDetailScreen() {
                     {fmt(project.value)}
                   </Text>
                   <Text style={[styles.heroStatLabel, { fontFamily: "Inter_500Medium" }]}>
-                    Contract Value
+                    {t("project.contractValue")}
                   </Text>
                 </View>
                 <View style={styles.vline} />
@@ -211,7 +223,7 @@ export default function ProjectDetailScreen() {
                     {project.progress}%
                   </Text>
                   <Text style={[styles.heroStatLabel, { fontFamily: "Inter_500Medium" }]}>
-                    Completed
+                    {t("project.completed")}
                   </Text>
                 </View>
               </View>
@@ -220,11 +232,11 @@ export default function ProjectDetailScreen() {
 
           {/* Progress Section */}
           <FloatInView delay={120}>
-            <Section title="Progress Tracker">
+            <Section title={t("project.progressTracker")}>
               <View style={[styles.progressCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
                 <View style={styles.progressHeaderRow}>
                   <Text style={{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 14 }}>
-                    Milestone Progress
+                    {t("project.milestoneProgress")}
                   </Text>
                   <Text style={{ color: statusColor, fontFamily: "Inter_700Bold", fontSize: 14 }}>
                     {project.progress}%
@@ -235,8 +247,8 @@ export default function ProjectDetailScreen() {
                 </View>
                 <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 8 }}>
                   {project.progress === 100
-                    ? "All contract deliverables have been fully completed and signed off."
-                    : "Deliverables are in progress and tracking according to active milestones."}
+                    ? t("project.allDelivered")
+                    : t("project.inProgress")}
                 </Text>
               </View>
             </Section>
@@ -244,28 +256,28 @@ export default function ProjectDetailScreen() {
 
           {/* Project Details */}
           <FloatInView delay={180}>
-            <Section title="Details & Timeline">
+            <Section title={t("project.detailsTimeline")}>
               <View style={[styles.detailCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
                 <DetailRow
                   icon="calendar"
-                  label="Start Date"
-                  value={project.start_date || "Not set"}
+                  label={t("project.startDate")}
+                  value={project.start_date || t("profile.notSet")}
                 />
                 <DetailRow
                   icon="flag"
-                  label="Target End Date"
-                  value={project.end_date || "Not set"}
+                  label={t("project.targetEndDate")}
+                  value={project.end_date || t("profile.notSet")}
                 />
                 <DetailRow
                   icon="map-pin"
-                  label="Project Location"
-                  value={project.location || "On-site / remote"}
+                  label={t("project.projectLocation")}
+                  value={project.location || t("project.onSiteRemote")}
                   onPress={project.location ? openMaps : undefined}
                   isLink={!!project.location}
                 />
                 <DetailRow
                   icon="trending-up"
-                  label="Contract Budget"
+                  label={t("project.contractBudget")}
                   value={fmt(project.value)}
                   last
                 />
@@ -276,23 +288,23 @@ export default function ProjectDetailScreen() {
           {/* Client Details & Quick Action */}
           {client && (
             <FloatInView delay={240}>
-              <Section title="Client Quick Contact">
+              <Section title={t("project.clientQuickContact")}>
                 <View style={[styles.detailCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
                   <DetailRow
                     icon="user"
-                    label="Primary Contact"
+                    label={t("project.primaryContact")}
                     value={client.contact}
                   />
                   <DetailRow
                     icon="mail"
-                    label="Email Address"
+                    label={t("project.emailAddress")}
                     value={client.email}
                     onPress={() => openContact(`mailto:${client.email}`)}
                     isLink
                   />
                   <DetailRow
                     icon="briefcase"
-                    label="Company Name"
+                    label={t("project.companyName")}
                     value={client.company}
                     onPress={() => router.push(`/client/${client.id}` as any)}
                     isLink
@@ -305,19 +317,19 @@ export default function ProjectDetailScreen() {
 
           {/* Project Media Showcase (Images & Videos) */}
           <FloatInView delay={300}>
-            <Section title="Project Media Showcase">
+            <Section title={t("project.projectMediaShowcase")}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
                 {project.image ? (
                   <View style={[styles.mediaCard, { borderColor: colors.border }]}>
                     <Image source={{ uri: getMediaUrl(project.image) }} style={styles.mediaImg} />
                     <View style={styles.mediaLabelBg}>
-                      <Text style={styles.mediaLabel}>On-site Image</Text>
+                      <Text style={styles.mediaLabel}>{t("project.onSiteImage")}</Text>
                     </View>
                   </View>
                 ) : (
                   <View style={[styles.mediaCard, styles.mediaPlaceholder, { borderColor: colors.border, backgroundColor: colors.card }]}>
                     <Feather name="image" size={24} color={colors.mutedForeground} />
-                    <Text style={[styles.placeholderText, { color: colors.mutedForeground }]}>No Image Uploaded</Text>
+                    <Text style={[styles.placeholderText, { color: colors.mutedForeground }]}>{t("project.noImage")}</Text>
                   </View>
                 )}
 
@@ -333,13 +345,13 @@ export default function ProjectDetailScreen() {
                       <Feather name="play-circle" size={40} color="#fff" />
                     </View>
                     <View style={styles.mediaLabelBg}>
-                      <Text style={styles.mediaLabel}>Project Video</Text>
+                      <Text style={styles.mediaLabel}>{t("project.video")}</Text>
                     </View>
                   </Pressable>
                 ) : (
                   <View style={[styles.mediaCard, styles.mediaPlaceholder, { borderColor: colors.border, backgroundColor: colors.card }]}>
                     <Feather name="video" size={24} color={colors.mutedForeground} />
-                    <Text style={[styles.placeholderText, { color: colors.mutedForeground }]}>No Video Uploaded</Text>
+                    <Text style={[styles.placeholderText, { color: colors.mutedForeground }]}>{t("project.noVideo")}</Text>
                   </View>
                 )}
               </ScrollView>
@@ -353,7 +365,7 @@ export default function ProjectDetailScreen() {
       <Modal visible={actionsOpen} transparent animationType="fade" onRequestClose={() => setActionsOpen(false)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setActionsOpen(false)}>
           <View style={[styles.modalContainer, { backgroundColor: colors.isDark ? "#18181c" : "#ffffff", borderColor: colors.border }]}>
-            <Text style={[styles.modalTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Project Actions</Text>
+            <Text style={[styles.modalTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>{t("project.actions")}</Text>
             
             <Pressable
               onPress={() => {
@@ -363,7 +375,7 @@ export default function ProjectDetailScreen() {
               style={({ pressed }) => [styles.actionRow, pressed && { backgroundColor: colors.muted }]}
             >
               <Feather name="edit-2" size={16} color={colors.foreground} />
-              <Text style={{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 15 }}>Edit Project Details</Text>
+              <Text style={{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 15 }}>{t("project.editDetails")}</Text>
             </Pressable>
 
             <Pressable
@@ -373,7 +385,7 @@ export default function ProjectDetailScreen() {
             >
               <Feather name="trash-2" size={16} color="#ef4444" />
               <Text style={{ color: "#ef4444", fontFamily: "Inter_600SemiBold", fontSize: 15 }}>
-                {isDeleting ? "Deleting..." : "Delete Project"}
+                {isDeleting ? t("project.deleting") : t("project.deleteProject")}
               </Text>
             </Pressable>
 
@@ -383,7 +395,7 @@ export default function ProjectDetailScreen() {
               onPress={() => setActionsOpen(false)}
               style={({ pressed }) => [styles.actionRow, { justifyContent: "center" }, pressed && { backgroundColor: colors.muted }]}
             >
-              <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_600SemiBold", fontSize: 14 }}>Cancel</Text>
+              <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_600SemiBold", fontSize: 14 }}>{t("project.cancel")}</Text>
             </Pressable>
           </View>
         </Pressable>

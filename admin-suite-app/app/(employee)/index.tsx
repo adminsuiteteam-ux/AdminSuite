@@ -238,6 +238,10 @@ export default function EmployeeDashboard() {
               style={StyleSheet.absoluteFill}
             />
             <View style={styles.headerTop}>
+              {/* Profile avatar */}
+              <View style={[styles.headerAvatarWrap]}>
+                <Feather name="user" size={20} color="#fff" />
+              </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.greeting, { fontFamily: "Inter_500Medium" }]}>
                   {greeting()},
@@ -254,10 +258,11 @@ export default function EmployeeDashboard() {
                   </View>
                 ) : null}
               </View>
+              {/* Bell notification button */}
               <Pressable
-                onPress={handleLogout}
+                onPress={() => {}}
                 style={({ pressed }) => [
-                  styles.logoutBtn,
+                  styles.bellBtn,
                   {
                     transform: [{ scale: pressed ? 0.92 : 1 }],
                     opacity: pressed ? 0.8 : 1,
@@ -265,7 +270,7 @@ export default function EmployeeDashboard() {
                 ]}
                 hitSlop={8}
               >
-                <Feather name="log-out" size={18} color="#fff" />
+                <Feather name="bell" size={18} color="#fff" />
               </Pressable>
             </View>
           </View>
@@ -446,6 +451,21 @@ export default function EmployeeDashboard() {
         </View>
       </ScrollView>
 
+      <Pressable
+        onPress={() => router.push("/(employee)/chat")}
+        style={({ pressed }) => [
+          styles.fab,
+          {
+            backgroundColor: colors.primary,
+            opacity: pressed ? 0.88 : 1,
+            transform: [{ scale: pressed ? 0.93 : 1 }],
+            shadowColor: colors.primary,
+          },
+        ]}
+      >
+        <Feather name="message-square" size={22} color={colors.primaryForeground} />
+      </Pressable>
+
       <EmployeeDashboardTour
         active={tourActive}
         step={tourStep}
@@ -528,13 +548,22 @@ const styles = StyleSheet.create({
     fontSize: 10,
     letterSpacing: 0.5,
   },
-  logoutBtn: {
+  bellBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
     backgroundColor: "rgba(255,255,255,0.15)",
     alignItems: "center",
     justifyContent: "center",
+  },
+  headerAvatarWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
   },
   statsGrid: {
     paddingHorizontal: 16,
@@ -644,5 +673,22 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingVertical: 16,
     fontSize: 13,
+  },
+  fab: {
+    position: "absolute",
+    right: 20,
+    bottom: 110,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowOpacity: 0.55,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 18,
+    zIndex: 99,
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.18)",
   },
 });

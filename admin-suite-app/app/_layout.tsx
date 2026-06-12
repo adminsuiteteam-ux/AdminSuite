@@ -16,12 +16,14 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { Text, View, Pressable, Animated } from "react-native";
+import { useTranslation } from "react-i18next";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/context/AuthContext";
 import { DataProvider } from "@/context/DataContext";
 import { SettingsProvider } from "@/context/SettingsContext";
 import { ToastProvider } from "@/context/ToastContext";
+import "../i18n";
 
 // Initialize Sentry (production only — avoids noisy dev warnings)
 if (!__DEV__) {
@@ -99,6 +101,7 @@ import { StyleSheet } from "react-native";
 function ConnectionBanner() {
   const { fetchError, refresh } = useData();
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   
   if (!fetchError) return null;
 
@@ -106,9 +109,9 @@ function ConnectionBanner() {
     <View style={[styles.banner, { top: insets.top + 60 }]}>
       <View style={styles.bannerInner}>
         <Feather name="wifi-off" size={16} color="#fff" />
-        <Text style={styles.bannerText}>Offline · {fetchError}</Text>
+        <Text style={styles.bannerText}>{t("common.offline")}{fetchError}</Text>
         <Pressable onPress={refresh} style={styles.retryBtn}>
-          <Text style={styles.retryText}>Retry</Text>
+          <Text style={styles.retryText}>{t("common.retry")}</Text>
         </Pressable>
       </View>
     </View>

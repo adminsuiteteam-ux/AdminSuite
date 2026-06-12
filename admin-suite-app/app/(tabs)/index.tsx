@@ -4,6 +4,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
+  Animated,
   Dimensions,
   Modal,
   Platform,
@@ -15,6 +16,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 
 import { DashboardTour, TourLayout, TOUR_STEPS } from "@/components/DashboardTour";
 import { FinancialChart } from "@/components/FinancialChart";
@@ -30,6 +32,7 @@ const { height: screenHeight } = Dimensions.get("window");
 
 export default function DashboardScreen() {
   const colors = useColors();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { user } = useAuth();
@@ -38,7 +41,32 @@ export default function DashboardScreen() {
   const recent = transactions.slice(0, 5);
   const activeProjects = projects.filter((p: any) => p.status === "active").slice(0, 3);
   const [notifOpen, setNotifOpen] = useState(false);
-  const unread = notifications.length;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [viewedNotifIds, setViewedNotifIds] = useState<number[]>([]);
+
+  // Load viewed notifications on mount
+  useEffect(() => {
+    const loadViewed = async () => {
+      try {
+        const stored = await AsyncStorage.getItem("admin-suite.viewed-notifications");
+        if (stored) {
+          setViewedNotifIds(JSON.parse(stored));
+        }
+      } catch {}
+    };
+    loadViewed();
+  }, []);
+
+  const handleOpenNotifications = async () => {
+    setNotifOpen(true);
+    const ids = notifications.map((n: any) => n.id);
+    setViewedNotifIds(ids);
+    try {
+      await AsyncStorage.setItem("admin-suite.viewed-notifications", JSON.stringify(ids));
+    } catch {}
+  };
+
+  const unread = notifications.filter((n: any) => !viewedNotifIds.includes(n.id)).length;
 
   // ── Dashboard Tour State ──
   const [tourActive, setTourActive] = useState(false);
@@ -99,8 +127,18 @@ export default function DashboardScreen() {
       scrollViewRef.current?.scrollTo({ y: 0, animated: true });
       return;
     }
-    const currentKey = SCROLL_KEYS[stepIndex];
-    const layout = layouts[currentKey];
+    let currentKey: string | undefined;
+    if (stepIndex === 0) currentKey = "header";
+    else if (stepIndex === 1) currentKey = "profit";
+    else if (stepIndex === 2) currentKey = "chart";
+    else if (stepIndex === 3) currentKey = "stats";
+    else if (stepIndex === 4) currentKey = "actions";
+    let layout: TourLayout | undefined;
+    if (currentKey === "header") layout = layouts.header;
+    else if (currentKey === "profit") layout = layouts.profit;
+    else if (currentKey === "chart") layout = layouts.chart;
+    else if (currentKey === "stats") layout = layouts.stats;
+    else if (currentKey === "actions") layout = layouts.actions;
     if (layout) {
       const screenHeightOffset = (screenHeight - layout.height) / 2;
       const scrollToY = Math.max(0, layout.y - screenHeightOffset);
@@ -114,11 +152,20 @@ export default function DashboardScreen() {
       scrollViewRef.current?.scrollTo({ y: 0, animated: true });
       return;
     }
-    const refs = [headerRef, profitRef, chartRef, statsRef, actionsRef];
-    const currentRef = refs[stepIndex];
-    const currentKey = SCROLL_KEYS[stepIndex];
+    let currentRef: React.RefObject<View | null> | undefined;
+    if (stepIndex === 0) currentRef = headerRef;
+    else if (stepIndex === 1) currentRef = profitRef;
+    else if (stepIndex === 2) currentRef = chartRef;
+    else if (stepIndex === 3) currentRef = statsRef;
+    else if (stepIndex === 4) currentRef = actionsRef;
+    let currentKey: string | undefined;
+    if (stepIndex === 0) currentKey = "header";
+    else if (stepIndex === 1) currentKey = "profit";
+    else if (stepIndex === 2) currentKey = "chart";
+    else if (stepIndex === 3) currentKey = "stats";
+    else if (stepIndex === 4) currentKey = "actions";
 
-    if (currentRef?.current && scrollViewRef.current) {
+    if (currentRef?.current && scrollViewRef.current && currentKey) {
       currentRef.current.measureLayout(
         scrollViewRef.current as any,
         (x, y, width, height) => {
@@ -206,9 +253,10 @@ export default function DashboardScreen() {
                 </Text>
               </View>
             </View>
-            <View style={{ flexDirection: "row", gap: 8 }}>
+            <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+              {/* Bell */}
               <Pressable
-                onPress={() => setNotifOpen(true)}
+                onPress={handleOpenNotifications}
                 style={({ pressed }) => [
                   styles.bellBtn,
                   {
@@ -227,6 +275,20 @@ export default function DashboardScreen() {
                   </View>
                 ) : null}
               </Pressable>
+              {/* Three-dot menu */}
+              <Pressable
+                onPress={() => setMenuOpen(true)}
+                style={({ pressed }) => [
+                  styles.bellBtn,
+                  {
+                    transform: [{ scale: pressed ? 0.92 : 1 }],
+                    opacity: pressed ? 0.8 : 1,
+                  }
+                ]}
+                hitSlop={8}
+              >
+                <Feather name="more-vertical" size={20} color="#fff" />
+              </Pressable>
             </View>
           </View>
 
@@ -242,7 +304,7 @@ export default function DashboardScreen() {
             style={styles.profitBox}
           >
             <Text style={[styles.profitLabel, { fontFamily: "Inter_500Medium" }]}>
-              Net Profit · This Month
+              {t("dashboard.netProfit")}
             </Text>
             <Text style={[styles.profitValue, { fontFamily: "Inter_700Bold", fontVariant: ["tabular-nums"] }]}>
               {fmt(m.netProfit)}
@@ -256,7 +318,7 @@ export default function DashboardScreen() {
                     { fontFamily: "Inter_500Medium", fontVariant: ["tabular-nums"] },
                   ]}
                 >
-                  Income {fmt(m.totalIncome)}
+                  {t("dashboard.income")} {fmt(m.totalIncome)}
                 </Text>
               </View>
               <View style={styles.miniStat}>
@@ -267,7 +329,7 @@ export default function DashboardScreen() {
                     { fontFamily: "Inter_500Medium", fontVariant: ["tabular-nums"] },
                   ]}
                 >
-                  Expense {fmt(m.totalExpense)}
+                  {t("dashboard.expense")} {fmt(m.totalExpense)}
                 </Text>
               </View>
             </View>
@@ -572,6 +634,38 @@ export default function DashboardScreen() {
         onClose={() => setNotifOpen(false)}
       />
 
+      {/* ── Quick Menu Modal ── */}
+      <Modal
+        visible={menuOpen}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setMenuOpen(false)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setMenuOpen(false)} />
+        <View style={[styles.quickMenu, { backgroundColor: colors.background, borderColor: colors.border }]}>
+          {[
+            { icon: "user", label: "My Profile", onPress: () => { setMenuOpen(false); router.push("/settings/profile" as any); } },
+            { icon: "settings", label: "Settings", onPress: () => { setMenuOpen(false); router.push("/(tabs)/settings" as any); } },
+            { icon: "help-circle", label: "Help & Support", onPress: () => { setMenuOpen(false); router.push("/settings/help" as any); } },
+          ].map((item, i) => (
+            <Pressable
+              key={item.label}
+              onPress={item.onPress}
+              style={({ pressed }) => [
+                styles.quickMenuItem,
+                { borderBottomColor: colors.border, opacity: pressed ? 0.7 : 1 },
+                i === 2 && { borderBottomWidth: 0 },
+              ]}
+            >
+              <Feather name={item.icon as any} size={16} color={colors.foreground} />
+              <Text style={[styles.quickMenuLabel, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
+                {item.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      </Modal>
+
       <DashboardTour
         active={tourActive}
         step={tourStep}
@@ -636,6 +730,7 @@ interface NotificationsModalProps {
 
 function NotificationsModal({ visible, onClose }: NotificationsModalProps) {
   const colors = useColors();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const { notifications } = useData();
   return (
@@ -666,7 +761,7 @@ function NotificationsModal({ visible, onClose }: NotificationsModalProps) {
               { color: colors.foreground, fontFamily: "Inter_700Bold" },
             ]}
           >
-            Notifications
+            {t("dashboard.notifications")}
           </Text>
           <Pressable onPress={onClose} hitSlop={10}>
             <Feather name="x" size={20} color={colors.mutedForeground} />
@@ -772,6 +867,30 @@ const styles = StyleSheet.create({
     fontSize: 10,
     letterSpacing: 0.5,
   },
+  quickMenu: {
+    position: "absolute",
+    top: 80,
+    right: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    overflow: "hidden",
+    minWidth: 180,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 10,
+    zIndex: 999,
+  },
+  quickMenuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  quickMenuLabel: { fontSize: 14 },
   bellBtn: {
     width: 40,
     height: 40,
