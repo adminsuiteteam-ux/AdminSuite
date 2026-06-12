@@ -226,10 +226,11 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.UserRateThrottle',
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'anon': '1000/minute' if DEBUG else '200/minute',
+        'anon': '2000/minute' if DEBUG else '500/minute',
         'user': '100000/day' if DEBUG else '100000/day',
-        'auth': '100/minute' if DEBUG else '30/minute',  # Generous in dev, safe but realistic limit for login/register in prod
-    }
+        'auth': '500/minute' if DEBUG else '100/minute',  # Increased to prevent lockouts during active testing/use
+    },
+    'NUM_PROXIES': 1,
 }
 
 # SECURITY: Production-only security headers and cookie settings
