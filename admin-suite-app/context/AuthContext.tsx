@@ -3,6 +3,7 @@ import * as SecureStore from "@/services/storage";
 import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { supabase } from "@/services/supabase";
 import { apiService, resolveBackendUrl } from "@/services/api";
+import { registerForPushNotificationsAsync, unregisterFromPushNotificationsAsync } from "@/services/notifications";
 
 const TOKEN_KEY = "admin-suite.token";
 const TOUR_KEY = "admin-suite.tour-complete";
@@ -16,6 +17,7 @@ export type User = {
   initials: string;
   profile_complete: boolean;
   is_first_login?: boolean;
+  notifications_enabled?: boolean;
   employee_id?: number | null;
   location?: string;
   phone?: string;
@@ -101,6 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const u = res.data;
           u.initials = ((u.name || u.username || u.email || "US")).slice(0, 2).toUpperCase();
           setUser(u);
+          registerForPushNotificationsAsync().catch(err => console.error("Error registering push token on app launch:", err));
           await AsyncStorage.setItem(TOUR_KEY, "true");
           setTourComplete(true);
         } else if (tourRaw === "true") {
@@ -151,6 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await SecureStore.setItemAsync("admin-suite.username", credentials.username);
 
       setUser(u);
+      registerForPushNotificationsAsync().catch(err => console.error("Error registering push token on login:", err));
     } catch (err: any) {
       if (err.response?.status === 423 || err.response?.data?.error === 'suspended') {
         const until = err.response?.data?.suspended_until;
@@ -264,6 +268,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await SecureStore.setItemAsync("admin-suite.username", email);
       
       setUser(u);
+      registerForPushNotificationsAsync().catch(err => console.error("Error registering push token on signup verification:", err));
       return;
     } catch (signupErr: any) {
       console.warn("Django signup warning:", signupErr);
@@ -308,6 +313,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       u.initials = ((u.name || u.username || u.email || "US")).slice(0, 2).toUpperCase();
       
       setUser(u);
+      registerForPushNotificationsAsync().catch(err => console.error("Error registering push token on social login:", err));
     } catch (err: any) {
       console.error("Social sync failed:", err);
       throw err;
@@ -317,6 +323,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
+    try {
+      await unregisterFromPushNotificationsAsync();
+    } catch (e) {
+      console.warn("Unregister push notifications error:", e);
+    }
+
     try {
       await supabase.auth.signOut();
     } catch (e) {

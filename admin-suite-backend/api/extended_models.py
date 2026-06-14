@@ -57,6 +57,7 @@ class Branch(models.Model):
         help_text="User who created the branch (usually a CEO or branch admin).",
     )
     is_active = models.BooleanField(default=True)
+    location = models.CharField(max_length=255, blank=True, default="", help_text="Physical location/address of the branch.")
     archived_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
@@ -71,9 +72,12 @@ class UserExtension(models.Model):
     ROLE_CHOICES = [
         ("CEO", "Chief Executive Officer"),
         ("BRANCH_ADMIN", "Branch Administrator"),
-        ("MANAGER", "Manager"),
-        ("HR", "Human Resources"),
-        ("ASSISTANT_ADMIN", "Assistant Administrator"),
+        ("HR", "HR Manager"),
+        ("FINANCE", "Finance Officer"),
+        ("OPERATIONS", "Operations Manager"),
+        ("SECRETARY", "Secretary"),
+        ("DEPT_MANAGER", "Department Manager"),
+        ("EMPLOYEE", "Employee"),
     ]
     user = models.OneToOneField(
         User,

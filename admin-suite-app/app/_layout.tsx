@@ -7,16 +7,17 @@ import {
 } from "@expo-google-fonts/inter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import * as Sentry from "@sentry/react-native";
-import { Stack } from "expo-router";
+import { Stack, router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
+import * as Notifications from "expo-notifications";
 import { StatusBar } from "expo-status-bar";
-import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { Text, View, Pressable, Animated } from "react-native";
 import { useTranslation } from "react-i18next";
+import React, { useEffect } from "react";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/context/AuthContext";
@@ -24,6 +25,17 @@ import { DataProvider } from "@/context/DataContext";
 import { SettingsProvider } from "@/context/SettingsContext";
 import { ToastProvider } from "@/context/ToastContext";
 import "../i18n";
+
+// Configure how notifications are displayed when the app is in the foreground
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
 
 // Initialize Sentry (production only — avoids noisy dev warnings)
 if (!__DEV__) {
@@ -39,6 +51,25 @@ if (!__DEV__) {
 const queryClient = new QueryClient();
 
 function RootLayoutNav() {
+  useEffect(() => {
+    // Listen for notification taps to redirect to correct screens
+    const subscription = Notifications.addNotificationResponseReceivedListener(response => {
+      const data = response.notification.request.content.data;
+      if (data) {
+        console.log('[Notification Click] Payload data:', data);
+        if (data.screen === 'tasks') {
+          router.push('/(employee)/tasks' as any);
+        } else if (data.screen === 'admin-tasks') {
+          router.push('/(tabs)/tasks' as any);
+        }
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
   return (
     <Stack screenOptions={{ headerShown: false, animation: "fade_from_bottom" }}>
       <Stack.Screen name="index" options={{ animation: "fade" }} />

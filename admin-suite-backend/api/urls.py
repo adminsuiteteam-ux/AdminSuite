@@ -14,6 +14,7 @@ from .views import (
     employee_dashboard, employee_finance, employee_update_task,
     chat_messages, chat_send, chat_message_detail, chat_pin_message, chat_contacts,
     chat_settings, chat_block_user, chat_groups, chat_group_detail, chat_typing,
+    register_device, unregister_device,
 )
 
 router = DefaultRouter()
@@ -70,4 +71,6 @@ urlpatterns = [
     path('chat/groups/<int:pk>/', chat_group_detail, name='chat-group-detail'),
     path('chat/typing/', chat_typing, name='chat-typing'),
     path('export/', export_data, name='export-data'),
+    path('devices/register/', register_device, name='register-device'),
+    path('devices/unregister/', unregister_device, name='unregister-device'),
 ]

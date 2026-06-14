@@ -13,7 +13,7 @@ from .models import (
     Employee, EmployeeFinance, PayHistory, Client, Project, Transaction,
     Notification, Debt, BudgetCategory, Savings, EmployeeActivityLog,
     EmployeeQuery, EmployeeTask, EmployeeLeave, EmployeeMessage,
-    EmployeeDocument, SalaryAdjustment, PayrollStatus, ChatMessage, ChatSettings, ChatGroup, ChatTypingStatus
+    EmployeeDocument, SalaryAdjustment, PayrollStatus, ChatMessage, ChatSettings, ChatGroup, ChatTypingStatus, UserDevice
 )
 from .serializers import (
     EmployeeSerializer, ClientSerializer, ProjectSerializer,
@@ -25,6 +25,7 @@ from .serializers import (
     EmployeeFinanceSerializer, PayHistorySerializer, ChatMessageSerializer,
     ChatSettingsSerializer, ChatGroupSerializer
 )
+from .notifications import send_push_notification
 
 
 class AuthRateThrottle(AnonRateThrottle):
@@ -1140,6 +1141,18 @@ class EmployeeTaskViewSet(viewsets.ModelViewSet):
             body=f"Assigned task '{instance.title}' to {employee.name}",
             time="Just now"
         )
+        
+        # Send real-time push notification to the assigned employee
+        if employee.linked_user:
+            send_push_notification(
+                user=employee.linked_user,
+                title="New Task Assigned 📋",
+                body=f"You have been assigned task: '{instance.title}'",
+                data={
+                    "screen": "tasks",
+                    "taskId": instance.id
+                }
+            )
 
 
 class EmployeeLeaveViewSet(viewsets.ModelViewSet):
@@ -1359,6 +1372,18 @@ def employee_update_task(request, pk):
         details=f"Task '{task.title}' updated to status '{new_status}'."
     )
     
+    # Send push notification to the Admin (creator)
+    if employee.user:
+        send_push_notification(
+            user=employee.user,
+            title="Task Status Updated 📋",
+            body=f"Employee {employee.name} set task '{task.title}' to {new_status.replace('_', ' ')}",
+            data={
+                "screen": "admin-tasks",
+                "taskId": task.id
+            }
+        )
+
     return Response({
         'status': 'success',
         'task': EmployeeTaskSerializer(task, context={'request': request}).data
@@ -2074,4 +2099,57 @@ def chat_typing(request):
             typing_users.append(item)
 
         return Response({'typing_users': typing_users})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def register_device(request):
+    """
+    POST /api/devices/register/
+    Registers or updates an Expo push token for the authenticated user.
+    """
+    token = request.data.get('expo_push_token', '').strip()
+    if not token or not token.startswith('ExponentPushToken['):
+        return Response({'error': 'Invalid Expo push token format.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+    device_name = request.data.get('device_name', '').strip()
+    device_type = request.data.get('device_type', '').strip()
+
+    # Associated token is updated or created for the current user.
+    # We enforce uniqueness of expo_push_token in the model, so we update the user association if it already exists.
+    device, created = UserDevice.objects.update_or_create(
+        expo_push_token=token,
+        defaults={
+            'user': request.user,
+            'device_name': device_name[:100] if device_name else None,
+            'device_type': device_type[:20] if device_type else None,
+            'is_active': True
+        }
+    )
+    
+    return Response({
+        'status': 'success',
+        'message': 'Device token registered successfully.',
+        'created': created
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def unregister_device(request):
+    """
+    POST /api/devices/unregister/
+    Unregisters / removes an Expo push token upon logout.
+    """
+    token = request.data.get('expo_push_token', '').strip()
+    if not token:
+        return Response({'error': 'Expo push token is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Clean up the device token matching the current authenticated user
+    deleted_count, _ = UserDevice.objects.filter(user=request.user, expo_push_token=token).delete()
+    
+    if deleted_count > 0:
+        return Response({'status': 'success', 'message': 'Device token unregistered successfully.'}, status=status.HTTP_200_OK)
+    return Response({'error': 'Device token not found or not associated with your user.'}, status=status.HTTP_404_NOT_FOUND)
+
 

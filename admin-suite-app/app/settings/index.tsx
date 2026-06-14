@@ -21,11 +21,12 @@ import { CURRENCIES, useSettings } from "@/context/SettingsContext";
 import { useColors } from "@/hooks/useColors";
 import { apiService } from "@/services/api";
 import { useTranslation } from "react-i18next";
+import { registerForPushNotificationsAsync, unregisterFromPushNotificationsAsync } from "@/services/notifications";
 
 export default function AppSettingsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { logout } = useAuth();
+  const { logout, user, setUser } = useAuth();
   const {
     currency,
     setCurrency,
@@ -35,7 +36,26 @@ export default function AppSettingsScreen() {
     setBiometricsEnabled,
   } = useSettings();
   const { t } = useTranslation();
-  const [notif, setNotif] = useState(true);
+  const [notif, setNotif] = useState(user?.notifications_enabled ?? false);
+
+  const handleToggleNotifications = async (value: boolean) => {
+    setNotif(value);
+    try {
+      await apiService.updateMe({ notifications_enabled: value });
+      if (user) {
+        setUser({ ...user, notifications_enabled: value });
+      }
+      if (value) {
+        await registerForPushNotificationsAsync();
+      } else {
+        await unregisterFromPushNotificationsAsync();
+      }
+    } catch (err) {
+      console.error("Failed to toggle notifications:", err);
+      Alert.alert("Error", "Failed to update notification settings. Please check your connection.");
+      setNotif(!value);
+    }
+  };
   const [currencyOpen, setCurrencyOpen] = useState(false);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [signOutOpen, setSignOutOpen] = useState(false);
@@ -127,7 +147,7 @@ export default function AppSettingsScreen() {
             icon="bell"
             label={t("settings.pushNotifications")}
             value={notif}
-            onValueChange={setNotif}
+            onValueChange={handleToggleNotifications}
           />
           <ToggleRow
             icon="lock"

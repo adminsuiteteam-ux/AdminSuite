@@ -416,6 +416,12 @@ export const apiService = {
     }
     return apiClient.get(`chat/typing/?recipient_id=${recipientId}`);
   },
+
+  // Push Devices
+  registerDeviceToken: (data: { expo_push_token: string; device_name?: string; device_type?: string }) =>
+    apiClient.post('devices/register/', data),
+  unregisterDeviceToken: (data: { expo_push_token: string }) =>
+    apiClient.post('devices/unregister/', data),
 };
 
 export default apiClient;

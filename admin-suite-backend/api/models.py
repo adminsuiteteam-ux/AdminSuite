@@ -45,6 +45,7 @@ class Employee(models.Model):
     avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
     user = models.ForeignKey('auth.User', on_delete=models.CASCADE, null=True, blank=True)
     linked_user = models.OneToOneField('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='employee_profile')
+    branch = models.ForeignKey('Branch', on_delete=models.SET_NULL, null=True, blank=True, related_name='employees')
     email = models.EmailField()
     phone = models.CharField(max_length=50, blank=True, null=True)
     location = models.CharField(max_length=255, blank=True, null=True)
@@ -103,6 +104,7 @@ class Project(models.Model):
     image = models.ImageField(upload_to='projects/images/', blank=True, null=True)
     video = models.FileField(upload_to='projects/videos/', blank=True, null=True)
     user = models.ForeignKey('auth.User', on_delete=models.CASCADE, null=True, blank=True)
+    branch = models.ForeignKey('Branch', on_delete=models.SET_NULL, null=True, blank=True, related_name='projects')
 
     def __str__(self):
         return self.name
@@ -118,6 +120,7 @@ class Transaction(models.Model):
     description = models.CharField(max_length=255)
     date = models.CharField(max_length=50) # Matching frontend string format like "Apr 28"
     user = models.ForeignKey('auth.User', on_delete=models.CASCADE, null=True, blank=True)
+    branch = models.ForeignKey('Branch', on_delete=models.SET_NULL, null=True, blank=True, related_name='transactions')
 
     def __str__(self):
         return f"{self.type}: {self.description}"
@@ -151,6 +154,7 @@ class BudgetCategory(models.Model):
     spent = models.DecimalField(max_digits=15, decimal_places=2)
     color = models.CharField(max_length=20)
     user = models.ForeignKey('auth.User', on_delete=models.CASCADE, null=True, blank=True)
+    branch = models.ForeignKey('Branch', on_delete=models.SET_NULL, null=True, blank=True, related_name='budgets')
 
     def __str__(self):
         return self.name
@@ -161,6 +165,7 @@ class Savings(models.Model):
     saved = models.DecimalField(max_digits=15, decimal_places=2)
     purpose = models.CharField(max_length=255)
     user = models.ForeignKey('auth.User', on_delete=models.CASCADE, null=True, blank=True)
+    branch = models.ForeignKey('Branch', on_delete=models.SET_NULL, null=True, blank=True, related_name='savings_plans')
 
     def __str__(self):
         return self.name
@@ -304,6 +309,7 @@ class EmployeeLeave(models.Model):
     end_date = models.DateField()
     duration_days = models.IntegerField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='scheduled')
+    branch = models.ForeignKey('Branch', on_delete=models.SET_NULL, null=True, blank=True, related_name='leaves')
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -470,4 +476,18 @@ class ChatTypingStatus(models.Model):
     def __str__(self):
         dest = f"→ {self.recipient.username}" if self.recipient else (f"→ Group {self.group.name}" if self.group else "→ Team Chat")
         return f"{self.user.username} is typing {dest}"
+
+
+class UserDevice(models.Model):
+    user = models.ForeignKey('auth.User', on_delete=models.CASCADE, related_name='devices')
+    expo_push_token = models.CharField(max_length=255, unique=True)
+    device_name = models.CharField(max_length=100, blank=True, null=True)
+    device_type = models.CharField(max_length=20, blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.user.username} - {self.device_name or self.expo_push_token[:15]}"
+
 

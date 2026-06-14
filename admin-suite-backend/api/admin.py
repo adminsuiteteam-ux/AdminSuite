@@ -2,7 +2,7 @@ from django.contrib import admin
 from .models import (
     Employee, EmployeeFinance, PayHistory, Client, Project,
     Transaction, Notification, Debt, BudgetCategory, Savings,
-    UserProfile, PhoneOTP, EmailVerificationCode, PasswordResetCode, PayrollStatus
+    UserProfile, PhoneOTP, EmailVerificationCode, PasswordResetCode, PayrollStatus, UserDevice
 )
 
 
@@ -98,3 +98,10 @@ class PayrollStatusAdmin(admin.ModelAdmin):
     list_display = ('user', 'month', 'paid')
     list_filter = ('paid', 'month')
     search_fields = ('user__username', 'month')
+
+
+@admin.register(UserDevice)
+class UserDeviceAdmin(admin.ModelAdmin):
+    list_display = ('user', 'expo_push_token', 'device_name', 'device_type', 'is_active', 'created_at')
+    list_filter = ('is_active', 'device_type')
+    search_fields = ('user__username', 'expo_push_token', 'device_name')
