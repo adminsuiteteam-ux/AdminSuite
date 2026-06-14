@@ -162,7 +162,8 @@ export default function SplashGate() {
           router.replace("/tour");
         } else if (!user) {
           router.replace("/(auth)/login");
-        } else if (user.role === 'employee' && user.is_first_login) {
+        } else if (user.is_first_login) {
+          // Any system-created account must reset their temporary password first
           router.replace("/(auth)/employee-setup");
         } else if (!user.profile_complete) {
           router.replace("/(auth)/complete-profile");

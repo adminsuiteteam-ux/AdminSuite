@@ -1192,6 +1192,20 @@ class EmployeeLeaveViewSet(viewsets.ModelViewSet):
             details=f"Scheduled {instance.leave_type} leave from {instance.start_date} to {instance.end_date} ({instance.duration_days} days)"
         )
 
+        # ── Notify the account owner (admin) about the new leave request ────
+        admin_user = self.request.user
+        send_push_notification(
+            user=admin_user,
+            title=f'📅 New Leave Request',
+            body=(
+                f'{employee.name} has requested {instance.leave_type} leave '
+                f'from {instance.start_date} to {instance.end_date} '
+                f'({instance.duration_days} day{"s" if instance.duration_days != 1 else ""}).'
+            ),
+            data={'screen': 'leave', 'employeeId': str(employee.id)}
+        )
+        # ────────────────────────────────────────────────────────────────────
+
 
 class EmployeeMessageViewSet(viewsets.ModelViewSet):
     serializer_class = EmployeeMessageSerializer
@@ -1556,6 +1570,39 @@ def chat_send(request):
         reply_to=reply_to,
     )
     msg.read_by.add(request.user)
+
+    # ── Push Notifications ──────────────────────────────────────────────────
+    sender_name = request.user.get_full_name() or request.user.username
+    short_text = text[:80] + ('...' if len(text) > 80 else '')
+
+    if recipient:
+        # Direct message — notify the recipient only
+        send_push_notification(
+            user=recipient,
+            title=f'💬 New message from {sender_name}',
+            body=short_text,
+            data={'screen': 'chat', 'recipientId': str(request.user.id)}
+        )
+    elif chat_group:
+        # Custom group — notify all members except the sender
+        for member in chat_group.members.exclude(id=request.user.id):
+            send_push_notification(
+                user=member,
+                title=f'💬 {chat_group.name}: {sender_name}',
+                body=short_text,
+                data={'screen': 'chat-group', 'groupId': str(chat_group.id)}
+            )
+    else:
+        # General company group — notify the admin (company_user) if sender is not admin
+        if request.user != company_user:
+            send_push_notification(
+                user=company_user,
+                title=f'💬 Group: {sender_name}',
+                body=short_text,
+                data={'screen': 'chat'}
+            )
+    # ───────────────────────────────────────────────────────────────────────
+
     serializer = ChatMessageSerializer(msg, context={'request': request})
     return Response(serializer.data, status=status.HTTP_201_CREATED)
 

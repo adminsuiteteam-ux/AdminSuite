@@ -206,10 +206,10 @@ export default function EmployeeSetupScreen() {
               <LogoMark size={28} tint={colors.primaryForeground} />
             </View>
             <Text style={[styles.title, { fontFamily: "Inter_700Bold", color: colors.text }]}>
-              Secure Account
+              Secure Your Account
             </Text>
             <Text style={[styles.subtitle, { fontFamily: "Inter_400Regular", color: colors.mutedForeground }]}>
-              Welcome! Please choose a new secure{"\n"}password for your profile.
+              Welcome to AdminSuite! Your account has{"\n"}been set up. Please create a new password{"\n"}to replace your temporary one.
             </Text>
           </View>
 

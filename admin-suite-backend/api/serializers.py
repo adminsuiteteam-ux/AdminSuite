@@ -118,6 +118,8 @@ class EmployeeSerializer(serializers.ModelSerializer):
     salary_adjustments = SalaryAdjustmentSerializer(many=True, read_only=True)
     temp_password = serializers.SerializerMethodField()
     avatar = serializers.ImageField(required=False, allow_null=True)
+    branch_name = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    branch_location = serializers.CharField(write_only=True, required=False, allow_blank=True)
     
     class Meta:
         model = Employee
@@ -127,7 +129,8 @@ class EmployeeSerializer(serializers.ModelSerializer):
             'phone', 'location', 'bio', 'socials', 'finance', 'finance_data',
             'is_flagged', 'flag_reason', 'flag_note', 'is_archived',
             'activity_logs', 'queries', 'tasks', 'leaves', 'messages',
-            'documents', 'salary_adjustments', 'linked_user', 'temp_password'
+            'documents', 'salary_adjustments', 'linked_user', 'temp_password',
+            'branch_name', 'branch_location'
         ]
         read_only_fields = ['user', 'linked_user']
         extra_kwargs = {
@@ -179,7 +182,10 @@ class EmployeeSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         finance_data = validated_data.pop('finance_data', {})
         user = validated_data.get('user')
-        
+        branch_name = validated_data.pop('branch_name', '').strip()
+        branch_location = validated_data.pop('branch_location', '').strip()
+        role_display = validated_data.get('role', 'Employee')
+
         # Auto-create user account for the employee
         email = validated_data.get('email', '').strip().lower()
         name = validated_data.get('name', '').strip()
@@ -200,7 +206,62 @@ class EmployeeSerializer(serializers.ModelSerializer):
         
         # Setup Employee UserProfile
         profile, _ = UserProfile.objects.get_or_create(user=emp_user)
-        profile.role = 'employee'
+        # Setup role for UserProfile and UserExtension
+        role_map = {
+            'CEO': 'CEO',
+            'ADMIN': 'CEO',
+            'NEW ADMIN': 'BRANCH_ADMIN',
+            'BRANCH_ADMIN': 'BRANCH_ADMIN',
+            'HR MANAGER': 'HR',
+            'HR': 'HR',
+            'FINANCE OFFICER': 'FINANCE',
+            'FINANCE': 'FINANCE',
+            'OPERATIONS MANAGER': 'OPERATIONS',
+            'OPERATIONS': 'OPERATIONS',
+            'SECRETARY': 'SECRETARY',
+            'DEPARTMENT MANAGER': 'DEPT_MANAGER',
+            'DEPT_MANAGER': 'DEPT_MANAGER',
+            'EMPLOYEE': 'EMPLOYEE'
+        }
+        system_role = role_map.get(role_display.strip().upper(), 'EMPLOYEE')
+        
+        # Determine organization and branch from creator user
+        creator_user = self.context['request'].user if 'request' in self.context else user
+        creator_org = None
+        creator_branch = None
+        if creator_user:
+            try:
+                creator_ext = creator_user.userextension
+                creator_org = creator_ext.organization
+                creator_branch = creator_ext.branch
+            except Exception:
+                pass
+
+        target_branch = creator_branch
+
+        # Handle Branch Creation
+        if system_role == 'BRANCH_ADMIN' and branch_name and creator_org:
+            from .extended_models import Branch
+            # Create a new branch under organization
+            target_branch = Branch.objects.create(
+                name=branch_name,
+                organization=creator_org,
+                created_by=creator_user,
+                location=branch_location
+            )
+
+        # Setup UserExtension
+        from .extended_models import UserExtension
+        UserExtension.objects.get_or_create(
+            user=emp_user,
+            defaults={
+                'role': system_role,
+                'organization': creator_org,
+                'branch': target_branch
+            }
+        )
+
+        profile.role = system_role.lower()
         profile.is_first_login = True
         profile.profile_complete = True
         if validated_data.get('avatar'):
@@ -208,6 +269,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
         profile.save()
         
         validated_data['linked_user'] = emp_user
+        validated_data['branch'] = target_branch
 
         # Filter finance_data to only valid EmployeeFinance fields
         valid_finance_fields = {f.name for f in EmployeeFinance._meta.get_fields() if hasattr(f, 'column')} # type: ignore
@@ -219,6 +281,17 @@ class EmployeeSerializer(serializers.ModelSerializer):
         
         # Save temp password to display to Admin
         employee._temp_password = temp_password  # type: ignore[attr-defined]
+
+        # Send onboarding email
+        from .emails import send_onboarding_email
+        send_onboarding_email(
+            email=email,
+            name=name,
+            temp_password=temp_password,
+            company_name=creator_org.name if creator_org else "AdminSuite Company",
+            role_display=role_display
+        )
+
         return employee
 
     def update(self, instance, validated_data):

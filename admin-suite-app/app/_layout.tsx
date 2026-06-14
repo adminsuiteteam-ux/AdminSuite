@@ -61,6 +61,12 @@ function RootLayoutNav() {
           router.push('/(employee)/tasks' as any);
         } else if (data.screen === 'admin-tasks') {
           router.push('/(tabs)/tasks' as any);
+        } else if (data.screen === 'chat' || data.screen === 'chat-group') {
+          // Deep-link to the admin chat tab
+          router.push('/(tabs)/admin-chat' as any);
+        } else if (data.screen === 'leave') {
+          // Deep-link to the employees tab (leave management is there)
+          router.push('/(tabs)/employees' as any);
         }
       }
     });

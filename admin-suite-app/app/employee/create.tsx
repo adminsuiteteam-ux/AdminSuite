@@ -23,14 +23,26 @@ import { useColors } from "@/hooks/useColors";
 import { useToast } from "@/context/ToastContext";
 import { apiService, appendFileToFormData, getMediaUrl } from "@/services/api";
 
-const STEPS = [
-  { title: "Basic Info", subtitle: "Name, role & department" },
-  { title: "Contact", subtitle: "Email, phone & location" },
-  { title: "Profile", subtitle: "Bio, salary & performance" },
-  { title: "Social Media", subtitle: "Add social handles" },
-  { title: "Financial", subtitle: "Debts, shares & compensation" },
-  { title: "Photo", subtitle: "Upload a profile photo (optional)" },
-];
+// ─────────────────────────────────────────────────────────────
+// Step definitions differ by role
+// ─────────────────────────────────────────────────────────────
+const getStepsList = (selectedRole: string) => {
+  if (selectedRole === "Admin") {
+    return [
+      { title: "Select Role", subtitle: "Choose account type" },
+      { title: "Admin Setup", subtitle: "Branch & basic details" },
+    ];
+  }
+  return [
+    { title: "Select Role", subtitle: "Choose account type" },
+    { title: "Basic Info", subtitle: "Name & department" },
+    { title: "Contact", subtitle: "Email, phone & location" },
+    { title: "Profile", subtitle: "Bio, salary & performance" },
+    { title: "Social Media", subtitle: "Add social handles" },
+    { title: "Financial", subtitle: "Debts, shares & compensation" },
+    { title: "Photo", subtitle: "Upload a profile photo (optional)" },
+  ];
+};
 
 const DEPARTMENTS = [
   "Human Resources",
@@ -43,13 +55,80 @@ const DEPARTMENTS = [
   "Product Development",
   "Procurement",
   "IT Support",
-  "Other"
+  "Other",
 ];
+
 const STATUSES = [
   { id: "active", label: "Active", color: "#22c55e" },
   { id: "on_leave", label: "On Leave", color: "#f97316" },
 ];
 
+const AVAILABLE_ROLES = [
+  {
+    id: "Admin",
+    label: "New Admin",
+    desc: "Full executive dashboard access (CEO / Branch Admin)",
+    icon: "crown",
+    color: "#f59e0b",
+  },
+  {
+    id: "HR Manager",
+    label: "HR Manager",
+    desc: "Manages hiring, employee welfare, KPIs, relations",
+    icon: "users",
+    color: "#6366f1",
+  },
+  {
+    id: "Secretary",
+    label: "Secretary",
+    desc: "Manages calendars, company docs, schedules meetings",
+    icon: "calendar",
+    color: "#0ea5e9",
+  },
+  {
+    id: "Finance Officer",
+    label: "Finance Officer",
+    desc: "Oversees revenue, spending, reserve funds, budgets",
+    icon: "chart-line",
+    color: "#10b981",
+  },
+  {
+    id: "Operations Manager",
+    label: "Operations Manager",
+    desc: "Coordinates projects, tasks, workflows, milestones",
+    icon: "gears",
+    color: "#ef4444",
+  },
+  {
+    id: "Department Manager",
+    label: "Department Manager",
+    desc: "Supervises specific department teams and metrics",
+    icon: "building",
+    color: "#8b5cf6",
+  },
+  {
+    id: "Employee",
+    label: "Employee",
+    desc: "Execution member, task completions, collaboration",
+    icon: "user-tie",
+    color: "#64748b",
+  },
+];
+
+// Map UI role label → backend role key
+const ROLE_KEY_MAP: Record<string, string> = {
+  Admin: "BRANCH_ADMIN",
+  "HR Manager": "HR",
+  Secretary: "SECRETARY",
+  "Finance Officer": "FINANCE",
+  "Operations Manager": "OPERATIONS",
+  "Department Manager": "DEPT_MANAGER",
+  Employee: "EMPLOYEE",
+};
+
+// ─────────────────────────────────────────────────────────────
+// Main component
+// ─────────────────────────────────────────────────────────────
 export default function CreateEmployeeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -60,7 +139,15 @@ export default function CreateEmployeeScreen() {
 
   const isEditing = !!editId;
 
-  // Step 1 — Basic
+  // ── Step 0: Role selector state ──────────────────────────────
+  const [selectedRole, setSelectedRole] = useState<string>("");
+
+  // ── Step 1 (Admin): Branch scope ────────────────────────────
+  const [adminScope, setAdminScope] = useState<"current" | "new_branch">("current");
+  const [branchName, setBranchName] = useState("");
+  const [branchLocation, setBranchLocation] = useState("");
+
+  // ── Step 1 (Non-Admin): Basic info ─────────────────────────
   const [name, setName] = useState("");
   const [role, setRole] = useState("");
   const [department, setDepartment] = useState("");
@@ -68,17 +155,17 @@ export default function CreateEmployeeScreen() {
   const [office, setOffice] = useState("");
   const [status, setStatus] = useState("active");
 
-  // Step 2 — Contact
+  // ── Step 2: Contact ─────────────────────────────────────────
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [location, setLocation] = useState("");
 
-  // Step 3 — Profile
+  // ── Step 3: Profile ─────────────────────────────────────────
   const [bio, setBio] = useState("");
   const [salary, setSalary] = useState("");
   const [performance, setPerformance] = useState(3);
 
-  // Step 4 — Social
+  // ── Step 4: Social ──────────────────────────────────────────
   const [whatsapp, setWhatsapp] = useState("");
   const [facebook, setFacebook] = useState("");
   const [instagram, setInstagram] = useState("");
@@ -87,43 +174,56 @@ export default function CreateEmployeeScreen() {
   const [discord, setDiscord] = useState("");
   const [twitter, setTwitter] = useState("");
 
-  // Step 5 — Financial
+  // ── Step 5: Financial ───────────────────────────────────────
   const [employeeOwes, setEmployeeOwes] = useState("");
   const [companyOwes, setCompanyOwes] = useState("");
   const [shares, setShares] = useState("");
 
-  // Step 6 — Photo
+  // ── Step 6: Photo ───────────────────────────────────────────
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const [createdEmployee, setCreatedEmployee] = useState<{ email: string; tempPassword?: string } | null>(null);
+  // ── Success modal ───────────────────────────────────────────
+  const [createdEmployee, setCreatedEmployee] = useState<{
+    email: string;
+    tempPassword?: string;
+  } | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const handleCopyPassword = async () => {
-    if (!createdEmployee?.tempPassword) return;
-    const success = await copyToClipboard(createdEmployee.tempPassword);
-    if (success) {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
+  // ── Derived steps list ──────────────────────────────────────
+  const stepsList = getStepsList(selectedRole);
 
+  // ── Pre-fill when editing ───────────────────────────────────
   useEffect(() => {
     if (editId) {
       const emp = employees.find((e) => String(e.id) === String(editId));
       if (emp) {
         setName(emp.name || "");
         setRole(emp.role || "");
-        
+
+        const rUpper = (emp.role || "").toUpperCase();
+        if (rUpper.includes("CEO") || rUpper.includes("ADMIN") || rUpper.includes("BRANCH")) {
+          setSelectedRole("Admin");
+        } else if (rUpper.includes("HR")) {
+          setSelectedRole("HR Manager");
+        } else if (rUpper.includes("FINANCE")) {
+          setSelectedRole("Finance Officer");
+        } else if (rUpper.includes("OPERATIONS")) {
+          setSelectedRole("Operations Manager");
+        } else if (rUpper.includes("SECRETARY")) {
+          setSelectedRole("Secretary");
+        } else if (rUpper.includes("DEPT") || rUpper.includes("DEPARTMENT")) {
+          setSelectedRole("Department Manager");
+        } else {
+          setSelectedRole("Employee");
+        }
+
         if (DEPARTMENTS.includes(emp.department || "")) {
           setDepartment(emp.department || "");
           setCustomDepartment("");
         } else if (emp.department) {
           setDepartment("Other");
           setCustomDepartment(emp.department);
-        } else {
-          setDepartment("");
-          setCustomDepartment("");
         }
 
         setOffice(emp.office || "");
@@ -134,7 +234,7 @@ export default function CreateEmployeeScreen() {
         setBio(emp.bio || "");
         setSalary(emp.salary ? emp.salary.toString() : "");
         setPerformance(emp.performance || 3);
-        
+
         if (emp.socials) {
           setWhatsapp(emp.socials.whatsapp || "");
           setFacebook(emp.socials.facebook || "");
@@ -146,27 +246,50 @@ export default function CreateEmployeeScreen() {
         }
 
         if (emp.finance) {
-          setEmployeeOwes(emp.finance.employee_owes_company ? emp.finance.employee_owes_company.toString() : "");
-          setCompanyOwes(emp.finance.company_owes_employee ? emp.finance.company_owes_employee.toString() : "");
+          setEmployeeOwes(
+            emp.finance.employee_owes_company
+              ? emp.finance.employee_owes_company.toString()
+              : ""
+          );
+          setCompanyOwes(
+            emp.finance.company_owes_employee
+              ? emp.finance.company_owes_employee.toString()
+              : ""
+          );
           setShares(emp.finance.shares ? emp.finance.shares.toString() : "");
         }
 
         setPhotoUri(emp.avatar ? getMediaUrl(emp.avatar) : null);
+        // skip to step 1 when editing (skip role selector)
+        setStep(1);
       }
     }
   }, [editId, employees]);
 
+  // ── Validation ──────────────────────────────────────────────
   const canNext = () => {
-    if (step === 0) {
-      const depValid = department === "Other" ? customDepartment.trim().length > 0 : department.length > 0;
-      return name.trim().length > 0 && role.trim().length > 0 && depValid;
+    if (step === 0) return selectedRole !== "";
+
+    if (selectedRole === "Admin") {
+      // Step 1 for Admin: name, email, and branch if new
+      const branchOk =
+        adminScope === "current" ||
+        (branchName.trim().length > 0 && branchLocation.trim().length > 0);
+      return name.trim().length > 0 && email.includes("@") && phone.trim().length > 0 && branchOk;
     }
-    if (step === 1) return email.includes("@");
+
+    // Non-admin steps
+    if (step === 1) {
+      const depValid =
+        department === "Other" ? customDepartment.trim().length > 0 : department.length > 0;
+      return name.trim().length > 0 && depValid && office.trim().length > 0;
+    }
+    if (step === 2) return email.includes("@");
     return true;
   };
 
   const next = () => {
-    if (step < STEPS.length - 1) {
+    if (step < stepsList.length - 1) {
       setStep(step + 1);
     } else {
       handleSave();
@@ -178,6 +301,7 @@ export default function CreateEmployeeScreen() {
     else router.back();
   };
 
+  // ── Image picker ────────────────────────────────────────────
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
@@ -190,46 +314,76 @@ export default function CreateEmployeeScreen() {
     }
   };
 
+  // ── Copy temp password ───────────────────────────────────────
+  const handleCopyPassword = async () => {
+    if (!createdEmployee?.tempPassword) return;
+    const success = await copyToClipboard(createdEmployee.tempPassword);
+    if (success) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  // ── Save / Submit ───────────────────────────────────────────
   const handleSave = async () => {
     if (saving) return;
     setSaving(true);
-    
+
     const formData = new FormData();
     formData.append("name", name);
-    formData.append("role", role);
-    const finalDepartment = department === "Other" ? customDepartment.trim() : department;
-    formData.append("department", finalDepartment);
-    formData.append("office", office);
-    formData.append("status", status);
     formData.append("email", email);
     formData.append("phone", phone);
-    formData.append("location", location);
-    formData.append("bio", bio);
-    formData.append("salary", salary || "0");
-    formData.append("performance", performance.toString());
     formData.append("initials", name.substring(0, 2).toUpperCase());
-    
-    const socials = {
-      whatsapp,
-      facebook,
-      instagram,
-      phone: phoneHandle,
-      linkedin,
-      discord,
-      twitter,
-    };
-    formData.append("socials", JSON.stringify(socials));
 
-    await appendFileToFormData(formData, "avatar", photoUri);
+    if (selectedRole === "Admin") {
+      formData.append("role", ROLE_KEY_MAP["Admin"]);
+      formData.append("department", "Administration");
+      formData.append("status", "active");
 
-    // Since EmployeeFinance is a separate model, the backend serializer might need adjustment
-    // but for now we'll pass the financial fields if the serializer supports them
-    formData.append("finance_data", JSON.stringify({
-      employee_owes_company: parseFloat(employeeOwes) || 0,
-      company_owes_employee: parseFloat(companyOwes) || 0,
-      shares: parseFloat(shares) || 0,
-      current_pay: parseFloat(salary) || 0,
-    }));
+      if (adminScope === "new_branch") {
+        formData.append("office", branchName);
+        formData.append("branch_name", branchName);
+        formData.append("branch_location", branchLocation);
+        formData.append("location", branchLocation);
+      } else {
+        formData.append("office", "Main Office");
+        formData.append("location", location || "Main Headquarters");
+      }
+    } else {
+      formData.append("role", ROLE_KEY_MAP[selectedRole] || selectedRole);
+      const finalDepartment =
+        department === "Other" ? customDepartment.trim() : department;
+      formData.append("department", finalDepartment);
+      formData.append("office", office);
+      formData.append("status", status);
+      formData.append("location", location);
+      formData.append("bio", bio);
+      formData.append("salary", salary || "0");
+      formData.append("performance", performance.toString());
+
+      const socials = {
+        whatsapp,
+        facebook,
+        instagram,
+        phone: phoneHandle,
+        linkedin,
+        discord,
+        twitter,
+      };
+      formData.append("socials", JSON.stringify(socials));
+
+      await appendFileToFormData(formData, "avatar", photoUri);
+
+      formData.append(
+        "finance_data",
+        JSON.stringify({
+          employee_owes_company: parseFloat(employeeOwes) || 0,
+          company_owes_employee: parseFloat(companyOwes) || 0,
+          shares: parseFloat(shares) || 0,
+          current_pay: parseFloat(salary) || 0,
+        })
+      );
+    }
 
     try {
       let response;
@@ -239,7 +393,7 @@ export default function CreateEmployeeScreen() {
         showToast({
           title: "Employee Updated",
           message: `${name} has been updated successfully.`,
-          type: "success"
+          type: "success",
         });
         router.back();
       } else {
@@ -250,9 +404,9 @@ export default function CreateEmployeeScreen() {
           setCreatedEmployee({ email, tempPassword });
         } else {
           showToast({
-            title: "Employee Created",
-            message: `${name} has been added successfully.`,
-            type: "success"
+            title: "Account Created",
+            message: `${name}'s account has been set up. A login email has been sent.`,
+            type: "success",
           });
           router.back();
         }
@@ -265,34 +419,44 @@ export default function CreateEmployeeScreen() {
     }
   };
 
+  const currentStep = stepsList[step] ?? { title: "Creating", subtitle: "" };
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={{ flex: 1, backgroundColor: colors.background }}
     >
-      {/* Header */}
+      {/* ── Header ─────────────────────────────────────────── */}
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <Pressable onPress={back} style={[styles.backBtn, { backgroundColor: colors.card, borderColor: colors.border }]} hitSlop={10}>
+        <Pressable
+          onPress={back}
+          style={[styles.backBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+          hitSlop={10}
+        >
           <Feather name="chevron-left" size={22} color={colors.foreground} />
         </Pressable>
         <View style={{ flex: 1, alignItems: "center" }}>
-          <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-            {STEPS[step].title}
+          <Text
+            style={[styles.headerTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}
+          >
+            {isEditing ? "Edit Employee" : currentStep.title}
           </Text>
-          <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12 }}>
-            Step {step + 1} of {STEPS.length}
+          <Text
+            style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12 }}
+          >
+            {isEditing ? currentStep.subtitle : `Step ${step + 1} of ${stepsList.length}`}
           </Text>
         </View>
         <View style={{ width: 38 }} />
       </View>
 
-      {/* Progress bar */}
+      {/* ── Progress bar ────────────────────────────────────── */}
       <View style={[styles.progressBg, { backgroundColor: colors.border }]}>
         <View
           style={[
             styles.progressFill,
             {
-              width: `${((step + 1) / STEPS.length) * 100}%`,
+              width: `${((step + 1) / stepsList.length) * 100}%`,
               backgroundColor: colors.accent,
             },
           ]}
@@ -304,11 +468,241 @@ export default function CreateEmployeeScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        {/* ══════════════════════════════════════════════════
+            STEP 0 — ROLE SELECTOR
+        ══════════════════════════════════════════════════ */}
         {step === 0 && (
+          <View style={{ gap: 12 }}>
+            <Text
+              style={{
+                color: colors.foreground,
+                fontFamily: "Inter_700Bold",
+                fontSize: 20,
+                marginBottom: 4,
+              }}
+            >
+              Who are you creating this account for?
+            </Text>
+            <Text
+              style={{
+                color: colors.mutedForeground,
+                fontFamily: "Inter_400Regular",
+                fontSize: 14,
+                marginBottom: 8,
+              }}
+            >
+              Select the role that best matches the new team member's responsibilities.
+            </Text>
+            {AVAILABLE_ROLES.map((r) => {
+              const isSelected = selectedRole === r.id;
+              return (
+                <Pressable
+                  key={r.id}
+                  onPress={() => setSelectedRole(r.id)}
+                  style={[
+                    styles.roleCard,
+                    {
+                      backgroundColor: isSelected ? r.color + "15" : colors.card,
+                      borderColor: isSelected ? r.color : colors.border,
+                    },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.roleIconWrap,
+                      { backgroundColor: r.color + (isSelected ? "25" : "15") },
+                    ]}
+                  >
+                    <FontAwesome6 name={r.icon as any} size={18} color={r.color} />
+                  </View>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text
+                      style={{
+                        color: isSelected ? r.color : colors.foreground,
+                        fontFamily: "Inter_700Bold",
+                        fontSize: 15,
+                      }}
+                    >
+                      {r.label}
+                    </Text>
+                    <Text
+                      style={{
+                        color: colors.mutedForeground,
+                        fontFamily: "Inter_400Regular",
+                        fontSize: 12,
+                        lineHeight: 17,
+                      }}
+                    >
+                      {r.desc}
+                    </Text>
+                  </View>
+                  {isSelected && (
+                    <View
+                      style={[styles.roleCheckCircle, { backgroundColor: r.color }]}
+                    >
+                      <Feather name="check" size={12} color="#fff" />
+                    </View>
+                  )}
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+
+        {/* ══════════════════════════════════════════════════
+            STEP 1 (ADMIN) — BRANCH SCOPE + DETAILS
+        ══════════════════════════════════════════════════ */}
+        {step === 1 && selectedRole === "Admin" && (
           <View style={{ gap: 16 }}>
-            <Field label="Full Name" value={name} onChangeText={setName} placeholder="e.g. Amara Okonkwo" colors={colors} />
-            <Field label="Role / Job Title" value={role} onChangeText={setRole} placeholder="e.g. Senior Engineer" colors={colors} />
-            <Text style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Department</Text>
+            <Text
+              style={{
+                color: colors.foreground,
+                fontFamily: "Inter_700Bold",
+                fontSize: 18,
+                marginBottom: 4,
+              }}
+            >
+              Admin Account Setup
+            </Text>
+
+            {/* Branch scope selector */}
+            <Text
+              style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}
+            >
+              Branch Scope
+            </Text>
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              {[
+                { id: "current" as const, label: "Current Company", icon: "building-2" },
+                { id: "new_branch" as const, label: "New Branch", icon: "git-branch" },
+              ].map((s) => {
+                const isSel = adminScope === s.id;
+                return (
+                  <Pressable
+                    key={s.id}
+                    onPress={() => setAdminScope(s.id)}
+                    style={[
+                      styles.scopeCard,
+                      {
+                        flex: 1,
+                        backgroundColor: isSel ? colors.accent + "18" : colors.card,
+                        borderColor: isSel ? colors.accent : colors.border,
+                      },
+                    ]}
+                  >
+                    <Feather
+                      name={s.icon as any}
+                      size={18}
+                      color={isSel ? colors.accent : colors.mutedForeground}
+                    />
+                    <Text
+                      style={{
+                        color: isSel ? colors.accent : colors.foreground,
+                        fontFamily: "Inter_600SemiBold",
+                        fontSize: 13,
+                        textAlign: "center",
+                        marginTop: 4,
+                      }}
+                    >
+                      {s.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* New branch fields */}
+            {adminScope === "new_branch" && (
+              <>
+                <View
+                  style={[
+                    styles.infoBanner,
+                    { backgroundColor: colors.accent + "12", borderColor: colors.accent + "40" },
+                  ]}
+                >
+                  <Feather name="info" size={14} color={colors.accent} />
+                  <Text
+                    style={{
+                      color: colors.accent,
+                      fontFamily: "Inter_400Regular",
+                      fontSize: 13,
+                      flex: 1,
+                      lineHeight: 19,
+                    }}
+                  >
+                    A new branch will be created and this admin will be its branch head.
+                  </Text>
+                </View>
+                <Field
+                  label="Branch Name"
+                  value={branchName}
+                  onChangeText={setBranchName}
+                  placeholder="e.g. Abuja Branch"
+                  colors={colors}
+                />
+                <Field
+                  label="Branch Location"
+                  value={branchLocation}
+                  onChangeText={setBranchLocation}
+                  placeholder="e.g. Abuja, Nigeria"
+                  colors={colors}
+                />
+              </>
+            )}
+
+            {/* Common admin fields */}
+            <View style={[styles.dividerLine, { backgroundColor: colors.border, marginVertical: 4 }]} />
+            <Field
+              label="Full Name"
+              value={name}
+              onChangeText={setName}
+              placeholder="e.g. Chukwuemeka Obi"
+              colors={colors}
+            />
+            <Field
+              label="Email Address"
+              value={email}
+              onChangeText={setEmail}
+              placeholder="admin@company.com"
+              colors={colors}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+            <Field
+              label="Phone Number"
+              value={phone}
+              onChangeText={setPhone}
+              placeholder="+234 803 555 0118"
+              colors={colors}
+              keyboardType="phone-pad"
+            />
+          </View>
+        )}
+
+        {/* ══════════════════════════════════════════════════
+            STEP 1 (STANDARD) — BASIC INFO
+        ══════════════════════════════════════════════════ */}
+        {step === 1 && selectedRole !== "Admin" && (
+          <View style={{ gap: 16 }}>
+            <Field
+              label="Full Name"
+              value={name}
+              onChangeText={setName}
+              placeholder="e.g. Amara Okonkwo"
+              colors={colors}
+            />
+            <Field
+              label="Role / Job Title"
+              value={role}
+              onChangeText={setRole}
+              placeholder="e.g. Senior Engineer"
+              colors={colors}
+            />
+            <Text
+              style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}
+            >
+              Department
+            </Text>
             <View style={styles.chipGrid}>
               {DEPARTMENTS.map((d) => (
                 <Pressable
@@ -322,17 +716,39 @@ export default function CreateEmployeeScreen() {
                     },
                   ]}
                 >
-                  <Text style={{ color: department === d ? "#fff" : colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 12 }}>
+                  <Text
+                    style={{
+                      color: department === d ? "#fff" : colors.foreground,
+                      fontFamily: "Inter_600SemiBold",
+                      fontSize: 12,
+                    }}
+                  >
                     {d}
                   </Text>
                 </Pressable>
               ))}
             </View>
             {department === "Other" && (
-              <Field label="Specify Department" value={customDepartment} onChangeText={setCustomDepartment} placeholder="e.g. Research & Development" colors={colors} />
+              <Field
+                label="Specify Department"
+                value={customDepartment}
+                onChangeText={setCustomDepartment}
+                placeholder="e.g. Research & Development"
+                colors={colors}
+              />
             )}
-            <Field label="Office" value={office} onChangeText={setOffice} placeholder="e.g. Lagos HQ" colors={colors} />
-            <Text style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Status</Text>
+            <Field
+              label="Office"
+              value={office}
+              onChangeText={setOffice}
+              placeholder="e.g. Lagos HQ"
+              colors={colors}
+            />
+            <Text
+              style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}
+            >
+              Status
+            </Text>
             <View style={{ flexDirection: "row", gap: 10 }}>
               {STATUSES.map((s) => (
                 <Pressable
@@ -348,7 +764,13 @@ export default function CreateEmployeeScreen() {
                   ]}
                 >
                   <View style={[styles.statusDot, { backgroundColor: s.color }]} />
-                  <Text style={{ color: status === s.id ? s.color : colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 12 }}>
+                  <Text
+                    style={{
+                      color: status === s.id ? s.color : colors.foreground,
+                      fontFamily: "Inter_600SemiBold",
+                      fontSize: 12,
+                    }}
+                  >
                     {s.label}
                   </Text>
                 </Pressable>
@@ -357,17 +779,48 @@ export default function CreateEmployeeScreen() {
           </View>
         )}
 
-        {step === 1 && (
+        {/* ══════════════════════════════════════════════════
+            STEP 2 (STANDARD) — CONTACT
+        ══════════════════════════════════════════════════ */}
+        {step === 2 && selectedRole !== "Admin" && (
           <View style={{ gap: 16 }}>
-            <Field label="Email Address" value={email} onChangeText={setEmail} placeholder="amara@company.com" colors={colors} keyboardType="email-address" autoCapitalize="none" />
-            <Field label="Phone Number" value={phone} onChangeText={setPhone} placeholder="+234 803 555 0118" colors={colors} keyboardType="phone-pad" />
-            <Field label="Location" value={location} onChangeText={setLocation} placeholder="Lagos, NG" colors={colors} />
+            <Field
+              label="Email Address"
+              value={email}
+              onChangeText={setEmail}
+              placeholder="amara@company.com"
+              colors={colors}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+            <Field
+              label="Phone Number"
+              value={phone}
+              onChangeText={setPhone}
+              placeholder="+234 803 555 0118"
+              colors={colors}
+              keyboardType="phone-pad"
+            />
+            <Field
+              label="Location"
+              value={location}
+              onChangeText={setLocation}
+              placeholder="Lagos, NG"
+              colors={colors}
+            />
           </View>
         )}
 
-        {step === 2 && (
+        {/* ══════════════════════════════════════════════════
+            STEP 3 (STANDARD) — PROFILE
+        ══════════════════════════════════════════════════ */}
+        {step === 3 && selectedRole !== "Admin" && (
           <View style={{ gap: 16 }}>
-            <Text style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Bio</Text>
+            <Text
+              style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}
+            >
+              Bio
+            </Text>
             <TextInput
               value={bio}
               onChangeText={setBio}
@@ -388,58 +841,178 @@ export default function CreateEmployeeScreen() {
                 },
               ]}
             />
-            <Field label="Monthly Salary" value={salary} onChangeText={setSalary} placeholder="8500" colors={colors} keyboardType="numeric" />
-            <Text style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Performance Rating</Text>
+            <Field
+              label="Monthly Salary"
+              value={salary}
+              onChangeText={setSalary}
+              placeholder="8500"
+              colors={colors}
+              keyboardType="numeric"
+            />
+            <Text
+              style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}
+            >
+              Performance Rating
+            </Text>
             <View style={{ flexDirection: "row", gap: 8 }}>
               {[1, 2, 3, 4, 5].map((i) => (
                 <Pressable key={i} onPress={() => setPerformance(i)}>
-                  <Feather name="star" size={28} color={i <= performance ? "#f59e0b" : colors.border} />
+                  <Feather
+                    name="star"
+                    size={28}
+                    color={i <= performance ? "#f59e0b" : colors.border}
+                  />
                 </Pressable>
               ))}
             </View>
           </View>
         )}
 
-        {step === 3 && (
+        {/* ══════════════════════════════════════════════════
+            STEP 4 (STANDARD) — SOCIAL
+        ══════════════════════════════════════════════════ */}
+        {step === 4 && selectedRole !== "Admin" && (
           <View style={{ gap: 16 }}>
-            <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13, marginBottom: 4 }}>
+            <Text
+              style={{
+                color: colors.mutedForeground,
+                fontFamily: "Inter_400Regular",
+                fontSize: 13,
+                marginBottom: 4,
+              }}
+            >
               Add social media handles. Only filled handles will appear on the profile.
             </Text>
-            <SocialField icon="whatsapp" iconColor="#25D366" label="WhatsApp" value={whatsapp} onChangeText={setWhatsapp} placeholder="+234..." colors={colors} />
-            <SocialField icon="facebook" iconColor="#1877F2" label="Facebook" value={facebook} onChangeText={setFacebook} placeholder="username" colors={colors} />
-            <SocialField icon="instagram" iconColor="#E4405F" label="Instagram" value={instagram} onChangeText={setInstagram} placeholder="@handle" colors={colors} />
-            <SocialField icon="phone" iconColor="#0ea5e9" label="Phone" value={phoneHandle} onChangeText={setPhoneHandle} placeholder="+234..." colors={colors} />
+            <SocialField
+              icon="whatsapp"
+              iconColor="#25D366"
+              label="WhatsApp"
+              value={whatsapp}
+              onChangeText={setWhatsapp}
+              placeholder="+234..."
+              colors={colors}
+            />
+            <SocialField
+              icon="facebook"
+              iconColor="#1877F2"
+              label="Facebook"
+              value={facebook}
+              onChangeText={setFacebook}
+              placeholder="username"
+              colors={colors}
+            />
+            <SocialField
+              icon="instagram"
+              iconColor="#E4405F"
+              label="Instagram"
+              value={instagram}
+              onChangeText={setInstagram}
+              placeholder="@handle"
+              colors={colors}
+            />
+            <SocialField
+              icon="phone"
+              iconColor="#0ea5e9"
+              label="Phone"
+              value={phoneHandle}
+              onChangeText={setPhoneHandle}
+              placeholder="+234..."
+              colors={colors}
+            />
             <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-            <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_500Medium", fontSize: 11, letterSpacing: 0.4, textTransform: "uppercase" }}>
+            <Text
+              style={{
+                color: colors.mutedForeground,
+                fontFamily: "Inter_500Medium",
+                fontSize: 11,
+                letterSpacing: 0.4,
+                textTransform: "uppercase",
+              }}
+            >
               Additional (optional)
             </Text>
-            <SocialField icon="linkedin" iconColor="#0A66C2" label="LinkedIn" value={linkedin} onChangeText={setLinkedin} placeholder="profile URL" colors={colors} />
-            <SocialField icon="discord" iconColor="#5865F2" label="Discord" value={discord} onChangeText={setDiscord} placeholder="username" colors={colors} />
-            <SocialField icon="twitter" iconColor="#1DA1F2" label="X / Twitter" value={twitter} onChangeText={setTwitter} placeholder="@handle" colors={colors} />
+            <SocialField
+              icon="linkedin"
+              iconColor="#0A66C2"
+              label="LinkedIn"
+              value={linkedin}
+              onChangeText={setLinkedin}
+              placeholder="profile URL"
+              colors={colors}
+            />
+            <SocialField
+              icon="discord"
+              iconColor="#5865F2"
+              label="Discord"
+              value={discord}
+              onChangeText={setDiscord}
+              placeholder="username"
+              colors={colors}
+            />
+            <SocialField
+              icon="twitter"
+              iconColor="#1DA1F2"
+              label="X / Twitter"
+              value={twitter}
+              onChangeText={setTwitter}
+              placeholder="@handle"
+              colors={colors}
+            />
           </View>
         )}
 
-        {step === 4 && (
+        {/* ══════════════════════════════════════════════════
+            STEP 5 (STANDARD) — FINANCIAL
+        ══════════════════════════════════════════════════ */}
+        {step === 5 && selectedRole !== "Admin" && (
           <View style={{ gap: 16 }}>
-            <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13, marginBottom: 4 }}>
+            <Text
+              style={{
+                color: colors.mutedForeground,
+                fontFamily: "Inter_400Regular",
+                fontSize: 13,
+                marginBottom: 4,
+              }}
+            >
               Set financial details. Leave amounts as 0 if not applicable.
             </Text>
-            <Field label="Employee owes company" value={employeeOwes} onChangeText={setEmployeeOwes} placeholder="0" colors={colors} keyboardType="numeric" />
-            <Field label="Company owes employee" value={companyOwes} onChangeText={setCompanyOwes} placeholder="0" colors={colors} keyboardType="numeric" />
-            <Field label="Company shares (%)" value={shares} onChangeText={setShares} placeholder="0" colors={colors} keyboardType="numeric" />
+            <Field
+              label="Employee owes company"
+              value={employeeOwes}
+              onChangeText={setEmployeeOwes}
+              placeholder="0"
+              colors={colors}
+              keyboardType="numeric"
+            />
+            <Field
+              label="Company owes employee"
+              value={companyOwes}
+              onChangeText={setCompanyOwes}
+              placeholder="0"
+              colors={colors}
+              keyboardType="numeric"
+            />
+            <Field
+              label="Company shares (%)"
+              value={shares}
+              onChangeText={setShares}
+              placeholder="0"
+              colors={colors}
+              keyboardType="numeric"
+            />
           </View>
         )}
 
-        {step === 5 && (
+        {/* ══════════════════════════════════════════════════
+            STEP 6 (STANDARD) — PHOTO
+        ══════════════════════════════════════════════════ */}
+        {step === 6 && selectedRole !== "Admin" && (
           <View style={{ gap: 20, alignItems: "center", paddingTop: 20 }}>
             <Pressable
               onPress={pickImage}
               style={[
                 styles.photoCircle,
-                {
-                  backgroundColor: colors.muted,
-                  borderColor: colors.border,
-                },
+                { backgroundColor: colors.muted, borderColor: colors.border },
               ]}
             >
               {photoUri ? (
@@ -447,7 +1020,13 @@ export default function CreateEmployeeScreen() {
               ) : (
                 <View style={{ alignItems: "center", gap: 8 }}>
                   <Feather name="camera" size={32} color={colors.mutedForeground} />
-                  <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_500Medium", fontSize: 12 }}>
+                  <Text
+                    style={{
+                      color: colors.mutedForeground,
+                      fontFamily: "Inter_500Medium",
+                      fontSize: 12,
+                    }}
+                  >
                     Tap to upload
                   </Text>
                 </View>
@@ -455,54 +1034,110 @@ export default function CreateEmployeeScreen() {
             </Pressable>
             {photoUri && (
               <Pressable onPress={() => setPhotoUri(null)}>
-                <Text style={{ color: colors.danger, fontFamily: "Inter_600SemiBold", fontSize: 13 }}>Remove photo</Text>
+                <Text
+                  style={{
+                    color: colors.danger,
+                    fontFamily: "Inter_600SemiBold",
+                    fontSize: 13,
+                  }}
+                >
+                  Remove photo
+                </Text>
               </Pressable>
             )}
-            <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13, textAlign: "center", paddingHorizontal: 20 }}>
-              This step is optional. You can always add or change the photo later from the employee profile.
+            <Text
+              style={{
+                color: colors.mutedForeground,
+                fontFamily: "Inter_400Regular",
+                fontSize: 13,
+                textAlign: "center",
+                paddingHorizontal: 20,
+              }}
+            >
+              This step is optional. You can always add or change the photo later from the employee
+              profile.
             </Text>
           </View>
         )}
       </ScrollView>
 
-      {/* Footer */}
-      <View style={[styles.footer, { paddingBottom: insets.bottom + 16, backgroundColor: colors.background, borderTopColor: colors.border }]}>
+      {/* ── Footer ─────────────────────────────────────────── */}
+      <View
+        style={[
+          styles.footer,
+          {
+            paddingBottom: insets.bottom + 16,
+            backgroundColor: colors.background,
+            borderTopColor: colors.border,
+          },
+        ]}
+      >
         <PrimaryButton
-          label={step === STEPS.length - 1 ? (isEditing ? "Save Changes" : "Save Employee") : "Continue"}
+          label={
+            step === stepsList.length - 1
+              ? isEditing
+                ? "Save Changes"
+                : "Create Account"
+              : "Continue"
+          }
           onPress={next}
-          disabled={!canNext()}
-          icon={step === STEPS.length - 1 ? <Feather name="check" size={16} color="#fff" /> : <Feather name="arrow-right" size={16} color="#fff" />}
+          disabled={!canNext() || saving}
+          icon={
+            step === stepsList.length - 1 ? (
+              <Feather name="check" size={16} color="#fff" />
+            ) : (
+              <Feather name="arrow-right" size={16} color="#fff" />
+            )
+          }
         />
       </View>
 
-      {/* Success Modal for Temporary Password */}
-      <Modal
-        visible={createdEmployee !== null}
-        transparent
-        animationType="fade"
-      >
+      {/* ── Success Modal ───────────────────────────────────── */}
+      <Modal visible={createdEmployee !== null} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View
+            style={[styles.modalContent, { backgroundColor: colors.card, borderColor: colors.border }]}
+          >
             <View style={[styles.successIconCircle, { backgroundColor: colors.accent + "1A" }]}>
               <Feather name="check-circle" size={40} color={colors.accent} />
             </View>
-            <Text style={[styles.modalTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-              Employee Created!
+            <Text
+              style={[styles.modalTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}
+            >
+              Account Created! 🎉
             </Text>
-            <Text style={[styles.modalSubtitle, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              An account has been automatically created for the employee. Share these login details with them:
+            <Text
+              style={[
+                styles.modalSubtitle,
+                { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
+              ]}
+            >
+              A welcome email with login details has been sent to the employee. You can also share
+              the temporary password below:
             </Text>
 
-            <View style={[styles.detailsContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
+            <View
+              style={[
+                styles.detailsContainer,
+                { backgroundColor: colors.background, borderColor: colors.border },
+              ]}
+            >
               <View style={styles.detailRow}>
                 <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>EMAIL</Text>
-                <Text style={[styles.detailValue, { color: colors.foreground }]} selectable>{createdEmployee?.email}</Text>
+                <Text style={[styles.detailValue, { color: colors.foreground }]} selectable>
+                  {createdEmployee?.email}
+                </Text>
               </View>
               <View style={[styles.detailDivider, { backgroundColor: colors.border }]} />
               <View style={styles.detailRow}>
-                <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>TEMPORARY PASSWORD</Text>
+                <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>
+                  TEMPORARY PASSWORD
+                </Text>
                 <View style={styles.passwordCopyRow}>
-                  <Text style={[styles.detailValue, styles.passwordValue, { color: colors.foreground }]} selectable>
+                  <Text
+                    style={[styles.detailValue, styles.passwordValue, { color: colors.foreground }]}
+                    selectable
+                  >
                     {createdEmployee?.tempPassword}
                   </Text>
                   <Pressable
@@ -513,10 +1148,14 @@ export default function CreateEmployeeScreen() {
                         backgroundColor: copied ? colors.accent + "1A" : colors.border + "4D",
                         borderColor: copied ? colors.accent : colors.border,
                         opacity: pressed ? 0.7 : 1,
-                      }
+                      },
                     ]}
                   >
-                    <Feather name={copied ? "check" : "copy"} size={14} color={copied ? colors.accent : colors.foreground} />
+                    <Feather
+                      name={copied ? "check" : "copy"}
+                      size={14}
+                      color={copied ? colors.accent : colors.foreground}
+                    />
                     <Text style={[styles.copyBtnText, { color: copied ? colors.accent : colors.foreground }]}>
                       {copied ? "Copied" : "Copy"}
                     </Text>
@@ -526,7 +1165,7 @@ export default function CreateEmployeeScreen() {
             </View>
 
             <Text style={[styles.infoNote, { color: colors.mutedForeground }]}>
-              Note: The employee will be prompted to set a new password upon logging in.
+              The employee will be required to change this password on their first login.
             </Text>
 
             <Pressable
@@ -536,10 +1175,7 @@ export default function CreateEmployeeScreen() {
               }}
               style={({ pressed }) => [
                 styles.modalDoneBtn,
-                {
-                  backgroundColor: colors.accent,
-                  opacity: pressed ? 0.9 : 1,
-                }
+                { backgroundColor: colors.accent, opacity: pressed ? 0.9 : 1 },
               ]}
             >
               <Text style={styles.modalDoneBtnText}>Done</Text>
@@ -551,10 +1187,17 @@ export default function CreateEmployeeScreen() {
   );
 }
 
+// ─────────────────────────────────────────────────────────────
+// Sub-components
+// ─────────────────────────────────────────────────────────────
 function Field({ label, value, onChangeText, placeholder, colors, keyboardType, autoCapitalize }: any) {
   return (
     <View>
-      <Text style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>{label}</Text>
+      <Text
+        style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}
+      >
+        {label}
+      </Text>
       <View style={[styles.inputWrap, { borderColor: colors.border, borderRadius: colors.radius }]}>
         <TextInput
           value={value}
@@ -572,7 +1215,16 @@ function Field({ label, value, onChangeText, placeholder, colors, keyboardType, 
 
 function SocialField({ icon, iconColor, label, value, onChangeText, placeholder, colors }: any) {
   return (
-    <View style={[styles.socialFieldRow, { borderColor: colors.border, borderRadius: colors.radius, backgroundColor: colors.card }]}>
+    <View
+      style={[
+        styles.socialFieldRow,
+        {
+          borderColor: colors.border,
+          borderRadius: colors.radius,
+          backgroundColor: colors.card,
+        },
+      ]}
+    >
       <View style={[styles.socialIconWrap, { backgroundColor: iconColor + "1A" }]}>
         <FontAwesome6 name={icon} size={16} color={iconColor} />
       </View>
@@ -587,6 +1239,30 @@ function SocialField({ icon, iconColor, label, value, onChangeText, placeholder,
   );
 }
 
+// ─────────────────────────────────────────────────────────────
+// Clipboard helper
+// ─────────────────────────────────────────────────────────────
+const copyToClipboard = async (text: string) => {
+  if (Platform.OS === "web") {
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } else {
+    try {
+      const { Clipboard } = require("react-native");
+      Clipboard.setString(text);
+      return true;
+    } catch (e) {
+      console.warn("Clipboard copy failed", e);
+    }
+  }
+  return false;
+};
+
+// ─────────────────────────────────────────────────────────────
+// Styles
+// ─────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
@@ -640,6 +1316,43 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
+  roleCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
+  },
+  roleIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  roleCheckCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  scopeCard: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    alignItems: "center",
+    gap: 4,
+  },
+  infoBanner: {
+    flexDirection: "row",
+    gap: 10,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: "flex-start",
+  },
   socialFieldRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -705,11 +1418,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 16,
   },
-  modalTitle: {
-    fontSize: 20,
-    marginBottom: 8,
-    textAlign: "center",
-  },
+  modalTitle: { fontSize: 20, marginBottom: 8, textAlign: "center" },
   modalSubtitle: {
     fontSize: 14,
     textAlign: "center",
@@ -724,22 +1433,10 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 16,
   },
-  detailRow: {
-    gap: 4,
-  },
-  detailLabel: {
-    fontSize: 11,
-    fontWeight: "600",
-    letterSpacing: 0.5,
-  },
-  detailValue: {
-    fontSize: 15,
-    fontWeight: "500",
-  },
-  detailDivider: {
-    height: 1,
-    width: "100%",
-  },
+  detailRow: { gap: 4 },
+  detailLabel: { fontSize: 11, fontWeight: "600", letterSpacing: 0.5 },
+  detailValue: { fontSize: 15, fontWeight: "500" },
+  detailDivider: { height: 1, width: "100%" },
   passwordCopyRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -761,10 +1458,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
   },
-  copyBtnText: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
+  copyBtnText: { fontSize: 12, fontWeight: "600" },
   infoNote: {
     fontSize: 12,
     textAlign: "center",
@@ -779,27 +1473,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  modalDoneBtnText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
+  modalDoneBtnText: { color: "#fff", fontSize: 16, fontWeight: "600" },
 });
-
-const copyToClipboard = async (text: string) => {
-  if (Platform.OS === 'web') {
-    if (navigator.clipboard) {
-      await navigator.clipboard.writeText(text);
-      return true;
-    }
-  } else {
-    try {
-      const { Clipboard } = require('react-native');
-      Clipboard.setString(text);
-      return true;
-    } catch (e) {
-      console.warn("Clipboard copy failed", e);
-    }
-  }
-  return false;
-};
