@@ -349,7 +349,13 @@ export const apiService = {
   createTransaction: (data: any) => apiClient.post('transactions/', data),
   getNotifications: () => apiClient.get('notifications/'),
   getBudgets: () => apiClient.get('budgets/'),
+  createBudget: (data: any) => apiClient.post('budgets/', data),
+  updateBudget: (id: string, data: any) => apiClient.patch(`budgets/${id}/`, data),
+  deleteBudget: (id: string) => apiClient.delete(`budgets/${id}/`),
   getSavings: () => apiClient.get('savings/'),
+  createSavings: (data: any) => apiClient.post('savings/', data),
+  updateSavings: (id: string, data: any) => apiClient.patch(`savings/${id}/`, data),
+  deleteSavings: (id: string) => apiClient.delete(`savings/${id}/`),
   getDebts: () => apiClient.get('debts/'),
 
   // Aggregated endpoints

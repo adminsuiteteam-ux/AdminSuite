@@ -282,13 +282,35 @@ export default function CreateEmployeeScreen() {
     if (step === 1) {
       const depValid =
         department === "Other" ? customDepartment.trim().length > 0 : department.length > 0;
-      return name.trim().length > 0 && depValid && office.trim().length > 0;
+      // office is optional (blank=True on the model) — don't gate on it
+      return name.trim().length > 0 && depValid;
     }
-    if (step === 2) return email.includes("@");
+    if (step === 2) return email.includes("@") && phone.trim().length > 0;
     return true;
   };
 
   const next = () => {
+    if (!canNext()) {
+      // Show a specific hint about what's missing
+      if (step === 0) {
+        Alert.alert("Select a Role", "Please select a role before continuing.");
+      } else if (step === 1 && selectedRole !== "Admin") {
+        if (!name.trim()) {
+          Alert.alert("Name Required", "Please enter the employee's full name.");
+        } else {
+          Alert.alert("Department Required", "Please select a department to continue.");
+        }
+      } else if (step === 1 && selectedRole === "Admin") {
+        if (!name.trim()) Alert.alert("Name Required", "Please enter the admin's full name.");
+        else if (!email.includes("@")) Alert.alert("Email Required", "Please enter a valid email address.");
+        else if (!phone.trim()) Alert.alert("Phone Required", "Please enter a phone number.");
+        else Alert.alert("Branch Details", "Please fill in the branch name and location.");
+      } else if (step === 2) {
+        if (!email.includes("@")) Alert.alert("Email Required", "Please enter a valid email address.");
+        else Alert.alert("Phone Required", "Please enter a phone number.");
+      }
+      return;
+    }
     if (step < stepsList.length - 1) {
       setStep(step + 1);
     } else {
@@ -411,9 +433,30 @@ export default function CreateEmployeeScreen() {
           router.back();
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Save failed:", err);
-      Alert.alert("Error", "Failed to save employee data. Please try again.");
+      // Extract the most useful error message from the server response
+      const data = err?.response?.data;
+      let msg = "Failed to save employee data. Please try again.";
+      if (data) {
+        if (typeof data === "string") {
+          msg = data;
+        } else if (data.detail) {
+          msg = data.detail;
+        } else if (data.email) {
+          msg = Array.isArray(data.email) ? data.email[0] : data.email;
+        } else if (data.non_field_errors) {
+          msg = Array.isArray(data.non_field_errors) ? data.non_field_errors[0] : data.non_field_errors;
+        } else {
+          // Grab first field error
+          const firstKey = Object.keys(data)[0];
+          if (firstKey) {
+            const val = data[firstKey];
+            msg = `${firstKey}: ${Array.isArray(val) ? val[0] : val}`;
+          }
+        }
+      }
+      Alert.alert("Error", msg);
     } finally {
       setSaving(false);
     }

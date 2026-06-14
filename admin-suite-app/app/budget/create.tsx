@@ -2,6 +2,8 @@ import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -13,20 +15,29 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useData } from "@/context/DataContext";
 import { useColors } from "@/hooks/useColors";
+import { apiService } from "@/services/api";
 
 const TIMELINES = ["1W", "1M", "3M", "6M", "9M", "12M", "24M"];
+const COLORS = [
+  "#2563eb", "#16a34a", "#dc2626", "#d97706", "#7c3aed",
+  "#0891b2", "#db2777", "#65a30d", "#ea580c", "#0d9488",
+];
 
 export default function CreateBudgetScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  
+  const { refresh } = useData();
+
   const [step, setStep] = useState(1);
-  const [fields, setFields] = useState([{ id: "1", name: "", amount: "" }]);
+  const [fields, setFields] = useState([{ id: "1", name: "", amount: "", color: COLORS[0] }]);
   const [duration, setDuration] = useState("1M");
+  const [saving, setSaving] = useState(false);
 
   const addField = () => {
-    setFields([...fields, { id: Math.random().toString(), name: "", amount: "" }]);
+    const nextColor = COLORS[fields.length % COLORS.length];
+    setFields([...fields, { id: Math.random().toString(), name: "", amount: "", color: nextColor }]);
   };
 
   const removeField = (id: string) => {
@@ -38,10 +49,41 @@ export default function CreateBudgetScreen() {
   };
 
   const nextStep = () => {
-    if (step === 1) setStep(2);
-    else {
-      // Save budget and return
+    if (step === 1) {
+      const valid = fields.every(f => f.name.trim() && f.amount.trim());
+      if (!valid) {
+        Alert.alert("Incomplete", "Please fill in all name and amount fields before continuing.");
+        return;
+      }
+      setStep(2);
+    } else {
+      saveBudget();
+    }
+  };
+
+  const saveBudget = async () => {
+    setSaving(true);
+    try {
+      // Create a budget category for each field the user defined
+      const promises = fields.map(f =>
+        apiService.createBudget({
+          name: f.name.trim(),
+          allocated: parseFloat(f.amount) || 0,
+          spent: 0,
+          color: f.color,
+        })
+      );
+      await Promise.all(promises);
+      await refresh();
       router.back();
+    } catch (err: any) {
+      const msg =
+        err?.response?.data?.detail ||
+        err?.response?.data?.non_field_errors?.[0] ||
+        "Failed to save budget. Please try again.";
+      Alert.alert("Save Failed", msg);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -64,10 +106,15 @@ export default function CreateBudgetScreen() {
         <View style={{ width: 38 }} />
       </View>
 
+      {/* Progress indicator */}
       <View style={styles.progressRow}>
         <View style={[styles.progressDot, { backgroundColor: colors.primary }]} />
         <View style={[styles.progressLine, { backgroundColor: step === 2 ? colors.primary : colors.border }]} />
-        <View style={[styles.progressDot, { backgroundColor: step === 2 ? colors.primary : colors.card, borderColor: step === 2 ? colors.primary : colors.border, borderWidth: step === 2 ? 0 : 2 }]} />
+        <View style={[styles.progressDot, {
+          backgroundColor: step === 2 ? colors.primary : colors.card,
+          borderColor: step === 2 ? colors.primary : colors.border,
+          borderWidth: step === 2 ? 0 : 2,
+        }]} />
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 100 }}>
@@ -77,11 +124,13 @@ export default function CreateBudgetScreen() {
               Define Purposes
             </Text>
             <Text style={[styles.slideSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Create fields for your budget, name them, and set the target amount.
+              Create fields for your budget, name them, and set the allocated amount.
             </Text>
 
             {fields.map((f, index) => (
               <View key={f.id} style={styles.fieldRow}>
+                {/* Color dot */}
+                <View style={[styles.colorDot, { backgroundColor: f.color }]} />
                 <View style={{ flex: 2 }}>
                   <Text style={[styles.label, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Name</Text>
                   <TextInput
@@ -124,7 +173,28 @@ export default function CreateBudgetScreen() {
             <Text style={[styles.slideSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
               Choose the timeline for this budget plan.
             </Text>
-            
+
+            {/* Summary of what will be saved */}
+            <View style={[styles.summaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_600SemiBold", fontSize: 11, letterSpacing: 0.5, marginBottom: 10 }}>
+                BUDGET SUMMARY
+              </Text>
+              {fields.map(f => (
+                <View key={f.id} style={styles.summaryRow}>
+                  <View style={[styles.colorDot, { backgroundColor: f.color }]} />
+                  <Text style={{ color: colors.foreground, fontFamily: "Inter_500Medium", flex: 1, fontSize: 14 }}>{f.name}</Text>
+                  <Text style={{ color: colors.primary, fontFamily: "Inter_700Bold", fontSize: 14 }}>${parseFloat(f.amount || "0").toFixed(2)}</Text>
+                </View>
+              ))}
+              <View style={[styles.summaryDivider, { backgroundColor: colors.border }]} />
+              <View style={styles.summaryRow}>
+                <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_600SemiBold", flex: 1, fontSize: 13 }}>Total</Text>
+                <Text style={{ color: colors.foreground, fontFamily: "Inter_700Bold", fontSize: 16 }}>
+                  ${fields.reduce((s, f) => s + (parseFloat(f.amount || "0") || 0), 0).toFixed(2)}
+                </Text>
+              </View>
+            </View>
+
             <View style={styles.durationGrid}>
               {TIMELINES.map(t => {
                 const active = duration === t;
@@ -136,7 +206,7 @@ export default function CreateBudgetScreen() {
                       styles.durationCard,
                       {
                         backgroundColor: active ? colors.primary + "1A" : colors.card,
-                        borderColor: active ? colors.primary : colors.border
+                        borderColor: active ? colors.primary : colors.border,
                       }
                     ]}
                   >
@@ -144,7 +214,7 @@ export default function CreateBudgetScreen() {
                       {t}
                     </Text>
                   </Pressable>
-                )
+                );
               })}
             </View>
           </View>
@@ -152,11 +222,21 @@ export default function CreateBudgetScreen() {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 16, borderTopColor: colors.border }]}>
-        <Pressable onPress={nextStep} style={[styles.nextBtn, { backgroundColor: colors.primary }]}>
-          <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 16 }}>
-            {step === 1 ? "Next: Duration" : "Save Budget"}
-          </Text>
-          <Feather name={step === 1 ? "arrow-right" : "check"} size={18} color="#fff" />
+        <Pressable
+          onPress={nextStep}
+          disabled={saving}
+          style={[styles.nextBtn, { backgroundColor: saving ? colors.muted : colors.primary }]}
+        >
+          {saving ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <>
+              <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 16 }}>
+                {step === 1 ? "Next: Duration" : "Save Budget"}
+              </Text>
+              <Feather name={step === 1 ? "arrow-right" : "check"} size={18} color="#fff" />
+            </>
+          )}
         </Pressable>
       </View>
     </KeyboardAvoidingView>
@@ -173,13 +253,17 @@ const styles = StyleSheet.create({
   slide: { flex: 1 },
   slideTitle: { fontSize: 24, letterSpacing: -0.5, marginBottom: 8 },
   slideSub: { fontSize: 14, marginBottom: 24, lineHeight: 20 },
-  fieldRow: { flexDirection: "row", alignItems: "flex-end", gap: 12, marginBottom: 16 },
+  fieldRow: { flexDirection: "row", alignItems: "flex-end", gap: 10, marginBottom: 16 },
+  colorDot: { width: 10, height: 10, borderRadius: 5, marginBottom: 14 },
   label: { fontSize: 12, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 },
   input: { height: 48, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, fontSize: 15, fontFamily: "Inter_500Medium" },
   deleteBtn: { width: 48, height: 48, alignItems: "center", justifyContent: "center", marginBottom: 2 },
   addBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, height: 48, borderRadius: 12, borderWidth: 1, borderStyle: "dashed", marginTop: 8 },
-  durationGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  durationGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 20 },
   durationCard: { width: "30%", height: 64, alignItems: "center", justifyContent: "center", borderWidth: 1, borderRadius: 16 },
+  summaryCard: { borderWidth: 1, borderRadius: 16, padding: 16, marginBottom: 20, gap: 8 },
+  summaryRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  summaryDivider: { height: StyleSheet.hairlineWidth, marginVertical: 8 },
   footer: { padding: 16, borderTopWidth: 1 },
   nextBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, height: 52, borderRadius: 16 },
 });

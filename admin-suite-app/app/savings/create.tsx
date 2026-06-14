@@ -2,6 +2,8 @@ import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -14,23 +16,51 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { PrimaryButton } from "@/components/PrimaryButton";
+import { useData } from "@/context/DataContext";
 import { useColors } from "@/hooks/useColors";
+import { apiService } from "@/services/api";
 
 export default function CreateSavingsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  
-  const [purpose, setPurpose] = useState("");
-  const [description, setDescription] = useState("");
-  const [amount, setAmount] = useState("");
-  const [duration, setDuration] = useState("");
+  const { refresh } = useData();
 
-  const handleSave = () => {
-    // Save logic here
-    router.back();
+  // Savings model: name, target, saved, purpose
+  const [name, setName] = useState("");           // e.g. "Office Expansion Fund"
+  const [purpose, setPurpose] = useState("");     // short descriptor
+  const [targetAmount, setTargetAmount] = useState("");
+  const [savedAmount, setSavedAmount] = useState("0");
+  const [saving, setSaving] = useState(false);
+
+  const isFormValid =
+    name.trim() &&
+    purpose.trim() &&
+    targetAmount.trim() &&
+    parseFloat(targetAmount) > 0;
+
+  const handleSave = async () => {
+    if (!isFormValid) return;
+    setSaving(true);
+    try {
+      await apiService.createSavings({
+        name: name.trim(),
+        purpose: purpose.trim(),
+        target: parseFloat(targetAmount) || 0,
+        saved: parseFloat(savedAmount) || 0,
+      });
+      await refresh();
+      router.back();
+    } catch (err: any) {
+      const msg =
+        err?.response?.data?.detail ||
+        err?.response?.data?.non_field_errors?.[0] ||
+        Object.values(err?.response?.data || {})?.[0]?.[0] ||
+        "Failed to save. Please try again.";
+      Alert.alert("Save Failed", String(msg));
+    } finally {
+      setSaving(false);
+    }
   };
-
-  const isFormValid = purpose.trim() && amount.trim() && duration.trim();
 
   return (
     <KeyboardAvoidingView
@@ -40,78 +70,66 @@ export default function CreateSavingsScreen() {
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <Pressable
           onPress={() => router.back()}
-          style={[
-            styles.backBtn,
-            { backgroundColor: colors.card, borderColor: colors.border },
-          ]}
+          style={[styles.backBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
           hitSlop={10}
         >
           <Feather name="chevron-left" size={22} color={colors.foreground} />
         </Pressable>
-        <Text
-          style={[
-            styles.headerTitle,
-            { color: colors.foreground, fontFamily: "Inter_700Bold" },
-          ]}
-        >
-          Add New Savings
+        <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+          Add Savings Goal
         </Text>
         <View style={{ width: 38 }} />
       </View>
 
       <ScrollView
-        contentContainerStyle={{ padding: 20, paddingBottom: 100 }}
+        contentContainerStyle={{ padding: 20, paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
         <View style={{ gap: 20 }}>
+
+          {/* Goal Name */}
           <View>
             <Text style={[styles.label, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-              Purpose for saving
+              Goal Name *
             </Text>
-            <View style={[styles.inputWrap, { borderColor: colors.border, borderRadius: colors.radius }]}>
+            <View style={[styles.inputWrap, { borderColor: colors.border, borderRadius: (colors as any).radius ?? 12, backgroundColor: colors.card }]}>
               <TextInput
-                value={purpose}
-                onChangeText={setPurpose}
-                placeholder="e.g. Office Expansion"
+                value={name}
+                onChangeText={setName}
+                placeholder="e.g. Office Expansion Fund"
                 placeholderTextColor={colors.mutedForeground}
                 style={[styles.input, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}
               />
             </View>
           </View>
 
+          {/* Purpose */}
           <View>
             <Text style={[styles.label, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-              Description
+              Purpose *
             </Text>
-            <TextInput
-              value={description}
-              onChangeText={setDescription}
-              placeholder="Detailed description of the goal..."
-              placeholderTextColor={colors.mutedForeground}
-              multiline
-              numberOfLines={4}
-              style={[
-                styles.textArea,
-                {
-                  borderColor: colors.border,
-                  borderRadius: colors.radius,
-                  color: colors.foreground,
-                  fontFamily: "Inter_500Medium",
-                },
-              ]}
-            />
+            <View style={[styles.inputWrap, { borderColor: colors.border, borderRadius: (colors as any).radius ?? 12, backgroundColor: colors.card }]}>
+              <TextInput
+                value={purpose}
+                onChangeText={setPurpose}
+                placeholder="e.g. New branch setup"
+                placeholderTextColor={colors.mutedForeground}
+                style={[styles.input, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}
+              />
+            </View>
           </View>
 
+          {/* Target Amount */}
           <View>
             <Text style={[styles.label, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-              Target Amount
+              Target Amount *
             </Text>
-            <View style={[styles.inputWrap, { borderColor: colors.border, borderRadius: colors.radius }]}>
+            <View style={[styles.inputWrap, { borderColor: colors.border, borderRadius: (colors as any).radius ?? 12, backgroundColor: colors.card }]}>
               <Text style={{ color: colors.mutedForeground, marginRight: 8, fontFamily: "Inter_500Medium", fontSize: 16 }}>$</Text>
               <TextInput
-                value={amount}
-                onChangeText={setAmount}
+                value={targetAmount}
+                onChangeText={setTargetAmount}
                 placeholder="0.00"
                 keyboardType="numeric"
                 placeholderTextColor={colors.mutedForeground}
@@ -120,20 +138,55 @@ export default function CreateSavingsScreen() {
             </View>
           </View>
 
+          {/* Amount Already Saved (optional) */}
           <View>
             <Text style={[styles.label, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-              Duration
+              Already Saved (optional)
             </Text>
-            <View style={[styles.inputWrap, { borderColor: colors.border, borderRadius: colors.radius }]}>
+            <View style={[styles.inputWrap, { borderColor: colors.border, borderRadius: (colors as any).radius ?? 12, backgroundColor: colors.card }]}>
+              <Text style={{ color: colors.mutedForeground, marginRight: 8, fontFamily: "Inter_500Medium", fontSize: 16 }}>$</Text>
               <TextInput
-                value={duration}
-                onChangeText={setDuration}
-                placeholder="e.g. 6 Months"
+                value={savedAmount}
+                onChangeText={setSavedAmount}
+                placeholder="0.00"
+                keyboardType="numeric"
                 placeholderTextColor={colors.mutedForeground}
                 style={[styles.input, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}
               />
             </View>
+            <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 4 }}>
+              Enter any amount you have already set aside for this goal.
+            </Text>
           </View>
+
+          {/* Live progress preview */}
+          {parseFloat(targetAmount) > 0 && (
+            <View style={[styles.previewCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_600SemiBold", fontSize: 11, letterSpacing: 0.5, marginBottom: 10 }}>
+                GOAL PREVIEW
+              </Text>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 10 }}>
+                <Text style={{ color: colors.foreground, fontFamily: "Inter_700Bold", fontSize: 15 }}>{name || "Goal"}</Text>
+                <Text style={{ color: colors.foreground, fontFamily: "Inter_700Bold", fontSize: 15 }}>
+                  ${parseFloat(savedAmount || "0").toFixed(2)} / ${parseFloat(targetAmount || "0").toFixed(2)}
+                </Text>
+              </View>
+              <View style={[styles.barBg, { backgroundColor: colors.muted }]}>
+                <View
+                  style={[
+                    styles.barFill,
+                    {
+                      backgroundColor: colors.primary,
+                      width: `${Math.min(100, Math.round((parseFloat(savedAmount || "0") / parseFloat(targetAmount)) * 100))}%`,
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={{ color: colors.primary, fontFamily: "Inter_600SemiBold", fontSize: 12, marginTop: 6, textAlign: "right" }}>
+                {Math.min(100, Math.round((parseFloat(savedAmount || "0") / parseFloat(targetAmount)) * 100))}% of target
+              </Text>
+            </View>
+          )}
         </View>
       </ScrollView>
 
@@ -148,10 +201,14 @@ export default function CreateSavingsScreen() {
         ]}
       >
         <PrimaryButton
-          label="Save Goal"
+          label={saving ? "Saving…" : "Save Goal"}
           onPress={handleSave}
-          disabled={!isFormValid}
-          icon={<Feather name="check" size={16} color="#fff" />}
+          disabled={!isFormValid || saving}
+          icon={
+            saving
+              ? <ActivityIndicator color="#fff" size="small" />
+              : <Feather name="check" size={16} color="#fff" />
+          }
         />
       </View>
     </KeyboardAvoidingView>
@@ -189,14 +246,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   input: { flex: 1, fontSize: 15 },
-  textArea: {
-    paddingHorizontal: 14,
-    paddingTop: 14,
-    minHeight: 100,
+  previewCard: {
     borderWidth: 1,
-    textAlignVertical: "top",
-    fontSize: 15,
+    borderRadius: 16,
+    padding: 16,
   },
+  barBg: { height: 8, borderRadius: 999, overflow: "hidden" },
+  barFill: { height: "100%", borderRadius: 999 },
   footer: {
     position: "absolute",
     bottom: 0,

@@ -173,7 +173,7 @@ export default function BudgetScreen() {
               <Text style={[styles.sectionTitle, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold", marginBottom: 0 }]}>
                 SAVINGS
               </Text>
-              <Pressable hitSlop={6}>
+              <Pressable hitSlop={6} onPress={() => router.push("/savings/create" as any)}>
                 <Text style={{ color: colors.accent, fontFamily: "Inter_600SemiBold", fontSize: 12 }}>Add new →</Text>
               </Pressable>
             </View>
