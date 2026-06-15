@@ -271,11 +271,17 @@ export default function CreateEmployeeScreen() {
     if (step === 0) return selectedRole !== "";
 
     if (selectedRole === "Admin") {
-      // Step 1 for Admin: name, email, and branch if new
-      const branchOk =
-        adminScope === "current" ||
-        (branchName.trim().length > 0 && branchLocation.trim().length > 0);
-      return name.trim().length > 0 && email.includes("@") && phone.trim().length > 0 && branchOk;
+      if (step === 1) {
+        return adminScope === "current" ||
+          (branchName.trim().length > 0 && branchLocation.trim().length > 0);
+      }
+      if (step === 2) {
+        return name.trim().length > 0;
+      }
+      if (step === 3) {
+        return email.includes("@") && phone.trim().length > 0;
+      }
+      return true;
     }
 
     // Non-admin steps
@@ -301,13 +307,15 @@ export default function CreateEmployeeScreen() {
           Alert.alert("Department Required", "Please select a department to continue.");
         }
       } else if (step === 1 && selectedRole === "Admin") {
-        if (!name.trim()) Alert.alert("Name Required", "Please enter the admin's full name.");
-        else if (!email.includes("@")) Alert.alert("Email Required", "Please enter a valid email address.");
-        else if (!phone.trim()) Alert.alert("Phone Required", "Please enter a phone number.");
-        else Alert.alert("Branch Details", "Please fill in the branch name and location.");
-      } else if (step === 2) {
-        if (!email.includes("@")) Alert.alert("Email Required", "Please enter a valid email address.");
-        else Alert.alert("Phone Required", "Please enter a phone number.");
+        Alert.alert("Branch Details", "Please fill in the branch name and location.");
+      } else if (step === 2 && selectedRole === "Admin") {
+        Alert.alert("Name Required", "Please enter the admin's full name.");
+      } else if ((step === 3 && selectedRole === "Admin") || (step === 2 && selectedRole !== "Admin")) {
+        if (!email.includes("@")) {
+          Alert.alert("Email Required", "Please enter a valid email address.");
+        } else {
+          Alert.alert("Phone Required", "Please enter a phone number.");
+        }
       }
       return;
     }

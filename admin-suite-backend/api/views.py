@@ -142,12 +142,80 @@ class ThrottledObtainAuthToken(ObtainAuthToken):
 
 
 
+def get_scoped_queryset(model, request, user_field='user', branch_field='branch'):
+    user = request.user
+    if not user.is_authenticated:
+        return model.objects.none()
+    
+    # Bypass isolation checks for admin django panel superusers/staff
+    if user.is_superuser or user.is_staff:
+        return model.objects.all()
+
+    try:
+        ext = user.extension
+        role = ext.role
+        org = ext.organization
+        branch = ext.branch
+    except Exception:
+        # Fallback to UserProfile role/organization or user
+        try:
+            profile = user.profile
+            role = profile.role.upper()
+        except Exception:
+            role = 'EMPLOYEE'
+        org = None
+        branch = None
+
+    if role == 'CEO':
+        if org:
+            if hasattr(model, 'organization'):
+                return model.objects.filter(organization=org)
+            elif hasattr(model, 'branch') or hasattr(model, branch_field):
+                return model.objects.filter(**{f"{branch_field}__organization": org})
+            else:
+                return model.objects.filter(**{f"{user_field}__extension__organization": org})
+        return model.objects.filter(**{user_field: user})
+        
+    elif role in ('BRANCH_ADMIN', 'HR', 'FINANCE', 'OPERATIONS', 'SECRETARY', 'DEPT_MANAGER'):
+        if branch:
+            if hasattr(model, 'branch') or hasattr(model, branch_field):
+                return model.objects.filter(**{branch_field: branch})
+            elif hasattr(model, 'organization'):
+                return model.objects.filter(organization=branch.organization)
+            else:
+                return model.objects.filter(**{f"{user_field}__extension__branch": branch})
+        elif org:
+            if hasattr(model, 'organization'):
+                return model.objects.filter(organization=org)
+            elif hasattr(model, 'branch') or hasattr(model, branch_field):
+                return model.objects.filter(**{f"{branch_field}__organization": org})
+            else:
+                return model.objects.filter(**{f"{user_field}__extension__organization": org})
+        return model.objects.filter(**{user_field: user})
+        
+    else: # EMPLOYEE
+        if model.__name__ == 'Employee':
+            return model.objects.filter(linked_user=user)
+        elif model.__name__ == 'EmployeeTask':
+            return model.objects.filter(employee__linked_user=user)
+        elif model.__name__ == 'EmployeeLeave':
+            return model.objects.filter(employee__linked_user=user)
+        elif model.__name__ == 'EmployeeMessage':
+            return model.objects.filter(employee__linked_user=user)
+        elif model.__name__ == 'EmployeeDocument':
+            return model.objects.filter(employee__linked_user=user)
+        
+        if hasattr(model, 'user') or hasattr(model, user_field):
+            return model.objects.filter(**{user_field: user})
+        return model.objects.none()
+
+
 class EmployeeViewSet(viewsets.ModelViewSet):
     serializer_class = EmployeeSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Employee.objects.filter(user=self.request.user)
+        return get_scoped_queryset(Employee, self.request)
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -213,7 +281,7 @@ class ClientViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Client.objects.filter(user=self.request.user)
+        return get_scoped_queryset(Client, self.request)
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -224,7 +292,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Project.objects.filter(user=self.request.user)
+        return get_scoped_queryset(Project, self.request)
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -235,7 +303,7 @@ class TransactionViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Transaction.objects.filter(user=self.request.user)
+        return get_scoped_queryset(Transaction, self.request)
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -246,7 +314,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Notification.objects.filter(user=self.request.user)
+        return get_scoped_queryset(Notification, self.request)
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -257,7 +325,7 @@ class DebtViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Debt.objects.filter(user=self.request.user)
+        return get_scoped_queryset(Debt, self.request)
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -268,7 +336,7 @@ class BudgetCategoryViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return BudgetCategory.objects.filter(user=self.request.user)
+        return get_scoped_queryset(BudgetCategory, self.request)
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -279,7 +347,7 @@ class SavingsViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Savings.objects.filter(user=self.request.user)
+        return get_scoped_queryset(Savings, self.request)
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -316,12 +384,60 @@ def me(request):
         profile_serializer = UserProfileSerializer(profile, data=request.data, partial=True)
         if profile_serializer.is_valid():
             profile_serializer.save(profile_complete=True)
+            
+            # Ensure UserExtension, Organization, and default Branch exist for CEO/Admin users
+            # This allows employees created by them to correctly associate with their organization/branch
+            role_val = request.data.get('role', profile.role)
+            if role_val:
+                # Map to system role choice
+                role_upper = role_val.upper()
+                if role_upper in ('ADMIN', 'CEO'):
+                    system_role = 'CEO'
+                elif role_upper == 'HR':
+                    system_role = 'HR'
+                elif role_upper == 'MANAGER':
+                    system_role = 'DEPT_MANAGER'
+                else:
+                    system_role = 'CEO' # Default owner/admin to CEO role for access
+                
+                from .extended_models import UserExtension, Organization, Branch
+                
+                # Retrieve or create Organization
+                org_name = request.data.get('business_name', profile.business_name) or f"{user.username}'s Corp"
+                org, _ = Organization.objects.get_or_create(
+                    name=org_name,
+                    defaults={'created_by': user}
+                )
+                
+                # Retrieve or create Branch
+                branch, _ = Branch.objects.get_or_create(
+                    organization=org,
+                    name="Main HQ",
+                    defaults={'created_by': user, 'location': profile.location or 'Main HQ'}
+                )
+                
+                # Retrieve or create UserExtension
+                ext, created_ext = UserExtension.objects.get_or_create(
+                    user=user,
+                    defaults={
+                        'role': system_role,
+                        'organization': org,
+                        'branch': branch
+                    }
+                )
+                if not created_ext:
+                    # Update fields if already exists
+                    ext.role = system_role
+                    ext.organization = org
+                    if not ext.branch:
+                        ext.branch = branch
+                    ext.save(update_fields=['role', 'organization', 'branch'])
+
             # Sync to Employee profile if it exists
-            if profile.role == 'employee':
-                employee = getattr(user, 'employee_profile', None)
-                if employee:
-                    employee.avatar = profile.avatar
-                    employee.save(update_fields=['avatar'])
+            employee = getattr(user, 'employee_profile', None)
+            if employee:
+                employee.avatar = profile.avatar
+                employee.save(update_fields=['avatar'])
         else:
             return Response(profile_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -335,10 +451,9 @@ def me(request):
         company_logo_url = request.build_absolute_uri(profile.company_logo.url)
 
     employee_id = None
-    if profile.role == 'employee':
-        employee = getattr(user, 'employee_profile', None)
-        if employee:
-            employee_id = employee.id
+    employee = getattr(user, 'employee_profile', None)
+    if employee:
+        employee_id = employee.id
 
     return Response({
         'id': user.id,
@@ -1121,11 +1236,20 @@ class EmployeeTaskViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return EmployeeTask.objects.filter(employee__user=self.request.user).order_by('-created_at')
+        return get_scoped_queryset(EmployeeTask, self.request, user_field='employee__user', branch_field='employee__branch').order_by('-created_at')
 
     def perform_create(self, serializer):
         employee = serializer.validated_data.get('employee')
-        if employee.user != self.request.user:
+        creator_user = employee.user
+        request_user = self.request.user
+        is_same_org = False
+        try:
+            if request_user.extension.organization == creator_user.extension.organization:
+                is_same_org = True
+        except Exception:
+            pass
+
+        if creator_user != request_user and not is_same_org:
             raise PermissionDenied("You do not have permission to assign tasks to this employee.")
         instance = serializer.save()
         
@@ -1160,11 +1284,20 @@ class EmployeeLeaveViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return EmployeeLeave.objects.filter(employee__user=self.request.user).order_by('-created_at')
+        return get_scoped_queryset(EmployeeLeave, self.request, user_field='employee__user', branch_field='employee__branch').order_by('-created_at')
 
     def perform_create(self, serializer):
         employee = serializer.validated_data.get('employee')
-        if employee.user != self.request.user:
+        creator_user = employee.user
+        request_user = self.request.user
+        is_same_org = False
+        try:
+            if request_user.extension.organization == creator_user.extension.organization:
+                is_same_org = True
+        except Exception:
+            pass
+
+        if creator_user != request_user and not is_same_org:
             raise PermissionDenied("You do not have permission to schedule leave for this employee.")
         
         start_date = serializer.validated_data.get('start_date')
@@ -1303,13 +1436,16 @@ class SalaryAdjustmentViewSet(viewsets.ModelViewSet):
 # Employee Portal Endpoints
 # ---------------------------------------------------------------------------
 
+# Roles that are employee-type (can access the employee portal)
+_EMPLOYEE_PORTAL_ROLES = {'employee', 'hr', 'finance', 'operations', 'secretary', 'dept_manager', 'branch_admin'}
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def employee_dashboard(request):
     user = request.user
     profile = getattr(user, 'profile', None)
-    if not profile or profile.role != 'employee':
-        raise PermissionDenied("Only employees can access this portal.")
+    if not profile or profile.role.lower() not in _EMPLOYEE_PORTAL_ROLES:
+        raise PermissionDenied("Only staff members can access this portal.")
         
     employee = getattr(user, 'employee_profile', None)
     if not employee:
@@ -1334,8 +1470,8 @@ def employee_dashboard(request):
 def employee_finance(request):
     user = request.user
     profile = getattr(user, 'profile', None)
-    if not profile or profile.role != 'employee':
-        raise PermissionDenied("Only employees can access this portal.")
+    if not profile or profile.role.lower() not in _EMPLOYEE_PORTAL_ROLES:
+        raise PermissionDenied("Only staff members can access this portal.")
         
     employee = getattr(user, 'employee_profile', None)
     if not employee:
@@ -1356,8 +1492,8 @@ def employee_finance(request):
 def employee_update_task(request, pk):
     user = request.user
     profile = getattr(user, 'profile', None)
-    if not profile or profile.role != 'employee':
-        raise PermissionDenied("Only employees can access this portal.")
+    if not profile or profile.role.lower() not in _EMPLOYEE_PORTAL_ROLES:
+        raise PermissionDenied("Only staff members can access this portal.")
         
     employee = getattr(user, 'employee_profile', None)
     if not employee:
@@ -1415,12 +1551,9 @@ def _get_company_user(request):
     - If employee: returns the admin who owns their linked employee profile.
     """
     user = request.user
-    profile = getattr(user, 'profile', None)
-    if profile and profile.role == 'employee':
-        employee = getattr(user, 'employee_profile', None)
-        if employee:
-            return employee.user
-        return None
+    employee = getattr(user, 'employee_profile', None)
+    if employee:
+        return employee.user
     return user
 
 
@@ -1673,8 +1806,7 @@ def chat_contacts(request):
     if not company_user:
         return Response({'error': 'Company profile not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-    profile = getattr(request.user, 'profile', None)
-    is_employee = profile and profile.role == 'employee'
+    is_employee = getattr(request.user, 'employee_profile', None) is not None
 
     # Get chat settings for blocked user awareness
     settings_obj, _ = ChatSettings.objects.get_or_create(company_user=company_user)
@@ -1742,8 +1874,11 @@ def chat_contacts(request):
             'unread_count': g_unread,
         })
 
-    if is_employee:
-        # Employee can only DM the admin
+    # Get all employees in organization
+    employees = Employee.objects.filter(user=company_user, is_archived=False).select_related('linked_user')
+
+    if is_employee and company_user != request.user:
+        # Employee can DM the admin
         admin_name = f"{company_user.first_name} {company_user.last_name}".strip() or company_user.username
         admin_profile = getattr(company_user, 'profile', None)
         admin_avatar = None
@@ -1777,44 +1912,43 @@ def chat_contacts(request):
             'last_message_time': dm_latest.created_at.isoformat() if dm_latest else None,
             'unread_count': dm_unread,
         })
-    else:
-        # Admin can DM any employee
-        employees = Employee.objects.filter(user=company_user, is_archived=False).select_related('linked_user')
-        for emp in employees:
-            if emp.linked_user:
-                is_blocked = emp.linked_user.id in (settings_obj.blocked_user_ids or [])
-                emp_avatar = None
-                if emp.avatar:
-                    emp_avatar = request.build_absolute_uri(emp.avatar.url)
 
-                # DM between request.user and emp.linked_user
-                dm_latest = ChatMessage.objects.filter(
-                    company_user=company_user,
-                    recipient__isnull=False
-                ).filter(
-                    (models.Q(sender=request.user) & models.Q(recipient=emp.linked_user)) |
-                    (models.Q(sender=emp.linked_user) & models.Q(recipient=request.user))
-                ).order_by('-created_at').first()
+    # Everyone can DM all other active employees in the company
+    for emp in employees:
+        if emp.linked_user and emp.linked_user != request.user:
+            is_blocked = emp.linked_user.id in (settings_obj.blocked_user_ids or [])
+            emp_avatar = None
+            if emp.avatar:
+                emp_avatar = request.build_absolute_uri(emp.avatar.url)
 
-                dm_unread = ChatMessage.objects.filter(
-                    company_user=company_user,
-                    recipient=request.user,
-                    sender=emp.linked_user
-                ).exclude(read_by=request.user).count()
+            # DM between request.user and emp.linked_user
+            dm_latest = ChatMessage.objects.filter(
+                company_user=company_user,
+                recipient__isnull=False
+            ).filter(
+                (models.Q(sender=request.user) & models.Q(recipient=emp.linked_user)) |
+                (models.Q(sender=emp.linked_user) & models.Q(recipient=request.user))
+            ).order_by('-created_at').first()
 
-                contacts.append({
-                    'id': emp.linked_user.id,
-                    'type': 'private',
-                    'name': emp.name,
-                    'initials': emp.initials or emp.name[:2].upper(),
-                    'avatar': emp_avatar,
-                    'employee_id': emp.id,
-                    'group_locked': False,
-                    'is_blocked_from_group': is_blocked,
-                    'last_message': dm_latest.text if dm_latest and not dm_latest.is_deleted else ("This message was deleted" if dm_latest and dm_latest.is_deleted else None),
-                    'last_message_time': dm_latest.created_at.isoformat() if dm_latest else None,
-                    'unread_count': dm_unread,
-                })
+            dm_unread = ChatMessage.objects.filter(
+                company_user=company_user,
+                recipient=request.user,
+                sender=emp.linked_user
+            ).exclude(read_by=request.user).count()
+
+            contacts.append({
+                'id': emp.linked_user.id,
+                'type': 'private',
+                'name': emp.name,
+                'initials': emp.initials or emp.name[:2].upper(),
+                'avatar': emp_avatar,
+                'employee_id': emp.id,
+                'group_locked': False,
+                'is_blocked_from_group': is_blocked,
+                'last_message': dm_latest.text if dm_latest and not dm_latest.is_deleted else ("This message was deleted" if dm_latest and dm_latest.is_deleted else None),
+                'last_message_time': dm_latest.created_at.isoformat() if dm_latest else None,
+                'unread_count': dm_unread,
+            })
 
     return Response(contacts)
 

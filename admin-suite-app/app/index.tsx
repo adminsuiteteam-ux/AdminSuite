@@ -169,7 +169,7 @@ export default function SplashGate() {
           router.replace("/(auth)/complete-profile");
         } else if (biometricsEnabled) {
           router.replace("/lock");
-        } else if (user.role === 'employee') {
+        } else if (['employee', 'hr', 'finance', 'operations', 'secretary', 'dept_manager'].includes(user.role)) {
           router.replace("/(employee)");
         } else {
           router.replace("/(tabs)");

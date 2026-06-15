@@ -129,6 +129,7 @@ apiClient.interceptors.response.use(
 // ─── URL resolution (skipped when EXPO_PUBLIC_API_URL is set) ─────────────────
 const CANDIDATES = [
   ENV_API_URL ? (ENV_API_URL.endsWith('/') ? ENV_API_URL : `${ENV_API_URL}/`) : null,
+  PRODUCTION_URL,
   `http://localhost:8000/`,
   `http://10.0.2.2:8000/`,
   Constants.expoConfig?.hostUri
@@ -193,8 +194,12 @@ export const resolveBackendUrl = async (): Promise<string | null> => {
     return candidate;
   }
 
-  console.warn(`[API] No backend candidate responded. Retaining base: ${apiClient.defaults.baseURL}`);
-  return null;
+  // Fallback to Production URL if no candidates respond
+  const cleanProd = PRODUCTION_URL.endsWith('/') ? PRODUCTION_URL : `${PRODUCTION_URL}/`;
+  activeBaseUrl = cleanProd;
+  apiClient.defaults.baseURL = `${cleanProd}api/`;
+  console.warn(`[API] No backend candidate responded. Falling back to Production: ${apiClient.defaults.baseURL}`);
+  return PRODUCTION_URL;
 };
 
 // Resolve on import (non-blocking)
@@ -212,7 +217,7 @@ export const apiService = {
     const isFormData = data instanceof FormData;
     return apiClient.patch('me/', data, {
       headers: {
-        'Content-Type': isFormData ? 'multipart/form-data' : 'application/json',
+        'Content-Type': isFormData ? undefined : 'application/json',
       },
       timeout: isFormData ? 60000 : 30000,
     });
@@ -261,7 +266,7 @@ export const apiService = {
     const isFormData = data instanceof FormData;
     return apiClient.post('employees/', data, {
       headers: {
-        'Content-Type': isFormData ? 'multipart/form-data' : 'application/json',
+        'Content-Type': isFormData ? undefined : 'application/json',
       },
       timeout: isFormData ? 60000 : 30000, // 60s for file uploads
     });
@@ -270,7 +275,7 @@ export const apiService = {
     const isFormData = data instanceof FormData;
     return apiClient.put(`employees/${id}/`, data, {
       headers: {
-        'Content-Type': isFormData ? 'multipart/form-data' : 'application/json',
+        'Content-Type': isFormData ? undefined : 'application/json',
       },
       timeout: isFormData ? 60000 : 30000,
     });
@@ -279,7 +284,7 @@ export const apiService = {
     const isFormData = data instanceof FormData;
     return apiClient.patch(`employees/${id}/`, data, {
       headers: {
-        'Content-Type': isFormData ? 'multipart/form-data' : 'application/json',
+        'Content-Type': isFormData ? undefined : 'application/json',
       },
       timeout: isFormData ? 60000 : 30000,
     });
@@ -297,7 +302,7 @@ export const apiService = {
     const isFormData = data instanceof FormData;
     return apiClient.post('employee-tasks/', data, {
       headers: {
-        'Content-Type': isFormData ? 'multipart/form-data' : 'application/json',
+        'Content-Type': isFormData ? undefined : 'application/json',
       },
     });
   },
@@ -305,7 +310,7 @@ export const apiService = {
     const isFormData = data instanceof FormData;
     return apiClient.post('employee-queries/', data, {
       headers: {
-        'Content-Type': isFormData ? 'multipart/form-data' : 'application/json',
+        'Content-Type': isFormData ? undefined : 'application/json',
       },
     });
   },
@@ -314,13 +319,13 @@ export const apiService = {
     const isFormData = data instanceof FormData;
     return apiClient.post('employee-messages/', data, {
       headers: {
-        'Content-Type': isFormData ? 'multipart/form-data' : 'application/json',
+        'Content-Type': isFormData ? undefined : 'application/json',
       },
     });
   },
   createDocument: (data: any) =>
     apiClient.post('employee-documents/', data, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+      headers: { 'Content-Type': undefined },
       timeout: 60000,
     }),
   deleteDocument: (docId: string) =>

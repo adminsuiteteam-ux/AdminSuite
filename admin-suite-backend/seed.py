@@ -9,9 +9,12 @@ from api.models import (
     Employee, EmployeeFinance, PayHistory, Client, Project,
     Transaction, Notification, Debt, BudgetCategory
 )
+from api.extended_models import Organization, Branch, UserExtension
+from api.models import UserProfile
+
 
 def seed():
-    # Get or create a default admin user for seeded data
+    # ── 1. Get or create the default admin user ───────────────────────────────
     admin_user, created = User.objects.get_or_create(
         username='admin',
         defaults={
@@ -25,11 +28,58 @@ def seed():
     if created:
         admin_user.set_password('admin123')
         admin_user.save()
-        print(f"Created admin user: admin / admin123")
+        print("Created admin user: admin / admin123")
     else:
         print(f"Using existing admin user: {admin_user.username}")
 
-    # Clear existing data
+    # ── 2. Provision admin's UserProfile ─────────────────────────────────────
+    admin_profile, _ = UserProfile.objects.get_or_create(user=admin_user)
+    if not admin_profile.profile_complete:
+        admin_profile.role = 'CEO'
+        admin_profile.business_name = 'AdminSuite Corp'
+        admin_profile.org_location = 'Lagos, NG'
+        admin_profile.profile_complete = True
+        admin_profile.save()
+        print("Provisioned admin UserProfile")
+
+    # ── 3. Provision Organization, Branch, and UserExtension for admin ────────
+    org, org_created = Organization.objects.get_or_create(
+        name='AdminSuite Corp',
+        defaults={'created_by': admin_user}
+    )
+    if org_created:
+        print(f"Created Organization: {org.name}")
+    else:
+        print(f"Using existing Organization: {org.name}")
+
+    branch, branch_created = Branch.objects.get_or_create(
+        organization=org,
+        name='Lagos HQ',
+        defaults={'created_by': admin_user, 'location': 'Lagos, NG'}
+    )
+    if branch_created:
+        print(f"Created Branch: {branch.name}")
+    else:
+        print(f"Using existing Branch: {branch.name}")
+
+    ext, ext_created = UserExtension.objects.get_or_create(
+        user=admin_user,
+        defaults={
+            'role': 'CEO',
+            'organization': org,
+            'branch': branch,
+        }
+    )
+    if not ext_created:
+        ext.role = 'CEO'
+        ext.organization = org
+        ext.branch = branch
+        ext.save(update_fields=['role', 'organization', 'branch'])
+        print("Updated admin UserExtension")
+    else:
+        print("Created admin UserExtension (CEO)")
+
+    # ── 4. Clear existing seeded employee/client/project data ────────────────
     PayHistory.objects.all().delete()
     Employee.objects.all().delete()
     EmployeeFinance.objects.all().delete()
@@ -42,7 +92,8 @@ def seed():
 
     print("Seeding data...")
 
-    # ── Employees ──────────────────────────────────────────
+    # ── 5. Employees ──────────────────────────────────────────────────────────
+    # backend_role: one of EMPLOYEE, HR, FINANCE, OPERATIONS, SECRETARY, DEPT_MANAGER, BRANCH_ADMIN
     employees_data = [
         {
             "name": "Amara Okonkwo", "role": "Senior Engineer", "department": "Engineering",
@@ -58,6 +109,7 @@ def seed():
                 {"month": "Mar", "amount": 8500, "paid": True}, {"month": "Apr", "amount": 8500, "paid": True},
                 {"month": "May", "amount": 8500, "paid": False},
             ],
+            "backend_role": "EMPLOYEE",
         },
         {
             "name": "James Carter", "role": "Product Manager", "department": "Product",
@@ -73,6 +125,7 @@ def seed():
                 {"month": "Mar", "amount": 7200, "paid": True}, {"month": "Apr", "amount": 7200, "paid": True},
                 {"month": "May", "amount": 7200, "paid": False},
             ],
+            "backend_role": "DEPT_MANAGER",
         },
         {
             "name": "Priya Shah", "role": "HR Specialist", "department": "People",
@@ -88,6 +141,7 @@ def seed():
                 {"month": "Mar", "amount": 5400, "paid": True}, {"month": "Apr", "amount": 5400, "paid": True},
                 {"month": "May", "amount": 5400, "paid": False},
             ],
+            "backend_role": "HR",
         },
         {
             "name": "Diego Alvarez", "role": "Senior Designer", "department": "Design",
@@ -103,6 +157,7 @@ def seed():
                 {"month": "Mar", "amount": 6300, "paid": True}, {"month": "Apr", "amount": 6300, "paid": False},
                 {"month": "May", "amount": 6300, "paid": False},
             ],
+            "backend_role": "EMPLOYEE",
         },
         {
             "name": "Mei Tanaka", "role": "Finance Analyst", "department": "Finance",
@@ -118,6 +173,7 @@ def seed():
                 {"month": "Mar", "amount": 5900, "paid": True}, {"month": "Apr", "amount": 5900, "paid": True},
                 {"month": "May", "amount": 5900, "paid": False},
             ],
+            "backend_role": "FINANCE",
         },
         {
             "name": "Liam Brown", "role": "Sales Lead", "department": "Sales",
@@ -133,6 +189,7 @@ def seed():
                 {"month": "Mar", "amount": 0, "paid": False}, {"month": "Apr", "amount": 0, "paid": False},
                 {"month": "May", "amount": 0, "paid": False},
             ],
+            "backend_role": "EMPLOYEE",
         },
         {
             "name": "Aisha Bello", "role": "Account Executive", "department": "Sales",
@@ -148,6 +205,7 @@ def seed():
                 {"month": "Mar", "amount": 6700, "paid": True}, {"month": "Apr", "amount": 6700, "paid": True},
                 {"month": "May", "amount": 6700, "paid": False},
             ],
+            "backend_role": "OPERATIONS",
         },
     ]
 
@@ -155,14 +213,73 @@ def seed():
         fin_data = emp_data.pop("finance")
         pay_data = emp_data.pop("pay_history")
         socials = emp_data.pop("socials")
+        backend_role = emp_data.pop("backend_role")
 
+        # ── Create or update a Django login User for this employee ────────────
+        email = emp_data["email"]
+        username = email.split('@')[0]
+        first_name = emp_data["name"].split(' ')[0]
+        last_name = ' '.join(emp_data["name"].split(' ')[1:])
+
+        # Clean up orphaned user with this email if username conflicts
+        emp_user, emp_user_created = User.objects.get_or_create(
+            email=email,
+            defaults={
+                'username': username,
+                'first_name': first_name,
+                'last_name': last_name,
+            }
+        )
+        emp_user.set_password('temp12345')
+        emp_user.save()
+
+        if emp_user_created:
+            print(f"  Created login user: {email} / temp12345 (role: {backend_role})")
+        else:
+            print(f"  Updated login user: {email} / temp12345 (role: {backend_role})")
+
+        # ── Provision UserProfile for the employee ────────────────────────────
+        emp_profile, _ = UserProfile.objects.get_or_create(user=emp_user)
+        emp_profile.role = 'employee'
+        emp_profile.phone = emp_data.get('phone', '')
+        emp_profile.location = emp_data.get('location', '')
+        emp_profile.bio = emp_data.get('bio', '')
+        emp_profile.profile_complete = True
+        emp_profile.is_first_login = True  # They'll be prompted to change password on first login
+        emp_profile.save()
+
+        # ── Provision UserExtension for the employee (scoped to org/branch) ───
+        emp_ext, emp_ext_created = UserExtension.objects.get_or_create(
+            user=emp_user,
+            defaults={
+                'role': backend_role,
+                'organization': org,
+                'branch': branch,
+            }
+        )
+        if not emp_ext_created:
+            emp_ext.role = backend_role
+            emp_ext.organization = org
+            emp_ext.branch = branch
+            emp_ext.save(update_fields=['role', 'organization', 'branch'])
+
+        # ── Create EmployeeFinance and PayHistory ─────────────────────────────
         finance = EmployeeFinance.objects.create(user=admin_user, **fin_data)
         for ph in pay_data:
             PayHistory.objects.create(finance=finance, **ph)
 
-        Employee.objects.create(finance=finance, socials=socials, user=admin_user, **emp_data)
+        # ── Create the Employee record linked to both admin_user and emp_user ──
+        employee = Employee.objects.create(
+            finance=finance,
+            socials=socials,
+            user=admin_user,           # The "owner" admin for queryset scoping
+            linked_user=emp_user,      # The employee's own login account
+            branch=branch,
+            **emp_data
+        )
+        print(f"  Seeded employee: {employee.name} -> linked to {email}")
 
-    # ── Clients ────────────────────────────────────────────
+    # ── Clients ────────────────────────────────────────────────────────────────
     clients_data = [
         {"company": "Northwind Retail", "contact": "Sarah Lin", "email": "sarah@northwind.co", "location": "Lagos, NG", "coords": {"lat": 6.5244, "lng": 3.3792}, "paid": 48200, "projects_count": 3, "status": "active", "website": "https://northwind.co", "description": "Pan-African retail chain with 42 stores. Migrating their POS to a unified inventory cloud.", "remark": "Renewed annual contract. Push for premium support tier next quarter."},
         {"company": "Helios Energy", "contact": "Marcus Reed", "email": "m.reed@helios.io", "location": "Berlin, DE", "coords": {"lat": 52.52, "lng": 13.405}, "paid": 96500, "projects_count": 5, "status": "active", "website": "https://helios.io", "description": "Renewable energy startup deploying solar microgrids across the EU. Heavy data pipeline workload.", "remark": "Fastest growing account. Schedule executive QBR for May."},
@@ -177,7 +294,7 @@ def seed():
         c = Client.objects.create(user=admin_user, **cd)
         client_objs[c.company] = c
 
-    # ── Projects ───────────────────────────────────────────
+    # ── Projects ───────────────────────────────────────────────────────────────
     projects_data = [
         {"name": "Atlas Dashboard", "client": "Northwind Retail", "status": "active", "value": 24000, "progress": 65},
         {"name": "Helios CRM Migration", "client": "Helios Energy", "status": "active", "value": 58000, "progress": 40},
@@ -191,7 +308,7 @@ def seed():
         client_name = pd.pop("client")
         Project.objects.create(client=client_objs[client_name], user=admin_user, **pd)
 
-    # ── Transactions ───────────────────────────────────────
+    # ── Transactions ───────────────────────────────────────────────────────────
     transactions_data = [
         {"type": "income", "amount": 12000, "category": "Project Payment", "description": "Atlas Dashboard – milestone 2", "date": "Apr 28"},
         {"type": "expense", "amount": 4200, "category": "Salaries", "description": "Engineering payroll", "date": "Apr 27"},
@@ -207,7 +324,7 @@ def seed():
     for td in transactions_data:
         Transaction.objects.create(user=admin_user, **td)
 
-    # ── Notifications ──────────────────────────────────────
+    # ── Notifications ──────────────────────────────────────────────────────────
     notifications_data = [
         {"title": "New expenditure recorded", "body": "Marcus added a $1,850 expense in Software", "time": "12m"},
         {"title": "Project status changed", "body": "Helios CRM Migration moved to Active", "time": "1h"},
@@ -218,7 +335,7 @@ def seed():
     for nd in notifications_data:
         Notification.objects.create(user=admin_user, **nd)
 
-    # ── Debts ──────────────────────────────────────────────
+    # ── Debts ──────────────────────────────────────────────────────────────────
     debts_data = [
         {"type": "weOwe", "party": "AWS Cloud", "amount": 4200, "due": "May 5"},
         {"type": "weOwe", "party": "Office landlord", "amount": 3000, "due": "May 1"},
@@ -230,7 +347,7 @@ def seed():
     for dd in debts_data:
         Debt.objects.create(user=admin_user, **dd)
 
-    # ── Budget Categories ──────────────────────────────────
+    # ── Budget Categories ──────────────────────────────────────────────────────
     budgets_data = [
         {"name": "Payroll", "allocated": 45000, "spent": 42100, "color": "#22c55e"},
         {"name": "Infrastructure", "allocated": 12000, "spent": 8400, "color": "#f97316"},
@@ -242,7 +359,18 @@ def seed():
     for bd in budgets_data:
         BudgetCategory.objects.create(user=admin_user, **bd)
 
-    print("Successfully seeded ALL data!")
+    print("\n[OK] Successfully seeded ALL data!")
+    print("\n--- Login Credentials -------------------------------------------")
+    print("  Admin:          admin@adminsuite.app  / admin123")
+    print("  Amara Okonkwo:  amara@adminsuite.app  / temp12345")
+    print("  James Carter:   james@adminsuite.app  / temp12345")
+    print("  Priya Shah:     priya@adminsuite.app  / temp12345")
+    print("  Diego Alvarez:  diego@adminsuite.app  / temp12345")
+    print("  Mei Tanaka:     mei@adminsuite.app    / temp12345")
+    print("  Liam Brown:     liam@adminsuite.app   / temp12345")
+    print("  Aisha Bello:    aisha@adminsuite.app  / temp12345")
+    print("-----------------------------------------------------------------")
+
 
 if __name__ == '__main__':
     seed()

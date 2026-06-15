@@ -48,7 +48,7 @@ export default function LockScreen() {
 
       if (result.success) {
         setSuccess(true);
-        if (user?.role === 'employee') {
+        if (['employee', 'hr', 'finance', 'operations', 'secretary', 'dept_manager'].includes(user?.role || '')) {
           router.replace("/(employee)");
         } else {
           router.replace("/(tabs)");

@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState, useRef } from "react";
 import {
   Image,
   Platform,
@@ -10,9 +10,12 @@ import {
   Text,
   TextInput,
   View,
+  Animated,
+  Dimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
+import { BlurView } from "expo-blur";
 
 import { FloatInView } from "@/components/FloatInView";
 import { useData } from "@/context/DataContext";
@@ -27,6 +30,16 @@ const FILTERS = [
   { id: "terminated", label: "Inactive" },
   { id: "flagged", label: "Flagged" },
   { id: "archived", label: "Archived" },
+];
+
+const ROLE_FILTERS = [
+  { id: "all", label: "All Roles", icon: "users" as const, color: "#64748b" },
+  { id: "BRANCH_ADMIN", label: "New Admin", icon: "award" as const, color: "#f59e0b" },
+  { id: "HR", label: "Hr Manager", icon: "user-check" as const, color: "#6366f1" },
+  { id: "SECRETARY", label: "Secretary", icon: "calendar" as const, color: "#0ea5e9" },
+  { id: "FINANCE", label: "Finance Officer", icon: "trending-up" as const, color: "#10b981" },
+  { id: "OPERATIONS", label: "Operations Manager", icon: "activity" as const, color: "#ef4444" },
+  { id: "DEPT_MANAGER", label: "Department Manager", icon: "briefcase" as const, color: "#8b5cf6" },
 ];
 
 const STATUS_DOT: Record<string, string> = {
@@ -54,6 +67,22 @@ export default function EmployeesScreen() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
   const [refreshCount, setRefreshCount] = useState(0);
+
+  // Role filter state and animations
+  const [selectedRoleFilter, setSelectedRoleFilter] = useState("all");
+  const [filterMenuOpen, setFilterMenuOpen] = useState(false);
+  const slideAnim = useRef(new Animated.Value(350)).current;
+
+  const toggleFilterMenu = () => {
+    const toValue = filterMenuOpen ? 350 : 0;
+    setFilterMenuOpen(!filterMenuOpen);
+    Animated.spring(slideAnim, {
+      toValue,
+      tension: 40,
+      friction: 8,
+      useNativeDriver: true,
+    }).start();
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -84,11 +113,30 @@ export default function EmployeesScreen() {
       }
       
       const matchesFilter = filter === "all" || e.status === filter;
-      return matchesQuery && matchesFilter;
+      if (!(matchesQuery && matchesFilter)) return false;
+
+      // Apply role filter
+      if (selectedRoleFilter && selectedRoleFilter !== "all") {
+        const roleUpper = e.role.toUpperCase();
+        const matchesRole =
+          roleUpper === selectedRoleFilter.toUpperCase() ||
+          (selectedRoleFilter === "BRANCH_ADMIN" && roleUpper === "ADMIN") ||
+          (selectedRoleFilter === "HR" && roleUpper === "HR MANAGER") ||
+          (selectedRoleFilter === "FINANCE" && roleUpper === "FINANCE OFFICER") ||
+          (selectedRoleFilter === "OPERATIONS" && roleUpper === "OPERATIONS MANAGER") ||
+          (selectedRoleFilter === "DEPT_MANAGER" && roleUpper === "DEPARTMENT MANAGER");
+        
+        if (!matchesRole) return false;
+      }
+
+      return true;
     });
-  }, [query, filter, refreshCount, employees]);
+  }, [query, filter, selectedRoleFilter, refreshCount, employees]);
 
   const tabBarPad = (Platform.OS === "web" ? 96 : 100) + 24;
+  const bottomOffset = Math.max(insets.bottom, 14) + 62 + 16;
+  const { width } = Dimensions.get("window");
+  const popupWidth = width - 110;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -325,6 +373,85 @@ export default function EmployeesScreen() {
           ))
         )}
       </ScrollView>
+
+      {/* ── Floating RHS-to-LHS Role Filter Line ── */}
+      <Animated.View
+        style={[
+          styles.filterPopupWrap,
+          {
+            bottom: bottomOffset,
+            width: popupWidth,
+            transform: [{ translateX: slideAnim }],
+            opacity: slideAnim.interpolate({ inputRange: [0, 350], outputRange: [1, 0] }),
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+          },
+        ]}
+      >
+        <BlurView intensity={Platform.OS === "web" ? 30 : 60} tint="dark" style={StyleSheet.absoluteFill} />
+        <View style={styles.filterPopupInner}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 8, paddingHorizontal: 12, alignItems: "center" }}
+          >
+            {ROLE_FILTERS.map((opt) => {
+              const active = selectedRoleFilter === opt.id;
+              return (
+                <Pressable
+                  key={opt.id}
+                  onPress={() => setSelectedRoleFilter(opt.id)}
+                  style={({ pressed }) => [
+                    styles.roleFilterChip,
+                    {
+                      borderColor: active ? colors.primary : colors.border,
+                      backgroundColor: active ? colors.primary : "transparent",
+                      borderRadius: 14,
+                      opacity: pressed ? 0.9 : 1,
+                    },
+                  ]}
+                >
+                  <Feather
+                    name={opt.icon}
+                    size={12}
+                    color={active ? colors.primaryForeground : opt.color}
+                    style={{ marginRight: 4 }}
+                  />
+                  <Text
+                    style={{
+                      color: active ? colors.primaryForeground : colors.foreground,
+                      fontFamily: active ? "Inter_600SemiBold" : "Inter_500Medium",
+                      fontSize: 11,
+                    }}
+                  >
+                    {opt.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      </Animated.View>
+
+      {/* ── Floating Toggle Filter Button ── */}
+      <View style={[styles.fabWrap, { bottom: bottomOffset }]}>
+        <Pressable
+          onPress={toggleFilterMenu}
+          style={({ pressed }) => [
+            styles.fabBtn,
+            {
+              backgroundColor: filterMenuOpen ? colors.accent : colors.primary,
+              transform: [{ scale: pressed ? 0.92 : 1 }],
+            },
+          ]}
+        >
+          <Feather
+            name={filterMenuOpen ? "x" : "filter"}
+            size={20}
+            color={colors.primaryForeground}
+          />
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -474,5 +601,48 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     alignItems: "center",
     justifyContent: "center",
+  },
+  filterPopupWrap: {
+    position: "absolute",
+    right: 76,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 1,
+    overflow: "hidden",
+    zIndex: 998,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
+  },
+  filterPopupInner: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  roleFilterChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+  },
+  fabWrap: {
+    position: "absolute",
+    right: 16,
+    zIndex: 999,
+  },
+  fabBtn: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 10,
   },
 });

@@ -231,7 +231,8 @@ class EmployeeSerializer(serializers.ModelSerializer):
         creator_branch = None
         if creator_user:
             try:
-                creator_ext = creator_user.userextension
+                # related_name on UserExtension is 'extension' (not 'userextension')
+                creator_ext = creator_user.extension
                 creator_org = creator_ext.organization
                 creator_branch = creator_ext.branch
             except Exception:

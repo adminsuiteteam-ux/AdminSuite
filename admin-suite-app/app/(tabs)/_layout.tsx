@@ -102,7 +102,9 @@ function GlassTabBar({ state, navigation }: { state: any; navigation: any }) {
   return (
     <>
       {/* ── Floating Chat FAB ── */}
-      <ChatFAB bottomOffset={tabBarHeight} unreadCount={totalUnread} shakeAnim={shakeAnim} />
+      {activeRouteName !== "employees" && (
+        <ChatFAB bottomOffset={tabBarHeight} unreadCount={totalUnread} shakeAnim={shakeAnim} />
+      )}
 
       {/* ── Glass Tab Bar ── */}
       <View
