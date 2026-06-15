@@ -46,6 +46,7 @@ interface DataContextType {
   payrollMetrics: PayrollMetrics;
   loading: boolean;
   fetchError: string | null;
+  subscriptionLimits: any | null;
   refresh: () => Promise<void>;
   togglePayrollMonth: (month: string, currentPaid: boolean) => Promise<void>;
 }
@@ -92,6 +93,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [payrollMetrics, setPayrollMetrics] = useState<PayrollMetrics>(initialPayrollMetrics);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [subscriptionLimits, setSubscriptionLimits] = useState<any | null>(null);
 
   const fetchAll = useCallback(async (background = false) => {
     try {
@@ -125,6 +127,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       setPayrollMetrics(payrollRes.data);
       setPayrollMonths(payrollRes.data.payrollMonths ?? []);
       setDebts(debtsRes.data);
+
+      let subLimits = null;
+      try {
+        const subRes = await apiService.getSubscriptionLimits();
+        subLimits = subRes.data;
+      } catch (subErr) {
+        console.warn("Failed to fetch subscription limits for this user:", subErr);
+      }
+      setSubscriptionLimits(subLimits);
+
       setFetchError(null);
     } catch (err) {
       console.warn('Data fetch failed (Network/Server error):', err);
@@ -157,6 +169,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       setMetrics(initialMetrics);
       setClientMetrics(initialClientMetrics);
       setPayrollMetrics(initialPayrollMetrics);
+      setSubscriptionLimits(null);
       setFetchError(null);
       setLoading(false);
     }
@@ -203,6 +216,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         payrollMetrics,
         loading,
         fetchError,
+        subscriptionLimits,
         refresh: fetchAll,
         togglePayrollMonth,
       }}

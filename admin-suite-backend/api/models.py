@@ -9,6 +9,7 @@ class EmployeeFinance(models.Model):
     bonuses = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     deductions = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     user = models.ForeignKey('auth.User', on_delete=models.CASCADE, null=True, blank=True)
+    last_finance_update = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         try:

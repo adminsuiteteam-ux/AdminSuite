@@ -372,6 +372,10 @@ export const apiService = {
   getDebtsGrouped: () => apiClient.get('debts-grouped/'),
   deleteAccount: () => apiClient.delete('me/'),
 
+  // Subscription Endpoints
+  getSubscriptionLimits: () => apiClient.get('subscription/limits/'),
+  upgradeSubscription: (data: { plan: string; payment_method?: any }) => apiClient.post('subscription/upgrade/', data),
+
   // Employee Portal Endpoints
   getEmployeeDashboard: () => apiClient.get('employee-portal/dashboard/'),
   getEmployeeFinance: () => apiClient.get('employee-portal/finance/'),

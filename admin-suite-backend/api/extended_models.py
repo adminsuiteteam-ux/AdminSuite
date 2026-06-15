@@ -23,6 +23,7 @@ class Subscription(models.Model):
         ("BASIC", "Basic – Free"),
         ("PREMIUM", "Premium – $25/mo"),
         ("PRO", "Pro – $45/mo"),
+        ("PRO_YEARLY", "Pro Yearly – $399/yr"),
     ]
     organization = models.OneToOneField(
         Organization,

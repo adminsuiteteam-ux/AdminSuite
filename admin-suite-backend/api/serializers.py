@@ -63,12 +63,12 @@ class PayHistorySerializer(serializers.ModelSerializer):
 
 class EmployeeFinanceSerializer(serializers.ModelSerializer):
     pay_history = PayHistorySerializer(many=True, read_only=True)
-    
+
     class Meta:
         model = EmployeeFinance
         fields = [
-            'id', 'current_pay', 'employee_owes_company', 'company_owes_employee', 
-            'shares', 'pay_history', 'bonuses', 'deductions'
+            'id', 'current_pay', 'employee_owes_company', 'company_owes_employee',
+            'shares', 'pay_history', 'bonuses', 'deductions', 'last_finance_update'
         ]
 
 class EmployeeActivityLogSerializer(serializers.ModelSerializer):
@@ -217,6 +217,8 @@ class EmployeeSerializer(serializers.ModelSerializer):
             'FINANCE OFFICER': 'FINANCE',
             'FINANCE': 'FINANCE',
             'OPERATIONS MANAGER': 'OPERATIONS',
+            'OPERATING OFFICER': 'OPERATIONS',
+            'OPERATIONAL OFFICER': 'OPERATIONS',
             'OPERATIONS': 'OPERATIONS',
             'SECRETARY': 'SECRETARY',
             'DEPARTMENT MANAGER': 'DEPT_MANAGER',
@@ -243,6 +245,8 @@ class EmployeeSerializer(serializers.ModelSerializer):
         # Handle Branch Creation
         if system_role == 'BRANCH_ADMIN' and branch_name and creator_org:
             from .extended_models import Branch
+            from .views import check_subscription_limit
+            check_subscription_limit(creator_org, 'branches')
             # Create a new branch under organization
             target_branch = Branch.objects.create(
                 name=branch_name,
@@ -298,11 +302,34 @@ class EmployeeSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         finance_data = validated_data.pop('finance_data', None)
         if finance_data:
+            try:
+                plan = instance.branch.organization.subscription.plan
+            except Exception:
+                plan = 'BASIC'
+                
+            if plan not in ('PRO', 'PRO_YEARLY'):
+                raise serializers.ValidationError({"error": "Detailed financial modifications are Pro features. Please upgrade your plan."})
+
+            from django.utils import timezone
+            from .notifications import send_push_notification
             valid_finance_fields = {f.name for f in EmployeeFinance._meta.get_fields() if hasattr(f, 'column')} # type: ignore
+            has_changes = False
             for attr, value in finance_data.items():
                 if attr in valid_finance_fields and attr != 'id':
-                    setattr(instance.finance, attr, value)
-            instance.finance.save() # type: ignore
+                    old_value = getattr(instance.finance, attr, None)
+                    if str(old_value) != str(value):
+                        setattr(instance.finance, attr, value)
+                        has_changes = True
+            if has_changes:
+                instance.finance.last_finance_update = timezone.now()
+                instance.finance.save() # type: ignore
+                if instance.linked_user:
+                    send_push_notification(
+                        user=instance.linked_user,
+                        title='💰 Financial Record Updated',
+                        body='Your financial record has been updated by the administrator.',
+                        data={'screen': 'finance'}
+                    )
             
         employee = super().update(instance, validated_data)
         if employee.linked_user:

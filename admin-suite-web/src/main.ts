@@ -408,6 +408,14 @@ interface Employee {
   location?: string;
   bio?: string;
   initials?: string;
+  office?: string;
+  performance?: number;
+  tasks?: any[];
+  leaves?: any[];
+  queries?: any[];
+  is_flagged?: boolean;
+  linked_user?: number;
+  finance?: any;
 }
 
 interface Client {
@@ -493,7 +501,7 @@ interface AppState {
     company_logo?: string;
   } | null;
   authToken: string | null;
-  activeTab: 'dashboard' | 'employees' | 'clients' | 'finance' | 'settings' | 'pricing';
+  activeTab: 'dashboard' | 'employees' | 'clients' | 'finance' | 'settings' | 'pricing' | 'chat';
   theme: 'light' | 'dark';
   isMobileSidebarOpen: boolean;
   isNotificationsOpen: boolean;
@@ -559,6 +567,18 @@ interface AppState {
     weOwe: Debt[];
     owedToUs: Debt[];
   } | null;
+  branchMetrics: any[];
+  subscriptionLimits: any | null;
+  transactionCategories: any | null;
+  dashboardAlerts: any | null;
+  activityLogs: any[];
+
+  // Chat state
+  chatContacts: any[];
+  chatMessages: any[];
+  chatActiveContact: any | null;
+  chatPollTimer: any | null;
+  generalPollTimer: any | null;
 }
 
 // ============================================================
@@ -602,13 +622,27 @@ const state: AppState = {
   clientMetrics: null,
   payrollMetrics: null,
   debtsGrouped: null,
-
+ 
   employees: [],
   clients: [],
   projects: [],
   transactions: [],
   notifications: [],
-  budgets: []
+  budgets: [],
+ 
+  // Extended dashboard data
+  branchMetrics: [],
+  subscriptionLimits: null,
+  transactionCategories: null,
+  dashboardAlerts: null,
+  activityLogs: [],
+ 
+  // Chat
+  chatContacts: [],
+  chatMessages: [],
+  chatActiveContact: null,
+  chatPollTimer: null,
+  generalPollTimer: null,
 };
 
 // Set theme attributes on bootstrap
@@ -745,6 +779,22 @@ async function syncAppData() {
     state.notifications = notifRes;
     state.budgets = budgRes;
     state.isAuthenticated = true;
+
+    // Extended dashboard data — non-critical, fail silently
+    try {
+      const [branchRes, subRes, txCatRes, alertsRes] = await Promise.all([
+        apiRequest('branch-metrics/'),
+        apiRequest('subscription-limits/'),
+        apiRequest('transaction-categories/'),
+        apiRequest('dashboard-alerts/'),
+      ]);
+      state.branchMetrics = Array.isArray(branchRes) ? branchRes : [];
+      state.subscriptionLimits = subRes || null;
+      state.transactionCategories = txCatRes || null;
+      state.dashboardAlerts = alertsRes || null;
+    } catch (_e) {
+      // Extended metrics unavailable — dashboard degrades gracefully
+    }
 
     return true;
   } catch (err: any) {
@@ -915,7 +965,14 @@ const ICONS = new Map<string, string>([
   ['mail', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>`],
   ['eye', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`],
   ['eye-off', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>`],
-  ['wifi-off', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="23" y2="23"></line><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.5"></path><path d="M5 12.5a10.94 10.94 0 0 1 5.17-2.39"></path><path d="M10.71 5.05A16 16 0 0 1 22.5 8"></path><path d="M1.5 8a16 16 0 0 1 7.72-2.88"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>`]
+  ['wifi-off', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="23" y2="23"></line><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.5"></path><path d="M5 12.5a10.94 10.94 0 0 1 5.17-2.39"></path><path d="M10.71 5.05A16 16 0 0 1 22.5 8"></path><path d="M1.5 8a16 16 0 0 1 7.72-2.88"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>`],
+  ['message-circle', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>`],
+  ['send', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>`],
+  ['building', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>`],
+  ['clipboard', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>`],
+  ['dollar-sign', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`],
+  ['calendar', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`],
+  ['activity', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`]
 ]);
 
 function getIconSvg(name: string, className = ''): string {
@@ -1001,6 +1058,10 @@ function navigateToTab(tab: typeof state.activeTab) {
   if (dashboardTourStep >= 0 && tab !== 'dashboard') {
     endDashboardTour();
   }
+  if (state.chatPollTimer && tab !== 'chat') {
+    clearInterval(state.chatPollTimer);
+    state.chatPollTimer = null;
+  }
   state.activeTab = tab;
   state.isMobileSidebarOpen = false;
   
@@ -1011,7 +1072,7 @@ function navigateToTab(tab: typeof state.activeTab) {
 window.addEventListener('hashchange', () => {
   if (state.view !== 'app') return;
   const hash = window.location.hash.slice(2);
-  const validTabs: Array<typeof state.activeTab> = ['dashboard', 'employees', 'clients', 'finance', 'settings'];
+  const validTabs: Array<typeof state.activeTab> = ['dashboard', 'employees', 'clients', 'finance', 'settings', 'chat'];
   if (validTabs.includes(hash as any)) {
     navigateToTab(hash as any);
   }
@@ -1027,6 +1088,25 @@ let _prevView: AppState['view'] | null = null;
 export function renderApp() {
   const root = document.getElementById('root');
   if (!root) return;
+
+  // Manage general app data polling (real-time updates)
+  if (state.view === 'app') {
+    if (!state.generalPollTimer) {
+      state.generalPollTimer = setInterval(async () => {
+        if (state.isAuthenticated && state.view === 'app') {
+          const ok = await syncAppData();
+          if (ok) {
+            renderApp();
+          }
+        }
+      }, 3000);
+    }
+  } else {
+    if (state.generalPollTimer) {
+      clearInterval(state.generalPollTimer);
+      state.generalPollTimer = null;
+    }
+  }
 
   if (state.suspendedUntil && new Date(state.suspendedUntil) > new Date()) {
     root.innerHTML = DOMPurify.sanitize(drawSuspended());
@@ -2257,12 +2337,29 @@ function bindOfflineEvents() {
 // ------------------------------------------------------------
 
 function drawSidebar(): string {
-  const navItems = [
+  const role = (state.user?.role || '').toLowerCase();
+  const isEmployee = role === 'employee';
+  const isManager = ['hr', 'finance', 'operations', 'secretary', 'dept_manager'].includes(role);
+
+  // Unread chat count badge
+  const chatUnread = state.chatContacts.reduce((sum: number, c: any) => sum + (c.unread_count || 0), 0);
+
+  // CEO and branch admins see full management menu; employees see a limited set
+  const navItems: Array<{id: string; label: string; icon: string; badge?: string}> = [
     { id: 'dashboard', label: 'Dashboard', icon: 'grid' },
-    { id: 'employees', label: 'Employees', icon: 'users', badge: state.employees.length ? state.employees.length.toString() : '' },
-    { id: 'clients', label: 'Clients', icon: 'briefcase', badge: state.clients.length ? state.clients.length.toString() : '' },
-    { id: 'finance', label: 'Finance', icon: 'trending-up' },
-    { id: 'settings', label: 'Profile Settings', icon: 'settings' }
+    ...(isEmployee ? [] : [
+      { id: 'employees', label: 'Employees', icon: 'users', badge: state.employees.length ? state.employees.length.toString() : '' },
+      { id: 'clients', label: 'Clients', icon: 'briefcase', badge: state.clients.length ? state.clients.length.toString() : '' },
+    ]),
+    ...(isEmployee || isManager ? [] : [
+      { id: 'finance', label: 'Finance', icon: 'trending-up' },
+    ]),
+    ...(isManager ? [
+      { id: 'finance', label: 'Finance', icon: 'trending-up' },
+    ] : []),
+    { id: 'chat', label: 'Team Chat', icon: 'message-circle', badge: chatUnread > 0 ? chatUnread.toString() : '' },
+    { id: 'settings', label: 'Profile Settings', icon: 'settings' },
+    ...(!isEmployee ? [{ id: 'pricing', label: 'Subscription', icon: 'star' }] : []),
   ];
 
   const itemsHtml = navItems.map(item => `
@@ -2297,7 +2394,7 @@ function drawSidebar(): string {
           </div>
           <div class="sidebar-user-info">
             <div class="sidebar-user-name">${sanitizeHtml(state.user?.name || state.user?.username || 'User')}</div>
-            <div class="sidebar-user-role" style="color:var(--success);">Connected Live</div>
+            <div class="sidebar-user-role" style="color:var(--accent); text-transform:uppercase; font-size:9px; font-weight:700; letter-spacing:0.5px;">${sanitizeHtml((state.user?.role || 'ADMIN').toUpperCase())}</div>
           </div>
           <button class="btn-ghost" id="logout-sidebar-btn" style="padding: 4px; border-radius: var(--radius-sm);" title="Logout">
             ${getIconSvg('log-out')}
@@ -2444,8 +2541,12 @@ function drawTabContent(): string {
       return drawClientsTab();
     case 'finance':
       return drawFinanceTab();
+    case 'chat':
+      return drawChatTab();
     case 'settings':
       return drawSettingsTab();
+    case 'pricing':
+      return drawPricingTab();
     default:
       return drawDashboardTab();
   }
@@ -2465,8 +2566,14 @@ function bindTabSpecificEvents() {
     case 'finance':
       bindFinanceEvents();
       break;
+    case 'chat':
+      bindChatEvents();
+      break;
     case 'settings':
       bindSettingsEvents();
+      break;
+    case 'pricing':
+      bindPricingEvents();
       break;
   }
 }
@@ -2476,11 +2583,420 @@ function bindTabSpecificEvents() {
 // ------------------------------------------------------------
 
 function drawDashboardTab(): string {
+  const role = (state.user?.role || '').toLowerCase();
+  const isEmployee = role === 'employee';
+  const isFinance = role === 'finance';
+  const isHR = role === 'hr';
+  const isOps = role === 'operations';
+  const isSecretary = role === 'secretary';
+  const isDeptManager = role === 'dept_manager';
+
+  if (isEmployee) return drawEmployeePersonalDashboard();
+  if (isHR) return drawHRDashboard();
+  if (isFinance) return drawFinanceDashboard();
+  if (isOps) return drawOpsDashboard();
+  if (isSecretary) return drawSecretaryDashboard();
+  if (isDeptManager) return drawDeptManagerDashboard();
+  // CEO and Branch Admin get the full dashboard
+  return drawAdminDashboard();
+}
+
+// ---- Employee Personal Dashboard ----
+function drawEmployeePersonalDashboard(): string {
+  const emp = state.employees.find((e: any) => e.linked_user === state.user?.id) || state.employees[0];
+  const tasks = emp?.tasks || [];
+  const leaves = emp?.leaves || [];
+  const queries = emp?.queries || [];
+
+  const pendingTasks = tasks.filter((t: any) => t.status !== 'completed');
+  const activeLeave = leaves.find((l: any) => l.status === 'active');
+  const openQueries = queries.filter((q: any) => q.status === 'open');
+
+  const taskRows = pendingTasks.slice(0, 4).map((t: any) => `
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border);">
+      <div>
+        <div style="font-size:13px; font-weight:600;">${sanitizeHtml(t.title)}</div>
+        <div style="font-size:11px; color:var(--muted-foreground);">Due: ${sanitizeHtml(t.due_date || 'N/A')}</div>
+      </div>
+      <span class="status-badge ${t.priority === 'high' ? 'inactive' : t.priority === 'medium' ? '' : 'active'}" style="font-size:10px;">${sanitizeHtml(t.priority)}</span>
+    </div>
+  `).join('');
+
+  return `
+    <div class="gradient-header" style="background: linear-gradient(135deg, #1e3a8a 0%, #312e81 100%);">
+      <h2>My Workspace</h2>
+      <h1>${sanitizeHtml(state.user?.name || 'Employee')}</h1>
+      <div class="role-chip">${getIconSvg('user')}<span>EMPLOYEE PORTAL</span></div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card blue">
+        <div class="stat-card-header"><div class="stat-card-icon blue">${getIconSvg('clipboard')}</div></div>
+        <div class="stat-card-label">Pending Tasks</div>
+        <div class="stat-card-value">${pendingTasks.length}</div>
+      </div>
+      <div class="stat-card ${activeLeave ? 'orange' : 'green'}">
+        <div class="stat-card-header"><div class="stat-card-icon ${activeLeave ? 'orange' : 'green'}">${getIconSvg('calendar')}</div></div>
+        <div class="stat-card-label">Leave Status</div>
+        <div class="stat-card-value" style="font-size:14px;">${activeLeave ? sanitizeHtml(activeLeave.leave_type) : 'On Duty'}</div>
+      </div>
+      <div class="stat-card purple">
+        <div class="stat-card-header"><div class="stat-card-icon purple">${getIconSvg('dollar-sign')}</div></div>
+        <div class="stat-card-label">Monthly Salary</div>
+        <div class="stat-card-value" style="font-size:18px;">${emp ? formatCurrency(emp.salary) : '—'}</div>
+      </div>
+      <div class="stat-card ${openQueries.length > 0 ? 'orange' : 'blue'}">
+        <div class="stat-card-header"><div class="stat-card-icon ${openQueries.length > 0 ? 'orange' : 'blue'}">${getIconSvg('alert')}</div></div>
+        <div class="stat-card-label">Open Queries</div>
+        <div class="stat-card-value">${openQueries.length}</div>
+      </div>
+    </div>
+
+    <div class="content-grid">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">My Tasks</div>
+          <button class="card-action" id="emp-dash-chat-btn">Message Team</button>
+        </div>
+        <div class="card-body">
+          ${taskRows || '<div style="padding:20px; text-align:center; color:var(--muted-foreground);">No pending tasks — you\'re all caught up!</div>'}
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-title">My Profile</div></div>
+        <div class="card-body">
+          <div style="display:flex; align-items:center; gap:16px; margin-bottom:16px;">
+            <div class="avatar blue" style="width:56px; height:56px; font-size:20px; font-weight:700;">
+              ${sanitizeHtml((state.user?.name || 'E').slice(0,2).toUpperCase())}
+            </div>
+            <div>
+              <div style="font-weight:700; font-size:16px;">${sanitizeHtml(state.user?.name || '')}</div>
+              <div style="color:var(--muted-foreground); font-size:12px;">${sanitizeHtml(state.user?.email || '')}</div>
+              <div style="color:var(--accent); font-size:11px; font-weight:600; margin-top:2px;">${sanitizeHtml(emp?.department || '')} · ${sanitizeHtml(emp?.role || 'Employee')}</div>
+            </div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:8px; font-size:13px;">
+            <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:6px;">
+              <span style="color:var(--muted-foreground);">Office</span>
+              <span style="font-weight:600;">${sanitizeHtml(emp?.office || 'Main Office')}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:6px;">
+              <span style="color:var(--muted-foreground);">Performance</span>
+              <span style="font-weight:600;">${emp?.performance || 0}%</span>
+            </div>
+            <div style="display:flex; justify-content:space-between;">
+              <span style="color:var(--muted-foreground);">Status</span>
+              <span class="status-badge active">${sanitizeHtml(emp?.status || 'active')}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
+          <div class="card-title">My Financials</div>
+          ${emp?.finance?.last_finance_update ? `<span style="font-size:11px; color:var(--muted-foreground);">Updated: ${new Date(emp.finance.last_finance_update).toLocaleTimeString()}</span>` : ''}
+        </div>
+        <div class="card-body">
+          <div style="display:flex; flex-direction:column; gap:10px; font-size:13px;">
+            <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:6px;">
+              <span style="color:var(--muted-foreground);">Base Salary</span>
+              <span style="font-weight:600; font-variant-numeric: tabular-nums;">${formatCurrency(emp.salary)}/mo</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:6px;">
+              <span style="color:var(--muted-foreground);">Accumulated Bonuses</span>
+              <span style="font-weight:600; color:var(--success); font-variant-numeric: tabular-nums;">+${formatCurrency(emp?.finance?.bonuses || 0)}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:6px;">
+              <span style="color:var(--muted-foreground);">Deductions</span>
+              <span style="font-weight:600; color:var(--destructive); font-variant-numeric: tabular-nums;">-${formatCurrency(emp?.finance?.deductions || 0)}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:6px;">
+              <span style="color:var(--muted-foreground);">Equity Shares</span>
+              <span style="font-weight:600; font-variant-numeric: tabular-nums;">${emp?.finance?.shares || 0}%</span>
+            </div>
+            ${parseFloat(emp?.finance?.employee_owes_company || 0) > 0 ? `
+            <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:6px;">
+              <span style="color:var(--muted-foreground);">Owed to Company</span>
+              <span style="font-weight:600; color:var(--destructive); font-variant-numeric: tabular-nums;">${formatCurrency(emp.finance.employee_owes_company)}</span>
+            </div>
+            ` : ''}
+            ${parseFloat(emp?.finance?.company_owes_employee || 0) > 0 ? `
+            <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:6px;">
+              <span style="color:var(--muted-foreground);">Reimbursements Pending</span>
+              <span style="font-weight:600; color:var(--success); font-variant-numeric: tabular-nums;">${formatCurrency(emp.finance.company_owes_employee)}</span>
+            </div>
+            ` : ''}
+            <div style="display:flex; justify-content:space-between; font-weight:700; font-size:14px; margin-top:4px; border-top:1px dashed var(--border); padding-top:8px;">
+              <span>Net Pay Estimate</span>
+              <span style="font-variant-numeric: tabular-nums;">${formatCurrency(Math.max(0, Number(emp.salary || 0) + Number(emp?.finance?.bonuses || 0) - Number(emp?.finance?.deductions || 0) - Number(emp?.finance?.employee_owes_company || 0) + Number(emp?.finance?.company_owes_employee || 0)))}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ---- HR Dashboard ----
+function drawHRDashboard(): string {
+  const m = state.metrics || { employees: 0, activeProjects: 0, clients: 0, netProfit: 0, totalIncome: 0, totalExpense: 0 };
+  const onLeave = state.employees.filter((e: any) => e.status === 'on_leave').length;
+  const activeCount = state.employees.filter((e: any) => e.status === 'active').length;
+  const flagged = state.employees.filter((e: any) => e.is_flagged).length;
+
+  const recentEmpRows = state.employees.slice(0, 5).map((e: any) => `
+    <tr>
+      <td><div class="user-row"><div class="avatar blue">${sanitizeHtml(e.initials || e.name[0])}</div><div><div class="cell-primary">${sanitizeHtml(e.name)}</div><div class="cell-muted">${sanitizeHtml(e.department)}</div></div></div></td>
+      <td>${sanitizeHtml(e.role)}</td>
+      <td><span class="status-badge ${e.status === 'active' ? 'active' : 'inactive'}">${sanitizeHtml(e.status)}</span></td>
+    </tr>
+  `).join('');
+
+  return `
+    <div class="gradient-header" style="background: linear-gradient(135deg, #065f46 0%, #064e3b 100%);">
+      <h2>HR Management Console</h2>
+      <h1>${sanitizeHtml(state.user?.name || 'HR Manager')}</h1>
+      <div class="role-chip">${getIconSvg('users')}<span>HR MANAGER WORKSPACE</span></div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card blue"><div class="stat-card-header"><div class="stat-card-icon blue">${getIconSvg('users')}</div></div><div class="stat-card-label">Total Headcount</div><div class="stat-card-value">${m.employees}</div></div>
+      <div class="stat-card green"><div class="stat-card-header"><div class="stat-card-icon green">${getIconSvg('activity')}</div></div><div class="stat-card-label">Active Staff</div><div class="stat-card-value">${activeCount}</div></div>
+      <div class="stat-card orange"><div class="stat-card-header"><div class="stat-card-icon orange">${getIconSvg('calendar')}</div></div><div class="stat-card-label">On Leave</div><div class="stat-card-value">${onLeave}</div></div>
+      <div class="stat-card purple"><div class="stat-card-header"><div class="stat-card-icon purple">${getIconSvg('alert')}</div></div><div class="stat-card-label">Flagged Staff</div><div class="stat-card-value">${flagged}</div></div>
+    </div>
+
+    <div class="card" style="overflow-x:auto;">
+      <div class="card-header">
+        <div class="card-title">Staff Roster</div>
+        <button class="card-action" id="hr-go-employees-btn">Manage Employees</button>
+      </div>
+      <div class="card-body" style="padding:0;">
+        <table class="data-table">
+          <thead><tr><th>Employee</th><th>Role</th><th>Status</th></tr></thead>
+          <tbody>${recentEmpRows || '<tr><td colspan="3" style="text-align:center; padding:24px; color:var(--muted-foreground);">No staff records yet.</td></tr>'}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:20px;">
+      <div class="card-header"><div class="card-title">Quick HR Actions</div></div>
+      <div class="card-body">
+        <div class="quick-actions">
+          <button class="quick-action-btn" id="hr-qa-add-staff"><div class="quick-action-icon blue">+</div><span>Onboard Staff</span></button>
+          <button class="quick-action-btn" id="hr-qa-chat"><div class="quick-action-icon green">${getIconSvg('message-circle')}</div><span>Team Chat</span></button>
+          <button class="quick-action-btn" id="hr-qa-settings"><div class="quick-action-icon purple">⚙</div><span>My Settings</span></button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ---- Finance Dashboard ----
+function drawFinanceDashboard(): string {
+  const m = state.metrics || { employees: 0, activeProjects: 0, clients: 0, netProfit: 0, totalIncome: 0, totalExpense: 0 };
+  const recentTx = state.transactions.slice(0, 6);
+  const txRows = recentTx.map((t: any) => {
+    const isIncome = t.type === 'income';
+    return `
+      <div class="transaction-item" style="padding:10px 0;">
+        <div class="transaction-info">
+          <div class="transaction-icon ${isIncome ? 'income' : 'expense'}">${isIncome ? '↓' : '↑'}</div>
+          <div><div class="transaction-name">${sanitizeHtml(t.description)}</div><div class="transaction-date">${sanitizeHtml(t.category)} · ${sanitizeHtml(t.date)}</div></div>
+        </div>
+        <div class="transaction-amount ${isIncome ? 'income' : 'expense'}">${isIncome ? '+' : '-'}${formatCurrency(t.amount)}</div>
+      </div>`;
+  }).join('');
+
+  return `
+    <div class="gradient-header" style="background: linear-gradient(135deg, #78350f 0%, #92400e 100%);">
+      <h2>Finance Control Centre</h2>
+      <h1>${sanitizeHtml(state.user?.name || 'Finance Officer')}</h1>
+      <div class="role-chip">${getIconSvg('trending-up')}<span>FINANCE OFFICER WORKSPACE</span></div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card green"><div class="stat-card-header"><div class="stat-card-icon green">${getIconSvg('trending-up')}</div><span class="stat-card-change up">In</span></div><div class="stat-card-label">Total Income</div><div class="stat-card-value">${formatCurrency(m.totalIncome)}</div></div>
+      <div class="stat-card orange"><div class="stat-card-header"><div class="stat-card-icon orange">${getIconSvg('activity')}</div><span class="stat-card-change down">Out</span></div><div class="stat-card-label">Total Expenses</div><div class="stat-card-value">${formatCurrency(m.totalExpense)}</div></div>
+      <div class="stat-card blue"><div class="stat-card-header"><div class="stat-card-icon blue">${getIconSvg('dollar-sign')}</div></div><div class="stat-card-label">Net Profit</div><div class="stat-card-value">${formatCurrency(m.netProfit)}</div></div>
+      <div class="stat-card purple"><div class="stat-card-header"><div class="stat-card-icon purple">${getIconSvg('briefcase')}</div></div><div class="stat-card-label">Active Clients</div><div class="stat-card-value">${m.clients}</div></div>
+    </div>
+
+    <div class="content-grid">
+      <div class="card">
+        <div class="card-header"><div class="card-title">Recent Transactions</div><button class="card-action" id="fin-go-finance-btn">Full Ledger</button></div>
+        <div class="card-body"><div style="display:flex; flex-direction:column; gap:4px;">${txRows || '<div style="padding:20px; text-align:center; color:var(--muted-foreground);">No transactions yet.</div>'}</div></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Finance Quick Actions</div></div>
+        <div class="card-body">
+          <div class="quick-actions">
+            <button class="quick-action-btn" id="fin-qa-log-income"><div class="quick-action-icon green">+</div><span>Log Income</span></button>
+            <button class="quick-action-btn" id="fin-qa-log-cost"><div class="quick-action-icon orange">+</div><span>Log Cost</span></button>
+            <button class="quick-action-btn" id="fin-qa-chat"><div class="quick-action-icon blue">${getIconSvg('message-circle')}</div><span>Team Chat</span></button>
+            <button class="quick-action-btn" id="fin-qa-settings"><div class="quick-action-icon purple">⚙</div><span>Settings</span></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ---- Operations Dashboard ----
+function drawOpsDashboard(): string {
+  const m = state.metrics || { employees: 0, activeProjects: 0, clients: 0, netProfit: 0, totalIncome: 0, totalExpense: 0 };
+  const activeProj = state.projects.filter((p: any) => p.status === 'active').slice(0, 4);
+  const projRows = activeProj.map((p: any) => `
+    <div style="margin-bottom:14px;">
+      <div style="display:flex; justify-content:space-between; font-size:13px; font-weight:600; margin-bottom:4px;">
+        <span>${sanitizeHtml(p.name)}</span><span>${p.progress}%</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill blue" style="width:${p.progress}%;"></div></div>
+      <div style="font-size:11px; color:var(--muted-foreground); margin-top:3px;">${sanitizeHtml(p.client_name || 'Client')}</div>
+    </div>
+  `).join('');
+
+  return `
+    <div class="gradient-header" style="background: linear-gradient(135deg, #1e3a5f 0%, #1a2e4a 100%);">
+      <h2>Operations Control</h2>
+      <h1>${sanitizeHtml(state.user?.name || 'Operational Officer')}</h1>
+      <div class="role-chip">${getIconSvg('grid')}<span>OPERATIONS WORKSPACE</span></div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card blue"><div class="stat-card-header"><div class="stat-card-icon blue">${getIconSvg('grid')}</div></div><div class="stat-card-label">Active Projects</div><div class="stat-card-value">${m.activeProjects}</div></div>
+      <div class="stat-card green"><div class="stat-card-header"><div class="stat-card-icon green">${getIconSvg('briefcase')}</div></div><div class="stat-card-label">Clients</div><div class="stat-card-value">${m.clients}</div></div>
+      <div class="stat-card orange"><div class="stat-card-header"><div class="stat-card-icon orange">${getIconSvg('users')}</div></div><div class="stat-card-label">Team Size</div><div class="stat-card-value">${m.employees}</div></div>
+      <div class="stat-card purple"><div class="stat-card-header"><div class="stat-card-icon purple">${getIconSvg('activity')}</div></div><div class="stat-card-label">Net Profit</div><div class="stat-card-value" style="font-size:16px;">${formatCurrency(m.netProfit)}</div></div>
+    </div>
+
+    <div class="content-grid">
+      <div class="card">
+        <div class="card-header"><div class="card-title">Active Project Tracking</div><button class="card-action" id="ops-go-clients-btn">View Clients</button></div>
+        <div class="card-body">${projRows || '<div style="padding:20px; text-align:center; color:var(--muted-foreground);">No active projects.</div>'}</div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Quick Actions</div></div>
+        <div class="card-body">
+          <div class="quick-actions">
+            <button class="quick-action-btn" id="ops-qa-clients"><div class="quick-action-icon green">👥</div><span>Clients</span></button>
+            <button class="quick-action-btn" id="ops-qa-employees"><div class="quick-action-icon blue">🏢</div><span>Team</span></button>
+            <button class="quick-action-btn" id="ops-qa-chat"><div class="quick-action-icon orange">${getIconSvg('message-circle')}</div><span>Team Chat</span></button>
+            <button class="quick-action-btn" id="ops-qa-settings"><div class="quick-action-icon purple">⚙</div><span>Settings</span></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ---- Secretary Dashboard ----
+function drawSecretaryDashboard(): string {
+  const m = state.metrics || { employees: 0, activeProjects: 0, clients: 0, netProfit: 0, totalIncome: 0, totalExpense: 0 };
+  const recentNotifs = state.notifications.slice(0, 5);
+  const notifRows = recentNotifs.map((n: any) => `
+    <div style="padding:10px 0; border-bottom:1px solid var(--border);">
+      <div style="font-size:13px; font-weight:600;">${sanitizeHtml(n.title)}</div>
+      <div style="font-size:11px; color:var(--muted-foreground);">${sanitizeHtml(n.body)}</div>
+      <div style="font-size:10px; color:var(--accent); margin-top:3px;">${sanitizeHtml(n.time)}</div>
+    </div>
+  `).join('');
+
+  return `
+    <div class="gradient-header" style="background: linear-gradient(135deg, #4c1d95 0%, #5b21b6 100%);">
+      <h2>Secretary's Desk</h2>
+      <h1>${sanitizeHtml(state.user?.name || 'Secretary')}</h1>
+      <div class="role-chip">${getIconSvg('clipboard')}<span>SECRETARY WORKSPACE</span></div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card blue"><div class="stat-card-header"><div class="stat-card-icon blue">${getIconSvg('users')}</div></div><div class="stat-card-label">Total Staff</div><div class="stat-card-value">${m.employees}</div></div>
+      <div class="stat-card green"><div class="stat-card-header"><div class="stat-card-icon green">${getIconSvg('briefcase')}</div></div><div class="stat-card-label">Clients</div><div class="stat-card-value">${m.clients}</div></div>
+      <div class="stat-card orange"><div class="stat-card-header"><div class="stat-card-icon orange">${getIconSvg('bell')}</div></div><div class="stat-card-label">Notifications</div><div class="stat-card-value">${state.notifications.length}</div></div>
+      <div class="stat-card purple"><div class="stat-card-header"><div class="stat-card-icon purple">${getIconSvg('activity')}</div></div><div class="stat-card-label">Active Projects</div><div class="stat-card-value">${m.activeProjects}</div></div>
+    </div>
+
+    <div class="content-grid">
+      <div class="card">
+        <div class="card-header"><div class="card-title">Recent Announcements</div></div>
+        <div class="card-body">${notifRows || '<div style="padding:20px; text-align:center; color:var(--muted-foreground);">No announcements.</div>'}</div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Quick Access</div></div>
+        <div class="card-body">
+          <div class="quick-actions">
+            <button class="quick-action-btn" id="sec-qa-employees"><div class="quick-action-icon blue">👤</div><span>Staff</span></button>
+            <button class="quick-action-btn" id="sec-qa-clients"><div class="quick-action-icon green">💼</div><span>Clients</span></button>
+            <button class="quick-action-btn" id="sec-qa-chat"><div class="quick-action-icon orange">${getIconSvg('message-circle')}</div><span>Team Chat</span></button>
+            <button class="quick-action-btn" id="sec-qa-settings"><div class="quick-action-icon purple">⚙</div><span>Settings</span></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function drawDeptManagerDashboard(): string {
+  const m = state.metrics || { employees: 0, activeProjects: 0, clients: 0, netProfit: 0, totalIncome: 0, totalExpense: 0 };
+  const deptEmployees = state.employees.slice(0, 5);
+  const empRows = deptEmployees.map((e: any) => `
+    <tr>
+      <td><div class="user-row"><div class="avatar blue">${sanitizeHtml(e.initials || e.name[0])}</div><div><div class="cell-primary">${sanitizeHtml(e.name)}</div></div></div></td>
+      <td>${sanitizeHtml(e.role)}</td>
+      <td><div class="progress-bar" style="width:80px;"><div class="progress-fill blue" style="width:${e.performance || 0}%;"></div></div></td>
+    </tr>
+  `).join('');
+
+  return `
+    <div class="gradient-header" style="background: linear-gradient(135deg, #831843 0%, #9d174d 100%);">
+      <h2>Department Overview</h2>
+      <h1>${sanitizeHtml(state.user?.name || 'Department Manager')}</h1>
+      <div class="role-chip">${getIconSvg('briefcase')}<span>DEPT MANAGER WORKSPACE</span></div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card blue"><div class="stat-card-header"><div class="stat-card-icon blue">${getIconSvg('users')}</div></div><div class="stat-card-label">Team Members</div><div class="stat-card-value">${m.employees}</div></div>
+      <div class="stat-card green"><div class="stat-card-header"><div class="stat-card-icon green">${getIconSvg('grid')}</div></div><div class="stat-card-label">Active Projects</div><div class="stat-card-value">${m.activeProjects}</div></div>
+      <div class="stat-card orange"><div class="stat-card-header"><div class="stat-card-icon orange">${getIconSvg('activity')}</div></div><div class="stat-card-label">Clients</div><div class="stat-card-value">${m.clients}</div></div>
+      <div class="stat-card purple"><div class="stat-card-header"><div class="stat-card-icon purple">${getIconSvg('dollar-sign')}</div></div><div class="stat-card-label">Net Profit</div><div class="stat-card-value" style="font-size:16px;">${formatCurrency(m.netProfit)}</div></div>
+    </div>
+
+    <div class="card" style="overflow-x:auto;">
+      <div class="card-header">
+        <div class="card-title">Team Performance</div>
+        <button class="card-action" id="dm-go-employees-btn">View All Staff</button>
+      </div>
+      <div class="card-body" style="padding:0;">
+        <table class="data-table">
+          <thead><tr><th>Member</th><th>Role</th><th>Performance</th></tr></thead>
+          <tbody>${empRows || '<tr><td colspan="3" style="text-align:center; padding:24px; color:var(--muted-foreground);">No team members yet.</td></tr>'}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:20px;">
+      <div class="card-header"><div class="card-title">Quick Actions</div></div>
+      <div class="card-body">
+        <div class="quick-actions">
+          <button class="quick-action-btn" id="dm-qa-employees"><div class="quick-action-icon blue">+</div><span>Add Member</span></button>
+          <button class="quick-action-btn" id="dm-qa-clients"><div class="quick-action-icon green">💼</div><span>Clients</span></button>
+          <button class="quick-action-btn" id="dm-qa-chat"><div class="quick-action-icon orange">${getIconSvg('message-circle')}</div><span>Team Chat</span></button>
+          <button class="quick-action-btn" id="dm-qa-settings"><div class="quick-action-icon purple">⚙</div><span>Settings</span></button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ---- Full Admin/CEO/Branch Admin Dashboard ----
+function drawAdminDashboard(): string {
   const m = state.metrics || { employees: 0, activeProjects: 0, clients: 0, netProfit: 0, totalIncome: 0, totalExpense: 0 };
   
   // Recent transactions list
   const recentTx = state.transactions.slice(0, 4);
-  const txHtml = recentTx.map(t => {
+  const txHtml = recentTx.map((t: any) => {
     const isIncome = t.type === 'income';
     return `
       <div class="transaction-item" style="padding: 10px 0;">
@@ -2499,8 +3015,8 @@ function drawDashboardTab(): string {
   }).join('');
 
   // Active projects bars
-  const activeProj = state.projects.filter(p => p.status === 'active').slice(0, 3);
-  const projHtml = activeProj.map(p => `
+  const activeProj = state.projects.filter((p: any) => p.status === 'active').slice(0, 3);
+  const projHtml = activeProj.map((p: any) => `
     <div style="margin-bottom: 16px;">
       <div style="display:flex; justify-content:space-between; font-size:13px; font-weight:600; margin-bottom:6px;">
         <span>${sanitizeHtml(p.name)} <span style="font-weight:400; color:var(--muted-foreground)">(${sanitizeHtml(p.client_name || 'Project Client')})</span></span>
@@ -2626,8 +3142,189 @@ function drawDashboardTab(): string {
         </div>
       </div>
     </div>
+
+    ${drawAlertsPanel()}
+    ${drawQuotaBars()}
+    ${drawBranchLeaderboard()}
+    ${drawFinancialCategories()}
   `;
 }
+
+// ---- Critical Alerts Panel ----
+function drawAlertsPanel(): string {
+  const alerts = state.dashboardAlerts;
+  if (!alerts || (!alerts.alerts || alerts.alerts.length === 0)) return '';
+
+  const alertTypeIcon: Record<string, string> = { query: '❓', flagged: '🚩', task: '⚡' };
+  const alertTypeColor: Record<string, string> = { query: '#f59e0b', flagged: '#ef4444', task: '#8b5cf6' };
+
+  const alertItems = alerts.alerts.map((a: any) => `
+    <div style="display:flex; align-items:flex-start; gap:12px; padding:14px 16px; background:var(--card-bg); border-radius:10px; border-left:3px solid ${alertTypeColor[a.type] || '#6366f1'};">
+      <span style="font-size:18px; flex-shrink:0;">${alertTypeIcon[a.type] || '🔔'}</span>
+      <div style="flex:1; min-width:0;">
+        <div style="font-size:13px; font-weight:600; color:var(--foreground); margin-bottom:2px;">${sanitizeHtml(a.message)}</div>
+        <div style="font-size:11px; color:var(--muted-foreground); text-transform:uppercase; letter-spacing:0.05em;">${sanitizeHtml(a.type)} alert · ${a.count} item${a.count !== 1 ? 's' : ''}</div>
+      </div>
+      <span style="font-size:20px; font-weight:800; color:${alertTypeColor[a.type] || '#6366f1'}; flex-shrink:0;">${a.count}</span>
+    </div>
+  `).join('');
+
+  return `
+    <div class="card" style="margin-bottom:24px; border:1px solid rgba(239,68,68,0.25);">
+      <div class="card-header">
+        <div class="card-title" style="color:#ef4444; display:flex; align-items:center; gap:8px;">
+          <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#ef4444; animation:pulse 1.5s infinite;"></span>
+          Critical Alerts
+        </div>
+        <span style="font-size:12px; background:rgba(239,68,68,0.12); color:#ef4444; padding:3px 10px; border-radius:20px; font-weight:600;">${alerts.alerts.length} Active</span>
+      </div>
+      <div class="card-body" style="display:flex; flex-direction:column; gap:10px;">
+        ${alertItems}
+      </div>
+    </div>
+  `;
+}
+
+// ---- Subscription / Quota Bars ----
+function drawQuotaBars(): string {
+  const sub = state.subscriptionLimits;
+  if (!sub || !sub.usage) return '';
+
+  const plan = sub.plan || 'BASIC';
+  const usage = sub.usage as Record<string, { current: number; limit: number }>;
+  const planColor: Record<string, string> = { BASIC: '#6366f1', PREMIUM: '#f59e0b', ENTERPRISE: '#10b981' };
+  const color = planColor[plan] || '#6366f1';
+
+  const barItems = Object.entries(usage).map(([key, val]: [string, any]) => {
+    const pct = val.limit > 0 ? Math.min(100, Math.round((val.current / val.limit) * 100)) : 0;
+    const barColor = pct >= 90 ? '#ef4444' : pct >= 70 ? '#f59e0b' : color;
+    return `
+      <div style="margin-bottom:14px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; margin-bottom:6px;">
+          <span style="font-weight:600; text-transform:capitalize; color:var(--foreground);">${sanitizeHtml(key)}</span>
+          <span style="color:var(--muted-foreground);">${val.current} / ${val.limit === 999 ? '∞' : val.limit}</span>
+        </div>
+        <div style="height:6px; background:var(--border); border-radius:4px; overflow:hidden;">
+          <div style="height:100%; width:${pct}%; background:${barColor}; border-radius:4px; transition:width 0.6s ease;"></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div class="card" style="margin-bottom:24px;">
+      <div class="card-header">
+        <div class="card-title">Subscription Quota</div>
+        <span style="font-size:11px; font-weight:700; background:${color}22; color:${color}; padding:3px 10px; border-radius:20px; letter-spacing:0.05em;">${sanitizeHtml(plan)} PLAN</span>
+      </div>
+      <div class="card-body">
+        ${barItems || '<div style="color:var(--muted-foreground); font-size:13px;">No quota data available.</div>'}
+      </div>
+    </div>
+  `;
+}
+
+// ---- Multi-Branch Leaderboard ----
+function drawBranchLeaderboard(): string {
+  const branches = state.branchMetrics;
+  if (!branches || branches.length === 0) return '';
+
+  const sorted = [...branches].sort((a: any, b: any) => b.netProfit - a.netProfit);
+  const rows = sorted.map((b: any, i: number) => {
+    const rankColor = ['#f59e0b', '#9ca3af', '#cd7f32'][i] || 'var(--muted-foreground)';
+    const profitColor = b.netProfit >= 0 ? '#10b981' : '#ef4444';
+    return `
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:12px 8px; font-size:18px; font-weight:800; color:${rankColor}; text-align:center;">#${i + 1}</td>
+        <td style="padding:12px 8px;">
+          <div style="font-weight:600; font-size:13px; color:var(--foreground);">${sanitizeHtml(b.name)}</div>
+          <div style="font-size:11px; color:var(--muted-foreground);">${sanitizeHtml(b.location || '—')}</div>
+        </td>
+        <td style="padding:12px 8px; text-align:center; font-size:13px; font-weight:600;">${b.headcount}</td>
+        <td style="padding:12px 8px; text-align:center; font-size:13px; font-weight:600;">${b.activeProjects}</td>
+        <td style="padding:12px 8px; text-align:right; font-size:13px; font-weight:700; color:${profitColor};">${formatCurrency(b.netProfit)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  return `
+    <div class="card" style="margin-bottom:24px; overflow-x:auto;">
+      <div class="card-header">
+        <div class="card-title">Branch Performance Leaderboard</div>
+        <span style="font-size:12px; color:var(--muted-foreground);">${sorted.length} Branch${sorted.length !== 1 ? 'es' : ''}</span>
+      </div>
+      <div class="card-body" style="padding:0;">
+        <table style="width:100%; border-collapse:collapse; font-size:13px;">
+          <thead>
+            <tr style="background:var(--border); font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted-foreground);">
+              <th style="padding:10px 8px; text-align:center;">Rank</th>
+              <th style="padding:10px 8px; text-align:left;">Branch</th>
+              <th style="padding:10px 8px; text-align:center;">Staff</th>
+              <th style="padding:10px 8px; text-align:center;">Projects</th>
+              <th style="padding:10px 8px; text-align:right;">Net Profit</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows || '<tr><td colspan="5" style="padding:20px; text-align:center; color:var(--muted-foreground);">No branch data available.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+// ---- Financial Category Breakdown ----
+function drawFinancialCategories(): string {
+  const cats = state.transactionCategories;
+  if (!cats) return '';
+
+  const incomeItems = (cats.income || []).slice(0, 5);
+  const expenseItems = (cats.expense || []).slice(0, 5);
+  if (incomeItems.length === 0 && expenseItems.length === 0) return '';
+
+  const totalIncome = incomeItems.reduce((s: number, i: any) => s + (i.value || 0), 0);
+  const totalExpense = expenseItems.reduce((s: number, i: any) => s + (i.value || 0), 0);
+
+  const makeBar = (items: any[], total: number, barColorBase: string) => items.map((item: any) => {
+    const pct = total > 0 ? Math.round((item.value / total) * 100) : 0;
+    return `
+      <div style="margin-bottom:10px;">
+        <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
+          <span style="font-weight:600; color:var(--foreground);">${sanitizeHtml(item.category || 'Uncategorized')}</span>
+          <span style="color:var(--muted-foreground);">${formatCurrency(item.value)} (${pct}%)</span>
+        </div>
+        <div style="height:5px; background:var(--border); border-radius:4px; overflow:hidden;">
+          <div style="height:100%; width:${pct}%; background:${barColorBase}; border-radius:4px;"></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div class="content-grid" style="margin-bottom:24px;">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title" style="color:#10b981;">↓ Income by Category</div>
+          <span style="font-size:12px; color:var(--muted-foreground);">${formatCurrency(totalIncome)} total</span>
+        </div>
+        <div class="card-body">
+          ${makeBar(incomeItems, totalIncome, '#10b981') || '<div style="color:var(--muted-foreground); font-size:13px;">No income categories.</div>'}
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title" style="color:#ef4444;">↑ Expenses by Category</div>
+          <span style="font-size:12px; color:var(--muted-foreground);">${formatCurrency(totalExpense)} total</span>
+        </div>
+        <div class="card-body">
+          ${makeBar(expenseItems, totalExpense, '#ef4444') || '<div style="color:var(--muted-foreground); font-size:13px;">No expense categories.</div>'}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+
 
 function drawDashboardSvgChart(): string {
   function smoothPath(points: { x: number; y: number }[]) {
@@ -3160,6 +3857,7 @@ function openEmployeeDetailModal(id: number) {
           
           <div style="display:flex; justify-content:space-between; gap:10px;">
             <button class="btn btn-danger btn-sm" id="delete-employee-modal-btn">Delete Profile</button>
+            ${['PRO','PRO_YEARLY'].includes(state.subscriptionLimits?.plan || '') ? `<button class="btn btn-primary btn-sm" id="edit-finance-modal-btn">Edit Financials</button>` : `<button class="btn btn-outline btn-sm" id="upgrade-to-edit-finance-btn" title="Upgrade to PRO to edit financials" style="opacity:0.7;">🔒 PRO Feature</button>`}
             <button class="btn btn-outline btn-sm" id="toggle-status-modal-btn">
               Toggle to ${emp.status === 'active' ? 'Inactive' : 'Active'}
             </button>
@@ -3171,6 +3869,16 @@ function openEmployeeDetailModal(id: number) {
 
   const close = () => modalContainer.innerHTML = DOMPurify.sanitize('');
   document.getElementById('modal-close-btn')?.addEventListener('click', close);
+
+  // Edit employee financials (PRO gate)
+  document.getElementById('edit-finance-modal-btn')?.addEventListener('click', () => {
+    openEditFinanceModal(emp);
+  });
+  document.getElementById('upgrade-to-edit-finance-btn')?.addEventListener('click', () => {
+    close();
+    navigateToTab('pricing');
+    showToast('Upgrade to PRO to unlock financial editing', 'info');
+  });
 
   // Toggle employee status
   document.getElementById('toggle-status-modal-btn')?.addEventListener('click', async () => {
@@ -3212,6 +3920,106 @@ function openEmployeeDetailModal(id: number) {
   });
 }
 
+function openEditFinanceModal(emp: Employee) {
+  const modalContainer = document.getElementById('modal-container');
+  if (!modalContainer) return;
+
+  modalContainer.innerHTML = DOMPurify.sanitize(`
+    <div class="modal-overlay">
+      <div class="modal" style="max-width: 480px;">
+        <div class="modal-header">
+          <h2 class="modal-title">Edit Financial Record: ${sanitizeHtml(emp.name)}</h2>
+          <button class="modal-close" id="modal-close-btn">${getIconSvg('x')}</button>
+        </div>
+        
+        <form id="edit-finance-form">
+          <div class="modal-body" style="display:flex; flex-direction:column; gap:16px;">
+            <div class="form-group">
+              <label class="form-label" for="fin-salary">Base Salary (Monthly)</label>
+              <input type="number" step="0.01" class="form-input" id="fin-salary" required value="${emp.salary || 0}">
+            </div>
+            
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="fin-bonuses">Accumulated Bonuses</label>
+                <input type="number" step="0.01" class="form-input" id="fin-bonuses" required value="${emp.finance?.bonuses || 0}">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="fin-deductions">Deductions</label>
+                <input type="number" step="0.01" class="form-input" id="fin-deductions" required value="${emp.finance?.deductions || 0}">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="fin-shares">Equity Shares (%)</label>
+              <input type="number" step="0.01" min="0" max="100" class="form-input" id="fin-shares" required value="${emp.finance?.shares || 0}">
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="fin-owes-company">Owed to Company</label>
+                <input type="number" step="0.01" class="form-input" id="fin-owes-company" required value="${emp.finance?.employee_owes_company || 0}">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="fin-owes-employee">Owed to Employee</label>
+                <input type="number" step="0.01" class="form-input" id="fin-owes-employee" required value="${emp.finance?.company_owes_employee || 0}">
+              </div>
+            </div>
+          </div>
+          
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline" id="modal-cancel-btn">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="fin-submit-btn">Save Changes</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `);
+
+  const close = () => {
+    openEmployeeDetailModal(emp.id);
+  };
+  document.getElementById('modal-close-btn')?.addEventListener('click', close);
+  document.getElementById('modal-cancel-btn')?.addEventListener('click', close);
+
+  const form = document.getElementById('edit-finance-form') as HTMLFormElement;
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const salary = parseFloat((document.getElementById('fin-salary') as HTMLInputElement).value);
+    const bonuses = parseFloat((document.getElementById('fin-bonuses') as HTMLInputElement).value);
+    const deductions = parseFloat((document.getElementById('fin-deductions') as HTMLInputElement).value);
+    const shares = parseFloat((document.getElementById('fin-shares') as HTMLInputElement).value);
+    const employee_owes_company = parseFloat((document.getElementById('fin-owes-company') as HTMLInputElement).value);
+    const company_owes_employee = parseFloat((document.getElementById('fin-owes-employee') as HTMLInputElement).value);
+
+    try {
+      await apiRequest(`employees/${emp.id}/`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          salary: salary,
+          finance_data: {
+            current_pay: salary,
+            bonuses: bonuses,
+            deductions: deductions,
+            shares: shares,
+            employee_owes_company: employee_owes_company,
+            company_owes_employee: company_owes_employee
+          }
+        })
+      });
+      showToast('Financial record updated successfully!', 'success');
+      const modalContainer = document.getElementById('modal-container');
+      if (modalContainer) modalContainer.innerHTML = DOMPurify.sanitize('');
+      await syncAppData();
+      openEmployeeDetailModal(emp.id);
+      renderApp();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to update financials', 'error');
+    }
+  });
+}
+
 function openAddEmployeeModal() {
   const modalContainer = document.getElementById('modal-container');
   if (!modalContainer) return;
@@ -3239,7 +4047,15 @@ function openAddEmployeeModal() {
             <div class="form-row">
               <div class="form-group">
                 <label class="form-label" for="emp-role">Designation</label>
-                <input type="text" class="form-input" id="emp-role" required placeholder="UI Specialist">
+                <select class="form-input" id="emp-role" style="background-color: var(--background);">
+                  <option value="Employee">Employee</option>
+                  <option value="New Admin">New Admin</option>
+                  <option value="HR Manager">HR Manager</option>
+                  <option value="Secretary">Secretary</option>
+                  <option value="Finance Officer">Finance Officer</option>
+                  <option value="Operational Officer">Operational Officer</option>
+                  <option value="Department Manager">Department Manager</option>
+                </select>
               </div>
               <div class="form-group">
                 <label class="form-label" for="emp-dept">Department</label>
@@ -3248,7 +4064,37 @@ function openAddEmployeeModal() {
                   <option>Product</option>
                   <option>HR</option>
                   <option>Support</option>
+                  <option>Finance</option>
+                  <option>Operations</option>
                 </select>
+              </div>
+            </div>
+
+            <!-- New Admin Branch Configuration (Hidden by default) -->
+            <div id="admin-branch-section" style="display: none; border: 1px dashed var(--border); border-radius: var(--radius-md); padding: 12px; margin-bottom: 16px; background: rgba(0,0,0,0.1);">
+              <div class="form-group" style="margin-bottom: 10px;">
+                <label class="form-label">Admin Scope Type</label>
+                <div style="display: flex; gap: 16px; margin-top: 4px;">
+                  <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer;">
+                    <input type="radio" name="admin-type" value="current" checked> Add to Current Admin Space
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer;">
+                    <input type="radio" name="admin-type" value="new"> Admin to a New Branch Space
+                  </label>
+                </div>
+              </div>
+              
+              <div id="new-branch-fields" style="display: none; margin-top: 10px;">
+                <div class="form-row">
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" for="branch-name">New Branch Name</label>
+                    <input type="text" class="form-input" id="branch-name" placeholder="e.g. West Coast Branch">
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" for="branch-location">Branch Location</label>
+                    <input type="text" class="form-input" id="branch-location" placeholder="e.g. Los Angeles, CA">
+                  </div>
+                </div>
               </div>
             </div>
             
@@ -3277,6 +4123,37 @@ function openAddEmployeeModal() {
   document.getElementById('modal-close-btn')?.addEventListener('click', close);
   document.getElementById('modal-cancel-btn')?.addEventListener('click', close);
 
+  // Dynamic show/hide of Admin Scope configurations
+  const empRoleSelect = document.getElementById('emp-role') as HTMLSelectElement;
+  const adminBranchSection = document.getElementById('admin-branch-section') as HTMLElement;
+  const newBranchFields = document.getElementById('new-branch-fields') as HTMLElement;
+
+  if (empRoleSelect && adminBranchSection) {
+    empRoleSelect.addEventListener('change', () => {
+      if (empRoleSelect.value === 'New Admin') {
+        adminBranchSection.style.display = 'block';
+      } else {
+        adminBranchSection.style.display = 'none';
+      }
+    });
+  }
+
+  const adminTypeRadios = document.getElementsByName('admin-type');
+  adminTypeRadios.forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      const val = (e.target as HTMLInputElement).value;
+      if (val === 'new') {
+        newBranchFields.style.display = 'block';
+        (document.getElementById('branch-name') as HTMLInputElement).required = true;
+        (document.getElementById('branch-location') as HTMLInputElement).required = true;
+      } else {
+        newBranchFields.style.display = 'none';
+        (document.getElementById('branch-name') as HTMLInputElement).required = false;
+        (document.getElementById('branch-location') as HTMLInputElement).required = false;
+      }
+    });
+  });
+
   // Bind phone input events
   const empPhoneInput = document.getElementById('emp-phone') as HTMLInputElement;
   const initialCountry = getSelectedCountry('emp-phone');
@@ -3292,9 +4169,20 @@ function openAddEmployeeModal() {
 
     const name = (document.getElementById('emp-name') as HTMLInputElement).value;
     const email = (document.getElementById('emp-email') as HTMLInputElement).value;
-    const role = (document.getElementById('emp-role') as HTMLInputElement).value;
+    const role = (document.getElementById('emp-role') as HTMLSelectElement).value;
     const department = (document.getElementById('emp-dept') as HTMLSelectElement).value;
     const salary = parseFloat((document.getElementById('emp-salary') as HTMLInputElement).value);
+
+    let branch_name = '';
+    let branch_location = '';
+    
+    if (role === 'New Admin') {
+      const selectedType = (document.querySelector('input[name="admin-type"]:checked') as HTMLInputElement)?.value;
+      if (selectedType === 'new') {
+        branch_name = (document.getElementById('branch-name') as HTMLInputElement).value.trim();
+        branch_location = (document.getElementById('branch-location') as HTMLInputElement).value.trim();
+      }
+    }
 
     submitBtn.disabled = true;
     submitBtn.innerText = 'Saving...';
@@ -3318,7 +4206,9 @@ function openAddEmployeeModal() {
           department,
           salary,
           phone: phoneCheck.formatted,
-          status: 'active'
+          status: 'active',
+          branch_name,
+          branch_location
         })
       });
 
@@ -4745,6 +5635,1042 @@ function bindForgotPasswordEvents() {
   }
 }
 
+// ------------------------------------------------------------
+// 8D. REAL-TIME TEAM CHAT VIEW
+// ------------------------------------------------------------
+
+let chatSearchQuery = '';
+
+async function pollChatData() {
+  if (state.activeTab !== 'chat') return;
+  try {
+    const contactsData = await apiRequest('chat/contacts/');
+    state.chatContacts = contactsData;
+    
+    if (state.chatActiveContact) {
+      const updated = state.chatContacts.find(
+        (c: any) => c.id === state.chatActiveContact.id && c.type === state.chatActiveContact.type
+      );
+      if (updated) {
+        state.chatActiveContact = updated;
+      }
+    } else if (state.chatContacts.length > 0) {
+      state.chatActiveContact = state.chatContacts[0];
+    }
+
+    if (state.chatActiveContact) {
+      let url = 'chat/messages/';
+      if (state.chatActiveContact.type === 'private') {
+        url += `?recipient_id=${state.chatActiveContact.id}`;
+      } else if (state.chatActiveContact.id !== 'group') {
+        url += `?group_id=${state.chatActiveContact.id}`;
+      }
+      const messagesData = await apiRequest(url);
+      state.chatMessages = messagesData;
+    }
+    
+    updateChatDOM();
+  } catch (err) {
+    console.error('Failed to poll chat data', err);
+  }
+}
+
+function updateChatDOM() {
+  const contactsContainer = document.getElementById('chat-contacts-list-container');
+  if (contactsContainer) {
+    let contactsHtml = '';
+    
+    const sortedContacts = [...state.chatContacts].sort((a, b) => {
+      const timeA = a.last_message_time ? new Date(a.last_message_time).getTime() : 0;
+      const timeB = b.last_message_time ? new Date(b.last_message_time).getTime() : 0;
+      return timeB - timeA;
+    });
+
+    const filteredContacts = sortedContacts.filter(c => 
+      c.name.toLowerCase().includes(chatSearchQuery.toLowerCase())
+    );
+
+    if (filteredContacts.length === 0) {
+      contactsHtml = `<div style="text-align:center; padding:20px; color:var(--muted-foreground);">No conversations found.</div>`;
+    } else {
+      contactsHtml = filteredContacts.map(c => {
+        const isActive = state.chatActiveContact && state.chatActiveContact.id === c.id && state.chatActiveContact.type === c.type;
+        const avatarHtml = c.avatar 
+          ? `<img src="${c.avatar}" alt="${sanitizeHtml(c.name)}">` 
+          : sanitizeHtml(c.initials || c.name.slice(0, 2).toUpperCase());
+        const lastMsg = c.last_message ? sanitizeHtml(c.last_message) : '<span style="font-style:italic; opacity:0.6;">No messages yet</span>';
+        const unreadBadge = c.unread_count > 0 ? `<span class="chat-contact-unread">${c.unread_count}</span>` : '';
+        
+        return `
+          <div class="chat-contact-item ${isActive ? 'active' : ''}" data-chat-id="${c.id}" data-chat-type="${c.type}">
+            <div class="chat-contact-avatar">${avatarHtml}</div>
+            <div class="chat-contact-info">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div class="chat-contact-name">${sanitizeHtml(c.name)}</div>
+                ${unreadBadge}
+              </div>
+              <div class="chat-contact-msg">${lastMsg}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+    contactsContainer.innerHTML = DOMPurify.sanitize(contactsHtml);
+    
+    contactsContainer.querySelectorAll('.chat-contact-item').forEach(item => {
+      item.addEventListener('click', (e) => {
+        const target = e.currentTarget as HTMLElement;
+        const chatId = target.dataset.chatId;
+        const chatType = target.dataset.chatType;
+        if (chatId && chatType) {
+          const id = chatId === 'group' ? 'group' : parseInt(chatId);
+          const contact = state.chatContacts.find((c: any) => c.id === id && c.type === chatType);
+          if (contact) {
+            state.chatActiveContact = contact;
+            pollChatData();
+            updateChatDOM();
+          }
+        }
+      });
+    });
+  }
+
+  const viewportContainer = document.getElementById('chat-viewport-container');
+  if (viewportContainer) {
+    if (!state.chatActiveContact) {
+      viewportContainer.innerHTML = DOMPurify.sanitize(`
+        <div class="chat-empty-state">
+          <div class="chat-empty-icon">💬</div>
+          <h3>Welcome to Team Chat</h3>
+          <p style="color:var(--muted-foreground); font-size:14px;">Select a conversation to start messaging your colleagues.</p>
+        </div>
+      `);
+      return;
+    }
+
+    const c = state.chatActiveContact;
+    const headerHtml = `
+      <div class="chat-header">
+        <div class="chat-header-info">
+          <div class="chat-contact-avatar" style="width:36px; height:36px; font-size:12px;">
+            ${c.avatar ? `<img src="${c.avatar}" alt="${sanitizeHtml(c.name)}">` : sanitizeHtml(c.initials || c.name.slice(0,2).toUpperCase())}
+          </div>
+          <div>
+            <div class="chat-header-name">${sanitizeHtml(c.name)}</div>
+            <div class="chat-header-status">${c.type === 'group' ? 'Group Workspace' : 'Direct Message'}</div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const msgsHtml = state.chatMessages.map(m => {
+      const isOutgoing = m.sender && m.sender.id === state.user?.id;
+      const initials = m.sender ? (m.sender.name ? m.sender.name.slice(0, 2).toUpperCase() : m.sender.username.slice(0, 2).toUpperCase()) : '??';
+      const senderName = m.sender ? sanitizeHtml(m.sender.name || m.sender.username) : 'System';
+      const formattedTime = new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      
+      return `
+        <div class="chat-message ${isOutgoing ? 'outgoing' : 'incoming'}">
+          ${isOutgoing ? '' : `<div class="chat-message-avatar">${initials}</div>`}
+          <div class="chat-message-body">
+            ${isOutgoing ? '' : `<div class="chat-message-sender">${senderName}</div>`}
+            <div class="chat-message-text">${sanitizeHtml(m.text)}</div>
+            <div class="chat-message-time">${formattedTime}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    const footerHtml = `
+      <div class="chat-footer">
+        <input type="text" class="chat-input" id="chat-message-input-field" placeholder="Type a message..." autocomplete="off">
+        <button class="chat-send-button" id="chat-send-message-btn">${getIconSvg('send')}</button>
+      </div>
+    `;
+
+    viewportContainer.innerHTML = DOMPurify.sanitize(`
+      ${headerHtml}
+      <div class="chat-messages" id="chat-messages-scroll-container">
+        ${msgsHtml || '<div style="text-align:center; padding:40px; color:var(--muted-foreground); font-size:13px;">No messages in this chat yet. Say hello!</div>'}
+      </div>
+      ${footerHtml}
+    `);
+
+    const scrollContainer = document.getElementById('chat-messages-scroll-container');
+    if (scrollContainer) {
+      scrollContainer.scrollTop = scrollContainer.scrollHeight;
+    }
+
+    const inputField = document.getElementById('chat-message-input-field') as HTMLInputElement;
+    const sendBtn = document.getElementById('chat-send-message-btn');
+
+    const sendMessage = async () => {
+      if (!inputField) return;
+      const text = inputField.value.trim();
+      if (!text) return;
+      
+      inputField.value = '';
+      
+      try {
+        const body: any = { text };
+        if (state.chatActiveContact.type === 'private') {
+          body.recipient_id = state.chatActiveContact.id;
+        } else if (state.chatActiveContact.id !== 'group') {
+          body.group_id = state.chatActiveContact.id;
+        }
+
+        await apiRequest('chat/send/', {
+          method: 'POST',
+          body: JSON.stringify(body)
+        });
+
+        await pollChatData();
+      } catch (err: any) {
+        showToast(err.message || 'Failed to send message', 'error');
+      }
+    };
+
+    if (inputField) {
+      inputField.focus();
+      inputField.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          sendMessage();
+        }
+      });
+    }
+
+    if (sendBtn) {
+      sendBtn.addEventListener('click', sendMessage);
+    }
+  }
+}
+
+function openCreateGroupModal() {
+  const modalContainer = document.getElementById('modal-container');
+  if (!modalContainer) return;
+
+  const employeesChecklist = state.employees.map(emp => {
+    if (!emp.linked_user) return '';
+    return `
+      <div style="display:flex; align-items:center; gap:8px; padding:6px 0;">
+        <input type="checkbox" class="group-member-checkbox" value="${emp.linked_user}" id="chk-emp-${emp.id}">
+        <label for="chk-emp-${emp.id}" style="font-size:14px; cursor:pointer;">${sanitizeHtml(emp.name)} (${sanitizeHtml(emp.role)})</label>
+      </div>
+    `;
+  }).join('');
+
+  modalContainer.innerHTML = DOMPurify.sanitize(`
+    <div class="chat-modal-overlay">
+      <div class="chat-modal">
+        <div class="chat-modal-header">
+          <h2 class="chat-modal-title">Create Custom Group</h2>
+          <button class="chat-modal-close" id="chat-modal-close-btn">${getIconSvg('x')}</button>
+        </div>
+        
+        <form id="create-group-form">
+          <div class="chat-modal-body">
+            <div class="form-group">
+              <label class="form-label" for="group-name-input">Group Name</label>
+              <input type="text" class="form-input" id="group-name-input" required placeholder="e.g. Finance Taskforce">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Select Group Members</label>
+              <div style="max-height:200px; overflow-y:auto; border:1px solid var(--border); border-radius:var(--radius-md); padding:8px 12px; background:rgba(0,0,0,0.1);">
+                ${employeesChecklist || '<div style="font-size:12px; color:var(--muted-foreground); text-align:center; padding:12px;">No employees available to add</div>'}
+              </div>
+            </div>
+          </div>
+          
+          <div class="chat-modal-footer">
+            <button type="button" class="btn btn-outline" id="chat-modal-cancel-btn">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="group-submit-btn">Create Group</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `);
+
+  const close = () => modalContainer.innerHTML = DOMPurify.sanitize('');
+  document.getElementById('chat-modal-close-btn')?.addEventListener('click', close);
+  document.getElementById('chat-modal-cancel-btn')?.addEventListener('click', close);
+
+  const form = document.getElementById('create-group-form') as HTMLFormElement;
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const submitBtn = document.getElementById('group-submit-btn') as HTMLButtonElement;
+    const name = (document.getElementById('group-name-input') as HTMLInputElement).value.trim();
+    if (!name) return;
+
+    const selectedMembers: number[] = [];
+    document.querySelectorAll('.group-member-checkbox:checked').forEach((cb: any) => {
+      selectedMembers.push(parseInt(cb.value));
+    });
+
+    submitBtn.disabled = true;
+    submitBtn.innerText = 'Creating...';
+
+    try {
+      await apiRequest('chat/groups/', {
+        method: 'POST',
+        body: JSON.stringify({
+          name,
+          members: selectedMembers
+        })
+      });
+
+      showToast(`Group "${name}" created successfully!`, 'success');
+      close();
+      await pollChatData();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to create group', 'error');
+      submitBtn.disabled = false;
+      submitBtn.innerText = 'Create Group';
+    }
+  });
+}
+
+function bindChatEvents() {
+  chatSearchQuery = '';
+  const searchInput = document.getElementById('chat-search-input') as HTMLInputElement;
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      chatSearchQuery = searchInput.value.trim();
+      updateChatDOM();
+    });
+  }
+
+  const createGroupBtn = document.getElementById('chat-create-group-btn');
+  if (createGroupBtn) {
+    createGroupBtn.addEventListener('click', openCreateGroupModal);
+  }
+
+  // Start polling
+  if (state.chatPollTimer) {
+    clearInterval(state.chatPollTimer);
+  }
+  pollChatData();
+  state.chatPollTimer = setInterval(pollChatData, 3000);
+}
+
+function drawChatTab(): string {
+  return `
+    <style>
+      .chat-wrapper {
+        display: flex;
+        height: calc(100vh - 120px);
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+      }
+      .chat-sidebar {
+        width: 300px;
+        border-right: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        flex-shrink: 0;
+      }
+      .chat-sidebar-header {
+        padding: 16px;
+        border-bottom: 1px solid var(--border);
+      }
+      .chat-sidebar-search {
+        position: relative;
+        margin-top: 10px;
+      }
+      .chat-sidebar-search input {
+        width: 100%;
+        padding: 8px 12px 8px 32px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        background: var(--background);
+        color: var(--foreground);
+      }
+      .chat-sidebar-search svg {
+        position: absolute;
+        left: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--muted-foreground);
+      }
+      .chat-contacts {
+        flex: 1;
+        overflow-y: auto;
+        padding: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .chat-contact-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px;
+        border-radius: var(--radius-md);
+        cursor: pointer;
+        transition: background 0.2s ease;
+      }
+      .chat-contact-item:hover {
+        background: rgba(255, 255, 255, 0.05);
+      }
+      .chat-contact-item.active {
+        background: var(--accent);
+        color: #fff;
+      }
+      .chat-contact-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        flex-shrink: 0;
+      }
+      .chat-contact-avatar img {
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        object-fit: cover;
+      }
+      .chat-contact-info {
+        flex: 1;
+        min-width: 0;
+      }
+      .chat-contact-name {
+        font-weight: 600;
+        font-size: 14px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .chat-contact-msg {
+        font-size: 12px;
+        color: var(--muted-foreground);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .chat-contact-item.active .chat-contact-msg {
+        color: rgba(255, 255, 255, 0.8);
+      }
+      .chat-contact-unread {
+        background: #ef4444;
+        color: #fff;
+        font-size: 10px;
+        padding: 2px 6px;
+        border-radius: 10px;
+        font-weight: bold;
+      }
+      .chat-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        background: rgba(0, 0, 0, 0.02);
+      }
+      .chat-header {
+        padding: 16px 24px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: var(--card);
+      }
+      .chat-header-info {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .chat-header-name {
+        font-weight: 700;
+        font-size: 16px;
+      }
+      .chat-header-status {
+        font-size: 12px;
+        color: var(--muted-foreground);
+      }
+      .chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .chat-message {
+        display: flex;
+        gap: 12px;
+        max-width: 70%;
+      }
+      .chat-message.incoming {
+        align-self: flex-start;
+      }
+      .chat-message.outgoing {
+        align-self: flex-end;
+        flex-direction: row-reverse;
+      }
+      .chat-message-avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: bold;
+        flex-shrink: 0;
+      }
+      .chat-message-body {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .chat-message-sender {
+        font-size: 11px;
+        color: var(--muted-foreground);
+        font-weight: 600;
+      }
+      .chat-message-text {
+        padding: 10px 14px;
+        border-radius: var(--radius-md);
+        background: var(--background);
+        border: 1px solid var(--border);
+        font-size: 14px;
+        line-height: 1.4;
+        word-break: break-word;
+      }
+      .chat-message.outgoing .chat-message-text {
+        background: var(--accent);
+        color: #fff;
+        border: none;
+      }
+      .chat-message-time {
+        font-size: 10px;
+        color: var(--muted-foreground);
+        align-self: flex-end;
+      }
+      .chat-footer {
+        padding: 16px 24px;
+        border-top: 1px solid var(--border);
+        background: var(--card);
+        display: flex;
+        gap: 12px;
+        align-items: center;
+      }
+      .chat-input {
+        flex: 1;
+        padding: 10px 14px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        background: var(--background);
+        color: var(--foreground);
+        font-size: 14px;
+        outline: none;
+      }
+      .chat-send-button {
+        padding: 10px 16px;
+        border-radius: var(--radius-md);
+        background: var(--accent);
+        color: #fff;
+        border: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.2s ease;
+      }
+      .chat-send-button:hover {
+        background: var(--accent-hover);
+      }
+      .chat-empty-state {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: var(--muted-foreground);
+        gap: 16px;
+      }
+      .chat-empty-icon {
+        font-size: 48px;
+        opacity: 0.5;
+      }
+      
+      .chat-modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.6);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        backdrop-filter: blur(4px);
+      }
+      .chat-modal {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        width: 400px;
+        max-width: 90%;
+        overflow: hidden;
+      }
+      .chat-modal-header {
+        padding: 16px 24px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .chat-modal-title {
+        font-size: 18px;
+        font-weight: 700;
+        margin: 0;
+      }
+      .chat-modal-close {
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: var(--muted-foreground);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .chat-modal-body {
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .chat-modal-footer {
+        padding: 16px 24px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+      }
+    </style>
+
+    <div class="chat-wrapper">
+      <div class="chat-sidebar">
+        <div class="chat-sidebar-header">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h2 style="font-size:18px; font-weight:700; margin:0;">Chats</h2>
+            <button class="btn btn-outline" id="chat-create-group-btn" style="padding:4px 8px; font-size:12px;">+ Group</button>
+          </div>
+          <div class="chat-sidebar-search">
+            ${getIconSvg('search')}
+            <input type="text" id="chat-search-input" placeholder="Search direct messages or groups...">
+          </div>
+        </div>
+        <div class="chat-contacts" id="chat-contacts-list-container">
+          <div style="text-align:center; padding:20px; color:var(--muted-foreground);">Loading conversations...</div>
+        </div>
+      </div>
+      <div class="chat-content" id="chat-viewport-container">
+        <div class="chat-empty-state">
+          <div class="chat-empty-icon">💬</div>
+          <h3>Welcome to Team Chat</h3>
+          <p style="color:var(--muted-foreground); font-size:14px;">Select a conversation to start messaging your colleagues.</p>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ============================================================
+// PRICING TAB & CHECKOUT MODAL
+// ============================================================
+
+function drawPricingTab(): string {
+  const currentPlan: string = state.subscriptionLimits?.plan || 'BASIC';
+
+  const plans = [
+    {
+      id: 'BASIC',
+      name: 'Starter',
+      price: 'Free',
+      period: '',
+      color: '#6366f1',
+      gradient: 'linear-gradient(135deg,#4338ca 0%,#7c3aed 100%)',
+      icon: '🚀',
+      description: 'Perfect for solo founders getting started.',
+      features: [
+        '5 Employees',
+        '3 Clients',
+        '2 Projects',
+        '1 Branch',
+        'Basic Dashboard',
+        'Team Chat',
+      ],
+      cta: 'Current Plan',
+      disabled: true,
+    },
+    {
+      id: 'PREMIUM',
+      name: 'Premium',
+      price: '$19',
+      period: '/month',
+      color: '#f59e0b',
+      gradient: 'linear-gradient(135deg,#d97706 0%,#f59e0b 100%)',
+      icon: '⭐',
+      description: 'For growing teams that need more capacity.',
+      features: [
+        'Unlimited Employees',
+        'Unlimited Clients',
+        'Unlimited Projects',
+        '5 Branches',
+        'Advanced Dashboard',
+        'Priority Notifications',
+        'Activity Logs',
+      ],
+      cta: 'Upgrade to Premium',
+      disabled: false,
+    },
+    {
+      id: 'PRO',
+      name: 'Pro',
+      price: '$49',
+      period: '/month',
+      color: '#10b981',
+      gradient: 'linear-gradient(135deg,#059669 0%,#34d399 100%)',
+      icon: '💎',
+      popular: true,
+      description: 'Full power for serious organizations.',
+      features: [
+        'Everything in Premium',
+        'Unlimited Branches',
+        'Real-Time Financial Updates',
+        'Edit Employee Financials',
+        'Push Notifications to Staff',
+        'Branch Leaderboards',
+        'Financial Category Breakdown',
+        'Priority Support',
+      ],
+      cta: 'Upgrade to Pro',
+      disabled: false,
+    },
+    {
+      id: 'PRO_YEARLY',
+      name: 'Pro Annual',
+      price: '$469',
+      period: '/year',
+      color: '#ec4899',
+      gradient: 'linear-gradient(135deg,#db2777 0%,#f472b6 100%)',
+      icon: '👑',
+      badge: 'Best Value — Save $119',
+      description: 'All Pro features at a discounted annual rate.',
+      features: [
+        'Everything in Pro',
+        '12 months for the price of ~9.5',
+        'Priority SLA & Dedicated Support',
+        'Early Access to New Features',
+        'Annual Usage Report',
+        'Custom Onboarding Session',
+      ],
+      cta: 'Get Pro Annual',
+      disabled: false,
+    },
+  ];
+
+  const planCards = plans.map(p => {
+    const isCurrent = currentPlan === p.id;
+    const featureList = p.features.map(f => `
+      <div style="display:flex;align-items:center;gap:8px;font-size:13px;padding:5px 0;">
+        <span style="color:${p.color};font-weight:700;">✓</span>
+        <span>${sanitizeHtml(f)}</span>
+      </div>
+    `).join('');
+
+    return `
+      <div class="pricing-card ${isCurrent ? 'pricing-current' : ''}" data-plan="${p.id}" style="
+        position:relative;
+        background:var(--card);
+        border:2px solid ${isCurrent ? p.color : 'var(--border)'};
+        border-radius:20px;
+        padding:28px 24px;
+        display:flex;
+        flex-direction:column;
+        gap:16px;
+        transition:transform 0.25s ease,box-shadow 0.25s ease;
+        cursor:default;
+        ${p.popular ? 'transform:translateY(-8px);box-shadow:0 20px 60px rgba(16,185,129,0.25);' : ''}
+      ">
+        ${p.popular ? `<div style="position:absolute;top:-14px;left:50%;transform:translateX(-50%);background:${p.gradient};color:#fff;font-size:11px;font-weight:800;padding:4px 16px;border-radius:20px;letter-spacing:1px;white-space:nowrap;">MOST POPULAR</div>` : ''}
+        ${(p as any).badge ? `<div style="position:absolute;top:16px;right:16px;background:${p.gradient};color:#fff;font-size:10px;font-weight:700;padding:3px 10px;border-radius:12px;">${sanitizeHtml((p as any).badge)}</div>` : ''}
+        ${isCurrent ? `<div style="position:absolute;top:16px;left:16px;background:#22c55e22;color:#22c55e;font-size:10px;font-weight:700;padding:3px 10px;border-radius:12px;border:1px solid #22c55e;">ACTIVE</div>` : ''}
+
+        <div style="text-align:center;padding-top:${isCurrent || p.popular || (p as any).badge ? '12px' : '0'}">
+          <div style="font-size:40px;margin-bottom:8px;">${p.icon}</div>
+          <div style="font-size:20px;font-weight:800;color:var(--foreground);">${p.name}</div>
+          <div style="font-size:13px;color:var(--muted-foreground);margin-top:4px;">${sanitizeHtml(p.description)}</div>
+        </div>
+
+        <div style="text-align:center;padding:12px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
+          <span style="font-size:42px;font-weight:900;background:${p.gradient};-webkit-background-clip:text;-webkit-text-fill-color:transparent;">${p.price}</span>
+          <span style="font-size:14px;color:var(--muted-foreground);">${p.period}</span>
+        </div>
+
+        <div style="flex:1;display:flex;flex-direction:column;gap:2px;">
+          ${featureList}
+        </div>
+
+        ${isCurrent
+          ? `<button class="btn" style="width:100%;background:var(--muted);color:var(--muted-foreground);cursor:not-allowed;border-radius:12px;font-weight:700;" disabled>${p.cta === 'Current Plan' ? '✓ Current Plan' : p.cta}</button>`
+          : `<button class="btn btn-primary pricing-upgrade-btn" data-plan="${p.id}" data-price="${p.price}${p.period}" data-name="${p.name}" style="width:100%;background:${p.gradient};border:none;border-radius:12px;font-weight:700;font-size:14px;padding:14px;transition:opacity 0.2s;">${p.cta}</button>`
+        }
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div style="padding:32px 24px;max-width:1200px;margin:0 auto;">
+      <div style="text-align:center;margin-bottom:48px;">
+        <div style="display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#6366f1,#ec4899);color:#fff;padding:6px 18px;border-radius:20px;font-size:12px;font-weight:700;letter-spacing:1px;margin-bottom:16px;">💎 ADMINSUITE PLANS</div>
+        <h1 style="font-size:36px;font-weight:900;color:var(--foreground);margin:0 0 12px;">Choose Your Plan</h1>
+        <p style="font-size:16px;color:var(--muted-foreground);max-width:520px;margin:0 auto;">Scale your workspace with the right tools. Upgrade anytime — no lock-in contracts.</p>
+        <div style="margin-top:16px;display:inline-flex;align-items:center;gap:8px;background:var(--muted);padding:8px 16px;border-radius:12px;font-size:13px;">
+          Current plan: <strong style="color:var(--accent);">${sanitizeHtml(currentPlan.replace('_', ' '))}</strong>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:24px;align-items:start;">
+        ${planCards}
+      </div>
+
+      <div style="margin-top:48px;background:var(--card);border:1px solid var(--border);border-radius:20px;padding:28px;">
+        <h2 style="font-size:18px;font-weight:800;margin:0 0 20px;">📊 Feature Comparison</h2>
+        <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead>
+              <tr style="border-bottom:2px solid var(--border);">
+                <th style="text-align:left;padding:10px 12px;color:var(--muted-foreground);">Feature</th>
+                <th style="text-align:center;padding:10px 12px;">Starter</th>
+                <th style="text-align:center;padding:10px 12px;color:#f59e0b;">Premium</th>
+                <th style="text-align:center;padding:10px 12px;color:#10b981;">Pro</th>
+                <th style="text-align:center;padding:10px 12px;color:#ec4899;">Pro Annual</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${[
+                ['Employees','5','Unlimited','Unlimited','Unlimited'],
+                ['Clients','3','Unlimited','Unlimited','Unlimited'],
+                ['Projects','2','Unlimited','Unlimited','Unlimited'],
+                ['Branches','1','5','Unlimited','Unlimited'],
+                ['Real-Time Financials','—','—','✓','✓'],
+                ['Edit Employee Financials','—','—','✓','✓'],
+                ['Push Notifications','—','✓','✓','✓'],
+                ['Branch Leaderboard','—','—','✓','✓'],
+                ['Dedicated Support','—','—','—','✓'],
+              ].map(row => `
+                <tr style="border-bottom:1px solid var(--border);">
+                  <td style="padding:10px 12px;font-weight:600;">${row[0]}</td>
+                  ${row.slice(1).map((v,i) => `<td style="text-align:center;padding:10px 12px;color:${v==='✓'?['#6366f1','#f59e0b','#10b981','#ec4899'][i]:(v==='—'?'var(--muted-foreground)':'var(--foreground)')};font-weight:${v==='✓'?'700':'400'};">${v}</td>`).join('')}
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function bindPricingEvents() {
+  document.querySelectorAll('.pricing-upgrade-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const el = e.currentTarget as HTMLElement;
+      const planId = el.dataset.plan || '';
+      const planPrice = el.dataset.price || '';
+      const planName = el.dataset.name || '';
+      openCheckoutModal(planId, planName, planPrice);
+    });
+  });
+}
+
+function openCheckoutModal(planId: string, planName: string, planPrice: string) {
+  const modalContainer = document.getElementById('modal-container');
+  if (!modalContainer) return;
+
+  modalContainer.innerHTML = DOMPurify.sanitize(`
+    <div class="modal-overlay" id="checkout-overlay">
+      <div class="modal" style="max-width:500px;padding:0;overflow:hidden;border-radius:24px;">
+
+        <!-- Header -->
+        <div style="background:linear-gradient(135deg,#1e1b4b 0%,#312e81 100%);padding:28px 28px 20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div style="font-size:11px;font-weight:700;color:#a5b4fc;letter-spacing:1px;">UPGRADE TO</div>
+              <div style="font-size:22px;font-weight:900;color:#fff;">${sanitizeHtml(planName)}</div>
+              <div style="font-size:14px;color:#c7d2fe;margin-top:2px;">${sanitizeHtml(planPrice)}</div>
+            </div>
+            <button class="modal-close" id="checkout-close-btn" style="background:rgba(255,255,255,0.1);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div style="padding:28px;">
+          <!-- Card Preview (flip animation) -->
+          <div style="perspective:1000px;margin-bottom:24px;" id="card-flip-wrapper">
+            <div id="credit-card-inner" style="position:relative;width:100%;height:180px;transition:transform 0.7s cubic-bezier(0.4,0,0.2,1);transform-style:preserve-3d;">
+
+              <!-- Card Front -->
+              <div style="position:absolute;width:100%;height:100%;backface-visibility:hidden;background:linear-gradient(135deg,#1e3a8a 0%,#312e81 50%,#4c1d95 100%);border-radius:16px;padding:22px;box-sizing:border-box;box-shadow:0 20px 40px rgba(0,0,0,0.4);">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:30px;">
+                  <div style="color:#fff;font-size:18px;font-weight:800;letter-spacing:2px;">ADMIN<span style="color:#818cf8;">SUITE</span></div>
+                  <div style="width:40px;height:28px;background:linear-gradient(135deg,#fbbf24,#f59e0b);border-radius:4px;"></div>
+                </div>
+                <div style="color:#c7d2fe;font-size:16px;letter-spacing:3px;font-family:monospace;margin-bottom:20px;" id="card-number-preview">•••• •••• •••• ••••</div>
+                <div style="display:flex;justify-content:space-between;align-items:flex-end;">
+                  <div>
+                    <div style="color:#818cf8;font-size:9px;letter-spacing:1px;margin-bottom:2px;">CARD HOLDER</div>
+                    <div style="color:#fff;font-size:13px;font-weight:600;" id="card-name-preview">YOUR NAME</div>
+                  </div>
+                  <div>
+                    <div style="color:#818cf8;font-size:9px;letter-spacing:1px;margin-bottom:2px;">EXPIRES</div>
+                    <div style="color:#fff;font-size:13px;font-weight:600;" id="card-expiry-preview">MM/YY</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Card Back -->
+              <div style="position:absolute;width:100%;height:100%;backface-visibility:hidden;background:linear-gradient(135deg,#1e3a8a 0%,#4c1d95 100%);border-radius:16px;box-sizing:border-box;box-shadow:0 20px 40px rgba(0,0,0,0.4);transform:rotateY(180deg);">
+                <div style="background:#374151;height:44px;margin-top:24px;"></div>
+                <div style="padding:16px 22px;display:flex;justify-content:flex-end;align-items:center;gap:12px;margin-top:12px;">
+                  <div style="background:#f3f4f6;border-radius:4px;padding:6px 14px;letter-spacing:3px;font-family:monospace;font-size:14px;color:#111;" id="card-cvv-preview">•••</div>
+                  <div style="color:#818cf8;font-size:12px;">CVV</div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Payment Form -->
+          <form id="checkout-form">
+            <div style="display:flex;flex-direction:column;gap:14px;">
+              <div class="form-group">
+                <label class="form-label" for="cc-name">Cardholder Name</label>
+                <input type="text" id="cc-name" class="form-input" placeholder="John Doe" autocomplete="cc-name" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="cc-number">Card Number</label>
+                <input type="text" id="cc-number" class="form-input" placeholder="1234 5678 9012 3456" maxlength="19" autocomplete="cc-number" required>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div class="form-group">
+                  <label class="form-label" for="cc-expiry">Expiry Date</label>
+                  <input type="text" id="cc-expiry" class="form-input" placeholder="MM/YY" maxlength="5" autocomplete="cc-exp" required>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="cc-cvv">CVV</label>
+                  <input type="text" id="cc-cvv" class="form-input" placeholder="123" maxlength="4" autocomplete="cc-csc" required>
+                </div>
+              </div>
+            </div>
+
+            <div style="margin-top:20px;padding:12px;background:var(--muted);border-radius:12px;font-size:12px;color:var(--muted-foreground);display:flex;align-items:center;gap:8px;">
+              🔒 <span>This is a simulated payment. No real charges will be made.</span>
+            </div>
+
+            <button type="submit" id="checkout-submit-btn" class="btn btn-primary" style="width:100%;margin-top:20px;padding:16px;font-size:15px;font-weight:800;border-radius:14px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none;letter-spacing:0.5px;">
+              Pay ${sanitizeHtml(planPrice)} · Activate ${sanitizeHtml(planName)}
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  `);
+
+  const closeModal = () => { modalContainer.innerHTML = DOMPurify.sanitize(''); };
+  document.getElementById('checkout-close-btn')?.addEventListener('click', closeModal);
+  document.getElementById('checkout-overlay')?.addEventListener('click', (e) => {
+    if (e.target === document.getElementById('checkout-overlay')) closeModal();
+  });
+
+  // Live card number formatting & preview
+  const ccNumber = document.getElementById('cc-number') as HTMLInputElement;
+  const ccName = document.getElementById('cc-name') as HTMLInputElement;
+  const ccExpiry = document.getElementById('cc-expiry') as HTMLInputElement;
+  const ccCvv = document.getElementById('cc-cvv') as HTMLInputElement;
+  const cardInner = document.getElementById('credit-card-inner');
+
+  ccNumber?.addEventListener('input', () => {
+    let val = ccNumber.value.replace(/\D/g,'').slice(0,16);
+    ccNumber.value = val.replace(/(\d{4})/g,'$1 ').trim();
+    const preview = document.getElementById('card-number-preview');
+    if (preview) preview.textContent = (ccNumber.value + ' •••• •••• •••• ••••').slice(0,19);
+  });
+  ccName?.addEventListener('input', () => {
+    const preview = document.getElementById('card-name-preview');
+    if (preview) preview.textContent = ccName.value.toUpperCase() || 'YOUR NAME';
+  });
+  ccExpiry?.addEventListener('input', () => {
+    let val = ccExpiry.value.replace(/\D/g,'').slice(0,4);
+    if (val.length >= 3) val = val.slice(0,2) + '/' + val.slice(2);
+    ccExpiry.value = val;
+    const preview = document.getElementById('card-expiry-preview');
+    if (preview) preview.textContent = ccExpiry.value || 'MM/YY';
+  });
+  ccCvv?.addEventListener('focus', () => {
+    if (cardInner) cardInner.style.transform = 'rotateY(180deg)';
+    const preview = document.getElementById('card-cvv-preview');
+    if (preview) preview.textContent = ccCvv.value || '•••';
+  });
+  ccCvv?.addEventListener('blur', () => {
+    if (cardInner) cardInner.style.transform = 'rotateY(0deg)';
+  });
+  ccCvv?.addEventListener('input', () => {
+    const preview = document.getElementById('card-cvv-preview');
+    if (preview) preview.textContent = ccCvv.value || '•••';
+  });
+
+  // Submit handler
+  document.getElementById('checkout-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const submitBtn = document.getElementById('checkout-submit-btn') as HTMLButtonElement;
+    if (!submitBtn) return;
+
+    // Basic card validation
+    const rawNumber = (ccNumber?.value || '').replace(/\s/g,'');
+    const expiry = ccExpiry?.value || '';
+    const cvv = ccCvv?.value || '';
+    const name = ccName?.value.trim() || '';
+
+    if (rawNumber.length < 16) { showToast('Please enter a valid 16-digit card number', 'error'); return; }
+    if (!/^\d{2}\/\d{2}$/.test(expiry)) { showToast('Please enter expiry as MM/YY', 'error'); return; }
+    if (cvv.length < 3) { showToast('Please enter a valid CVV', 'error'); return; }
+    if (!name) { showToast('Please enter the cardholder name', 'error'); return; }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = '⏳ Processing Payment...';
+
+    try {
+      // Simulate payment processing delay
+      await new Promise(r => setTimeout(r, 1800));
+
+      await apiRequest('subscription/upgrade/', {
+        method: 'POST',
+        body: JSON.stringify({ plan: planId })
+      });
+
+      await syncAppData();
+      closeModal();
+      showToast(`🎉 Welcome to ${planName}! Your plan is now active.`, 'success');
+      renderApp();
+    } catch (err: any) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = `Pay ${planPrice} · Activate ${planName}`;
+      showToast(err.message || 'Payment failed. Please try again.', 'error');
+    }
+  });
+}
+
 // ============================================================
 // APP BOOTSTRAP INITIALIZATION
 // ============================================================
@@ -4752,7 +6678,7 @@ function bindForgotPasswordEvents() {
 document.addEventListener('DOMContentLoaded', async () => {
   // Set tab based on router hash
   const hash = window.location.hash.slice(2);
-  const validTabs: Array<typeof state.activeTab> = ['dashboard', 'employees', 'clients', 'finance', 'settings', 'pricing'];
+  const validTabs: Array<typeof state.activeTab> = ['dashboard', 'employees', 'clients', 'finance', 'settings', 'pricing', 'chat'];
   if (validTabs.includes(hash as any)) {
     state.activeTab = hash as any;
   }

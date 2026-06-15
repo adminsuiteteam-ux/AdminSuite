@@ -51,10 +51,11 @@ export default function CreateSavingsScreen() {
       await refresh();
       router.back();
     } catch (err: any) {
+      const responseData = (err?.response?.data || {}) as Record<string, any>;
       const msg =
-        err?.response?.data?.detail ||
-        err?.response?.data?.non_field_errors?.[0] ||
-        Object.values(err?.response?.data || {})?.[0]?.[0] ||
+        responseData.detail ||
+        responseData.non_field_errors?.[0] ||
+        Object.values(responseData)?.[0]?.[0] ||
         "Failed to save. Please try again.";
       Alert.alert("Save Failed", String(msg));
     } finally {

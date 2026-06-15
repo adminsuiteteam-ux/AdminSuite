@@ -218,7 +218,22 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         return get_scoped_queryset(Employee, self.request)
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        try:
+            ext = self.request.user.extension
+            org = ext.organization
+        except Exception:
+            org = None
+        if org:
+            check_subscription_limit(org, 'employees')
+            
+        instance = serializer.save(user=self.request.user)
+        # Notify the admin who created this employee that onboarding is complete
+        send_push_notification(
+            user=self.request.user,
+            title='👤 New Staff Member Added',
+            body=f"{instance.name} has been onboarded as {instance.role} in {instance.department}.",
+            data={'screen': 'employees', 'employeeId': str(instance.id)}
+        )
 
     @action(detail=True, methods=['post'])
     def flag(self, request, pk=None):
@@ -238,15 +253,32 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             employee.flag_note = ""
             action_name = "Unflagged"
             details = f"Unflagged (Flag resolved). Note: '{note}'"
-            
+
         employee.save(update_fields=['is_flagged', 'flag_reason', 'flag_note'])
-        
+
         # Log to activity history
         EmployeeActivityLog.objects.create(
             employee=employee,
             action=action_name,
             details=details
         )
+
+        # Notify the linked employee about their flag status change
+        if employee.linked_user:
+            if is_flagged:
+                send_push_notification(
+                    user=employee.linked_user,
+                    title='🚩 Account Flagged',
+                    body=f"Your profile has been flagged. Reason: {reason or 'See admin for details'}.",
+                    data={'screen': 'profile'}
+                )
+            else:
+                send_push_notification(
+                    user=employee.linked_user,
+                    title='✅ Flag Resolved',
+                    body='Your profile flag has been cleared by the administrator.',
+                    data={'screen': 'profile'}
+                )
         return Response({'status': 'success', 'is_flagged': employee.is_flagged})
 
     @action(detail=True, methods=['post'])
@@ -254,12 +286,19 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         employee = self.get_object()
         employee.is_archived = True
         employee.save(update_fields=['is_archived'])
-        # Log activity
         EmployeeActivityLog.objects.create(
             employee=employee,
             action="Archived",
             details="Employee profile has been archived/deactivated."
         )
+        # Notify the employee their account has been deactivated
+        if employee.linked_user:
+            send_push_notification(
+                user=employee.linked_user,
+                title='⚠️ Account Deactivated',
+                body='Your staff account has been deactivated. Contact your administrator for details.',
+                data={'screen': 'profile'}
+            )
         return Response({'status': 'success', 'is_archived': True})
 
     @action(detail=True, methods=['post'])
@@ -267,12 +306,19 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         employee = self.get_object()
         employee.is_archived = False
         employee.save(update_fields=['is_archived'])
-        # Log activity
         EmployeeActivityLog.objects.create(
             employee=employee,
             action="Restored",
             details="Employee profile has been restored/reactivated."
         )
+        # Notify the employee their account is active again
+        if employee.linked_user:
+            send_push_notification(
+                user=employee.linked_user,
+                title='✅ Account Reactivated',
+                body='Your staff account has been reactivated. Welcome back!',
+                data={'screen': 'dashboard'}
+            )
         return Response({'status': 'success', 'is_archived': False})
 
 
@@ -284,6 +330,13 @@ class ClientViewSet(viewsets.ModelViewSet):
         return get_scoped_queryset(Client, self.request)
 
     def perform_create(self, serializer):
+        try:
+            ext = self.request.user.extension
+            org = ext.organization
+        except Exception:
+            org = None
+        if org:
+            check_subscription_limit(org, 'clients')
         serializer.save(user=self.request.user)
 
 
@@ -295,7 +348,26 @@ class ProjectViewSet(viewsets.ModelViewSet):
         return get_scoped_queryset(Project, self.request)
 
     def perform_create(self, serializer):
+        try:
+            ext = self.request.user.extension
+            org = ext.organization
+        except Exception:
+            org = None
+        if org:
+            check_subscription_limit(org, 'projects')
         serializer.save(user=self.request.user)
+
+    def perform_update(self, serializer):
+        old_status = serializer.instance.status
+        instance = serializer.save()
+        # Notify the admin when a project is marked as completed
+        if old_status != 'completed' and instance.status == 'completed':
+            send_push_notification(
+                user=self.request.user,
+                title='🎉 Project Completed',
+                body=f"Project '{instance.name}' has been marked as completed.",
+                data={'screen': 'projects', 'projectId': str(instance.id)}
+            )
 
 
 class TransactionViewSet(viewsets.ModelViewSet):
@@ -553,17 +625,17 @@ def register(request):
 @permission_classes([IsAuthenticated])
 def metrics(request):
     """Dashboard metrics — mirrors getMetrics() from mockData.ts"""
-    user = request.user
-    total_income = Transaction.objects.filter(
-        user=user, type='income'
+    transactions = get_scoped_queryset(Transaction, request)
+    total_income = transactions.filter(
+        type='income'
     ).aggregate(total=Sum('amount'))['total'] or 0
-    total_expense = Transaction.objects.filter(
-        user=user, type='expense'
+    total_expense = transactions.filter(
+        type='expense'
     ).aggregate(total=Sum('amount'))['total'] or 0
     return Response({
-        'employees': Employee.objects.filter(user=user).exclude(status='terminated').count(),
-        'activeProjects': Project.objects.filter(user=user, status='active').count(),
-        'clients': Client.objects.filter(user=user).count(),
+        'employees': get_scoped_queryset(Employee, request).exclude(status='terminated').count(),
+        'activeProjects': get_scoped_queryset(Project, request).filter(status='active').count(),
+        'clients': get_scoped_queryset(Client, request).count(),
         'netProfit': float(total_income) - float(total_expense),
         'totalIncome': float(total_income),
         'totalExpense': float(total_expense),
@@ -574,12 +646,12 @@ def metrics(request):
 @permission_classes([IsAuthenticated])
 def client_metrics(request):
     """Client breakdown — mirrors getClientMetrics()"""
-    user = request.user
+    clients = get_scoped_queryset(Client, request)
     return Response({
-        'active': Client.objects.filter(user=user, status='active').count(),
-        'pending': Client.objects.filter(user=user, status='pending').count(),
-        'completed': Client.objects.filter(user=user, status='completed').count(),
-        'total': Client.objects.filter(user=user).count(),
+        'active': clients.filter(status='active').count(),
+        'pending': clients.filter(status='pending').count(),
+        'completed': clients.filter(status='completed').count(),
+        'total': clients.count(),
     })
 
 
@@ -600,7 +672,7 @@ def payroll_metrics(request):
         
     paid = sum(1 for m in payroll_months if m['paid'])
     unpaid = len(payroll_months) - paid
-    staff_paid = Employee.objects.filter(user=user, status='active').count()
+    staff_paid = get_scoped_queryset(Employee, request).filter(status='active').count()
     
     return Response({
         'paid': paid,
@@ -618,16 +690,30 @@ def toggle_payroll_month(request):
     user = request.user
     month = request.data.get('month')
     paid = request.data.get('paid', False)
-    
+
     if not month:
         return Response({'error': 'month is required.'}, status=status.HTTP_400_BAD_REQUEST)
-        
+
     payroll_status, created = PayrollStatus.objects.update_or_create(
         user=user,
         month=month,
         defaults={'paid': paid}
     )
-    
+
+    # When marking a month as PAID, notify all active employees under this admin
+    if paid:
+        active_employees = Employee.objects.filter(
+            user=user, is_archived=False, status='active'
+        ).select_related('linked_user')
+        for emp in active_employees:
+            if emp.linked_user:
+                send_push_notification(
+                    user=emp.linked_user,
+                    title='💰 Salary Processed',
+                    body=f'Your salary for {month} has been processed and marked as paid.',
+                    data={'screen': 'finance'}
+                )
+
     return Response({
         'month': payroll_status.month,
         'paid': payroll_status.paid,
@@ -639,12 +725,253 @@ def toggle_payroll_month(request):
 @permission_classes([IsAuthenticated])
 def debts_grouped(request):
     """Debts grouped as weOwe / owedToUs — mirrors the frontend structure"""
-    user = request.user
-    we_owe = DebtSerializer(Debt.objects.filter(user=user, type='weOwe'), many=True).data
-    owed_to_us = DebtSerializer(Debt.objects.filter(user=user, type='owedToUs'), many=True).data
+    debts = get_scoped_queryset(Debt, request)
+    we_owe = DebtSerializer(debts.filter(type='weOwe'), many=True).data
+    owed_to_us = DebtSerializer(debts.filter(type='owedToUs'), many=True).data
     return Response({
         'weOwe': we_owe,
         'owedToUs': owed_to_us,
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def branch_metrics(request):
+    user = request.user
+    try:
+        ext = user.extension
+        role = ext.role
+        org = ext.organization
+    except Exception:
+        return Response({'error': 'No organization scope.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not org:
+        return Response([])
+
+    if role != 'CEO' and role != 'ADMIN':
+        branch = ext.branch
+        if not branch:
+            return Response([])
+        branches = [branch]
+    else:
+        branches = org.branches.filter(is_active=True)
+
+    result = []
+    for b in branches:
+        headcount = Employee.objects.filter(branch=b, is_archived=False).exclude(status='terminated').count()
+        active_projects = Project.objects.filter(branch=b, status='active').count()
+        clients_count = Client.objects.filter(projects__branch=b).distinct().count()
+        if clients_count == 0:
+            clients_count = Client.objects.filter(user__extension__branch=b).count()
+        
+        txs = Transaction.objects.filter(branch=b)
+        total_income = txs.filter(type='income').aggregate(total=Sum('amount'))['total'] or 0
+        total_expense = txs.filter(type='expense').aggregate(total=Sum('amount'))['total'] or 0
+        net_profit = float(total_income) - float(total_expense)
+        
+        result.append({
+            'id': b.id,
+            'name': b.name,
+            'location': b.location or 'Unknown',
+            'headcount': headcount,
+            'activeProjects': active_projects,
+            'clients': clients_count,
+            'totalIncome': float(total_income),
+            'totalExpense': float(total_expense),
+            'netProfit': net_profit
+        })
+    return Response(result)
+
+
+def check_subscription_limit(org, field_name):
+    try:
+        sub = org.subscription
+        plan = sub.plan
+    except Exception:
+        plan = "BASIC"
+        
+    if plan == 'BASIC':
+        limit = 15
+    else:
+        limit = 999999
+        
+    if field_name == 'branches':
+        limit = 5 if plan == 'BASIC' else (25 if plan == 'PREMIUM' else 999999)
+        current = org.branches.filter(is_active=True).count()
+    elif field_name == 'employees':
+        current = Employee.objects.filter(branch__organization=org, is_archived=False).count()
+    elif field_name == 'clients':
+        current = Client.objects.filter(user__extension__organization=org).count()
+    elif field_name == 'projects':
+        current = Project.objects.filter(branch__organization=org).count()
+    else:
+        return
+        
+    if current >= limit:
+        from rest_framework.exceptions import PermissionDenied
+        raise PermissionDenied(
+            f"Your organization has reached the limit of {limit if limit < 999999 else 'unlimited'} {field_name} "
+            f"for your {plan} plan. Please upgrade to add more."
+        )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def subscription_limits(request):
+    user = request.user
+    try:
+        ext = user.extension
+        org = ext.organization
+    except Exception:
+        return Response({'error': 'No organization scope.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not org:
+        return Response({'error': 'No organization associated.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        sub = org.subscription
+        plan = sub.plan
+        max_records = sub.max_records_per_field
+    except Exception:
+        plan = "BASIC"
+        max_records = 15
+
+    branches_count = org.branches.filter(is_active=True).count()
+    employees_count = Employee.objects.filter(branch__organization=org, is_archived=False).count()
+    clients_count = Client.objects.filter(user__extension__organization=org).count()
+    projects_count = Project.objects.filter(branch__organization=org).count()
+
+    return Response({
+        'plan': plan,
+        'max_records': max_records,
+        'usage': {
+            'branches': { 'current': branches_count, 'limit': 5 if plan == 'BASIC' else (25 if plan == 'PREMIUM' else 999999) },
+            'employees': { 'current': employees_count, 'limit': max_records },
+            'clients': { 'current': clients_count, 'limit': max_records },
+            'projects': { 'current': projects_count, 'limit': max_records },
+        }
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def subscription_upgrade(request):
+    user = request.user
+    try:
+        ext = user.extension
+        org = ext.organization
+    except Exception:
+        return Response({'error': 'No organization scope.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+    if not org:
+        return Response({'error': 'No organization associated.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+    plan = request.data.get('plan')
+    if plan not in ('BASIC', 'PREMIUM', 'PRO', 'PRO_YEARLY'):
+        return Response({'error': 'Invalid subscription plan.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+    # Process simulated credit card billing details
+    payment_method = request.data.get('payment_method')
+    if plan != 'BASIC' and not payment_method:
+        return Response({'error': 'Payment method details are required for paid plans.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+    # Update or create organization subscription
+    from .extended_models import Subscription
+    from django.utils import timezone
+    
+    sub, created = Subscription.objects.get_or_create(organization=org)
+    sub.plan = plan
+    
+    # Set limit fields and dates
+    if plan == 'BASIC':
+        sub.max_records_per_field = 15
+        sub.end_date = None
+        sub.features = {}
+    elif plan == 'PREMIUM':
+        sub.max_records_per_field = 999999 # unlimited
+        sub.end_date = (timezone.now() + timezone.timedelta(days=30)).date()
+        sub.features = {'financial_management': False}
+    elif plan in ('PRO', 'PRO_YEARLY'):
+        sub.max_records_per_field = 999999 # unlimited
+        days = 365 if plan == 'PRO_YEARLY' else 30
+        sub.end_date = (timezone.now() + timezone.timedelta(days=days)).date()
+        sub.features = {'financial_management': True, 'ai_automation': True}
+        
+    sub.save()
+    
+    # Log organization level activity
+    EmployeeActivityLog.objects.create(
+        employee=None, # system/organization level
+        action="Subscription Upgraded",
+        details=f"Upgraded organization subscription to {plan} plan."
+    )
+    
+    # Send push notification to the CEO/Admin user
+    from .notifications import send_push_notification
+    send_push_notification(
+        user=user,
+        title='⚡ Subscription Upgraded!',
+        body=f"Your organization has successfully upgraded to the {plan} plan.",
+        data={'screen': 'dashboard'}
+    )
+    
+    return Response({
+        'status': 'success',
+        'plan': plan,
+        'message': f'Subscription upgraded successfully to {plan}.'
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def transaction_categories(request):
+    transactions = get_scoped_queryset(Transaction, request)
+    income_by_category = list(transactions.filter(type='income').values('category').annotate(value=Sum('amount')).order_by('-value'))
+    expense_by_category = list(transactions.filter(type='expense').values('category').annotate(value=Sum('amount')).order_by('-value'))
+    
+    return Response({
+        'income': [{'category': item['category'], 'value': float(item['value'] or 0)} for item in income_by_category],
+        'expense': [{'category': item['category'], 'value': float(item['value'] or 0)} for item in expense_by_category]
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def dashboard_alerts(request):
+    queries = get_scoped_queryset(EmployeeQuery, request).filter(status='open')
+    queries_count = queries.count()
+
+    flagged = get_scoped_queryset(Employee, request).filter(is_flagged=True)
+    flagged_count = flagged.count()
+
+    tasks = get_scoped_queryset(EmployeeTask, request).filter(status='pending', priority='high')
+    tasks_count = tasks.count()
+
+    alerts_list = []
+    if queries_count > 0:
+        alerts_list.append({
+            'type': 'query',
+            'count': queries_count,
+            'message': f'{queries_count} unresolved employee queries require review.'
+        })
+    if flagged_count > 0:
+        alerts_list.append({
+            'type': 'flagged',
+            'count': flagged_count,
+            'message': f'{flagged_count} employee profiles have active safety flags.'
+        })
+    if tasks_count > 0:
+        alerts_list.append({
+            'type': 'task',
+            'count': tasks_count,
+            'message': f'{tasks_count} high-priority tasks are currently pending.'
+        })
+
+    return Response({
+        'queries_count': queries_count,
+        'flagged_count': flagged_count,
+        'high_priority_tasks_count': tasks_count,
+        'alerts': alerts_list
     })
 
 
@@ -1209,7 +1536,7 @@ class EmployeeActivityLogViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return EmployeeActivityLog.objects.filter(employee__user=self.request.user).order_by('-created_at')
+        return get_scoped_queryset(EmployeeActivityLog, self.request, user_field='employee__user').order_by('-created_at')
 
 
 class EmployeeQueryViewSet(viewsets.ModelViewSet):
@@ -1229,6 +1556,27 @@ class EmployeeQueryViewSet(viewsets.ModelViewSet):
             action="Query Raised",
             details=f"Raised query of type '{instance.query_type}': {instance.message}"
         )
+        # Notify the admin/HR that a new query has been submitted
+        admin_user = self.request.user
+        send_push_notification(
+            user=admin_user,
+            title='❓ New Employee Query',
+            body=f"{employee.name} raised a {instance.query_type} query: {instance.message[:80]}",
+            data={'screen': 'employee-queries', 'employeeId': str(employee.id)}
+        )
+
+    def perform_update(self, serializer):
+        old_status = serializer.instance.status
+        instance = serializer.save()
+        # When a query is resolved, notify the employee who raised it
+        if old_status != 'resolved' and instance.status == 'resolved':
+            if instance.employee.linked_user:
+                send_push_notification(
+                    user=instance.employee.linked_user,
+                    title='✅ Query Resolved',
+                    body=f'Your {instance.query_type} query has been resolved by the administrator.',
+                    data={'screen': 'queries'}
+                )
 
 
 class EmployeeTaskViewSet(viewsets.ModelViewSet):
@@ -1312,24 +1660,24 @@ class EmployeeLeaveViewSet(viewsets.ModelViewSet):
             raise ValidationError("Leave dates overlap with an existing scheduled leave.")
             
         instance = serializer.save()
-        
+
         from datetime import date
         today = date.today()
         if instance.start_date <= today <= instance.end_date:
             employee.status = 'on_leave'
             employee.save(update_fields=['status'])
-            
+
         EmployeeActivityLog.objects.create(
             employee=employee,
             action="Leave Scheduled",
             details=f"Scheduled {instance.leave_type} leave from {instance.start_date} to {instance.end_date} ({instance.duration_days} days)"
         )
 
-        # ── Notify the account owner (admin) about the new leave request ────
+        # Notify the account owner (admin) about the new leave request
         admin_user = self.request.user
         send_push_notification(
             user=admin_user,
-            title=f'📅 New Leave Request',
+            title='📅 New Leave Request',
             body=(
                 f'{employee.name} has requested {instance.leave_type} leave '
                 f'from {instance.start_date} to {instance.end_date} '
@@ -1337,7 +1685,25 @@ class EmployeeLeaveViewSet(viewsets.ModelViewSet):
             ),
             data={'screen': 'leave', 'employeeId': str(employee.id)}
         )
-        # ────────────────────────────────────────────────────────────────────
+
+    def perform_update(self, serializer):
+        old_status = serializer.instance.status
+        employee = serializer.instance.employee
+        instance = serializer.save()
+        # Notify the employee when their leave request is approved or rejected
+        new_status = instance.status
+        if old_status != new_status and new_status in ('approved', 'rejected'):
+            if employee.linked_user:
+                emoji = '✅' if new_status == 'approved' else '❌'
+                send_push_notification(
+                    user=employee.linked_user,
+                    title=f'{emoji} Leave Request {new_status.capitalize()}',
+                    body=(
+                        f'Your {instance.leave_type} leave from {instance.start_date} '
+                        f'to {instance.end_date} has been {new_status}.'
+                    ),
+                    data={'screen': 'leave'}
+                )
 
 
 class EmployeeMessageViewSet(viewsets.ModelViewSet):
@@ -1376,16 +1742,34 @@ class EmployeeDocumentViewSet(viewsets.ModelViewSet):
             action="Document Added",
             details=f"Added document: {instance.name} ({instance.document_type})"
         )
+        # Notify the employee that a document has been added to their profile
+        if employee.linked_user:
+            send_push_notification(
+                user=employee.linked_user,
+                title='📄 Document Added',
+                body=f"A {instance.document_type} document '{instance.name}' has been added to your profile.",
+                data={'screen': 'documents'}
+            )
 
     def perform_destroy(self, instance):
         employee = instance.employee
         doc_name = instance.name
+        doc_type = instance.document_type
+        linked_user = employee.linked_user
         instance.delete()
         EmployeeActivityLog.objects.create(
             employee=employee,
             action="Document Deleted",
             details=f"Deleted document: {doc_name}"
         )
+        # Notify employee that a document was removed from their profile
+        if linked_user:
+            send_push_notification(
+                user=linked_user,
+                title='🗑️ Document Removed',
+                body=f"The {doc_type} document '{doc_name}' has been removed from your profile.",
+                data={'screen': 'documents'}
+            )
 
 
 class SalaryAdjustmentViewSet(viewsets.ModelViewSet):
@@ -1396,13 +1780,24 @@ class SalaryAdjustmentViewSet(viewsets.ModelViewSet):
         return SalaryAdjustment.objects.filter(employee__user=self.request.user).order_by('-created_at')
 
     def perform_create(self, serializer):
+        from django.utils import timezone
         employee = serializer.validated_data.get('employee')
         if employee.user != self.request.user:
             raise PermissionDenied("You do not have permission to adjust salary for this employee.")
+            
+        try:
+            plan = employee.branch.organization.subscription.plan
+        except Exception:
+            plan = 'BASIC'
+            
+        if plan not in ('PRO', 'PRO_YEARLY'):
+            raise PermissionDenied("Detailed financial modifications are Pro features. Please upgrade your plan.")
         
         adj_type = serializer.validated_data.get('adjustment_type')
         amount = serializer.validated_data.get('amount')
         prev_salary = employee.salary
+        
+        employee.finance.last_finance_update = timezone.now()
         
         if adj_type == 'increment':
             new_salary = prev_salary + amount
@@ -1411,25 +1806,67 @@ class SalaryAdjustmentViewSet(viewsets.ModelViewSet):
         elif adj_type == 'bonus':
             new_salary = prev_salary
             employee.finance.bonuses += amount
-            employee.finance.save(update_fields=['bonuses'])
+            employee.finance.save(update_fields=['bonuses', 'last_finance_update'])
         elif adj_type == 'correction':
             new_salary = amount
         else:
             new_salary = prev_salary
             
         instance = serializer.save(previous_salary=prev_salary, new_salary=new_salary)
-        
+
         if adj_type != 'bonus':
             employee.salary = new_salary
             employee.finance.current_pay = new_salary
             employee.save(update_fields=['salary'])
-            employee.finance.save(update_fields=['current_pay'])
-            
+            employee.finance.save(update_fields=['current_pay', 'last_finance_update'])
+
         EmployeeActivityLog.objects.create(
             employee=employee,
             action="Salary Adjusted",
             details=f"Adjusted salary ({adj_type}): {prev_salary} -> {new_salary} (Amount: {amount})"
         )
+
+        # Notify the employee about their salary/compensation change
+        if employee.linked_user:
+            label_map = {
+                'increment': ('📈 Salary Increased', f'Your salary has been increased by {amount}. New salary: {new_salary}.'),
+                'decrement': ('📉 Salary Adjusted', f'Your salary has been adjusted. New salary: {new_salary}.'),
+                'bonus': ('🎁 Bonus Added', f'A bonus of {amount} has been added to your compensation.'),
+                'correction': ('📋 Salary Corrected', f'Your salary record has been corrected to {new_salary}.'),
+            }
+            title, body = label_map.get(adj_type, ('💰 Salary Updated', f'Your compensation has been updated to {new_salary}.'))
+            send_push_notification(
+                user=employee.linked_user,
+                title=title,
+                body=body,
+                data={'screen': 'finance'}
+            )
+
+
+class EmployeeFinanceViewSet(viewsets.ModelViewSet):
+    serializer_class = EmployeeFinanceSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return get_scoped_queryset(EmployeeFinance, self.request, user_field='user')
+
+    def perform_update(self, serializer):
+        from django.utils import timezone
+        from .notifications import send_push_notification
+        
+        instance = serializer.save()
+        instance.last_finance_update = timezone.now()
+        instance.save(update_fields=['last_finance_update'])
+        
+        # Notify the employee if linked
+        employee = getattr(instance, 'employee', None)
+        if employee and employee.linked_user:
+            send_push_notification(
+                user=employee.linked_user,
+                title='💰 Financial Record Updated',
+                body='Your financial record has been updated by the administrator.',
+                data={'screen': 'finance'}
+            )
 
 
 # ---------------------------------------------------------------------------

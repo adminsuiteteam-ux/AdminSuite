@@ -10,11 +10,12 @@ from .views import (
     verify_password_reset_code, confirm_password_reset,
     EmployeeActivityLogViewSet, EmployeeQueryViewSet, EmployeeTaskViewSet,
     EmployeeLeaveViewSet, EmployeeMessageViewSet, EmployeeDocumentViewSet,
-    SalaryAdjustmentViewSet, toggle_payroll_month,
+    SalaryAdjustmentViewSet, EmployeeFinanceViewSet, toggle_payroll_month,
     employee_dashboard, employee_finance, employee_update_task,
     chat_messages, chat_send, chat_message_detail, chat_pin_message, chat_contacts,
     chat_settings, chat_block_user, chat_groups, chat_group_detail, chat_typing,
     register_device, unregister_device,
+    branch_metrics, subscription_limits, subscription_upgrade, transaction_categories, dashboard_alerts,
 )
 
 router = DefaultRouter()
@@ -26,6 +27,7 @@ router.register(r'employee-leaves', EmployeeLeaveViewSet, basename='employee-lea
 router.register(r'employee-messages', EmployeeMessageViewSet, basename='employee-message')
 router.register(r'employee-documents', EmployeeDocumentViewSet, basename='employee-document')
 router.register(r'salary-adjustments', SalaryAdjustmentViewSet, basename='salary-adjustment')
+router.register(r'employee-finances', EmployeeFinanceViewSet, basename='employee-finance')
 router.register(r'clients', ClientViewSet, basename='client')
 router.register(r'projects', ProjectViewSet, basename='project')
 router.register(r'transactions', TransactionViewSet, basename='transaction')
@@ -44,6 +46,11 @@ urlpatterns = [
     path('payroll-metrics/', payroll_metrics, name='payroll-metrics'),
     path('payroll-metrics/toggle/', toggle_payroll_month, name='toggle-payroll-month'),
     path('debts-grouped/', debts_grouped, name='debts-grouped'),
+    path('branch-metrics/', branch_metrics, name='branch-metrics'),
+    path('subscription-limits/', subscription_limits, name='subscription-limits'),
+    path('subscription/upgrade/', subscription_upgrade, name='subscription-upgrade'),
+    path('transaction-categories/', transaction_categories, name='transaction-categories'),
+    path('dashboard-alerts/', dashboard_alerts, name='dashboard-alerts'),
     # Social / Phone auth
     path('auth/google/', google_login, name='google_login'),
     path('auth/apple/', apple_login, name='apple_login'),

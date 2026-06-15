@@ -23,12 +23,15 @@ export default function EmployeeFinanceScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const fmt = useCurrencyFmt();
-  const { employees, refresh: refreshAllData } = useData();
+  const { employees, refresh: refreshAllData, subscriptionLimits } = useData();
   const { id } = useLocalSearchParams();
   const employee = employees.find((e) => String(e.id) === String(id));
 
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  const currentPlan = subscriptionLimits?.plan || 'BASIC';
+  const canEditFinancials = ['PRO', 'PRO_YEARLY'].includes(currentPlan);
 
   const [editCurrentPay, setEditCurrentPay] = useState("");
   const [editEmployeeOwes, setEditEmployeeOwes] = useState("");
@@ -63,6 +66,12 @@ export default function EmployeeFinanceScreen() {
   const netBalance = companyOwes - employeeOwes;
 
   const startEditing = () => {
+    if (!canEditFinancials) {
+      return Alert.alert(
+        "Feature Gated",
+        "Editing employee financials is a Pro/Pro Yearly feature. Please upgrade your organization's subscription plan on the web application to unlock editing."
+      );
+    }
     setEditCurrentPay(String(currentPay));
     setEditEmployeeOwes(String(employeeOwes));
     setEditCompanyOwes(String(companyOwes));
@@ -146,7 +155,7 @@ export default function EmployeeFinanceScreen() {
             disabled={isSaving}
             hitSlop={10}
           >
-            <Feather name={isEditing ? "check" : "edit-2"} size={18} color="#fff" />
+            <Feather name={isEditing ? "check" : (canEditFinancials ? "edit-2" : "lock")} size={18} color="#fff" />
           </Pressable>
         </View>
 
