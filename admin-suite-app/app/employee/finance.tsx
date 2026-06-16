@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 
 import { FloatInView } from "@/components/FloatInView";
 import { useData } from "@/context/DataContext";
@@ -23,6 +24,7 @@ export default function EmployeeFinanceScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const fmt = useCurrencyFmt();
+  const { t } = useTranslation();
   const { employees, refresh: refreshAllData, subscriptionLimits } = useData();
   const { id } = useLocalSearchParams();
   const employee = employees.find((e) => String(e.id) === String(id));
@@ -43,7 +45,7 @@ export default function EmployeeFinanceScreen() {
   if (!employee) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background }}>
-        <Text style={{ color: colors.foreground }}>Employee not found</Text>
+        <Text style={{ color: colors.foreground }}>{t("finance.employeeNotFound")}</Text>
       </View>
     );
   }
@@ -68,8 +70,8 @@ export default function EmployeeFinanceScreen() {
   const startEditing = () => {
     if (!canEditFinancials) {
       return Alert.alert(
-        "Feature Gated",
-        "Editing employee financials is a Pro/Pro Yearly feature. Please upgrade your organization's subscription plan on the web application to unlock editing."
+        t("finance.featureGated"),
+        t("finance.featureGatedMessage")
       );
     }
     setEditCurrentPay(String(currentPay));
@@ -93,12 +95,12 @@ export default function EmployeeFinanceScreen() {
     const bon = parseFloat(editBonuses);
     const ded = parseFloat(editDeductions);
 
-    if (isNaN(pay) || pay < 0) return Alert.alert("Validation Error", "Current pay must be a positive number.");
-    if (isNaN(eOwes) || eOwes < 0) return Alert.alert("Validation Error", "Employee owes must be a positive number.");
-    if (isNaN(cOwes) || cOwes < 0) return Alert.alert("Validation Error", "Company owes must be a positive number.");
-    if (isNaN(sh) || sh < 0 || sh > 100) return Alert.alert("Validation Error", "Shares must be between 0 and 100.");
-    if (isNaN(bon) || bon < 0) return Alert.alert("Validation Error", "Bonuses must be a positive number.");
-    if (isNaN(ded) || ded < 0) return Alert.alert("Validation Error", "Deductions must be a positive number.");
+    if (isNaN(pay) || pay < 0) return Alert.alert(t("finance.validationError"), t("finance.currentPayValidation"));
+    if (isNaN(eOwes) || eOwes < 0) return Alert.alert(t("finance.validationError"), t("finance.employeeOwesValidation"));
+    if (isNaN(cOwes) || cOwes < 0) return Alert.alert(t("finance.validationError"), t("finance.companyOwesValidation"));
+    if (isNaN(sh) || sh < 0 || sh > 100) return Alert.alert(t("finance.validationError"), t("finance.sharesValidation"));
+    if (isNaN(bon) || bon < 0) return Alert.alert(t("finance.validationError"), t("finance.bonusesValidation"));
+    if (isNaN(ded) || ded < 0) return Alert.alert(t("finance.validationError"), t("finance.deductionsValidation"));
 
     try {
       setIsSaving(true);
@@ -116,7 +118,7 @@ export default function EmployeeFinanceScreen() {
       setIsEditing(false);
     } catch (err) {
       console.warn("Failed to save financials:", err);
-      Alert.alert("Error", "Failed to update financial records. Please try again.");
+      Alert.alert(t("finance.error"), t("finance.failedToUpdate"));
     } finally {
       setIsSaving(false);
     }
@@ -143,7 +145,7 @@ export default function EmployeeFinanceScreen() {
           </Pressable>
           <View style={{ flex: 1, alignItems: "center" }}>
             <Text style={[styles.headerTitle, { fontFamily: "Inter_700Bold" }]}>
-              {isEditing ? "Edit Financials" : "Financial Record"}
+              {isEditing ? t("finance.editFinancials") : t("finance.financialRecord")}
             </Text>
             <Text style={[styles.headerSub, { fontFamily: "Inter_500Medium" }]}>
               {employee.name}
@@ -162,19 +164,19 @@ export default function EmployeeFinanceScreen() {
         {/* Summary cards */}
         <View style={styles.summaryRow}>
           <View style={styles.summaryCard}>
-            <Text style={[styles.summaryLabel, { fontFamily: "Inter_500Medium" }]}>CURRENT PAY</Text>
+            <Text style={[styles.summaryLabel, { fontFamily: "Inter_500Medium" }]}>{t("finance.currentPay")}</Text>
             <Text style={[styles.summaryValue, { fontFamily: "Inter_700Bold" }]}>{fmt(currentPay)}</Text>
-            <Text style={[styles.summaryMeta, { fontFamily: "Inter_500Medium" }]}>monthly</Text>
+            <Text style={[styles.summaryMeta, { fontFamily: "Inter_500Medium" }]}>{t("finance.monthly")}</Text>
           </View>
           <View style={styles.summaryCard}>
-            <Text style={[styles.summaryLabel, { fontFamily: "Inter_500Medium" }]}>TOTAL PAID</Text>
+            <Text style={[styles.summaryLabel, { fontFamily: "Inter_500Medium" }]}>{t("finance.totalPaid")}</Text>
             <Text style={[styles.summaryValue, { color: "#86efac", fontFamily: "Inter_700Bold" }]}>{fmt(totalPaid)}</Text>
-            <Text style={[styles.summaryMeta, { fontFamily: "Inter_500Medium" }]}>{paidCount} months</Text>
+            <Text style={[styles.summaryMeta, { fontFamily: "Inter_500Medium" }]}>{paidCount} {t("finance.months")}</Text>
           </View>
           <View style={styles.summaryCard}>
-            <Text style={[styles.summaryLabel, { fontFamily: "Inter_500Medium" }]}>PENDING</Text>
+            <Text style={[styles.summaryLabel, { fontFamily: "Inter_500Medium" }]}>{t("finance.pending")}</Text>
             <Text style={[styles.summaryValue, { color: "#fca5a5", fontFamily: "Inter_700Bold" }]}>{fmt(totalPending)}</Text>
-            <Text style={[styles.summaryMeta, { fontFamily: "Inter_500Medium" }]}>{pendingCount} months</Text>
+            <Text style={[styles.summaryMeta, { fontFamily: "Inter_500Medium" }]}>{pendingCount} {t("finance.months")}</Text>
           </View>
         </View>
       </View>
@@ -182,12 +184,12 @@ export default function EmployeeFinanceScreen() {
       {isEditing ? (
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
           <FloatInView>
-            <FormInput label="Monthly Salary / Current Pay" value={editCurrentPay} onChangeText={setEditCurrentPay} />
-            <FormInput label="Employee Owes Company" value={editEmployeeOwes} onChangeText={setEditEmployeeOwes} />
-            <FormInput label="Company Owes Employee" value={editCompanyOwes} onChangeText={setEditCompanyOwes} />
-            <FormInput label="Company Shares (%)" value={editShares} onChangeText={setEditShares} />
-            <FormInput label="Bonuses" value={editBonuses} onChangeText={setEditBonuses} />
-            <FormInput label="Deductions" value={editDeductions} onChangeText={setEditDeductions} />
+            <FormInput label={t("finance.monthlySalaryLabel")} value={editCurrentPay} onChangeText={setEditCurrentPay} />
+            <FormInput label={t("finance.employeeOwesCompanyLabel")} value={editEmployeeOwes} onChangeText={setEditEmployeeOwes} />
+            <FormInput label={t("finance.companyOwesEmployeeLabel")} value={editCompanyOwes} onChangeText={setEditCompanyOwes} />
+            <FormInput label={t("finance.companySharesPercent")} value={editShares} onChangeText={setEditShares} />
+            <FormInput label={t("finance.bonusesEditLabel")} value={editBonuses} onChangeText={setEditBonuses} />
+            <FormInput label={t("finance.deductionsEditLabel")} value={editDeductions} onChangeText={setEditDeductions} />
             
             <Pressable
               onPress={saveChanges}
@@ -204,7 +206,7 @@ export default function EmployeeFinanceScreen() {
               ]}
             >
               <Text style={{ color: colors.primaryForeground, fontFamily: "Inter_700Bold", fontSize: 16 }}>
-                {isSaving ? "Saving Changes..." : "Save Financial Record"}
+                {isSaving ? t("finance.savingChanges") : t("finance.saveFinancialRecord")}
               </Text>
             </Pressable>
           </FloatInView>
@@ -217,12 +219,12 @@ export default function EmployeeFinanceScreen() {
           {/* ── Debt & balance ───────────────────────────── */}
           <FloatInView>
             <View style={{ paddingHorizontal: 16, marginTop: 20 }}>
-              <SectionLabel title="Balance overview" />
+              <SectionLabel title={t("finance.balanceOverview")} />
               <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
                 <View style={styles.balanceRow}>
                   <View style={[styles.balanceDot, { backgroundColor: netBalance >= 0 ? "#22c55e" : "#ef4444" }]} />
                   <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_500Medium", fontSize: 13, flex: 1 }}>
-                    Net balance
+                    {t("finance.netBalance")}
                   </Text>
                   <Text style={{ color: netBalance >= 0 ? "#22c55e" : "#ef4444", fontFamily: "Inter_700Bold", fontSize: 18 }}>
                     {netBalance >= 0 ? "+" : ""}{fmt(Math.abs(netBalance))}
@@ -230,10 +232,10 @@ export default function EmployeeFinanceScreen() {
                 </View>
                 <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 4, paddingLeft: 20 }}>
                   {netBalance > 0
-                    ? "The company owes this employee"
+                    ? t("finance.companyOwesEmployee")
                     : netBalance < 0
-                    ? "This employee owes the company"
-                    : "No outstanding balance"}
+                    ? t("finance.employeeOwesCompany")
+                    : t("finance.noOutstandingBalance")}
                 </Text>
               </View>
 
@@ -243,7 +245,7 @@ export default function EmployeeFinanceScreen() {
                     <Feather name="arrow-up-right" size={16} color="#ef4444" />
                   </View>
                   <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_500Medium", fontSize: 11, marginTop: 8 }}>
-                    EMPLOYEE OWES
+                    {t("finance.employeeOwes")}
                   </Text>
                   <Text style={{ color: employeeOwes > 0 ? "#ef4444" : colors.foreground, fontFamily: "Inter_700Bold", fontSize: 18, marginTop: 2 }}>
                     {fmt(employeeOwes)}
@@ -254,7 +256,7 @@ export default function EmployeeFinanceScreen() {
                     <Feather name="arrow-down-left" size={16} color="#22c55e" />
                   </View>
                   <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_500Medium", fontSize: 11, marginTop: 8 }}>
-                    COMPANY OWES
+                    {t("finance.companyOwes")}
                   </Text>
                   <Text style={{ color: companyOwes > 0 ? "#22c55e" : colors.foreground, fontFamily: "Inter_700Bold", fontSize: 18, marginTop: 2 }}>
                     {fmt(companyOwes)}
@@ -267,7 +269,7 @@ export default function EmployeeFinanceScreen() {
           {/* ── Shares ───────────────────────────────────── */}
           <FloatInView delay={100}>
             <View style={{ paddingHorizontal: 16, marginTop: 22 }}>
-              <SectionLabel title="Company shares" />
+              <SectionLabel title={t("finance.companyShares")} />
               <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
                   <View style={[styles.sharesIcon, { backgroundColor: "#a855f71A" }]}>
@@ -275,10 +277,10 @@ export default function EmployeeFinanceScreen() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: colors.foreground, fontFamily: "Inter_700Bold", fontSize: 22 }}>
-                      {shares > 0 ? `${shares}%` : "None"}
+                      {shares > 0 ? `${shares}%` : t("finance.none")}
                     </Text>
                     <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 2 }}>
-                      {shares > 0 ? "Equity stake in the company" : "No equity allocation"}
+                      {shares > 0 ? t("finance.equityStake") : t("finance.noEquity")}
                     </Text>
                   </View>
                 </View>
@@ -294,14 +296,14 @@ export default function EmployeeFinanceScreen() {
           {/* ── Bonuses & deductions ─────────────────────── */}
           <FloatInView delay={160}>
             <View style={{ paddingHorizontal: 16, marginTop: 22 }}>
-              <SectionLabel title="Bonuses & deductions" />
+              <SectionLabel title={t("finance.bonusesAndDeductions")} />
               <View style={{ flexDirection: "row", gap: 10 }}>
                 <View style={[styles.halfCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
                   <View style={[styles.halfCardIcon, { backgroundColor: "#22c55e1A" }]}>
                     <Feather name="gift" size={16} color="#22c55e" />
                   </View>
                   <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_500Medium", fontSize: 11, marginTop: 8 }}>
-                    BONUSES
+                    {t("finance.bonuses")}
                   </Text>
                   <Text style={{ color: "#22c55e", fontFamily: "Inter_700Bold", fontSize: 18, marginTop: 2 }}>
                     +{fmt(bonuses)}
@@ -312,7 +314,7 @@ export default function EmployeeFinanceScreen() {
                     <Feather name="minus-circle" size={16} color="#ef4444" />
                   </View>
                   <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_500Medium", fontSize: 11, marginTop: 8 }}>
-                    DEDUCTIONS
+                    {t("finance.deductions")}
                   </Text>
                   <Text style={{ color: "#ef4444", fontFamily: "Inter_700Bold", fontSize: 18, marginTop: 2 }}>
                     -{fmt(deductions)}
@@ -325,7 +327,7 @@ export default function EmployeeFinanceScreen() {
           {/* ── Pay history ──────────────────────────────── */}
           <FloatInView delay={220}>
             <View style={{ paddingHorizontal: 16, marginTop: 22 }}>
-              <SectionLabel title="Pay history" />
+              <SectionLabel title={t("finance.payHistory")} />
               <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius, paddingVertical: 0 }]}>
                 {payHistory.map((m: any, i: number) => (
                   <View
@@ -351,12 +353,12 @@ export default function EmployeeFinanceScreen() {
                     {m.paid ? (
                       <View style={styles.paidBadge}>
                         <Feather name="check" size={11} color="#16a34a" />
-                        <Text style={{ color: "#16a34a", fontFamily: "Inter_600SemiBold", fontSize: 11 }}>Paid</Text>
+                        <Text style={{ color: "#16a34a", fontFamily: "Inter_600SemiBold", fontSize: 11 }}>{t("finance.paid")}</Text>
                       </View>
                     ) : (
                       <View style={styles.pendingBadge}>
                         <Feather name="clock" size={11} color="#f97316" />
-                        <Text style={{ color: "#f97316", fontFamily: "Inter_600SemiBold", fontSize: 11 }}>Pending</Text>
+                        <Text style={{ color: "#f97316", fontFamily: "Inter_600SemiBold", fontSize: 11 }}>{t("finance.pendingStatus")}</Text>
                       </View>
                     )}
                   </View>
@@ -368,17 +370,17 @@ export default function EmployeeFinanceScreen() {
           {/* ── Summary bar at bottom ────────────────────── */}
           <FloatInView delay={280}>
             <View style={{ paddingHorizontal: 16, marginTop: 22 }}>
-              <SectionLabel title="Annual summary" />
+              <SectionLabel title={t("finance.annualSummary")} />
               <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
-                <SummaryRow label="Base salary (monthly)" value={fmt(currentPay)} color={colors.foreground} colors={colors} />
-                <SummaryRow label="Total paid this year" value={fmt(totalPaid)} color="#22c55e" colors={colors} />
-                <SummaryRow label="Total pending" value={fmt(totalPending)} color="#f97316" colors={colors} />
-                <SummaryRow label="Bonuses earned" value={`+${fmt(bonuses)}`} color="#22c55e" colors={colors} />
-                <SummaryRow label="Deductions" value={`-${fmt(deductions)}`} color="#ef4444" colors={colors} />
+                <SummaryRow label={t("finance.baseSalaryMonthly")} value={fmt(currentPay)} color={colors.foreground} colors={colors} />
+                <SummaryRow label={t("finance.totalPaidThisYear")} value={fmt(totalPaid)} color="#22c55e" colors={colors} />
+                <SummaryRow label={t("finance.totalPending")} value={fmt(totalPending)} color="#f97316" colors={colors} />
+                <SummaryRow label={t("finance.bonusesEarned")} value={`+${fmt(bonuses)}`} color="#22c55e" colors={colors} />
+                <SummaryRow label={t("finance.deductionsLabel")} value={`-${fmt(deductions)}`} color="#ef4444" colors={colors} />
                 <View style={[styles.totalLine, { backgroundColor: colors.border }]} />
                 <View style={styles.totalRow}>
                   <Text style={{ color: colors.foreground, fontFamily: "Inter_700Bold", fontSize: 15 }}>
-                    Net compensation
+                    {t("finance.netCompensation")}
                   </Text>
                   <Text style={{ color: colors.foreground, fontFamily: "Inter_700Bold", fontSize: 18 }}>
                     {fmt(totalPaid + bonuses - deductions)}
