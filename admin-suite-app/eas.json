@@ -6,22 +6,12 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal",
-      "android": {
-        "prebuild": true
-      },
-      "ios": {
-        "prebuild": true
-      }
+      "distribution": "internal"
     },
     "preview": {
       "distribution": "internal",
       "android": {
-        "buildType": "apk",
-        "prebuild": true
-      },
-      "ios": {
-        "prebuild": true
+        "buildType": "apk"
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://adminsuite-api.onrender.com",
@@ -31,12 +21,6 @@
     },
     "production": {
       "autoIncrement": true,
-      "android": {
-        "prebuild": true
-      },
-      "ios": {
-        "prebuild": true
-      },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://adminsuite-api.onrender.com",
         "EXPO_PUBLIC_SUPABASE_URL": "https://whjxjqsxrnjpkoknfixo.supabase.co",
