@@ -23,6 +23,7 @@ const TAB_ITEMS = [
   { name: "clients", label: "Clients", icon: "briefcase" },
   { name: "finance", label: "Finance", icon: "trending-up" },
   { name: "projects", label: "Projects", icon: "layers" },
+  { name: "ai-assistant", label: "AI", icon: "cpu" },
 ];
 
 export default function TabLayout() {

@@ -38,6 +38,7 @@ router.register(r'savings', SavingsViewSet, basename='savings')
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('ai/', include('api.ai.urls')),   # ← AdminSuite AI endpoints
     path('me/', me, name='me'),
     path('register/', register, name='register'),
     path('token-auth/', ThrottledObtainAuthToken.as_view(), name='api_token_auth'),
