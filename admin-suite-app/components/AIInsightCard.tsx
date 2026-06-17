@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Animated,
   Pressable,
@@ -43,8 +44,21 @@ export function AIInsightCard({
   loading = false,
 }: Props) {
   const colors = useColors();
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
-  const risk = riskLevel ? RISK_CONFIG[riskLevel] : null;
+
+  const risk = React.useMemo(() => {
+    if (!riskLevel) return null;
+    switch (riskLevel) {
+      case 'low': return RISK_CONFIG.low;
+      case 'healthy': return RISK_CONFIG.healthy;
+      case 'medium': return RISK_CONFIG.medium;
+      case 'at_risk': return RISK_CONFIG.at_risk;
+      case 'high': return RISK_CONFIG.high;
+      case 'urgent': return RISK_CONFIG.urgent;
+      default: return null;
+    }
+  }, [riskLevel]);
 
   if (loading) {
     return (
@@ -52,7 +66,7 @@ export function AIInsightCard({
         <View style={styles.loadingRow}>
           <Feather name="cpu" size={16} color={colors.primary} />
           <Text style={[styles.loadingText, { color: colors.muted }]}>
-            AI is analysing your data…
+            {t('ai.analysing', 'AI is analysing your data…')}
           </Text>
         </View>
       </View>
@@ -65,12 +79,14 @@ export function AIInsightCard({
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Feather name="cpu" size={14} color={colors.primary} />
-          <Text style={[styles.aiLabel, { color: colors.primary }]}>AI Insight</Text>
+          <Text style={[styles.aiLabel, { color: colors.primary }]}>{t('ai.insight', 'AI Insight')}</Text>
         </View>
         {risk && (
           <View style={[styles.badge, { backgroundColor: risk.color + '22' }]}>
             <Feather name={risk.icon} size={12} color={risk.color} />
-            <Text style={[styles.badgeText, { color: risk.color }]}>{risk.label}</Text>
+            <Text style={[styles.badgeText, { color: risk.color }]}>
+              {t(`ai.risk_label.${riskLevel}`, risk.label)}
+            </Text>
           </View>
         )}
       </View>
@@ -89,7 +105,12 @@ export function AIInsightCard({
             style={styles.expandRow}
           >
             <Text style={[styles.expandLabel, { color: colors.primary }]}>
-              {expanded ? 'Hide details' : `Show ${items.length} detail${items.length !== 1 ? 's' : ''}`}
+              {expanded
+                ? t('ai.hide_details', 'Hide details')
+                : t('ai.show_details', 'Show {{count}} details', {
+                    count: items.length,
+                    defaultValue: `Show ${items.length} detail${items.length !== 1 ? 's' : ''}`
+                  })}
             </Text>
             <Feather
               name={expanded ? 'chevron-up' : 'chevron-down'}
