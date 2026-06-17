@@ -602,7 +602,7 @@ export default function App() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <ParticleButton
               size="lg"
-              href="https://expo.dev/artifacts/eas/asg3amQt6QIawFn-v476bRBFqvjbSNuFFToMKG7pBG4.apk"
+              href="https://expo.dev/artifacts/eas/KI7RkfuEVfKjc0UofLomSfDUPKIL5-Qpm9_IBg4NgAo.apk"
               download={true}
               className="rounded-full px-8 bg-zinc-900 text-white dark:bg-white dark:text-black hover:opacity-95 font-semibold flex items-center gap-2"
             >
