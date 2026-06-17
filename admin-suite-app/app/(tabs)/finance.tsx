@@ -18,6 +18,9 @@ import { IncomeExpenseChart } from "@/components/IncomeExpenseChart";
 import { useData } from "@/context/DataContext";
 import { useCurrencyFmt } from "@/context/SettingsContext";
 import { useColors } from "@/hooks/useColors";
+import { AIInsightCard } from "@/components/AIInsightCard";
+import { aiService, AIFinanceForecast } from "@/services/aiService";
+import { AIReportModal } from "@/components/AIReportModal";
 
 export default function FinanceScreen() {
   const colors = useColors();
@@ -26,6 +29,30 @@ export default function FinanceScreen() {
   const { metrics: m, payrollMetrics: pr, debts, budgetCategories, transactions, payrollMonths, togglePayrollMonth } = useData();
   const [debtTab, setDebtTab] = useState("we_owe");
   const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [forecast, setForecast] = useState<AIFinanceForecast | null>(null);
+  const [forecastLoading, setForecastLoading] = useState(true);
+
+  React.useEffect(() => {
+    let active = true;
+    aiService.getFinanceForecast()
+      .then(res => {
+        if (active && res.data) {
+          setForecast(res.data);
+        }
+      })
+      .catch(err => {
+        console.error("Failed to load AI finance forecast:", err);
+      })
+      .finally(() => {
+        if (active) {
+          setForecastLoading(false);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const tabBarPad = (Platform.OS === "web" ? 96 : 100) + 24;
 
@@ -87,20 +114,38 @@ export default function FinanceScreen() {
                   Track every cent in and out
                 </Text>
               </View>
-              <Pressable
-                onPress={() => setAddMenuOpen(true)}
-                style={({ pressed }) => [
-                  styles.addBtn,
-                  {
-                    backgroundColor: colors.primary,
-                    borderRadius: colors.radius,
-                    transform: [{ scale: pressed ? 0.92 : 1 }],
-                    opacity: pressed ? 0.85 : 1,
-                  },
-                ]}
-              >
-              <Feather name="plus" size={18} color={colors.primaryForeground} />
-              </Pressable>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <Pressable
+                  onPress={() => setReportOpen(true)}
+                  style={({ pressed }) => [
+                    styles.addBtn,
+                    {
+                      backgroundColor: colors.card,
+                      borderColor: colors.border,
+                      borderWidth: 1,
+                      borderRadius: colors.radius,
+                      transform: [{ scale: pressed ? 0.92 : 1 }],
+                      opacity: pressed ? 0.85 : 1,
+                    },
+                  ]}
+                >
+                  <Feather name="file-text" size={18} color={colors.primary} />
+                </Pressable>
+                <Pressable
+                  onPress={() => setAddMenuOpen(true)}
+                  style={({ pressed }) => [
+                    styles.addBtn,
+                    {
+                      backgroundColor: colors.primary,
+                      borderRadius: colors.radius,
+                      transform: [{ scale: pressed ? 0.92 : 1 }],
+                      opacity: pressed ? 0.85 : 1,
+                    },
+                  ]}
+                >
+                  <Feather name="plus" size={18} color={colors.primaryForeground} />
+                </Pressable>
+              </View>
             </View>
           </FloatInView>
 
@@ -142,6 +187,29 @@ export default function FinanceScreen() {
               </View>
             </View>
           </FloatInView>
+
+          {(!forecastLoading && forecast && !forecast.error) && (
+            <FloatInView delay={130}>
+              <AIInsightCard
+                title={`Finance Forecast (${forecast.profit_estimate})`}
+                summary={forecast.assessment}
+                riskLevel={
+                  forecast.profit_trend === 'down' ? 'high' :
+                  forecast.profit_trend === 'stable' ? 'medium' : 'low'
+                }
+                items={forecast.recommendations}
+              />
+            </FloatInView>
+          )}
+          {forecastLoading && (
+            <FloatInView delay={130}>
+              <AIInsightCard
+                title="Finance Forecast"
+                summary=""
+                loading={true}
+              />
+            </FloatInView>
+          )}
 
           <FloatInView delay={160}>
             <View style={styles.chartCard}>
@@ -605,6 +673,11 @@ export default function FinanceScreen() {
           </FloatInView>
         </View>
       </ScrollView>
+
+      <AIReportModal
+        visible={reportOpen}
+        onClose={() => setReportOpen(false)}
+      />
 
       {/* Add Options Menu */}
       <Modal visible={addMenuOpen} animationType="slide" transparent onRequestClose={() => setAddMenuOpen(false)}>

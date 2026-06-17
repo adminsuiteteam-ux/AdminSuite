@@ -27,6 +27,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useData } from "@/context/DataContext";
 import { useCurrencyFmt } from "@/context/SettingsContext";
 import { useColors } from "@/hooks/useColors";
+import { AIReportModal } from "@/components/AIReportModal";
 
 const { height: screenHeight } = Dimensions.get("window");
 
@@ -42,6 +43,7 @@ export default function DashboardScreen() {
   const activeProjects = projects.filter((p: any) => p.status === "active").slice(0, 3);
   const [notifOpen, setNotifOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const [viewedNotifIds, setViewedNotifIds] = useState<number[]>([]);
 
   // Load viewed notifications on mount
@@ -435,9 +437,9 @@ export default function DashboardScreen() {
                 />
                 <QuickAction
                   icon="file-text"
-                  label="Export"
+                  label="AI Report"
                   color="#0ea5e9"
-                  onPress={() => {}}
+                  onPress={() => setReportOpen(true)}
                 />
               </View>
             </View>
@@ -632,6 +634,11 @@ export default function DashboardScreen() {
       <NotificationsModal
         visible={notifOpen}
         onClose={() => setNotifOpen(false)}
+      />
+
+      <AIReportModal
+        visible={reportOpen}
+        onClose={() => setReportOpen(false)}
       />
 
       {/* ── Quick Menu Modal ── */}

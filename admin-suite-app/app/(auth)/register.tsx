@@ -370,18 +370,18 @@ export default function RegisterScreen() {
     
     if (cleaned.length === 0) {
       // User cleared the box
-      newValues[idx] = "";
+      newValues.splice(idx, 1, "");
       setOtpValues(newValues);
       return;
     }
 
     // Take the last digit typed (handles overwrite when box already has a value)
-    const digit = cleaned[cleaned.length - 1];
-    newValues[idx] = digit;
+    const digit = cleaned.slice(-1);
+    newValues.splice(idx, 1, digit);
     setOtpValues(newValues);
     
     if (idx < otpDigits - 1) {
-      inputRefs.current[idx + 1]?.focus();
+      inputRefs.current.find((_, i) => i === idx + 1)?.focus();
     } else {
       const fullCode = newValues.join("");
       if (fullCode.length === otpDigits) {
@@ -394,13 +394,13 @@ export default function RegisterScreen() {
     if (e.nativeEvent.key === "Backspace") {
       const newValues = [...otpValues];
       
-      if (newValues[idx] !== "") {
-        newValues[idx] = "";
+      if (newValues.filter((_, i) => i === idx)[0] !== "") {
+        newValues.splice(idx, 1, "");
         setOtpValues(newValues);
       } else if (idx > 0) {
-        newValues[idx - 1] = "";
+        newValues.splice(idx - 1, 1, "");
         setOtpValues(newValues);
-        inputRefs.current[idx - 1]?.focus();
+        inputRefs.current.find((_, i) => i === idx - 1)?.focus();
       }
     }
   };
@@ -588,8 +588,15 @@ export default function RegisterScreen() {
             return (
               <React.Fragment key={idx}>
                 <TextInput
-                  ref={(ref) => { inputRefs.current[idx] = ref; }}
-                  value={otpValues[idx]}
+                  ref={(ref) => {
+                    if (ref) {
+                      while (inputRefs.current.length <= idx) {
+                        inputRefs.current.push(null);
+                      }
+                      inputRefs.current.splice(idx, 1, ref);
+                    }
+                  }}
+                  value={otpValues.filter((_, i) => i === idx)[0] || ""}
                   onChangeText={(text) => handleOtpChange(text, idx)}
                   onKeyPress={(e) => handleOtpKeyPress(e, idx)}
                   onFocus={() => setActiveFocusedIndex(idx)}

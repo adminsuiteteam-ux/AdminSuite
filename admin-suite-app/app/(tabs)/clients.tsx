@@ -18,6 +18,8 @@ import { RingChart } from "@/components/RingChart";
 import { useData } from "@/context/DataContext";
 import { useCurrencyFmt } from "@/context/SettingsContext";
 import { useColors } from "@/hooks/useColors";
+import { AIInsightCard } from "@/components/AIInsightCard";
+import { aiService, AIClientInsightsResponse } from "@/services/aiService";
 
 const STATUS_TABS = [
   { id: "all", label: "All" },
@@ -49,6 +51,53 @@ export default function ClientsScreen() {
   const fmt = useCurrencyFmt();
   const { clients, clientMetrics: cm } = useData();
   const [filter, setFilter] = useState("all");
+  const [clientInsights, setClientInsights] = useState<AIClientInsightsResponse | null>(null);
+  const [insightsLoading, setInsightsLoading] = useState(true);
+
+  React.useEffect(() => {
+    let active = true;
+    aiService.getClientInsights()
+      .then(res => {
+        if (active && res.data) {
+          setClientInsights(res.data);
+        }
+      })
+      .catch(err => {
+        console.error("Failed to load client insights:", err);
+      })
+      .finally(() => {
+        if (active) {
+          setInsightsLoading(false);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const cardData = useMemo(() => {
+    if (!clientInsights) return null;
+    const { insights, summary } = clientInsights;
+    
+    // Find urgent/at_risk insights
+    const flagged = (insights || []).filter(i => i.health === 'urgent' || i.health === 'at_risk');
+    
+    let riskLevel: 'healthy' | 'at_risk' | 'urgent' = 'healthy';
+    if ((insights || []).some(i => i.health === 'urgent')) {
+      riskLevel = 'urgent';
+    } else if ((insights || []).some(i => i.health === 'at_risk')) {
+      riskLevel = 'at_risk';
+    }
+
+    const items = flagged.map(i => `${i.client_name}: ${i.reason} (Try: ${i.recommended_action})`);
+    
+    return {
+      title: "Client Portfolio Health",
+      summary,
+      riskLevel,
+      items: items.length > 0 ? items : ["All client relationships are tracking healthy."]
+    };
+  }, [clientInsights]);
 
   const filtered = useMemo(
     () => clients.filter((c: any) => filter === "all" || c.status === filter),
@@ -191,6 +240,26 @@ export default function ClientsScreen() {
               })}
             </View>
           </FloatInView>
+
+          {(!insightsLoading && cardData && !clientInsights?.error) && (
+            <FloatInView delay={220}>
+              <AIInsightCard
+                title={cardData.title}
+                summary={cardData.summary}
+                riskLevel={cardData.riskLevel}
+                items={cardData.items}
+              />
+            </FloatInView>
+          )}
+          {insightsLoading && (
+            <FloatInView delay={220}>
+              <AIInsightCard
+                title="Client Portfolio Health"
+                summary=""
+                loading={true}
+              />
+            </FloatInView>
+          )}
 
           <View style={{ gap: 12, marginTop: 16 }}>
             {filtered.map((c, i) => (

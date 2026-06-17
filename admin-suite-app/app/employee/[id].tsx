@@ -25,6 +25,8 @@ import { useData } from "@/context/DataContext";
 import { useCurrencyFmt } from "@/context/SettingsContext";
 import { useColors } from "@/hooks/useColors";
 import { getMediaUrl, apiService } from "@/services/api";
+import { AIInsightCard } from "@/components/AIInsightCard";
+import { aiService, AIEmployeeInsight } from "@/services/aiService";
 
 const STATUS_COLOR: Record<string, string> = {
   active: "#22c55e",
@@ -55,6 +57,42 @@ export default function EmployeeDetailScreen() {
   const employee = employees.find((e: any) => String(e.id) === String(id));
   const [moreOpen, setMoreOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("tasks"); // tasks, queries, leaves, messages, activity
+  const [insight, setInsight] = useState<AIEmployeeInsight | null>(null);
+  const [insightLoading, setInsightLoading] = useState(true);
+
+  React.useEffect(() => {
+    let active = true;
+    if (employee?.id) {
+      aiService.getEmployeeInsights(Number(employee.id))
+        .then(res => {
+          if (active && res.data) {
+            setInsight(res.data);
+          }
+        })
+        .catch(err => {
+          console.error("Failed to load employee insights:", err);
+        })
+        .finally(() => {
+          if (active) {
+            setInsightLoading(false);
+          }
+        });
+    }
+    return () => {
+      active = false;
+    };
+  }, [employee?.id]);
+
+  const insightItems = React.useMemo(() => {
+    if (!insight) return [];
+    const arr = [];
+    if (insight.strengths?.length) arr.push(`Strengths: ${insight.strengths.join(', ')}`);
+    if (insight.concerns?.length) arr.push(`Concerns: ${insight.concerns.join(', ')}`);
+    if (insight.recommended_actions?.length) {
+      arr.push(...insight.recommended_actions.map(act => `Action: ${act}`));
+    }
+    return arr;
+  }, [insight]);
 
   // Modals visibility state
   const [flagModalOpen, setFlagModalOpen] = useState(false);
@@ -459,12 +497,12 @@ export default function EmployeeDetailScreen() {
     if (s.key === "phone") {
       socialButtons.push({ icon: s.icon, color: s.color, onPress: () => open(`tel:${employee.phone}`) });
     } else {
-      const handle = (employee.socials as any)?.[s.key];
+      const handle = Object.entries(employee.socials || {}).find(([k]) => k === s.key)?.[1] as string | undefined;
       if (handle) socialButtons.push({ icon: s.icon, color: s.color, onPress: () => open(s.url(handle)) });
     }
   });
   EXTRA_SOCIALS.forEach((s) => {
-    const handle = (employee.socials as any)?.[s.key];
+    const handle = Object.entries(employee.socials || {}).find(([k]) => k === s.key)?.[1] as string | undefined;
     if (handle) socialButtons.push({ icon: s.icon, color: s.color, onPress: () => open(s.url(handle)) });
   });
 
@@ -555,6 +593,34 @@ export default function EmployeeDetailScreen() {
             </View>
           </View>
         </FloatInView>
+
+        {(!insightLoading && insight && !insight.error) && (
+          <FloatInView delay={100}>
+            <View style={{ paddingHorizontal: 16 }}>
+              <AIInsightCard
+                title={`Performance Insight for ${employee.name}`}
+                summary={insight.risk_summary}
+                riskLevel={insight.risk_level}
+                items={insightItems}
+                actionLabel="View Draft Review"
+                onAction={() => {
+                  Alert.alert("Draft Performance Review", insight.review_draft);
+                }}
+              />
+            </View>
+          </FloatInView>
+        )}
+        {insightLoading && (
+          <FloatInView delay={100}>
+            <View style={{ paddingHorizontal: 16 }}>
+              <AIInsightCard
+                title="Performance Insight"
+                summary=""
+                loading={true}
+              />
+            </View>
+          </FloatInView>
+        )}
 
         {/* ── Quick contact ─────────────────────────────── */}
         <FloatInView delay={120}>
