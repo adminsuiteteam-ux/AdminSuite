@@ -37,13 +37,14 @@ Notifications.setNotificationHandler({
   }),
 });
 
-// Initialize Sentry (production only — avoids noisy dev warnings)
-if (!__DEV__) {
+// Initialize Sentry whenever a real DSN is provided (works in dev and production)
+const _sentryDsn = process.env.EXPO_PUBLIC_SENTRY_DSN;
+if (_sentryDsn && _sentryDsn !== 'YOUR_SENTRY_DSN_HERE') {
   Sentry.init({
-    dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
+    dsn: _sentryDsn,
     enableAutoSessionTracking: true,
-    tracesSampleRate: 0.2,
-    debug: false,
+    tracesSampleRate: __DEV__ ? 1.0 : 0.2,
+    debug: __DEV__,
   });
 }
 
@@ -129,8 +130,11 @@ function RootLayout() {
   );
 }
 
-// Only wrap with Sentry in production to avoid dev-mode warnings
-export default __DEV__ ? RootLayout : Sentry.wrap(RootLayout);
+// Only wrap with Sentry when it was initialised (valid DSN provided)
+export default (_sentryDsn && _sentryDsn !== 'YOUR_SENTRY_DSN_HERE')
+  ? Sentry.wrap(RootLayout)
+  : RootLayout;
+
 
 import { useData } from "@/context/DataContext";
 import { StyleSheet } from "react-native";

@@ -25,9 +25,13 @@ from api.views import ThrottledObtainAuthToken
 def health_check(request):
     return JsonResponse({"status": "ok", "service": "adminsuite-api"})
 
+def sentry_debug(request):
+    raise Exception("Sentry backend integration test error!")
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('api.urls')),
     path('api-token-auth/', ThrottledObtainAuthToken.as_view(), name='api_token_auth'),
     path('health/', health_check, name='health-check'),
+    path('api/sentry-debug/', sentry_debug, name='sentry-debug'),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -1,4 +1,21 @@
+import * as Sentry from '@sentry/browser';
+
+// Initialize Sentry when a real DSN is provided via env var
+const _webSentryDsn = (import.meta as any).env?.VITE_SENTRY_DSN;
+if (_webSentryDsn && _webSentryDsn !== 'YOUR_SENTRY_DSN_HERE') {
+  Sentry.init({
+    dsn: _webSentryDsn,
+    tracesSampleRate: 1.0,
+    sendDefaultPii: false, // Keep PII safe
+  });
+  // Expose a test helper in the browser console: sentryTest()
+  (window as any).sentryTest = () => {
+    throw new Error('Sentry Web Dashboard debug error!');
+  };
+}
+
 import './index.css';
+
 import { sanitizeHtml } from './utils/security';
 import DOMPurify from 'dompurify';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
