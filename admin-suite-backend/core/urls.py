@@ -18,10 +18,16 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from django.http import JsonResponse
 from api.views import ThrottledObtainAuthToken
+
+
+def health_check(request):
+    return JsonResponse({"status": "ok", "service": "adminsuite-api"})
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('api.urls')),
     path('api-token-auth/', ThrottledObtainAuthToken.as_view(), name='api_token_auth'),
+    path('health/', health_check, name='health-check'),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
