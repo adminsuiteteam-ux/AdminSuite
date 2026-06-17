@@ -196,20 +196,16 @@ STATICFILES_DIRS = [
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # SECURITY: In production, set CORS_ALLOWED_ORIGINS env var (comma-separated)
+# Mobile apps (React Native / Expo) do not send an Origin header,
+# so they are not affected by CORS. We open CORS_ALLOW_ALL_ORIGINS=True
+# here so that web-based clients (landing page, admin web panel) can also
+# call the API. Individual endpoints are protected by Token authentication.
 _cors_origins = os.environ.get('CORS_ALLOWED_ORIGINS', '')
 if _cors_origins:
     CORS_ALLOW_ALL_ORIGINS = False
     CORS_ALLOWED_ORIGINS = [o.strip() for o in _cors_origins.split(',')]
 else:
-    if DEBUG:
-        CORS_ALLOW_ALL_ORIGINS = True
-    else:
-        RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
-        if RENDER_EXTERNAL_HOSTNAME:
-            CORS_ALLOW_ALL_ORIGINS = False
-            CORS_ALLOWED_ORIGINS = [f"https://{RENDER_EXTERNAL_HOSTNAME}"]
-        else:
-            CORS_ALLOW_ALL_ORIGINS = True  # Fallback to avoid crashing the build
+    CORS_ALLOW_ALL_ORIGINS = True  # Safe — endpoints are token-protected
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 

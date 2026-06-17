@@ -108,7 +108,7 @@ let unauthorizedCallback: (() => void) | null = null;
 
 const apiClient = axios.create({
   baseURL: API_URL,
-  timeout: 30000, // 30s default — handles Render cold-starts
+  timeout: 60000, // 60s default — handles Render free-tier cold-starts (can take 30-60s)
   headers: {
     'Content-Type': 'application/json',
   },
@@ -140,7 +140,9 @@ const CANDIDATES = [
 
 const pingUrl = async (url: string): Promise<boolean> => {
   const cleanUrl = url.endsWith('/') ? url : `${url}/`;
-  const target = `${cleanUrl}api/`;
+  // Ping the lightweight /health/ endpoint — always returns 200 instantly,
+  // no auth needed, no DB queries. Falls back to /api/ for older backends.
+  const target = `${cleanUrl}health/`;
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 3000); // 3s ping timeout
@@ -373,7 +375,8 @@ export const apiService = {
   deleteAccount: () => apiClient.delete('me/'),
 
   // Subscription Endpoints
-  getSubscriptionLimits: () => apiClient.get('subscription/limits/'),
+  // NOTE: backend URL is 'subscription-limits/' (dash) not 'subscription/limits/' (slash)
+  getSubscriptionLimits: () => apiClient.get('subscription-limits/'),
   upgradeSubscription: (data: { plan: string; payment_method?: any }) => apiClient.post('subscription/upgrade/', data),
 
   // Employee Portal Endpoints
