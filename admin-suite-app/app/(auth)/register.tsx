@@ -176,8 +176,9 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   
-  // OTP 8-digit states (matches Supabase config)
-  const [otpValues, setOtpValues] = useState<string[]>(Array(8).fill(""));
+  // OTP digit count: 6 for Supabase OTP, 8 for Django fallback email code
+  const [otpDigits, setOtpDigits] = useState<6 | 8>(6);
+  const [otpValues, setOtpValues] = useState<string[]>(Array(6).fill(""));
   const [countdown, setCountdown] = useState(30);
   const [canResend, setCanResend] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
@@ -196,7 +197,8 @@ export default function RegisterScreen() {
   const [success, setSuccess] = useState("");
 
   const isTablet = width >= 768;
-  const boxWidth = Math.min(36, Math.floor((width - (isTablet ? 140 : 80)) / 11));
+  // Box width: 11 slots for 8-digit (8 boxes + separator), 7 slots for 6-digit (6 boxes + separator)
+  const boxWidth = Math.min(38, Math.floor((width - (isTablet ? 140 : 80)) / (otpDigits === 8 ? 11 : 8)));
   const [mobileIntro, setMobileIntro] = useState(!isTablet);
 
   const introOpacity = useRef(new Animated.Value(1)).current;
@@ -263,21 +265,26 @@ export default function RegisterScreen() {
     setLoading(true);
     try {
       await signUpWithSupabase(email.trim().toLowerCase(), password);
-      
+
+      // Determine OTP length: Supabase = 6 digits, Django fallback = 8 digits
+      const useSupabase = await AsyncStorage.getItem("auth.use_supabase_signup");
+      const digits: 6 | 8 = useSupabase === "false" ? 8 : 6;
+      setOtpDigits(digits);
+
       const debugCode = await AsyncStorage.getItem("auth.debug_otp_code");
       if (debugCode) {
         setSuccess(`Verification code (DEV): ${debugCode}`);
         await AsyncStorage.removeItem("auth.debug_otp_code");
       } else {
-        setSuccess("Verification code sent to your email!");
+        setSuccess(`A ${digits}-digit verification code was sent to your email!`);
       }
-      
+
       setStep("code");
       setCountdown(30);
       setCanResend(false);
       setIsVerified(false);
       setHasOtpError(false);
-      setOtpValues(Array(8).fill(""));
+      setOtpValues(Array(digits).fill(""));
     } catch (err: any) {
       setError(err.message || "Failed to create account. Please try again.");
     } finally {
@@ -289,7 +296,7 @@ export default function RegisterScreen() {
     if (!canResend) return;
     setError("");
     setSuccess("");
-    setOtpValues(Array(8).fill(""));
+    setOtpValues(Array(otpDigits).fill(""));
     setCountdown(30);
     setCanResend(false);
     setHasOtpError(false);
@@ -317,8 +324,8 @@ export default function RegisterScreen() {
     setHasOtpError(false);
 
     const codeString = codeToVerify || otpValues.join("");
-    if (codeString.length !== 8) {
-      setError("Please enter the 8-digit verification code.");
+    if (codeString.length !== otpDigits) {
+      setError(`Please enter the complete ${otpDigits}-digit verification code.`);
       setHasOtpError(true);
       isVerifyingRef.current = false;
       return;
@@ -373,11 +380,11 @@ export default function RegisterScreen() {
     newValues[idx] = digit;
     setOtpValues(newValues);
     
-    if (idx < 7) {
+    if (idx < otpDigits - 1) {
       inputRefs.current[idx + 1]?.focus();
     } else {
       const fullCode = newValues.join("");
-      if (fullCode.length === 8) {
+      if (fullCode.length === otpDigits) {
         handleVerifyCode(fullCode);
       }
     }
@@ -564,7 +571,7 @@ export default function RegisterScreen() {
         </Text>
 
         <View style={styles.otpGrid}>
-          {Array.from({ length: 8 }).map((_, idx) => {
+          {Array.from({ length: otpDigits }).map((_, idx) => {
             const isBoxFocused = activeFocusedIndex === idx;
             let borderColor = colors.border;
             if (isVerified) {
@@ -574,7 +581,10 @@ export default function RegisterScreen() {
             } else if (isBoxFocused) {
               borderColor = colors.accent || "#3b82f6";
             }
-            
+
+            // Separator after 3rd box for 6-digit, after 4th box for 8-digit
+            const separatorAt = otpDigits === 6 ? 2 : 3;
+
             return (
               <React.Fragment key={idx}>
                 <TextInput
@@ -595,7 +605,7 @@ export default function RegisterScreen() {
                     }
                   ]}
                 />
-                {idx === 3 && (
+                {idx === separatorAt && (
                   <Text style={[styles.otpSeparator, { color: colors.mutedForeground }]}>
                     -
                   </Text>
@@ -678,7 +688,7 @@ export default function RegisterScreen() {
           onPress={() => {
             setError("");
             setSuccess("");
-            setOtpValues(Array(6).fill(""));
+            setOtpValues(Array(otpDigits).fill(""));
             setStep("credentials");
           }}
           disabled={loading || isVerified}
