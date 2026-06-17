@@ -7,62 +7,68 @@ from datetime import timedelta
 from django.db.models import Sum
 from fpdf import FPDF  # type: ignore
 
-def get_dominant_color(image_path, default_color=(79, 70, 229)): # Indigo-600 default (#4f46e5)
-    if not image_path or not os.path.exists(image_path):
+def get_dominant_color(image_source, default_color=(79, 70, 229)): # Indigo-600 default (#4f46e5)
+    if not image_source:
         return default_color
     try:
-        with Image.open(image_path) as img:
-            # Copy to avoid modifying original and resize to speed up
-            img = img.copy()
-            img.thumbnail((80, 80))
-            img = img.convert('RGBA')
-            pixels = list(img.getdata())
-            
-            # Filter out transparent, pure white, pure black, and desaturated gray pixels
-            color_candidates = []
-            for r, g, b, a in pixels:
-                if a < 50: # transparent
-                    continue
-                # Skip pure/near-white (e.g. all values > 235)
-                if r > 235 and g > 235 and b > 235:
-                    continue
-                # Skip pure/near-black (e.g. all values < 25)
-                if r < 25 and g < 25 and b < 25:
-                    continue
-                # Skip highly desaturated (grays) where differences are small
-                if abs(r - g) < 15 and abs(g - b) < 15 and abs(r - b) < 15:
-                    continue
-                color_candidates.append((r, g, b))
-                
-            if not color_candidates:
-                # If everything got filtered, relax filters (just skip transparent)
-                color_candidates = [(r, g, b) for r, g, b, a in pixels if a >= 50]
-                
-            if not color_candidates:
+        if isinstance(image_source, str):
+            if not os.path.exists(image_source):
                 return default_color
-                
-            counter = collections.Counter(color_candidates)
-            most_common = counter.most_common(1)
-            if most_common:
-                return most_common[0][0]
+            img = Image.open(image_source)
+        else:
+            img = image_source
+            
+        # Copy to avoid modifying original and resize to speed up
+        img = img.copy()
+        img.thumbnail((80, 80))
+        img = img.convert('RGBA')
+        pixels = list(img.getdata())
+        
+        # Filter out transparent, pure white, pure black, and desaturated gray pixels
+        color_candidates = []
+        for r, g, b, a in pixels:
+            if a < 50: # transparent
+                continue
+            # Skip pure/near-white (e.g. all values > 235)
+            if r > 235 and g > 235 and b > 235:
+                continue
+            # Skip pure/near-black (e.g. all values < 25)
+            if r < 25 and g < 25 and b < 25:
+                continue
+            # Skip highly desaturated (grays) where differences are small
+            if abs(r - g) < 15 and abs(g - b) < 15 and abs(r - b) < 15:
+                continue
+            color_candidates.append((r, g, b))
+            
+        if not color_candidates:
+            # If everything got filtered, relax filters (just skip transparent)
+            color_candidates = [(r, g, b) for r, g, b, a in pixels if a >= 50]
+            
+        if not color_candidates:
+            return default_color
+            
+        counter = collections.Counter(color_candidates)
+        most_common = counter.most_common(1)
+        if most_common:
+            return most_common[0][0]
     except Exception:
         pass
     return default_color
 
 class ExportPDF(FPDF):
-    def __init__(self, business_name="", org_location="", org_email="", logo_path=None, skip_branding=False, *args, **kwargs):
+    def __init__(self, business_name="", org_location="", org_email="", logo_img=None, skip_branding=False, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.business_name = business_name
         self.org_location = org_location
         self.org_email = org_email
-        self.logo_path = logo_path
+        self.logo_img = logo_img
         self.skip_branding = skip_branding
         self.set_margins(20, 20, 20)
         self.set_auto_page_break(auto=True, margin=20)
         
         # Color extraction if branding is active and profile is complete
-        if not self.skip_branding and self.logo_path and os.path.exists(self.logo_path) and self.business_name:
-            self.primary_color = get_dominant_color(self.logo_path)
+        if not self.skip_branding and self.logo_img and self.business_name:
+            self.primary_color = get_dominant_color(self.logo_img)
             self.is_branded = True
         else:
             self.primary_color = (79, 70, 229) # Default premium Indigo-600
@@ -98,9 +104,9 @@ class ExportPDF(FPDF):
         else:
             # Branded Layout (Dynamic Company Letterhead)
             logo_x = 20
-            if self.logo_path and os.path.exists(self.logo_path):
+            if self.logo_img:
                 try:
-                    self.image(self.logo_path, x=20, y=10, h=24)
+                    self.image(self.logo_img, x=20, y=10, h=24)
                     logo_x = 52 # Shift text right to fit logo
                 except Exception:
                     pass
@@ -233,13 +239,20 @@ def build_pdf_report(user, export_type, time_filter=None, individual_id=None, sk
     from .models import UserProfile, Employee, Client, Project, Transaction, BudgetCategory, Savings
     
     profile, _ = UserProfile.objects.get_or_create(user=user)
-    logo_path = profile.company_logo.path if profile.company_logo else None
     
+    logo_img = None
+    if profile.company_logo:
+        try:
+            profile.company_logo.open('rb')
+            logo_img = Image.open(profile.company_logo)
+        except Exception:
+            logo_img = None
+            
     pdf = ExportPDF(
         business_name=profile.business_name,
         org_location=profile.org_location,
         org_email=profile.org_email,
-        logo_path=logo_path,
+        logo_img=logo_img,
         skip_branding=skip_branding
     )
     pdf.add_page()
