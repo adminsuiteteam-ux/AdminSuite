@@ -11,7 +11,6 @@ import {
   TextInput,
   View,
   Animated,
-  Dimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
@@ -71,15 +70,15 @@ export default function EmployeesScreen() {
   // Role filter state and animations
   const [selectedRoleFilter, setSelectedRoleFilter] = useState("all");
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
-  const slideAnim = useRef(new Animated.Value(350)).current;
+  const slideAnim = useRef(new Animated.Value(300)).current;
 
   const toggleFilterMenu = () => {
-    const toValue = filterMenuOpen ? 350 : 0;
+    const toValue = filterMenuOpen ? 300 : 0;
     setFilterMenuOpen(!filterMenuOpen);
     Animated.spring(slideAnim, {
       toValue,
-      tension: 40,
-      friction: 8,
+      tension: 45,
+      friction: 9,
       useNativeDriver: true,
     }).start();
   };
@@ -135,8 +134,6 @@ export default function EmployeesScreen() {
 
   const tabBarPad = (Platform.OS === "web" ? 96 : 100) + 24;
   const bottomOffset = Math.max(insets.bottom, 14) + 62 + 16;
-  const { width } = Dimensions.get("window");
-  const popupWidth = width - 110;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -374,15 +371,16 @@ export default function EmployeesScreen() {
         )}
       </ScrollView>
 
-      {/* ── Floating RHS-to-LHS Role Filter Line ── */}
+      {/* ── Vertical Role Filter Panel ── */}
       <Animated.View
+        pointerEvents={filterMenuOpen ? "auto" : "none"}
         style={[
           styles.filterPopupWrap,
           {
-            bottom: bottomOffset,
-            width: popupWidth,
-            transform: [{ translateX: slideAnim }],
-            opacity: slideAnim.interpolate({ inputRange: [0, 350], outputRange: [1, 0] }),
+            bottom: bottomOffset + 64,
+            right: 16,
+            transform: [{ translateY: slideAnim }],
+            opacity: slideAnim.interpolate({ inputRange: [0, 300], outputRange: [1, 0] }),
             backgroundColor: colors.card,
             borderColor: colors.border,
           },
@@ -390,46 +388,58 @@ export default function EmployeesScreen() {
       >
         <BlurView intensity={Platform.OS === "web" ? 30 : 60} tint="dark" style={StyleSheet.absoluteFill} />
         <View style={styles.filterPopupInner}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ gap: 8, paddingHorizontal: 12, alignItems: "center" }}
-          >
-            {ROLE_FILTERS.map((opt) => {
-              const active = selectedRoleFilter === opt.id;
-              return (
-                <Pressable
-                  key={opt.id}
-                  onPress={() => setSelectedRoleFilter(opt.id)}
-                  style={({ pressed }) => [
-                    styles.roleFilterChip,
-                    {
-                      borderColor: active ? colors.primary : colors.border,
-                      backgroundColor: active ? colors.primary : "transparent",
-                      borderRadius: 14,
-                      opacity: pressed ? 0.9 : 1,
-                    },
-                  ]}
+          {ROLE_FILTERS.map((opt) => {
+            const active = selectedRoleFilter === opt.id;
+            return (
+              <Pressable
+                key={opt.id}
+                onPress={() => {
+                  setSelectedRoleFilter(opt.id);
+                  toggleFilterMenu();
+                }}
+                style={({ pressed }) => [
+                  styles.roleFilterChip,
+                  {
+                    borderColor: active ? opt.color : colors.border,
+                    backgroundColor: active ? opt.color + "22" : "transparent",
+                    borderRadius: 12,
+                    opacity: pressed ? 0.85 : 1,
+                  },
+                ]}
+              >
+                <View
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: 14,
+                    backgroundColor: opt.color + "20",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginRight: 10,
+                  }}
                 >
                   <Feather
                     name={opt.icon}
-                    size={12}
-                    color={active ? colors.primaryForeground : opt.color}
-                    style={{ marginRight: 4 }}
+                    size={13}
+                    color={active ? opt.color : colors.mutedForeground}
                   />
-                  <Text
-                    style={{
-                      color: active ? colors.primaryForeground : colors.foreground,
-                      fontFamily: active ? "Inter_600SemiBold" : "Inter_500Medium",
-                      fontSize: 11,
-                    }}
-                  >
-                    {opt.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
+                </View>
+                <Text
+                  style={{
+                    color: active ? opt.color : colors.foreground,
+                    fontFamily: active ? "Inter_700Bold" : "Inter_500Medium",
+                    fontSize: 13,
+                    flex: 1,
+                  }}
+                >
+                  {opt.label}
+                </Text>
+                {active && (
+                  <Feather name="check" size={14} color={opt.color} />
+                )}
+              </Pressable>
+            );
+          })}
         </View>
       </Animated.View>
 
@@ -604,28 +614,27 @@ const styles = StyleSheet.create({
   },
   filterPopupWrap: {
     position: "absolute",
-    right: 76,
-    height: 52,
-    borderRadius: 26,
+    width: 210,
+    borderRadius: 16,
     borderWidth: 1,
     overflow: "hidden",
     zIndex: 998,
     shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
+    shadowOpacity: 0.2,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 12,
   },
   filterPopupInner: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    gap: 4,
   },
   roleFilterChip: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 9,
     borderWidth: 1,
   },
   fabWrap: {

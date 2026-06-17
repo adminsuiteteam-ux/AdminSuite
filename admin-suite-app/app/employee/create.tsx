@@ -3,7 +3,6 @@ import * as ImagePicker from "expo-image-picker";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  Alert,
   Image,
   KeyboardAvoidingView,
   Modal,
@@ -299,22 +298,22 @@ export default function CreateEmployeeScreen() {
     if (!canNext()) {
       // Show a specific hint about what's missing
       if (step === 0) {
-        Alert.alert("Select a Role", "Please select a role before continuing.");
+        showToast({ title: "Select a Role", message: "Please select a role before continuing.", type: "error" });
       } else if (step === 1 && selectedRole !== "Admin") {
         if (!name.trim()) {
-          Alert.alert("Name Required", "Please enter the employee's full name.");
+          showToast({ title: "Name Required", message: "Please enter the employee's full name.", type: "error" });
         } else {
-          Alert.alert("Department Required", "Please select a department to continue.");
+          showToast({ title: "Department Required", message: "Please select a department to continue.", type: "error" });
         }
       } else if (step === 1 && selectedRole === "Admin") {
-        Alert.alert("Branch Details", "Please fill in the branch name and location.");
+        showToast({ title: "Branch Details", message: "Please fill in the branch name and location.", type: "error" });
       } else if (step === 2 && selectedRole === "Admin") {
-        Alert.alert("Name Required", "Please enter the admin's full name.");
+        showToast({ title: "Name Required", message: "Please enter the admin's full name.", type: "error" });
       } else if ((step === 3 && selectedRole === "Admin") || (step === 2 && selectedRole !== "Admin")) {
         if (!email.includes("@")) {
-          Alert.alert("Email Required", "Please enter a valid email address.");
+          showToast({ title: "Email Required", message: "Please enter a valid email address.", type: "error" });
         } else {
-          Alert.alert("Phone Required", "Please enter a phone number.");
+          showToast({ title: "Phone Required", message: "Please enter a phone number.", type: "error" });
         }
       }
       return;
@@ -464,7 +463,7 @@ export default function CreateEmployeeScreen() {
           }
         }
       }
-      Alert.alert("Error", msg);
+      showToast({ title: "Error", message: msg, type: "error" });
     } finally {
       setSaving(false);
     }

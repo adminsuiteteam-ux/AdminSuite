@@ -112,12 +112,15 @@ export default function CompleteProfileScreen() {
   const [biometricsActive, setBiometricsActive] = useState(false);
   const [notificationsActive, setNotificationsActive] = useState(false);
 
+  // Premium plan selection (onboarding slide)
+  const [selectedOnboardingPlan, setSelectedOnboardingPlan] = useState("pro");
+
   // UI state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const totalSlides = 7;
+  const totalSlides = 8;
 
   const animateToSlide = (index: number) => {
     setCurrentSlide(index);
@@ -855,6 +858,82 @@ export default function CompleteProfileScreen() {
         );
 
       case 6:
+        // ── PREMIUM PLAN SELECTION ──
+        return (
+          <View style={styles.slideContainer}>
+            <Text style={[styles.slideTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+              Choose Your Plan
+            </Text>
+            <Text style={[styles.slideSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              Start free for 14 days. No card needed to begin.
+            </Text>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingBottom: 16 }}>
+              {[
+                { id: "starter", name: "Starter", price: "$19", desc: "Perfect for small teams (up to 10)", color: "#6366f1", icon: "bolt-lightning", features: ["10 employees", "Basic HR", "Chat"] },
+                { id: "pro", name: "Pro", price: "$49", desc: "Growing businesses (up to 100)", color: "#f59e0b", icon: "crown", badge: "Most Popular", features: ["100 employees", "Full HR & Payroll", "Analytics", "Multi-branch"] },
+                { id: "enterprise", name: "Enterprise", price: "$129", desc: "Unlimited scale & custom branding", color: "#10b981", icon: "building", features: ["Unlimited employees", "API access", "Dedicated manager", "SLA guarantee"] },
+              ].map((plan) => {
+                const isSelected = selectedOnboardingPlan === plan.id;
+                return (
+                  <Pressable
+                    key={plan.id}
+                    onPress={() => setSelectedOnboardingPlan(plan.id)}
+                    style={[{
+                      borderRadius: 18,
+                      padding: 16,
+                      borderWidth: isSelected ? 2 : 1,
+                      borderColor: isSelected ? plan.color : colors.border,
+                      backgroundColor: isSelected ? plan.color + "10" : colors.muted,
+                    }]}
+                  >
+                    {(plan as any).badge && (
+                      <View style={{ position: "absolute", top: 12, right: 12, backgroundColor: plan.color, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 }}>
+                        <Text style={{ color: "#fff", fontFamily: "Inter_700Bold", fontSize: 10 }}>{(plan as any).badge}</Text>
+                      </View>
+                    )}
+                    <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 10 }}>
+                      <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: plan.color + "20", alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+                        <FontAwesome6 name={plan.icon as any} size={16} color={plan.color} solid />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: colors.foreground, fontFamily: "Inter_700Bold", fontSize: 16 }}>{plan.name}</Text>
+                        <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12 }}>{plan.desc}</Text>
+                      </View>
+                      {isSelected && (
+                        <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: plan.color, alignItems: "center", justifyContent: "center" }}>
+                          <Feather name="check" size={12} color="#fff" />
+                        </View>
+                      )}
+                    </View>
+                    <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 4, marginBottom: 10 }}>
+                      <Text style={{ color: plan.color, fontFamily: "Inter_700Bold", fontSize: 28 }}>{plan.price}</Text>
+                      <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13, paddingBottom: 4 }}>/month</Text>
+                    </View>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                      {plan.features.map((f) => (
+                        <View key={f} style={{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: plan.color + "15", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 }}>
+                          <Feather name="check" size={10} color={plan.color} />
+                          <Text style={{ color: colors.foreground, fontFamily: "Inter_500Medium", fontSize: 11 }}>{f}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </Pressable>
+                );
+              })}
+              <Pressable
+                onPress={() => router.push("/premium" as any)}
+                style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12 }}
+              >
+                <Feather name="external-link" size={13} color={colors.mutedForeground} />
+                <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13 }}>See full plan comparison</Text>
+              </Pressable>
+            </ScrollView>
+          </View>
+        );
+
+      case 7:
+        // ── REVIEW SLIDE (was case 6) ──
         return (
           <View style={styles.slideContainer}>
             <Text style={[styles.slideTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>

@@ -65,68 +65,7 @@ export default function MoreHubScreen() {
           {t("settings.more")}
           </Text>
 
-          {/* ─── Grid Menu (Projects & Profile) ─── */}
-          <View style={styles.gridRow}>
-            {/* Projects Card */}
-            <Pressable
-              onPress={() => router.push("/(tabs)/projects" as any)}
-              style={({ pressed }) => [
-                styles.gridCard,
-                {
-                  backgroundColor: colors.card,
-                  borderColor: colors.border,
-                  opacity: pressed ? 0.85 : 1,
-                  transform: [{ scale: pressed ? 0.98 : 1 }],
-                },
-              ]}
-            >
-              <View style={[styles.gridIconWrap, { backgroundColor: "#2563eb1A" }]}>
-                <Feather name="layers" size={20} color="#2563eb" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.gridTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-                  {t("settings.projects")}
-                </Text>
-                <Text style={[styles.gridDesc, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-                  {projects.length} {t("settings.projects")}
-                </Text>
-              </View>
-              <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
-            </Pressable>
 
-            {/* Profile Card */}
-            <Pressable
-              onPress={() => router.push("/settings/profile" as any)}
-              style={({ pressed }) => [
-                styles.gridCard,
-                {
-                  backgroundColor: colors.card,
-                  borderColor: colors.border,
-                  opacity: pressed ? 0.85 : 1,
-                  transform: [{ scale: pressed ? 0.98 : 1 }],
-                },
-              ]}
-            >
-              <View style={[styles.gridIconWrap, { backgroundColor: "#8b5cf61A" }]}>
-                {user?.avatar ? (
-                  <Image source={{ uri: getMediaUrl(user.avatar) }} style={styles.avatarImg} />
-                ) : (
-                  <Text style={{ color: "#8b5cf6", fontSize: 14, fontFamily: "Inter_700Bold" }}>
-                    {user?.initials || "US"}
-                  </Text>
-                )}
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.gridTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-                  {t("settings.profile")}
-                </Text>
-                <Text style={[styles.gridDesc, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-                  {t("settings.viewEditProfile")}
-                </Text>
-              </View>
-              <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
-            </Pressable>
-          </View>
 
           {/* Workspace Settings */}
           <Group title={t("settings.workspace")}>

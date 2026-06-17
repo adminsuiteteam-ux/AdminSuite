@@ -2,7 +2,7 @@ import os
 import sys
 import requests
 
-APK_SOURCE_URL = "https://expo.dev/artifacts/eas/dGbGD-TEIvBR_k9PwkjZOexb5IiNQRigOx009bnHhuI.apk"
+APK_SOURCE_URL = "https://expo.dev/artifacts/eas/47TAq5JEsAj-i4cZSssthF6K4zAqoApLl2kgYMYRzKE.apk"
 TARGET_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 TARGET_PATH = os.path.join(TARGET_DIR, "AdminSuite.apk")
 

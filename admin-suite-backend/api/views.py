@@ -219,6 +219,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         try:
+            # pyrefly: ignore [missing-attribute]
             ext = self.request.user.extension
             org = ext.organization
         except Exception:
@@ -331,6 +332,7 @@ class ClientViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         try:
+            # pyrefly: ignore [missing-attribute]
             ext = self.request.user.extension
             org = ext.organization
         except Exception:
@@ -349,6 +351,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         try:
+            # pyrefly: ignore [missing-attribute]
             ext = self.request.user.extension
             org = ext.organization
         except Exception:
@@ -988,6 +991,8 @@ def google_login(request):
     In DEBUG mode, if Google token verification fails, falls back to
     the provided email/name so developers can test without real credentials.
     """
+    # pyrefly: ignore [untyped-import]
+    # pyrefly: ignore [untyped-import]
     import requests as http_requests
     from rest_framework.authtoken.models import Token
 
@@ -1592,6 +1597,7 @@ class EmployeeTaskViewSet(viewsets.ModelViewSet):
         request_user = self.request.user
         is_same_org = False
         try:
+            # pyrefly: ignore [missing-attribute]
             if request_user.extension.organization == creator_user.extension.organization:
                 is_same_org = True
         except Exception:
@@ -1640,6 +1646,7 @@ class EmployeeLeaveViewSet(viewsets.ModelViewSet):
         request_user = self.request.user
         is_same_org = False
         try:
+            # pyrefly: ignore [missing-attribute]
             if request_user.extension.organization == creator_user.extension.organization:
                 is_same_org = True
         except Exception:
@@ -2615,7 +2622,9 @@ def chat_block_user(request):
     })
 
 
+# pyrefly: ignore [bad-specialization]
 @api_view(['GET', 'POST'])
+# pyrefly: ignore [bad-specialization]
 @permission_classes([IsAuthenticated])
 def chat_typing(request):
     """

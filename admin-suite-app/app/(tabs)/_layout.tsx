@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Feather, FontAwesome6 } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { Tabs, router } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -101,6 +101,11 @@ function GlassTabBar({ state, navigation }: { state: any; navigation: any }) {
 
   return (
     <>
+      {/* ── Floating Premium FAB (above Chat FAB) ── */}
+      {activeRouteName !== "employees" && (
+        <PremiumFAB bottomOffset={tabBarHeight + 64} />
+      )}
+
       {/* ── Floating Chat FAB ── */}
       {activeRouteName !== "employees" && (
         <ChatFAB bottomOffset={tabBarHeight} unreadCount={totalUnread} shakeAnim={shakeAnim} />
@@ -150,6 +155,65 @@ function GlassTabBar({ state, navigation }: { state: any; navigation: any }) {
         </View>
       </View>
     </>
+  );
+}
+
+// ─── Floating Premium FAB ────────────────────────────────────────────────────────
+function PremiumFAB({ bottomOffset }: { bottomOffset: number }) {
+  const colors = useColors();
+  const shimmerAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    // Gentle float/scale pulse
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(scaleAnim, { toValue: 1.08, duration: 1200, easing: Easing.inOut(Easing.sine), useNativeDriver: true }),
+        Animated.timing(scaleAnim, { toValue: 1, duration: 1200, easing: Easing.inOut(Easing.sine), useNativeDriver: true }),
+      ])
+    );
+    // Shimmer glow opacity
+    const shimmer = Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmerAnim, { toValue: 1, duration: 1400, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(shimmerAnim, { toValue: 0.3, duration: 1400, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ])
+    );
+    pulse.start();
+    shimmer.start();
+    return () => { pulse.stop(); shimmer.stop(); };
+  }, []);
+
+  return (
+    <View pointerEvents="box-none" style={[styles.fabWrap, { bottom: bottomOffset + 16 }]}>
+      {/* Glow ring */}
+      <Animated.View
+        style={[
+          styles.premiumPulse,
+          {
+            opacity: shimmerAnim,
+            transform: [{ scale: scaleAnim }],
+          },
+        ]}
+      />
+      {/* FAB button */}
+      <Pressable
+        onPress={() => router.push("/premium" as any)}
+        style={({ pressed }) => [
+          styles.premiumFab,
+          {
+            opacity: pressed ? 0.88 : 1,
+            transform: [{ scale: pressed ? 0.93 : 1 }],
+          },
+        ]}
+      >
+        <View style={[StyleSheet.absoluteFill, { borderRadius: 26, overflow: "hidden" }]}>
+          <BlurView intensity={Platform.OS === "web" ? 20 : 50} tint="dark" style={StyleSheet.absoluteFill} />
+          <View style={styles.premiumFabGlass} />
+        </View>
+        <FontAwesome6 name="crown" size={18} color="#fbbf24" solid />
+      </Pressable>
+    </View>
   );
 }
 
@@ -305,6 +369,34 @@ function TabButton({ focused, icon, label, onPress }: { focused: boolean; icon: 
 }
 
 const styles = StyleSheet.create({
+  // ── Premium FAB styles ──
+  premiumPulse: {
+    position: "absolute",
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "#f59e0b88",
+  },
+  premiumFab: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#f59e0b",
+    shadowOpacity: 0.65,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 18,
+    borderWidth: 1.5,
+    borderColor: "rgba(251,191,36,0.5)",
+  },
+  premiumFabGlass: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 26,
+    backgroundColor: "#78350fcc",
+  },
+  // ── Bar styles ──
   barWrap: {
     position: "absolute",
     left: 0,
