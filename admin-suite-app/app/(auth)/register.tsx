@@ -199,8 +199,8 @@ export default function RegisterScreen() {
   const [success, setSuccess] = useState("");
 
   const isTablet = width >= 768;
-  // Box width: 11 slots for 8-digit (8 boxes + separator), 7 slots for 6-digit (6 boxes + separator)
-  const boxWidth = Math.min(38, Math.floor((width - (isTablet ? 140 : 80)) / (otpDigits === 8 ? 11 : 8)));
+  // Box width: 7 slots for 6-digit (6 boxes + separator)
+  const boxWidth = Math.min(38, Math.floor((width - (isTablet ? 140 : 80)) / 8));
   const [mobileIntro, setMobileIntro] = useState(!isTablet);
 
   const introOpacity = useRef(new Animated.Value(1)).current;
