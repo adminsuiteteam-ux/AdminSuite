@@ -1644,8 +1644,8 @@ function drawRegister(): string {
       </div>
     `;
   } else {
-    // OTP entry view (8 boxes)
-    const boxes = Array(8).fill(0).map((_, i) => `
+    // OTP entry view (6 boxes)
+    const boxes = Array(6).fill(0).map((_, i) => `
       <input type="text" maxlength="1" class="otp-box" data-index="${i}" value="${state.otpValues.at(i) || ''}" pattern="[0-9]*" inputmode="numeric">
     `).join('');
 
@@ -1660,7 +1660,7 @@ function drawRegister(): string {
           <div class="split-right-panel" style="text-align: center;">
             <div class="login-logo" style="text-align: center; margin-bottom: 24px;">
               <h1 style="font-size: 28px; font-weight: 800; letter-spacing: -0.5px;">Verify OTP</h1>
-              <p style="color: var(--muted-foreground); font-size: 14px; margin-top: 4px;">Enter the 8-digit verification code sent to<br/><strong>${sanitizeHtml(state.otpEmail)}</strong></p>
+              <p style="color: var(--muted-foreground); font-size: 14px; margin-top: 4px;">Enter the 6-digit verification code sent to<br/><strong>${sanitizeHtml(state.otpEmail)}</strong></p>
             </div>
             
             <div class="otp-container">
@@ -1736,7 +1736,7 @@ function bindRegisterEvents() {
           state.otpPassword = pwd;
           state.registerStep = 'otp';
           state.otpCountdown = 30;
-          state.otpValues = Array(8).fill('');
+          state.otpValues = Array(6).fill('');
           
           startOTPTimer();
           renderApp();
@@ -1768,7 +1768,7 @@ function bindRegisterEvents() {
         
         state.otpValues.splice(idx, 1, val);
 
-        if (val && idx < 7) {
+        if (val && idx < 5) {
           const next = document.querySelector(`.otp-box[data-index="${idx + 1}"]`) as HTMLInputElement;
           if (next) next.focus();
         }
@@ -1814,8 +1814,8 @@ function bindRegisterEvents() {
     if (verifyBtn) {
       verifyBtn.addEventListener('click', async () => {
         const code = state.otpValues.join('');
-        if (code.length < 8) {
-          showToast('Please enter the complete 8-digit code', 'error');
+        if (code.length < 6) {
+          showToast('Please enter the complete 6-digit code', 'error');
           return;
         }
 

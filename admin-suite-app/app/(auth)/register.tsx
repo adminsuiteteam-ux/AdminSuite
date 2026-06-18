@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Defs, LinearGradient as SvgLinearGradient, Stop, Polygon, Line } from "react-native-svg";
+import { useTranslation } from "react-i18next";
 
 import { LogoMark } from "@/components/Brand";
 import { useAuth } from "@/context/AuthContext";
@@ -163,6 +164,7 @@ function MobileAnimatedBackground({ isDark }: { isDark: boolean }) {
 }
 
 export default function RegisterScreen() {
+  const { t } = useTranslation();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -176,8 +178,8 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   
-  // OTP digit count: 6 for Supabase OTP, 8 for Django fallback email code
-  const [otpDigits, setOtpDigits] = useState<6 | 8>(6);
+  // OTP digit count: always 6 digits
+  const [otpDigits, setOtpDigits] = useState<6>(6);
   const [otpValues, setOtpValues] = useState<string[]>(Array(6).fill(""));
   const [countdown, setCountdown] = useState(30);
   const [canResend, setCanResend] = useState(false);
@@ -266,9 +268,8 @@ export default function RegisterScreen() {
     try {
       await signUpWithSupabase(email.trim().toLowerCase(), password);
 
-      // Determine OTP length: Supabase = 6 digits, Django fallback = 8 digits
-      const useSupabase = await AsyncStorage.getItem("auth.use_supabase_signup");
-      const digits: 6 | 8 = useSupabase === "false" ? 8 : 6;
+      // Determine OTP length: always 6 digits
+      const digits: 6 = 6;
       setOtpDigits(digits);
 
       const debugCode = await AsyncStorage.getItem("auth.debug_otp_code");
@@ -276,7 +277,7 @@ export default function RegisterScreen() {
         setSuccess(`Verification code (DEV): ${debugCode}`);
         await AsyncStorage.removeItem("auth.debug_otp_code");
       } else {
-        setSuccess(`A ${digits}-digit verification code was sent to your email!`);
+        setSuccess(`A 6-digit verification code was sent to your email!`);
       }
 
       setStep("code");
@@ -308,7 +309,7 @@ export default function RegisterScreen() {
         setSuccess(`New verification code (DEV): ${debugCode}`);
         await AsyncStorage.removeItem("auth.debug_otp_code");
       } else {
-        setSuccess("New 8-digit verification code sent!");
+        setSuccess("New 6-digit verification code sent!");
       }
     } catch (err: any) {
       setError(err.message || "Failed to resend verification code.");
@@ -427,10 +428,10 @@ export default function RegisterScreen() {
       return (
         <View style={styles.formContainer}>
           <Text style={[styles.formTitle, { color: colors.foreground }]}>
-            Create Account
+            {t('register.createAccount')}
           </Text>
           <Text style={[styles.formSubtitle, { color: colors.mutedForeground }]}>
-            Sign up to start managing your business with ease.
+            {t('register.subtitle')}
           </Text>
 
           {isDemoKey && (
@@ -440,23 +441,23 @@ export default function RegisterScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.demoBannerTitle}>
-                  Demo Auth Active
+                  {t('register.demoAuthActive')}
                 </Text>
                 <Text style={styles.demoBannerText}>
-                  Please configure EXPO_PUBLIC_SUPABASE_ANON_KEY in .env.
+                  {t('register.demoConfigureKey')}
                 </Text>
               </View>
             </View>
           )}
 
           <Text style={[styles.fieldLabel, { color: colors.foreground }]}>
-            Email
+            {t('register.email')}
           </Text>
           <View style={[styles.inputContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <TextInput
               value={email}
               onChangeText={setEmail}
-              placeholder="Input your email"
+              placeholder={t('register.emailPlaceholder')}
               placeholderTextColor={colors.mutedForeground}
               autoCapitalize="none"
               keyboardType="email-address"
@@ -465,13 +466,13 @@ export default function RegisterScreen() {
           </View>
 
           <Text style={[styles.fieldLabel, { color: colors.foreground }]}>
-            Password
+            {t('register.password')}
           </Text>
           <View style={[styles.inputContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <TextInput
               value={password}
               onChangeText={setPassword}
-              placeholder="Input your password"
+              placeholder={t('register.passwordPlaceholder')}
               placeholderTextColor={colors.mutedForeground}
               secureTextEntry={!showPwd}
               style={[styles.textInput, { color: colors.foreground }]}
@@ -482,13 +483,13 @@ export default function RegisterScreen() {
           </View>
 
           <Text style={[styles.fieldLabel, { color: colors.foreground }]}>
-            Confirm Password
+            {t('register.confirmPassword')}
           </Text>
           <View style={[styles.inputContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <TextInput
               value={confirmPassword}
               onChangeText={setConfirmPassword}
-              placeholder="Input your password name"
+              placeholder={t('register.confirmPasswordPlaceholder')}
               placeholderTextColor={colors.mutedForeground}
               secureTextEntry={!showConfirmPwd}
               style={[styles.textInput, { color: colors.foreground }]}
@@ -529,7 +530,7 @@ export default function RegisterScreen() {
             ]}
           >
             <Text style={[styles.submitButtonText, { color: colors.primaryForeground }]}>
-              {loading ? "Creating..." : "Sign up"}
+              {loading ? t('register.creating') : t('register.signUp')}
             </Text>
           </Pressable>
 
@@ -537,12 +538,12 @@ export default function RegisterScreen() {
 
           <View style={styles.footerLinkRow}>
             <Text style={[styles.footerText, { color: colors.mutedForeground }]}>
-              Already have an account?{" "}
+              {t('register.alreadyHaveAccount')}
             </Text>
             <Link href="/(auth)/login" asChild>
               <Pressable hitSlop={6}>
                 <Text style={[styles.footerLinkText, { color: colors.primary }]}>
-                  Sign in here
+                  {t('register.signInHere')}
                 </Text>
               </Pressable>
             </Link>
@@ -560,14 +561,14 @@ export default function RegisterScreen() {
     return (
       <View style={styles.formContainer}>
         <Text style={[styles.formTitle, { color: colors.foreground }]}>
-          Verify Your Email
+          {t('register.verifyYourEmail')}
         </Text>
         <Text style={[styles.formSubtitle, { color: colors.mutedForeground }]}>
-          We've sent an 8-digit code to {email}
+          {t('register.codeSentTo', { digits: otpDigits, email })}
         </Text>
 
         <Text style={[styles.fieldLabel, { color: colors.foreground }]}>
-          Verification Code
+          {t('register.verificationCode')}
         </Text>
 
         <View style={styles.otpGrid}>
@@ -582,8 +583,8 @@ export default function RegisterScreen() {
               borderColor = colors.accent || "#3b82f6";
             }
 
-            // Separator after 3rd box for 6-digit, after 4th box for 8-digit
-            const separatorAt = otpDigits === 6 ? 2 : 3;
+            // Separator after 3rd box for 6-digit
+            const separatorAt = 2;
 
             return (
               <React.Fragment key={idx}>
@@ -625,12 +626,12 @@ export default function RegisterScreen() {
         <View style={styles.timerRow}>
           {countdown > 0 ? (
             <Text style={[styles.timerText, { color: colors.mutedForeground }]}>
-              Resend code in {formatTime(countdown)}
+              {t('register.resendCodeIn', { time: formatTime(countdown) })}
             </Text>
           ) : (
             <Pressable onPress={handleResendOtp} disabled={loading}>
               <Text style={[styles.resendLink, { color: colors.accent || "#3b82f6" }]}>
-                Resend code
+                {t('register.resendCode')}
               </Text>
             </Pressable>
           )}
@@ -651,7 +652,7 @@ export default function RegisterScreen() {
               <Feather name="check" size={32} color="#ffffff" />
             </View>
             <Text style={[styles.successAnimationText, { color: colors.success, fontFamily: "Inter_700Bold" }]}>
-              Verified!
+              {t('register.verified')}
             </Text>
           </Animated.View>
         )}
@@ -687,7 +688,7 @@ export default function RegisterScreen() {
           ]}
         >
           <Text style={[styles.submitButtonText, { color: colors.primaryForeground }]}>
-            {loading ? "Verifying..." : "Verify & Create Account"}
+            {loading ? t('register.verifying') : t('register.verifyAndCreate')}
           </Text>
         </Pressable>
 
@@ -703,7 +704,7 @@ export default function RegisterScreen() {
           hitSlop={10}
         >
           <Text style={{ color: "#8e8e93", fontFamily: "Inter_600SemiBold", fontSize: 14 }}>
-            ← Back to Sign Up
+            {t('register.backToSignUp')}
           </Text>
         </Pressable>
       </View>
@@ -717,15 +718,15 @@ export default function RegisterScreen() {
         <Animated.View style={[styles.introContent, { opacity: introOpacity }]}>
           <View style={styles.introHeader}>
             <LogoMark size={48} tint="#ffffff" />
-            <Text style={styles.introBrandText}>AdminSuite</Text>
+            <Text style={styles.introBrandText}>{t('register.appName')}</Text>
           </View>
           
           <View style={styles.introMain}>
             <Text style={styles.introTitle}>
-              Manage Smarter.{"\n"}Grow Faster.{"\n"}Scale Anywhere.
+              {t('register.heroTitle')}
             </Text>
             <Text style={styles.introSub}>
-              A centralized control center to manage your employees, clients, projects, and finances seamlessly in one beautiful platform.
+              {t('register.heroSub')}
             </Text>
           </View>
 
@@ -759,17 +760,17 @@ export default function RegisterScreen() {
                 <View style={styles.leftHeader}>
                   <View style={styles.logoRow}>
                     <LogoMark size={28} tint="#ffffff" />
-                    <Text style={[styles.leftBrandText, { fontFamily: "Inter_700Bold" }]}>AdminSuite</Text>
+                    <Text style={[styles.leftBrandText, { fontFamily: "Inter_700Bold" }]}>{t('register.appName')}</Text>
                   </View>
                 </View>
 
                 {/* Hero Middle Content */}
                 <View style={styles.leftMain}>
                   <Text style={[styles.heroTitle, { fontFamily: "Inter_700Bold" }]}>
-                    Manage Smarter.{"\n"}Grow Faster.{"\n"}Scale Anywhere.
+                    {t('register.heroTitle')}
                   </Text>
                   <Text style={[styles.heroSub, { fontFamily: "Inter_400Regular" }]}>
-                    A centralized control center to manage your employees, clients, projects, and finances seamlessly in one beautiful platform.
+                    {t('register.heroSub')}
                   </Text>
                 </View>
                 
@@ -788,7 +789,7 @@ export default function RegisterScreen() {
             {/* Logo and Name on Top for phone screen */}
             <View style={[styles.mobileLogoHeader, { paddingTop: insets.top + 32 }]}>
               <LogoMark size={36} tint={isDarkTheme ? "#ffffff" : "#1c1c1e"} />
-              <Text style={[styles.mobileLogoHeaderTitle, { color: colors.foreground }]}>AdminSuite</Text>
+              <Text style={[styles.mobileLogoHeaderTitle, { color: colors.foreground }]}>{t('register.appName')}</Text>
             </View>
 
             <View style={[styles.mobileFormCard, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}>

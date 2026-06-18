@@ -1192,7 +1192,7 @@ def verify_otp(request):
 @throttle_classes([AuthRateThrottle])
 def send_email_verification(request):
     """
-    Send an 8-digit verification code to the given email address.
+    Send a 6-digit verification code to the given email address.
     Checks if a user with that email already exists.
     In DEBUG mode, the code is returned in the response for easy testing.
     """
@@ -1216,8 +1216,8 @@ def send_email_verification(request):
     if User.objects.filter(email=email).exists():
         return Response({'error': 'A user with this email already exists.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Generate 8-digit code using a secure PRNG
-    code = ''.join([str(secrets.randbelow(10)) for _ in range(8)])
+    # Generate 6-digit code using a secure PRNG
+    code = ''.join([str(secrets.randbelow(10)) for _ in range(6)])
 
     # Store/Update verification code
     EmailVerificationCode.objects.update_or_create(
@@ -1242,7 +1242,7 @@ def send_email_verification(request):
 @throttle_classes([AuthRateThrottle])
 def verify_email(request):
     """
-    Verify the 8-digit email code.
+    Verify the 6-digit email code.
     This doesn't register the user or log them in, but validates that the user owns the email.
     Sets the status of EmailVerificationCode for that email to 'VERIFIED'.
     """

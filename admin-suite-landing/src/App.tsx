@@ -84,7 +84,7 @@ export default function App() {
     },
     {
       src: '/phone_mockup_verified.png',
-      alt: 'Secure 8-digit Email verification flow'
+      alt: 'Secure 6-digit Email verification flow'
     },
     {
       src: '/phone_mockup_setup.png',
@@ -264,7 +264,7 @@ export default function App() {
         <StoryCard 
           step="01 / Security"
           title="Secure, Instant Email Onboarding"
-          description="Enter your email and instantly receive a secure, 8-digit verification code. Verify your admin identity in milliseconds using keyboard prefilled overlays and seamless biometric-ready security."
+          description="Enter your email and instantly receive a secure, 6-digit verification code. Verify your admin identity in milliseconds using keyboard prefilled overlays and seamless biometric-ready security."
           icon={ShieldAlert}
           imageSrc="/phone_mockup_verified.png"
           alignment="left"

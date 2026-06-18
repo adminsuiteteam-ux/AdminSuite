@@ -259,5 +259,33 @@
     "retry": "Retry",
     "delete": "Delete",
     "error": "Error"
+  },
+  "register": {
+    "createAccount": "Create Account",
+    "subtitle": "Sign up to start managing your business with ease.",
+    "demoAuthActive": "Demo Auth Active",
+    "demoConfigureKey": "Please configure EXPO_PUBLIC_SUPABASE_ANON_KEY in .env.",
+    "email": "Email",
+    "emailPlaceholder": "Input your email",
+    "password": "Password",
+    "passwordPlaceholder": "Input your password",
+    "confirmPassword": "Confirm Password",
+    "confirmPasswordPlaceholder": "Input your password again",
+    "creating": "Creating...",
+    "signUp": "Sign up",
+    "alreadyHaveAccount": "Already have an account? ",
+    "signInHere": "Sign in here",
+    "verifyYourEmail": "Verify Your Email",
+    "codeSentTo": "We've sent a {{digits}}-digit code to {{email}}",
+    "verificationCode": "Verification Code",
+    "resendCodeIn": "Resend code in {{time}}",
+    "resendCode": "Resend code",
+    "verified": "Verified!",
+    "verifying": "Verifying...",
+    "verifyAndCreate": "Verify & Create Account",
+    "backToSignUp": "← Back to Sign Up",
+    "heroTitle": "Manage Smarter.\nGrow Faster.\nScale Anywhere.",
+    "heroSub": "A centralized control center to manage your employees, clients, projects, and finances seamlessly in one beautiful platform.",
+    "appName": "AdminSuite"
   }
 }
