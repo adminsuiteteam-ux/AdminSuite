@@ -33,6 +33,7 @@
     }
   },
   "submit": {
+    "preview": {},
     "production": {}
   }
 }
