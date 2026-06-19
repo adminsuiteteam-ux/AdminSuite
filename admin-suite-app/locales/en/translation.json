@@ -252,7 +252,30 @@
     "companyOwesEmployeeLabel": "Company Owes Employee",
     "companySharesPercent": "Company Shares (%)",
     "bonusesEditLabel": "Bonuses",
-    "deductionsEditLabel": "Deductions"
+    "deductionsEditLabel": "Deductions",
+    "title": "Finance",
+    "subtitle": "Track every cent in and out",
+    "netProfitThisMonth": "NET PROFIT · THIS MONTH",
+    "vsLastMonth": "vs last month",
+    "incomeVsExpense": "Income vs Expense",
+    "last7Months": "Last 7 months",
+    "in": "In",
+    "out": "Out",
+    "staffPaid": "Staff paid",
+    "monthsPaid": "Months paid",
+    "pendingLabel": "Pending",
+    "due": "Due",
+    "thisMonth": "This month",
+    "addNewRecord": "Add new record"
+  },
+  "aiReport": {
+    "title": "AI Business Report",
+    "selectPeriod": "Select Period to Analyze",
+    "helpText": "AI will analyze your income, expenditures, employee performances, client projects, and debts to draft an executive performance review.",
+    "analyzing": "AI is analyzing records and writing report...",
+    "generate": "Generate Report",
+    "share": "Share",
+    "export": "Export File"
   },
   "common": {
     "offline": "Offline · ",

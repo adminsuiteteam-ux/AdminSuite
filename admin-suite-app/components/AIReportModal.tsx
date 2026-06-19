@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Alert,
@@ -29,6 +30,7 @@ const PERIODS = [
 ];
 
 export function AIReportModal({ visible, onClose }: Props) {
+  const { t } = useTranslation();
   const colors = useColors();
   const [period, setPeriod] = useState("Current Month");
   const [loading, setLoading] = useState(false);
@@ -119,7 +121,7 @@ export function AIReportModal({ visible, onClose }: Props) {
               <View style={[styles.headerIcon, { backgroundColor: colors.primary + "15" }]}>
                 <Feather name="cpu" size={18} color={colors.primary} />
               </View>
-              <Text style={[styles.title, { color: colors.foreground }]}>AI Business Report</Text>
+              <Text style={[styles.title, { color: colors.foreground }]}>{t('aiReport.title')}</Text>
             </View>
             <Pressable onPress={handleClose} style={[styles.closeBtn, { backgroundColor: colors.muted }]}>
               <Feather name="x" size={16} color={colors.mutedForeground} />
@@ -131,7 +133,7 @@ export function AIReportModal({ visible, onClose }: Props) {
             {!report && !loading && (
               <View style={styles.form}>
                 <Text style={[styles.label, { color: colors.mutedForeground }]}>
-                  Select Period to Analyze
+                  {t('aiReport.selectPeriod')}
                 </Text>
                 <View style={styles.periodRow}>
                   {PERIODS.map((p) => {
@@ -164,7 +166,7 @@ export function AIReportModal({ visible, onClose }: Props) {
                   })}
                 </View>
                 <Text style={[styles.helpText, { color: colors.mutedForeground }]}>
-                  AI will analyze your income, expenditures, employee performances, client projects, and debts to draft an executive performance review.
+                  {t('aiReport.helpText')}
                 </Text>
               </View>
             )}
@@ -173,7 +175,7 @@ export function AIReportModal({ visible, onClose }: Props) {
               <View style={styles.loader}>
                 <ActivityIndicator size="large" color={colors.primary} />
                 <Text style={[styles.loaderText, { color: colors.mutedForeground }]}>
-                  AI is analyzing records and writing report...
+                  {t('aiReport.analyzing')}
                 </Text>
               </View>
             )}
@@ -204,7 +206,7 @@ export function AIReportModal({ visible, onClose }: Props) {
                   },
                 ]}
               >
-                <Text style={styles.primaryBtnText}>Generate Report</Text>
+                <Text style={styles.primaryBtnText}>{t('aiReport.generate')}</Text>
               </Pressable>
             ) : (
               <View style={styles.actionRow}>
@@ -219,7 +221,7 @@ export function AIReportModal({ visible, onClose }: Props) {
                   ]}
                 >
                   <Feather name="share-2" size={14} color={colors.foreground} />
-                  <Text style={[styles.secondaryBtnText, { color: colors.foreground }]}>Share</Text>
+                  <Text style={[styles.secondaryBtnText, { color: colors.foreground }]}>{t('aiReport.share')}</Text>
                 </Pressable>
 
                 <Pressable
@@ -234,7 +236,7 @@ export function AIReportModal({ visible, onClose }: Props) {
                   ]}
                 >
                   <Feather name="download" size={14} color="#fff" />
-                  <Text style={styles.primaryBtnText}>Export File</Text>
+                  <Text style={styles.primaryBtnText}>{t('aiReport.export')}</Text>
                 </Pressable>
               </View>
             )}

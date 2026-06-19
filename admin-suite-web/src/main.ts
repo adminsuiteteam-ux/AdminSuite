@@ -3175,16 +3175,28 @@ function drawAlertsPanel(): string {
   const alertTypeIcon: Record<string, string> = { query: '❓', flagged: '🚩', task: '⚡' };
   const alertTypeColor: Record<string, string> = { query: '#f59e0b', flagged: '#ef4444', task: '#8b5cf6' };
 
-  const alertItems = alerts.alerts.map((a: any) => `
-    <div style="display:flex; align-items:flex-start; gap:12px; padding:14px 16px; background:var(--card-bg); border-radius:10px; border-left:3px solid ${alertTypeColor[a.type] || '#6366f1'};">
-      <span style="font-size:18px; flex-shrink:0;">${alertTypeIcon[a.type] || '🔔'}</span>
+  const alertItems = alerts.alerts.map((a: any) => {
+    // Use safeProp to prevent prototype pollution from API-sourced a.type
+    let aColor = '#6366f1';
+    let aIcon = '🔔';
+    try {
+      const validTypes = ['query', 'flagged', 'task'] as const;
+      if (validTypes.includes(a.type)) {
+        aColor = safeProp(alertTypeColor, a.type as keyof typeof alertTypeColor) ?? '#6366f1';
+        aIcon = safeProp(alertTypeIcon, a.type as keyof typeof alertTypeIcon) ?? '🔔';
+      }
+    } catch (_) { /* prototype pollution attempt blocked */ }
+    return `
+    <div style="display:flex; align-items:flex-start; gap:12px; padding:14px 16px; background:var(--card-bg); border-radius:10px; border-left:3px solid ${aColor};">
+      <span style="font-size:18px; flex-shrink:0;">${aIcon}</span>
       <div style="flex:1; min-width:0;">
         <div style="font-size:13px; font-weight:600; color:var(--foreground); margin-bottom:2px;">${sanitizeHtml(a.message)}</div>
         <div style="font-size:11px; color:var(--muted-foreground); text-transform:uppercase; letter-spacing:0.05em;">${sanitizeHtml(a.type)} alert · ${a.count} item${a.count !== 1 ? 's' : ''}</div>
       </div>
-      <span style="font-size:20px; font-weight:800; color:${alertTypeColor[a.type] || '#6366f1'}; flex-shrink:0;">${a.count}</span>
+      <span style="font-size:20px; font-weight:800; color:${aColor}; flex-shrink:0;">${a.count}</span>
     </div>
-  `).join('');
+  `;
+  }).join('');
 
   return `
     <div class="card" style="margin-bottom:24px; border:1px solid rgba(239,68,68,0.25);">

@@ -2,6 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Modal,
   Platform,
@@ -23,6 +24,7 @@ import { aiService, AIFinanceForecast } from "@/services/aiService";
 import { AIReportModal } from "@/components/AIReportModal";
 
 export default function FinanceScreen() {
+  const { t } = useTranslation();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const fmt = useCurrencyFmt();
@@ -100,7 +102,7 @@ export default function FinanceScreen() {
                     { color: colors.foreground, fontFamily: "Inter_700Bold" },
                   ]}
                 >
-                  Finance
+                  {t('finance.title')}
                 </Text>
                 <Text
                   style={[
@@ -111,7 +113,7 @@ export default function FinanceScreen() {
                     },
                   ]}
                 >
-                  Track every cent in and out
+                  {t('finance.subtitle')}
                 </Text>
               </View>
               <View style={{ flexDirection: "row", gap: 8 }}>
@@ -162,7 +164,7 @@ export default function FinanceScreen() {
               <Text
                 style={[styles.profitLabel, { fontFamily: "Inter_600SemiBold" }]}
               >
-                NET PROFIT · THIS MONTH
+                {t('finance.netProfitThisMonth')}
               </Text>
               <Text style={[styles.profitValue, { fontFamily: "Inter_700Bold", fontVariant: ["tabular-nums"] }]}>
                 {fmt(m.netProfit)}
@@ -182,7 +184,7 @@ export default function FinanceScreen() {
                     { fontFamily: "Inter_500Medium" },
                   ]}
                 >
-                  vs last month
+                  {t('finance.vsLastMonth')}
                 </Text>
               </View>
             </View>
@@ -225,7 +227,7 @@ export default function FinanceScreen() {
                   <Text
                     style={[styles.chartTitle, { fontFamily: "Inter_700Bold" }]}
                   >
-                    Income vs Expense
+                    {t('finance.incomeVsExpense')}
                   </Text>
                   <Text
                     style={[
@@ -233,7 +235,7 @@ export default function FinanceScreen() {
                       { fontFamily: "Inter_500Medium" },
                     ]}
                   >
-                    Last 7 months
+                    {t('finance.last7Months')}
                   </Text>
                 </View>
                 <View style={styles.chartTotals}>
@@ -246,7 +248,7 @@ export default function FinanceScreen() {
                     <Text
                       style={[styles.totalLab, { fontFamily: "Inter_500Medium" }]}
                     >
-                      In
+                      {t('finance.in')}
                     </Text>
                   </View>
                   <View>
@@ -258,7 +260,7 @@ export default function FinanceScreen() {
                     <Text
                       style={[styles.totalLab, { fontFamily: "Inter_500Medium" }]}
                     >
-                      Out
+                      {t('finance.out')}
                     </Text>
                   </View>
                 </View>
@@ -298,7 +300,7 @@ export default function FinanceScreen() {
                       },
                     ]}
                   >
-                    Staff paid
+                    {t('finance.staffPaid')}
                   </Text>
                 </View>
                 <View style={styles.payrollKpi}>
@@ -319,7 +321,7 @@ export default function FinanceScreen() {
                       },
                     ]}
                   >
-                    Months paid
+                    {t('finance.monthsPaid')}
                   </Text>
                 </View>
                 <View style={styles.payrollKpi}>
@@ -340,7 +342,7 @@ export default function FinanceScreen() {
                       },
                     ]}
                   >
-                    Pending
+                    {t('finance.pendingLabel')}
                   </Text>
                 </View>
               </View>
@@ -456,7 +458,7 @@ export default function FinanceScreen() {
                             fontSize: 11,
                           }}
                         >
-                          Due {d.due}
+                          {t('finance.due')} {d.due}
                         </Text>
                       </View>
                       <Text
@@ -504,7 +506,7 @@ export default function FinanceScreen() {
                           textTransform: "uppercase",
                         }}
                       >
-                        This month
+                        {t('finance.thisMonth')}
                       </Text>
                       <Text
                         style={{
@@ -684,7 +686,7 @@ export default function FinanceScreen() {
         <Pressable style={styles.modalBackdrop} onPress={() => setAddMenuOpen(false)} />
         <View style={[styles.modalSheet, { backgroundColor: colors.background, paddingBottom: insets.bottom + 24 }]}>
           <View style={styles.sheetHandle} />
-          <Text style={{ color: colors.foreground, fontFamily: "Inter_700Bold", fontSize: 18, marginBottom: 16, paddingHorizontal: 4 }}>Add new record</Text>
+          <Text style={{ color: colors.foreground, fontFamily: "Inter_700Bold", fontSize: 18, marginBottom: 16, paddingHorizontal: 4 }}>{t('finance.addNewRecord')}</Text>
           {[
             { icon: "arrow-down-left", label: "Income", color: "#22c55e", desc: "Record incoming payment" },
             { icon: "arrow-up-right", label: "Expenditure", color: "#ef4444", desc: "Log an expense" },
