@@ -25,6 +25,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { useSettings } from "@/context/SettingsContext";
 import { apiService, appendFileToFormData } from "@/services/api";
+import { PLANS } from "@/constants/premiumPlans";
 
 const { width } = Dimensions.get("window");
 
@@ -113,14 +114,14 @@ export default function CompleteProfileScreen() {
   const [notificationsActive, setNotificationsActive] = useState(false);
 
   // Premium plan selection (onboarding slide)
-  const [selectedOnboardingPlan, setSelectedOnboardingPlan] = useState("pro");
+  const [selectedOnboardingPlan, setSelectedOnboardingPlan] = useState("PRO");
 
   // UI state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const totalSlides = 8;
+  const totalSlides = 7;
 
   const animateToSlide = (index: number) => {
     setCurrentSlide(index);
@@ -266,6 +267,16 @@ export default function CompleteProfileScreen() {
       await appendFileToFormData(formData, "company_logo", companyLogoUri);
 
       const res = await apiService.updateMe(formData);
+
+      // Perform plan upgrade in backend
+      try {
+        await apiService.upgradeSubscription({
+          plan: selectedOnboardingPlan,
+          payment_method: selectedOnboardingPlan !== "BASIC" ? "stripe" : undefined
+        });
+      } catch (subErr) {
+        console.warn("Failed to automatically upgrade subscription in onboarding:", subErr);
+      }
 
       if (user) {
         setUser({
@@ -709,7 +720,7 @@ export default function CompleteProfileScreen() {
               Average Revenue (Annual)
             </Text>
             <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
-              {["< $50k", "$50k-$250k", "$250k-$1M", "$1M+"].map((rev) => {
+              {["< ₦50k", "₦50k-₦250k", "₦250k-₦1M", "₦1M+"].map((rev) => {
                 const isSel = averageRevenue === rev;
                 return (
                   <Pressable
@@ -801,63 +812,6 @@ export default function CompleteProfileScreen() {
         );
 
       case 5:
-        return (
-          <View style={styles.slideContainer}>
-            <Text style={[styles.slideTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-              Never Miss a Beat
-            </Text>
-            <Text style={[styles.slideSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Stay updated with team requests, task completions, and budget notifications.
-            </Text>
-
-            <View style={styles.heroCenter}>
-              <View style={[
-                styles.shieldRing,
-                {
-                  backgroundColor: (notificationsActive ? "#10b981" : "#3b82f6") + "12",
-                  borderColor: (notificationsActive ? "#10b981" : "#3b82f6") + "24",
-                }
-              ]}>
-                <Feather name="bell" size={64} color={notificationsActive ? "#10b981" : "#3b82f6"} />
-              </View>
-              <Text style={[styles.heroHeading, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-                {notificationsActive ? "Notifications Active" : "Stay Alerted"}
-              </Text>
-              <Text style={[styles.heroText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                Get real-time updates regarding company deliverables, payroll status, and net profits directly.
-              </Text>
-
-              <Pressable
-                onPress={enableNotifications}
-                style={({ pressed }) => [
-                  styles.actionBtn,
-                  {
-                    backgroundColor: notificationsActive ? "#10b981" : "#3b82f6",
-                    opacity: pressed ? 0.85 : 1,
-                  },
-                ]}
-              >
-                <Feather
-                  name={notificationsActive ? "check" : "bell-off"}
-                  size={20}
-                  color="#fff"
-                  style={{ marginRight: 8 }}
-                />
-                <Text style={[
-                  styles.actionBtnText,
-                  {
-                    fontFamily: "Inter_600SemiBold",
-                    color: "#fff",
-                  }
-                ]}>
-                  {notificationsActive ? "Enabled" : "Enable Push Notifications"}
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        );
-
-      case 6:
         // ── PREMIUM PLAN SELECTION ──
         return (
           <View style={styles.slideContainer}>
@@ -865,15 +819,11 @@ export default function CompleteProfileScreen() {
               Choose Your Plan
             </Text>
             <Text style={[styles.slideSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Start free for 14 days. No card needed to begin.
+              Start free with no credit card required.
             </Text>
 
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingBottom: 16 }}>
-              {[
-                { id: "starter", name: "Starter", price: "$19", desc: "Perfect for small teams (up to 10)", color: "#6366f1", icon: "bolt-lightning", features: ["10 employees", "Basic HR", "Chat"] },
-                { id: "pro", name: "Pro", price: "$49", desc: "Growing businesses (up to 100)", color: "#f59e0b", icon: "crown", badge: "Most Popular", features: ["100 employees", "Full HR & Payroll", "Analytics", "Multi-branch"] },
-                { id: "enterprise", name: "Enterprise", price: "$129", desc: "Unlimited scale & custom branding", color: "#10b981", icon: "building", features: ["Unlimited employees", "API access", "Dedicated manager", "SLA guarantee"] },
-              ].map((plan) => {
+            <View style={{ gap: 12, paddingBottom: 16 }}>
+              {PLANS.map((plan) => {
                 const isSelected = selectedOnboardingPlan === plan.id;
                 return (
                   <Pressable
@@ -887,9 +837,9 @@ export default function CompleteProfileScreen() {
                       backgroundColor: isSelected ? plan.color + "10" : colors.muted,
                     }]}
                   >
-                    {(plan as any).badge && (
+                    {plan.badge && (
                       <View style={{ position: "absolute", top: 12, right: 12, backgroundColor: plan.color, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 }}>
-                        <Text style={{ color: "#fff", fontFamily: "Inter_700Bold", fontSize: 10 }}>{(plan as any).badge}</Text>
+                        <Text style={{ color: "#fff", fontFamily: "Inter_700Bold", fontSize: 10 }}>{plan.badge}</Text>
                       </View>
                     )}
                     <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 10 }}>
@@ -898,7 +848,7 @@ export default function CompleteProfileScreen() {
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={{ color: colors.foreground, fontFamily: "Inter_700Bold", fontSize: 16 }}>{plan.name}</Text>
-                        <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12 }}>{plan.desc}</Text>
+                        <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12 }}>{plan.tagline}</Text>
                       </View>
                       {isSelected && (
                         <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: plan.color, alignItems: "center", justifyContent: "center" }}>
@@ -908,7 +858,7 @@ export default function CompleteProfileScreen() {
                     </View>
                     <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 4, marginBottom: 10 }}>
                       <Text style={{ color: plan.color, fontFamily: "Inter_700Bold", fontSize: 28 }}>{plan.price}</Text>
-                      <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13, paddingBottom: 4 }}>/month</Text>
+                      <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13, paddingBottom: 4 }}>{plan.period}</Text>
                     </View>
                     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
                       {plan.features.map((f) => (
@@ -921,19 +871,12 @@ export default function CompleteProfileScreen() {
                   </Pressable>
                 );
               })}
-              <Pressable
-                onPress={() => router.push("/premium" as any)}
-                style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12 }}
-              >
-                <Feather name="external-link" size={13} color={colors.mutedForeground} />
-                <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13 }}>See full plan comparison</Text>
-              </Pressable>
-            </ScrollView>
+            </View>
           </View>
         );
 
-      case 7:
-        // ── REVIEW SLIDE (was case 6) ──
+      case 6:
+        // ── REVIEW SLIDE ──
         return (
           <View style={styles.slideContainer}>
             <Text style={[styles.slideTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
@@ -943,7 +886,7 @@ export default function CompleteProfileScreen() {
               Do you like your profile like this, or do you want to make changes?
             </Text>
 
-            <ScrollView style={{ flex: 1, maxHeight: 380 }} showsVerticalScrollIndicator={false}>
+            <View style={{ gap: 14 }}>
               <View style={[styles.choiceCard, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, padding: 18, borderRadius: 20, flexDirection: "column", gap: 14, alignItems: "stretch" }]}>
                 
                 {/* Header Summary */}
@@ -1034,7 +977,7 @@ export default function CompleteProfileScreen() {
                   Make Changes
                 </Text>
               </Pressable>
-            </ScrollView>
+            </View>
           </View>
         );
 
@@ -1045,7 +988,7 @@ export default function CompleteProfileScreen() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={{ flex: 1, backgroundColor: colors.background }}
     >
       <ScrollView
@@ -1157,12 +1100,10 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   card: {
-    flex: 1,
     paddingHorizontal: 24,
     paddingTop: 16,
   },
   slideContainer: {
-    flex: 1,
   },
   slideTitle: {
     fontSize: 26,

@@ -8,6 +8,13 @@ import { apiService } from './api';
 const PUSH_TOKEN_KEY = 'push_device_token';
 
 export async function registerForPushNotificationsAsync(): Promise<string | null> {
+  // Check if running inside Expo Go to avoid crashing/redbox error on SDK 53 Android
+  const isExpoGo = Constants.appOwnership === 'expo' || Constants.executionEnvironment === 'storeClient';
+  if (isExpoGo) {
+    console.log('[Notification] Skipping push notifications registration in Expo Go client.');
+    return null;
+  }
+
   if (!Device.isDevice) {
     console.log('[Notification] Must use a physical device for Push Notifications');
     return null;

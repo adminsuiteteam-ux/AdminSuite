@@ -150,7 +150,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let intervalId: any;
-    if (user) {
+    if (user && user.profile_complete) {
       fetchAll();
       // Setup real-time polling every 15 seconds in the background
       intervalId = setInterval(() => {

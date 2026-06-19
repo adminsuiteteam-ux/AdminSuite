@@ -453,7 +453,7 @@ export default function PayScreen() {
                 Due today
               </Text>
               <Text style={{ color: plan.color, fontFamily: "Inter_700Bold", fontSize: 18 }}>
-                $0.00
+                ₦0.00
               </Text>
             </View>
           </View>
