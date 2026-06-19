@@ -624,7 +624,7 @@ const state: AppState = {
   otpPassword: '',
   otpCountdown: 30,
   otpTimer: null,
-  otpValues: Array(8).fill(''),
+  otpValues: Array(6).fill(''),
   
   suspendedUntil: localStorage.getItem('admin-suite.suspended-until'),
   forgotStep: 'email',
