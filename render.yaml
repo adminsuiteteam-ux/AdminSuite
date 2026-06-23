@@ -11,9 +11,7 @@ services:
       - key: DJANGO_SECRET_KEY
         generateValue: true
       - key: DATABASE_URL
-        fromDatabase:
-          name: adminsuite-db
-          property: connectionString
+        value: postgresql://postgres.whjxjqsxrnjpkoknfixo:AdminSuite2210@aws-0-eu-west-1.pooler.supabase.com:6543/postgres
       - key: DJANGO_ALLOWED_HOSTS
         fromService:
           type: web
@@ -29,6 +27,8 @@ services:
         value: admin@adminsuite.app
       - key: ADMIN_PASSWORD
         value: "AdminSuite#2210"
+      - key: SETUP_SECRET_TOKEN
+        value: adminsuite-setup-9x7k2p
 
   - type: web
     name: adminsuite
@@ -44,6 +44,3 @@ services:
     buildCommand: npm run build
     staticPublishPath: dist
 
-databases:
-  - name: adminsuite-db
-    plan: free
