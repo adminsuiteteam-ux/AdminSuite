@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useToast } from "@/context/ToastContext";
 import { apiService } from "@/services/api";
+import { useTranslation } from "react-i18next";
 
 type Stage = "email" | "otp" | "new-password";
 
@@ -22,6 +23,7 @@ export default function ForgotPasswordScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { showToast } = useToast();
+  const { t } = useTranslation();
 
   const [stage, setStage] = useState<Stage>("email");
   const [email, setEmail] = useState("");
@@ -148,10 +150,10 @@ export default function ForgotPasswordScreen() {
               <Feather name="mail" size={28} color="#ffffff" />
             </View>
             <Text style={[styles.title, { fontFamily: "Inter_700Bold", color: colors.foreground }]}>
-              Password Recovery
+              {t("forgotPassword.passwordRecovery")}
             </Text>
             <Text style={[styles.subtitle, { fontFamily: "Inter_400Regular", color: colors.mutedForeground }]}>
-              Enter the email address you registered with to receive a 6-digit verification code.
+              {t("forgotPassword.emailPrompt")}
             </Text>
             <View style={styles.form}>
               <View style={[styles.inputWrap, { backgroundColor: colors.input }]}>
@@ -180,7 +182,7 @@ export default function ForgotPasswordScreen() {
                 disabled={loading || !email}
               >
                 <Text style={[styles.primaryBtnText, { fontFamily: "Inter_600SemiBold" }]}>
-                  {loading ? "Sending Code..." : "Send Verification Code"}
+                  {loading ? t("forgotPassword.sendingCode") : t("forgotPassword.sendCode")}
                 </Text>
               </Pressable>
             </View>
@@ -194,10 +196,10 @@ export default function ForgotPasswordScreen() {
               <Feather name="key" size={28} color="#ffffff" />
             </View>
             <Text style={[styles.title, { fontFamily: "Inter_700Bold", color: colors.foreground }]}>
-              Enter OTP
+              {t("forgotPassword.enterOtp")}
             </Text>
             <Text style={[styles.subtitle, { fontFamily: "Inter_400Regular", color: colors.mutedForeground }]}>
-              Please enter the 6-digit OTP code sent to {email}.
+              {t("forgotPassword.otpSentTo", { email })}
             </Text>
             <View style={styles.form}>
               <View style={[styles.inputWrap, { backgroundColor: colors.input }]}>
@@ -226,7 +228,7 @@ export default function ForgotPasswordScreen() {
                 disabled={loading || code.length !== 6}
               >
                 <Text style={[styles.primaryBtnText, { fontFamily: "Inter_600SemiBold" }]}>
-                  {loading ? "Verifying..." : "Verify Code"}
+                  {loading ? t("forgotPassword.verifying") : t("forgotPassword.verifyCode")}
                 </Text>
               </Pressable>
               <Pressable
@@ -234,7 +236,7 @@ export default function ForgotPasswordScreen() {
                 onPress={() => setStage("email")}
               >
                 <Text style={{ fontFamily: "Inter_500Medium", color: colors.primary, fontSize: 14 }}>
-                  Change Email
+                  {t("forgotPassword.changeEmail")}
                 </Text>
               </Pressable>
             </View>
@@ -248,10 +250,10 @@ export default function ForgotPasswordScreen() {
               <Feather name="lock" size={28} color="#ffffff" />
             </View>
             <Text style={[styles.title, { fontFamily: "Inter_700Bold", color: colors.foreground }]}>
-              New Password
+              {t("forgotPassword.newPassword")}
             </Text>
             <Text style={[styles.subtitle, { fontFamily: "Inter_400Regular", color: colors.mutedForeground }]}>
-              Enter a secure new password for your account.
+              {t("forgotPassword.newPasswordPrompt")}
             </Text>
             <View style={styles.form}>
               <View style={[styles.inputWrap, { backgroundColor: colors.input }]}>
@@ -302,7 +304,7 @@ export default function ForgotPasswordScreen() {
                 disabled={loading || !newPassword || !confirmPassword}
               >
                 <Text style={[styles.primaryBtnText, { fontFamily: "Inter_600SemiBold" }]}>
-                  {loading ? "Resetting..." : "Reset Password"}
+                  {loading ? t("forgotPassword.resetting") : t("forgotPassword.resetPassword")}
                 </Text>
               </Pressable>
             </View>

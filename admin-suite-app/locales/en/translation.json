@@ -323,5 +323,20 @@
     "heroTitle": "Manage Smarter.\nGrow Faster.\nScale Anywhere.",
     "heroSub": "A centralized control center to manage your employees, clients, projects, and finances seamlessly in one beautiful platform.",
     "appName": "AdminSuite"
+  },
+  "forgotPassword": {
+    "passwordRecovery": "Password Recovery",
+    "emailPrompt": "Enter the email address you registered with to receive a 6-digit verification code.",
+    "enterOtp": "Enter OTP",
+    "otpSentTo": "Please enter the 6-digit OTP code sent to {{email}}.",
+    "changeEmail": "Change Email",
+    "newPassword": "New Password",
+    "newPasswordPrompt": "Enter a secure new password for your account.",
+    "sendCode": "Send Verification Code",
+    "sendingCode": "Sending Code...",
+    "verifyCode": "Verify Code",
+    "verifying": "Verifying...",
+    "resetPassword": "Reset Password",
+    "resetting": "Resetting..."
   }
 }
