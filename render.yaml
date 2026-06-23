@@ -28,7 +28,7 @@ services:
       - key: ADMIN_EMAIL
         value: admin@adminsuite.app
       - key: ADMIN_PASSWORD
-        value: AdminSuite@2025
+        value: "AdminSuite#2210"
 
   - type: web
     name: adminsuite

@@ -20,7 +20,7 @@ class ApiConfig(AppConfig):
 
             username = os.environ.get('ADMIN_USERNAME', 'admin')
             email = os.environ.get('ADMIN_EMAIL', 'admin@adminsuite.app')
-            password = os.environ.get('ADMIN_PASSWORD', 'AdminSuite@2025')
+            password = os.environ.get('ADMIN_PASSWORD', 'AdminSuite#2210')
 
             user, created = User.objects.get_or_create(
                 username=username,
