@@ -17,6 +17,7 @@ from .views import (
     register_device, unregister_device,
     branch_metrics, subscription_limits, subscription_upgrade, transaction_categories, dashboard_alerts,
 )
+from payments.stripe_helper import stripe_webhook
 
 router = DefaultRouter()
 router.register(r'employees', EmployeeViewSet, basename='employee')
@@ -81,4 +82,6 @@ urlpatterns = [
     path('export/', export_data, name='export-data'),
     path('devices/register/', register_device, name='register-device'),
     path('devices/unregister/', unregister_device, name='unregister-device'),
+    # Stripe Webhook
+    path('payments/stripe-webhook/', stripe_webhook, name='stripe-webhook'),
 ]

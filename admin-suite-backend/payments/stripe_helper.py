@@ -21,9 +21,20 @@ def create_checkout_session(request, organization_id, plan):
         JsonResponse with session ID or error.
     """
     try:
-        domain = request.build_absolute_uri('/')
-        success_url = f"{domain}subscription/success/?session_id={{CHECKOUT_SESSION_ID}}"
-        cancel_url = f"{domain}subscription/cancel/"
+        # Determine the origin of the calling frontend
+        origin = request.META.get('HTTP_ORIGIN')
+        if not origin:
+            referer = request.META.get('HTTP_REFERER')
+            if referer:
+                from urllib.parse import urlparse
+                parsed = urlparse(referer)
+                origin = f"{parsed.scheme}://{parsed.netloc}"
+        if not origin:
+            origin = "http://localhost:5173"
+
+        success_url = f"{origin}/?subscription=success&session_id={{CHECKOUT_SESSION_ID}}"
+        cancel_url = f"{origin}/?subscription=cancel"
+
         session = stripe.checkout.Session.create(
             payment_method_types=['card'],
             line_items=[{
@@ -39,9 +50,9 @@ def create_checkout_session(request, organization_id, plan):
             mode='payment',
             success_url=success_url,
             cancel_url=cancel_url,
-            metadata={'organization_id': organization_id, 'plan': plan},
+            metadata={'organization_id': str(organization_id), 'plan': plan},
         )
-        return JsonResponse({'sessionId': session.id})
+        return JsonResponse({'sessionId': session.id, 'url': session.url})
     except Exception:
         logging.exception('Error creating Stripe checkout session')
         return JsonResponse({'error': 'Unable to create checkout session'}, status=500)
@@ -73,17 +84,49 @@ def stripe_webhook(request):
         plan = session['metadata'].get('plan')
 
         from api.extended_models import Organization, Subscription
+        from api.models import EmployeeActivityLog
+        from api.notifications import send_push_notification
+        
         try:
             org = Organization.objects.get(id=org_id)
             sub, _ = Subscription.objects.get_or_create(organization=org)
             sub.plan = plan
-            sub.start_date = timezone.now().date()
-            sub.end_date = None  # indefinite for this demo
+            
+            # Set limit fields and dates
+            if plan == 'BASIC':
+                sub.max_records_per_field = 15
+                sub.end_date = None
+                sub.features = {}
+            elif plan == 'PREMIUM':
+                sub.max_records_per_field = 999999 # unlimited
+                sub.end_date = (timezone.now() + timezone.timedelta(days=30)).date()
+                sub.features = {'financial_management': False}
+            elif plan in ('PRO', 'PRO_YEARLY'):
+                sub.max_records_per_field = 999999 # unlimited
+                days = 365 if plan == 'PRO_YEARLY' else 30
+                sub.end_date = (timezone.now() + timezone.timedelta(days=days)).date()
+                sub.features = {'financial_management': True, 'ai_automation': True}
+                
             sub.save()
+
+            # Log organization level activity
+            EmployeeActivityLog.objects.create(
+                employee=None, # system/organization level
+                action="Subscription Upgraded",
+                details=f"Upgraded organization subscription to {plan} plan via Stripe."
+            )
+            
+            # Send push notification to the CEO/Admin user
+            if org.created_by:
+                send_push_notification(
+                    user=org.created_by,
+                    title='⚡ Subscription Upgraded!',
+                    body=f"Your organization has successfully upgraded to the {plan} plan via Stripe.",
+                    data={'screen': 'dashboard'}
+                )
         except Exception:
             logging.exception(
                 'Error processing Stripe webhook for organization %s', org_id
             )
-            # Continue; do not retry webhook on internal errors
 
     return JsonResponse({'status': 'success'})

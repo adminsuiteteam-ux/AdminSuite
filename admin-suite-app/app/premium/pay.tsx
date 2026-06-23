@@ -321,6 +321,9 @@ function SuccessOverlay({
   );
 }
 
+import * as WebBrowser from 'expo-web-browser';
+import { apiService } from '@/services/api';
+
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function PayScreen() {
   const colors = useColors();
@@ -367,10 +370,27 @@ export default function PayScreen() {
     }
 
     setLoading(true);
-    // Simulate API call
-    await new Promise((r) => setTimeout(r, 2000));
-    setLoading(false);
-    setSuccess(true);
+    try {
+      const res = await apiService.upgradeSubscription({ plan: plan.id });
+      const data = res.data as any;
+
+      // If Stripe returns a checkout URL, open it in the in-app browser
+      if (data?.url) {
+        setLoading(false);
+        await WebBrowser.openBrowserAsync(data.url);
+        // After the browser closes, show success (Stripe webhook handles actual activation)
+        setSuccess(true);
+        return;
+      }
+
+      // Fallback: immediate mock upgrade succeeded
+      setLoading(false);
+      setSuccess(true);
+    } catch (err: any) {
+      setLoading(false);
+      const message = err?.response?.data?.error || err?.message || 'Payment failed. Please try again.';
+      showToast({ title: "Payment Failed", message, type: "error" });
+    }
   };
 
   const handleDone = () => {

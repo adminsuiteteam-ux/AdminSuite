@@ -29,6 +29,12 @@ services:
         value: "AdminDimaro2210!"
       - key: SETUP_SECRET_TOKEN
         value: adminsuite-setup-9x7k2p
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
 
   - type: web
     name: adminsuite

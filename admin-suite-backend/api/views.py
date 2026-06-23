@@ -448,8 +448,12 @@ def me(request):
 
         password = request.data.get('password')
         if password:
-            if len(password) < 8:
-                return Response({'password': ['Password must be at least 8 characters long.']}, status=status.HTTP_400_BAD_REQUEST)
+            try:
+                from django.contrib.auth.password_validation import validate_password
+                from django.core.exceptions import ValidationError as DjangoValidationError
+                validate_password(password, user=user)
+            except DjangoValidationError as e:
+                return Response({'password': list(e.messages)}, status=status.HTTP_400_BAD_REQUEST)
             user.set_password(password)
             user.save()
             profile.is_first_login = False
@@ -875,8 +879,28 @@ def subscription_upgrade(request):
         
     # Process simulated credit card billing details
     payment_method = request.data.get('payment_method')
-    if plan != 'BASIC' and not payment_method:
+    
+    import os
+    stripe_key = os.getenv('STRIPE_SECRET_KEY')
+    use_stripe = plan != 'BASIC' and stripe_key and not stripe_key.startswith('sk_test_placeholder')
+    
+    if plan != 'BASIC' and not payment_method and not use_stripe:
         return Response({'error': 'Payment method details are required for paid plans.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+    if use_stripe:
+        from payments.stripe_helper import create_checkout_session
+        import json
+        res = create_checkout_session(request, org.id, plan)
+        if res.status_code == 200:
+            data = json.loads(res.content)
+            return Response(data)
+        else:
+            try:
+                data = json.loads(res.content)
+                err_msg = data.get('error', 'Stripe checkout creation failed.')
+            except Exception:
+                err_msg = 'Stripe checkout creation failed.'
+            return Response({'error': err_msg}, status=res.status_code)
         
     # Update or create organization subscription
     from .extended_models import Subscription
@@ -1507,9 +1531,6 @@ def confirm_password_reset(request):
     if not email or not code or not new_password:
         return Response({'error': 'Email, code, and new password are required.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    if len(new_password) < 8:
-        return Response({'error': 'Password must be at least 8 characters long.'}, status=status.HTTP_400_BAD_REQUEST)
-
     try:
         record = PasswordResetCode.objects.get(email=email)
     except PasswordResetCode.DoesNotExist:
@@ -1522,6 +1543,13 @@ def confirm_password_reset(request):
         user = User.objects.get(email__iexact=email)
     except User.DoesNotExist:
         return Response({'error': 'User not found.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        from django.contrib.auth.password_validation import validate_password
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        validate_password(new_password, user=user)
+    except DjangoValidationError as e:
+        return Response({'error': e.messages[0]}, status=status.HTTP_400_BAD_REQUEST)
 
     # Change password
     user.set_password(new_password)

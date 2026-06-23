@@ -99,6 +99,18 @@ export default function ForgotPasswordScreen() {
       showToast({ title: "Error", message: "Password must be at least 8 characters.", type: "error" });
       return;
     }
+    if (!/[A-Z]/.test(newPassword)) {
+      showToast({ title: "Error", message: "Password must contain at least one capital letter (A-Z).", type: "error" });
+      return;
+    }
+    if (!/[0-9]/.test(newPassword)) {
+      showToast({ title: "Error", message: "Password must contain at least one number (0-9).", type: "error" });
+      return;
+    }
+    if (!/[!@#]/.test(newPassword)) {
+      showToast({ title: "Error", message: "Password must contain at least one special character (! @ #).", type: "error" });
+      return;
+    }
     if (newPassword !== confirmPassword) {
       showToast({ title: "Error", message: "Passwords do not match.", type: "error" });
       return;
@@ -249,7 +261,7 @@ export default function ForgotPasswordScreen() {
                 <TextInput
                   value={newPassword}
                   onChangeText={setNewPassword}
-                  placeholder="New password (min 8 chars)"
+                  placeholder="e.g. #Password2431"
                   placeholderTextColor={colors.mutedForeground}
                   secureTextEntry={!showPwd}
                   autoCapitalize="none"

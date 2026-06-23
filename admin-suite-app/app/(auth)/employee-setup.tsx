@@ -127,7 +127,19 @@ export default function EmployeeSetupScreen() {
   const onSubmit = async () => {
     setError("");
     if (!password || password.length < 8) {
-      setError("Password must be at least 8 characters");
+      setError("Password must be at least 8 characters long.");
+      return;
+    }
+    if (!/[A-Z]/.test(password)) {
+      setError("Password must contain at least one capital letter (A-Z).");
+      return;
+    }
+    if (!/[0-9]/.test(password)) {
+      setError("Password must contain at least one number (0-9).");
+      return;
+    }
+    if (!/[!@#]/.test(password)) {
+      setError("Password must contain at least one special character (! @ #).");
       return;
     }
     if (password !== confirmPassword) {

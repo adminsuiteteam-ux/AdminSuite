@@ -1192,6 +1192,14 @@ export function renderApp() {
       `);
       bindNavigationEvents();
       bindTabSpecificEvents();
+      // ── Stripe return toasts (shown once after redirect back from Stripe) ──
+      if (sessionStorage.getItem('stripe_success')) {
+        sessionStorage.removeItem('stripe_success');
+        setTimeout(() => showToast('🎉 Payment successful! Your subscription has been upgraded.', 'success'), 600);
+      } else if (sessionStorage.getItem('stripe_cancel')) {
+        sessionStorage.removeItem('stripe_cancel');
+        setTimeout(() => showToast('Payment cancelled. Your plan has not changed.', 'info'), 600);
+      }
       break;
   }
 }
@@ -1607,10 +1615,23 @@ function drawRegister(): string {
                   <span style="position: absolute; left: 12px; display: flex; color: var(--muted-foreground);">
                     ${getIconSvg('lock', 'form-icon')}
                   </span>
-                  <input class="form-input" type="password" id="reg-password" required placeholder="Minimum 8 characters" style="padding-left: 38px; padding-right: 40px;">
+                  <input class="form-input" type="password" id="reg-password" required placeholder="e.g. #Password2431" style="padding-left: 38px; padding-right: 40px;">
                   <button type="button" id="reg-pwd-toggle" style="position: absolute; right: 12px; background: none; border: none; color: var(--muted-foreground); display: flex;">
                     ${getIconSvg('eye')}
                   </button>
+                </div>
+                <!-- Password strength meter -->
+                <div id="pwd-strength-bar" style="display:flex; gap:4px; margin-top:8px;">
+                  <div class="pwd-seg" id="seg-0" style="height:4px; flex:1; border-radius:4px; background:var(--border); transition:background 0.3s;"></div>
+                  <div class="pwd-seg" id="seg-1" style="height:4px; flex:1; border-radius:4px; background:var(--border); transition:background 0.3s;"></div>
+                  <div class="pwd-seg" id="seg-2" style="height:4px; flex:1; border-radius:4px; background:var(--border); transition:background 0.3s;"></div>
+                  <div class="pwd-seg" id="seg-3" style="height:4px; flex:1; border-radius:4px; background:var(--border); transition:background 0.3s;"></div>
+                </div>
+                <div id="pwd-reqs" style="margin-top:8px; display:flex; flex-direction:column; gap:3px;">
+                  <span id="req-len" style="font-size:11px; color:var(--muted-foreground);">&#10007; At least 8 characters</span>
+                  <span id="req-upper" style="font-size:11px; color:var(--muted-foreground);">&#10007; One capital letter (A-Z)</span>
+                  <span id="req-digit" style="font-size:11px; color:var(--muted-foreground);">&#10007; One number (0-9)</span>
+                  <span id="req-special" style="font-size:11px; color:var(--muted-foreground);">&#10007; One special character (! @ #)</span>
                 </div>
               </div>
 
@@ -1694,6 +1715,34 @@ function bindRegisterEvents() {
       });
     }
 
+    // ── Live password strength meter ──────────────────────────────────────────
+    if (pwdInput) {
+      pwdInput.addEventListener('input', () => {
+        const v = pwdInput.value;
+        const hasLen = v.length >= 8;
+        const hasUpper = /[A-Z]/.test(v);
+        const hasDigit = /[0-9]/.test(v);
+        const hasSpecial = /[!@#]/.test(v);
+        const score = [hasLen, hasUpper, hasDigit, hasSpecial].filter(Boolean).length;
+        const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e'];
+        const segs = document.querySelectorAll('.pwd-seg') as NodeListOf<HTMLElement>;
+        segs.forEach((s, i) => {
+          s.style.background = i < score ? colors[score - 1] : 'var(--border)';
+        });
+        const req = (id: string, ok: boolean) => {
+          const el = document.getElementById(id);
+          if (el) {
+            el.style.color = ok ? '#22c55e' : 'var(--muted-foreground)';
+            el.innerHTML = (ok ? '&#10003;' : '&#10007;') + el.innerHTML.slice(1);
+          }
+        };
+        req('req-len', hasLen);
+        req('req-upper', hasUpper);
+        req('req-digit', hasDigit);
+        req('req-special', hasSpecial);
+      });
+    }
+
     if (gotoLogin) {
       gotoLogin.addEventListener('click', () => {
         state.view = 'login';
@@ -1711,8 +1760,21 @@ function bindRegisterEvents() {
         const pwd = pwdInput.value;
         const confirm = confirmInput.value;
 
+        // Strong password policy: min 8 chars, uppercase, digit, special (!@#)
         if (pwd.length < 8) {
           showToast('Password must be at least 8 characters long', 'error');
+          return;
+        }
+        if (!/[A-Z]/.test(pwd)) {
+          showToast('Password must contain at least one capital letter (A-Z)', 'error');
+          return;
+        }
+        if (!/[0-9]/.test(pwd)) {
+          showToast('Password must contain at least one number (0-9)', 'error');
+          return;
+        }
+        if (!/[!@#]/.test(pwd)) {
+          showToast('Password must contain at least one special character: ! @ #', 'error');
           return;
         }
         if (pwd !== confirm) {
@@ -6675,15 +6737,24 @@ function openCheckoutModal(planId: string, planName: string, planPrice: string) 
     submitBtn.textContent = '⏳ Processing Payment...';
 
     try {
-      // Simulate payment processing delay
-      await new Promise(r => setTimeout(r, 1800));
+      submitBtn.disabled = true;
+      submitBtn.textContent = '⏳ Connecting to Stripe...';
 
-      await apiRequest('subscription/upgrade/', {
+      const upgradeRes = await apiRequest('subscription/upgrade/', {
         method: 'POST',
         body: JSON.stringify({ plan: planId })
       });
 
-      await syncAppData();
+      const upgradeData = upgradeRes as any;
+
+      // If Stripe Checkout URL is returned, redirect the browser there
+      if (upgradeData && upgradeData.url) {
+        showToast('Redirecting to Stripe secure checkout...', 'success');
+        window.location.href = upgradeData.url;
+        return;
+      }
+
+      // Fallback: mock upgrade succeeded immediately
       closeModal();
       showToast(`🎉 Welcome to ${planName}! Your plan is now active.`, 'success');
       renderApp();
@@ -6705,6 +6776,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   const validTabs: Array<typeof state.activeTab> = ['dashboard', 'employees', 'clients', 'finance', 'settings', 'pricing', 'chat'];
   if (validTabs.includes(hash as any)) {
     state.activeTab = hash as any;
+  }
+
+  // ── Stripe Checkout Return Detection ───────────────────────────────────────
+  const searchParams = new URLSearchParams(window.location.search);
+  const stripeResult = searchParams.get('subscription');
+  if (stripeResult === 'success') {
+    // Clean up URL without reloading the page
+    window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
+    // Notify user after app boots (handled via a flag picked up post-login)
+    sessionStorage.setItem('stripe_success', '1');
+  } else if (stripeResult === 'cancel') {
+    window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
+    sessionStorage.setItem('stripe_cancel', '1');
   }
 
   // Always boot using the animated Splash Gate preloader
