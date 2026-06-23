@@ -193,18 +193,20 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      enabled={Platform.OS === "ios"}
       style={{ flex: 1, backgroundColor: colors.background }}
     >
       <ScrollView
-        contentContainerStyle={{ flexGrow: 1, paddingBottom: 40 }}
+        style={{ flex: 1, backgroundColor: colors.background }}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: 40, backgroundColor: colors.background }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
         <View style={[styles.container, { paddingTop: insets.top + 32, paddingBottom: insets.bottom + 24 }]}>
           <View style={styles.header}>
             <View style={[styles.logoChip, { backgroundColor: colors.primary }]}>
-              <LogoMark size={28} tint={colors.primaryForeground} />
+              <LogoMark size={38} tint={colors.primaryForeground} />
             </View>
             <Text style={[styles.title, { fontFamily: "Inter_700Bold", color: colors.text }]}>
               Sign In

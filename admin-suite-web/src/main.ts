@@ -1000,15 +1000,10 @@ function getIconSvg(name: string, className = ''): string {
   return raw;
 }
 
-// LogoMark with standard mobile paths
+// LogoMark using mask-image with the unified triangle-wedge logo PNG
 function getLogoMarkSvg(size = 56, color = 'currentColor'): string {
   return `
-    <svg width="${size}" height="${size}" viewBox="0 0 100 100" style="display: block;">
-      <!-- Main Ring with Gap -->
-      <path d="M 66.9 86.3 A 40 40 0 1 1 86.3 66.9 L 69.9 59.3 A 22 22 0 1 0 59.3 69.9 Z" fill="${color}" />
-      <!-- Detached Wedge -->
-      <path d="M 72.8 81.3 C 74.5 83.0 77.3 83.0 79.0 81.3 C 83.0 77.3 83.0 74.5 81.3 72.8 L 73.0 64.5 C 71.3 62.8 68.5 62.8 66.8 64.5 C 62.8 68.5 62.8 71.3 64.5 73.0 Z" fill="${color}" />
-    </svg>
+    <span style="display: block; width: ${size}px; height: ${size}px; background-color: ${color}; -webkit-mask: url(/logo.png) no-repeat center / contain; mask: url(/logo.png) no-repeat center / contain;"></span>
   `;
 }
 

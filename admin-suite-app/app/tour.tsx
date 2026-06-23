@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 
 import { useAuth } from "@/context/AuthContext";
 
@@ -17,29 +18,30 @@ const { width } = Dimensions.get("window");
 
 const SLIDES = [
   {
-    title: "One workspace\nfor everything",
-    body: "All your tools and apps unified\nin a single, seamless environment.",
+    titleKey: "tour.slide1Title",
+    bodyKey: "tour.slide1Body",
     image: require("@/assets/images/slide1.png"),
   },
   {
-    title: "Real-time\nfinancial clarity",
-    body: "Keep track of your finances with\ninstant insights and metrics.",
+    titleKey: "tour.slide2Title",
+    bodyKey: "tour.slide2Body",
     image: require("@/assets/images/slide2.png"),
   },
   {
-    title: "Roles built for\nreal teams",
-    body: "Empower collaboration and assign\nresponsibilities effortlessly.",
+    titleKey: "tour.slide3Title",
+    bodyKey: "tour.slide3Body",
     image: require("@/assets/images/slide3.png"),
   },
   {
-    title: "Customize\nwithout code",
-    body: "Adapt your workflow with ease\nusing simple drag-and-drop tools.",
+    titleKey: "tour.slide4Title",
+    bodyKey: "tour.slide4Body",
     image: require("@/assets/images/slide4.png"),
   },
 ];
 
 export default function TourScreen() {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const { completeTour, user } = useAuth();
   const listRef = useRef<FlatList>(null);
   const [index, setIndex] = useState(0);
@@ -73,10 +75,11 @@ export default function TourScreen() {
       <FlatList
         ref={listRef}
         data={SLIDES}
-        keyExtractor={(s) => s.title}
+        keyExtractor={(s) => s.titleKey}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
+        style={{ flex: 1 }}
         getItemLayout={(_, i) => ({
           length: width,
           offset: width * i,
@@ -115,10 +118,10 @@ export default function TourScreen() {
             </View>
 
             <Text style={[styles.title, { fontFamily: "Inter_700Bold" }]}>
-              {item.title}
+              {t(item.titleKey)}
             </Text>
             <Text style={[styles.body, { fontFamily: "Inter_400Regular" }]}>
-              {item.body}
+              {t(item.bodyKey)}
             </Text>
           </View>
         )}
@@ -136,7 +139,7 @@ export default function TourScreen() {
           ]}
         >
           <Text style={[styles.skipBtn, { fontFamily: "Inter_600SemiBold" }]}>
-            SKIP
+            {t("tour.skip")}
           </Text>
         </Pressable>
         <Pressable
@@ -150,7 +153,7 @@ export default function TourScreen() {
           ]}
         >
           <Text style={[styles.nextBtnText, { fontFamily: "Inter_600SemiBold" }]}>
-            {index === SLIDES.length - 1 ? "START" : "NEXT"}
+            {index === SLIDES.length - 1 ? t("tour.start") : t("tour.next")}
           </Text>
         </Pressable>
       </View>

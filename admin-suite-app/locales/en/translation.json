@@ -277,6 +277,19 @@
     "share": "Share",
     "export": "Export File"
   },
+  "tour": {
+    "slide1Title": "One workspace\nfor everything",
+    "slide1Body": "All your tools and apps unified\nin a single, seamless environment.",
+    "slide2Title": "Real-time\nfinancial clarity",
+    "slide2Body": "Keep track of your finances with\ninstant insights and metrics.",
+    "slide3Title": "Roles built for\nreal teams",
+    "slide3Body": "Empower collaboration and assign\nresponsibilities effortlessly.",
+    "slide4Title": "Customize\nwithout code",
+    "slide4Body": "Adapt your workflow with ease\nusing simple drag-and-drop tools.",
+    "skip": "SKIP",
+    "next": "NEXT",
+    "start": "START"
+  },
   "common": {
     "offline": "Offline · ",
     "retry": "Retry",

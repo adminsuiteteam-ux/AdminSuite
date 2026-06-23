@@ -717,7 +717,7 @@ export default function RegisterScreen() {
         <GeometricBackground />
         <Animated.View style={[styles.introContent, { opacity: introOpacity }]}>
           <View style={styles.introHeader}>
-            <LogoMark size={48} tint="#ffffff" />
+            <LogoMark size={56} tint="#ffffff" />
             <Text style={styles.introBrandText}>{t('register.appName')}</Text>
           </View>
           
@@ -738,15 +738,19 @@ export default function RegisterScreen() {
 
   const isDarkTheme = colors.isDark;
 
+  const screenBg = isTablet ? (isDarkTheme ? "#18181b" : "#f4f4f5") : colors.background;
+
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={{ flex: 1, backgroundColor: isTablet ? (isDarkTheme ? "#18181b" : "#f4f4f5") : colors.background }}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      enabled={Platform.OS === "ios"}
+      style={{ flex: 1, backgroundColor: screenBg }}
     >
       {!isTablet && <MobileAnimatedBackground isDark={isDarkTheme} />}
 
       <ScrollView
-        contentContainerStyle={{ flexGrow: 1, justifyContent: "center", padding: isTablet ? 12 : 0 }}
+        style={{ flex: 1, backgroundColor: screenBg }}
+        contentContainerStyle={{ flexGrow: 1, justifyContent: "center", padding: isTablet ? 12 : 0, backgroundColor: screenBg }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -759,7 +763,7 @@ export default function RegisterScreen() {
                 {/* Header (No Back Link) */}
                 <View style={styles.leftHeader}>
                   <View style={styles.logoRow}>
-                    <LogoMark size={28} tint="#ffffff" />
+                    <LogoMark size={36} tint="#ffffff" />
                     <Text style={[styles.leftBrandText, { fontFamily: "Inter_700Bold" }]}>{t('register.appName')}</Text>
                   </View>
                 </View>
@@ -788,7 +792,7 @@ export default function RegisterScreen() {
           <Animated.View style={{ flex: 1, opacity: formOpacity }}>
             {/* Logo and Name on Top for phone screen */}
             <View style={[styles.mobileLogoHeader, { paddingTop: insets.top + 32 }]}>
-              <LogoMark size={36} tint={isDarkTheme ? "#ffffff" : "#1c1c1e"} />
+              <LogoMark size={48} tint={isDarkTheme ? "#ffffff" : "#1c1c1e"} />
               <Text style={[styles.mobileLogoHeaderTitle, { color: colors.foreground }]}>{t('register.appName')}</Text>
             </View>
 
