@@ -26,7 +26,7 @@ services:
       - key: ADMIN_EMAIL
         value: admin@adminsuite.app
       - key: ADMIN_PASSWORD
-        value: "AdminSuite#2210"
+        value: "AdminDimaro2210!"
       - key: SETUP_SECRET_TOKEN
         value: adminsuite-setup-9x7k2p
 
