@@ -16,7 +16,7 @@ if (_webSentryDsn && _webSentryDsn !== 'YOUR_SENTRY_DSN_HERE') {
 
 import './index.css';
 
-import { sanitizeHtml } from './utils/security';
+import { sanitizeHtml, safeProp } from './utils/security';
 import DOMPurify from 'dompurify';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import type { CountryCode } from 'libphonenumber-js';
