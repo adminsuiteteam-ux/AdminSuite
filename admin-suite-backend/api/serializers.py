@@ -443,6 +443,23 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'social_handles', 'total_workers', 'opening_time', 'closing_time',
             'working_days', 'average_revenue', 'company_logo',
         ]
+        extra_kwargs = {
+            'heard_from': {'required': False, 'allow_blank': True},
+            'location': {'required': False, 'allow_blank': True},
+            'phone': {'required': False, 'allow_blank': True},
+            'bio': {'required': False, 'allow_blank': True},
+            'social_link': {'required': False, 'allow_blank': True},
+            'business_name': {'required': False, 'allow_blank': True},
+            'org_location': {'required': False, 'allow_blank': True},
+            'org_email': {'required': False, 'allow_blank': True},
+            'company_line': {'required': False, 'allow_blank': True},
+            'social_handles': {'required': False, 'allow_blank': True},
+            'total_workers': {'required': False, 'allow_blank': True},
+            'opening_time': {'required': False, 'allow_blank': True},
+            'closing_time': {'required': False, 'allow_blank': True},
+            'working_days': {'required': False, 'allow_blank': True},
+            'average_revenue': {'required': False, 'allow_blank': True},
+        }
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)

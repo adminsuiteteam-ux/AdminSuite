@@ -62,8 +62,8 @@ export default function ClientsScreen() {
           setClientInsights(res.data);
         }
       })
-      .catch(err => {
-        console.error("Failed to load client insights:", err);
+      .catch(() => {
+        // AI insights endpoint not available — fail silently
       })
       .finally(() => {
         if (active) {

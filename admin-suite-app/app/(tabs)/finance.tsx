@@ -43,8 +43,8 @@ export default function FinanceScreen() {
           setForecast(res.data);
         }
       })
-      .catch(err => {
-        console.error("Failed to load AI finance forecast:", err);
+      .catch(() => {
+        // AI forecast endpoint not available — fail silently
       })
       .finally(() => {
         if (active) {

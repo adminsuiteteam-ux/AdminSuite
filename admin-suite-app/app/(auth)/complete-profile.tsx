@@ -1,4 +1,4 @@
-import { FontAwesome6, Feather, AntDesign } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
 import * as LocalAuthentication from "expo-local-authentication";
@@ -14,7 +14,6 @@ import {
   Text,
   TextInput,
   View,
-  Dimensions,
   Animated,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -25,18 +24,11 @@ import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { useSettings } from "@/context/SettingsContext";
 import { apiService, appendFileToFormData } from "@/services/api";
-import { PLANS } from "@/constants/premiumPlans";
 
-const { width } = Dimensions.get("window");
 
-// Discovery Sources
-const HEARD_FROM_OPTIONS = [
-  { value: "youtube", label: "YouTube", icon: "youtube", color: "#ef4444" },
-  { value: "tiktok", label: "TikTok", icon: "tiktok", color: "#00f2fe" },
-  { value: "facebook", label: "Facebook & Socials", icon: "facebook", color: "#1877f2" },
-  { value: "friend", label: "A Friend / Colleague", icon: "user-group", color: "#10b981" },
-  { value: "others", label: "Other Sources", icon: "ellipsis", color: "#6366f1" },
-] as const;
+
+
+
 
 // Roles
 const ROLE_OPTIONS = [
@@ -88,7 +80,7 @@ export default function CompleteProfileScreen() {
 
   // Form State
   const [name, setName] = useState(user?.name || "");
-  const [heardFrom, setHeardFrom] = useState<string>("");
+
   const [role, setRole] = useState<string>("");
   const [location, setLocation] = useState("");
   const [phone, setPhone] = useState("");
@@ -113,15 +105,12 @@ export default function CompleteProfileScreen() {
   const [biometricsActive, setBiometricsActive] = useState(false);
   const [notificationsActive, setNotificationsActive] = useState(false);
 
-  // Premium plan selection (onboarding slide)
-  const [selectedOnboardingPlan, setSelectedOnboardingPlan] = useState("PRO");
-
   // UI state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const totalSlides = 7;
+  const totalSlides = 5;
 
   const animateToSlide = (index: number) => {
     setCurrentSlide(index);
@@ -134,15 +123,11 @@ export default function CompleteProfileScreen() {
 
   const handleNext = () => {
     setError("");
-    if (currentSlide === 0 && !heardFrom) {
-      setError("Please select how you heard about us.");
-      return;
-    }
-    if (currentSlide === 1 && !role) {
+    if (currentSlide === 0 && !role) {
       setError("Please select your primary role.");
       return;
     }
-    if (currentSlide === 2) {
+    if (currentSlide === 1) {
       if (!name.trim()) {
         setError("Please enter your full name.");
         return;
@@ -243,7 +228,7 @@ export default function CompleteProfileScreen() {
       const formData = new FormData();
       formData.append("first_name", name.trim());
       formData.append("location", location.trim());
-      formData.append("heard_from", heardFrom);
+
       formData.append("role", role);
       formData.append("phone", phone.trim());
       formData.append("bio", bio.trim());
@@ -268,15 +253,6 @@ export default function CompleteProfileScreen() {
 
       const res = await apiService.updateMe(formData);
 
-      // Perform plan upgrade in backend
-      try {
-        await apiService.upgradeSubscription({
-          plan: selectedOnboardingPlan,
-          payment_method: selectedOnboardingPlan !== "BASIC" ? "stripe" : undefined
-        });
-      } catch (subErr) {
-        console.warn("Failed to automatically upgrade subscription in onboarding:", subErr);
-      }
 
       if (user) {
         setUser({
@@ -308,50 +284,6 @@ export default function CompleteProfileScreen() {
   const renderSlideContent = () => {
     switch (currentSlide) {
       case 0:
-        return (
-          <View style={styles.slideContainer}>
-            <Text style={[styles.slideTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-              Where did you hear about us?
-            </Text>
-            <Text style={[styles.slideSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Help us customize your workspace journey.
-            </Text>
-            <View style={styles.optionsList}>
-              {HEARD_FROM_OPTIONS.map((opt) => {
-                const isSelected = heardFrom === opt.value;
-                return (
-                  <Pressable
-                    key={opt.value}
-                    onPress={() => setHeardFrom(opt.value)}
-                    style={({ pressed }) => [
-                      styles.choiceCard,
-                      {
-                        backgroundColor: isSelected ? colors.primary + "12" : colors.muted,
-                        borderColor: isSelected ? colors.primary : colors.border,
-                        opacity: pressed ? 0.92 : 1,
-                        transform: [{ scale: pressed ? 0.97 : 1 }],
-                      },
-                    ]}
-                  >
-                    <View style={[styles.iconCircle, { backgroundColor: opt.color + "18" }]}>
-                      <FontAwesome6 name={opt.icon} size={18} color={opt.color} />
-                    </View>
-                    <Text style={[styles.choiceText, { color: colors.foreground, fontFamily: isSelected ? "Inter_600SemiBold" : "Inter_500Medium" }]}>
-                      {opt.label}
-                    </Text>
-                    {isSelected && (
-                      <View style={[styles.checkCircle, { backgroundColor: colors.primary }]}>
-                        <Feather name="check" size={12} color="#fff" />
-                      </View>
-                    )}
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-        );
-
-      case 1:
         return (
           <View style={styles.slideContainer}>
             <Text style={[styles.slideTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
@@ -401,7 +333,7 @@ export default function CompleteProfileScreen() {
           </View>
         );
 
-      case 2:
+      case 1:
         return (
           <View style={styles.slideContainer}>
             <Text style={[styles.slideTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
@@ -492,7 +424,7 @@ export default function CompleteProfileScreen() {
           </View>
         );
 
-      case 3:
+      case 2:
         return (
           <View style={styles.slideContainer}>
             <Text style={[styles.slideTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
@@ -720,7 +652,7 @@ export default function CompleteProfileScreen() {
               Average Revenue (Annual)
             </Text>
             <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
-              {["< ₦50k", "₦50k-₦250k", "₦250k-₦1M", "₦1M+"].map((rev) => {
+              {["< $50k", "$50k-$250k", "$250k-$1M", "$1M+"].map((rev) => {
                 const isSel = averageRevenue === rev;
                 return (
                   <Pressable
@@ -754,7 +686,7 @@ export default function CompleteProfileScreen() {
           </View>
         );
 
-      case 4:
+      case 3:
         return (
           <View style={styles.slideContainer}>
             <Text style={[styles.slideTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
@@ -811,71 +743,7 @@ export default function CompleteProfileScreen() {
           </View>
         );
 
-      case 5:
-        // ── PREMIUM PLAN SELECTION ──
-        return (
-          <View style={styles.slideContainer}>
-            <Text style={[styles.slideTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-              Choose Your Plan
-            </Text>
-            <Text style={[styles.slideSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Start free with no credit card required.
-            </Text>
-
-            <View style={{ gap: 12, paddingBottom: 16 }}>
-              {PLANS.map((plan) => {
-                const isSelected = selectedOnboardingPlan === plan.id;
-                return (
-                  <Pressable
-                    key={plan.id}
-                    onPress={() => setSelectedOnboardingPlan(plan.id)}
-                    style={[{
-                      borderRadius: 18,
-                      padding: 16,
-                      borderWidth: isSelected ? 2 : 1,
-                      borderColor: isSelected ? plan.color : colors.border,
-                      backgroundColor: isSelected ? plan.color + "10" : colors.muted,
-                    }]}
-                  >
-                    {plan.badge && (
-                      <View style={{ position: "absolute", top: 12, right: 12, backgroundColor: plan.color, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 }}>
-                        <Text style={{ color: "#fff", fontFamily: "Inter_700Bold", fontSize: 10 }}>{plan.badge}</Text>
-                      </View>
-                    )}
-                    <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 10 }}>
-                      <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: plan.color + "20", alignItems: "center", justifyContent: "center", marginRight: 12 }}>
-                        <FontAwesome6 name={plan.icon as any} size={16} color={plan.color} solid />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ color: colors.foreground, fontFamily: "Inter_700Bold", fontSize: 16 }}>{plan.name}</Text>
-                        <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12 }}>{plan.tagline}</Text>
-                      </View>
-                      {isSelected && (
-                        <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: plan.color, alignItems: "center", justifyContent: "center" }}>
-                          <Feather name="check" size={12} color="#fff" />
-                        </View>
-                      )}
-                    </View>
-                    <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 4, marginBottom: 10 }}>
-                      <Text style={{ color: plan.color, fontFamily: "Inter_700Bold", fontSize: 28 }}>{plan.price}</Text>
-                      <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13, paddingBottom: 4 }}>{plan.period}</Text>
-                    </View>
-                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                      {plan.features.map((f) => (
-                        <View key={f} style={{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: plan.color + "15", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 }}>
-                          <Feather name="check" size={10} color={plan.color} />
-                          <Text style={{ color: colors.foreground, fontFamily: "Inter_500Medium", fontSize: 11 }}>{f}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-        );
-
-      case 6:
+      case 4:
         // ── REVIEW SLIDE ──
         return (
           <View style={styles.slideContainer}>
@@ -917,7 +785,6 @@ export default function CompleteProfileScreen() {
                   <PreviewRow icon="map-pin" label="Location" value={location || "Not specified"} colors={colors} />
                   <PreviewRow icon="phone" label="Phone" value={phone || "Not specified"} colors={colors} />
                   <PreviewRow icon="file-text" label="Bio" value={bio || "No bio added"} colors={colors} />
-                  <PreviewRow icon="info" label="Heard From" value={heardFrom || "Not specified"} colors={colors} />
                 </View>
 
                 {/* Org details if filled */}
@@ -956,7 +823,7 @@ export default function CompleteProfileScreen() {
               </View>
 
               <Pressable
-                onPress={() => animateToSlide(2)}
+                onPress={() => animateToSlide(1)}
                 style={({ pressed }) => [
                   {
                     flexDirection: "row",

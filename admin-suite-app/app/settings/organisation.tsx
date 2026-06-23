@@ -339,7 +339,7 @@ export default function OrganisationSettingsScreen() {
             value={averageRevenue}
             onChangeText={setAverageRevenue}
             icon="dollar-sign"
-            placeholder="e.g. ₦45,000"
+            placeholder="e.g. $45,000"
             colors={colors}
           />
         </View>

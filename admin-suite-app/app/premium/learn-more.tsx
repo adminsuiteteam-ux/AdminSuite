@@ -185,8 +185,8 @@ export default function LearnMoreScreen() {
     // Pulse the play button
     const pulse = Animated.loop(
       Animated.sequence([
-        Animated.timing(videoScale, { toValue: 1.06, duration: 900, easing: Easing.inOut(Easing.sine), useNativeDriver: true }),
-        Animated.timing(videoScale, { toValue: 1, duration: 900, easing: Easing.inOut(Easing.sine), useNativeDriver: true }),
+        Animated.timing(videoScale, { toValue: 1.06, duration: 900, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(videoScale, { toValue: 1, duration: 900, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
       ])
     );
     pulse.start();

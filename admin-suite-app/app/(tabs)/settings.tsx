@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Feather, FontAwesome6 } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useState } from "react";
@@ -65,7 +65,44 @@ export default function MoreHubScreen() {
           {t("settings.more")}
           </Text>
 
+          {/* ── Premium Upgrade Banner ── */}
+          <Pressable
+            onPress={() => router.push("/premium" as any)}
+            style={({ pressed }) => ({
+              opacity: pressed ? 0.88 : 1,
+              transform: [{ scale: pressed ? 0.98 : 1 }],
+              marginBottom: 8,
+            })}
+          >
+            <LinearGradient
+              colors={["#4f46e5", "#7c3aed", "#a855f7"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.premiumBanner}
+            >
+              {/* Decorative glow blobs */}
+              <View style={styles.premiumGlowA} />
+              <View style={styles.premiumGlowB} />
 
+              <View style={styles.premiumLeft}>
+                <View style={styles.premiumIconWrap}>
+                  <FontAwesome6 name="crown" size={20} color="#fbbf24" solid />
+                </View>
+                <View style={{ flex: 1, marginLeft: 14 }}>
+                  <Text style={{ color: "#fff", fontFamily: "Inter_700Bold", fontSize: 16, letterSpacing: -0.3 }}>
+                    Upgrade to Premium
+                  </Text>
+                  <Text style={{ color: "rgba(255,255,255,0.75)", fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 3 }}>
+                    Unlock unlimited records, analytics & more
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.premiumCta}>
+                <Text style={{ color: "#fff", fontFamily: "Inter_700Bold", fontSize: 12 }}>View Plans</Text>
+                <Feather name="chevron-right" size={14} color="rgba(255,255,255,0.8)" />
+              </View>
+            </LinearGradient>
+          </Pressable>
 
           {/* Workspace Settings */}
           <Group title={t("settings.workspace")}>
@@ -306,6 +343,62 @@ const styles = StyleSheet.create({
   },
   rowLabel: { fontSize: 14 },
   rowHint: { fontSize: 12, marginTop: 2 },
+  // Premium banner
+  premiumBanner: {
+    borderRadius: 20,
+    padding: 18,
+    overflow: "hidden",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  premiumGlowA: {
+    position: "absolute",
+    top: -30,
+    right: -30,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: "rgba(255,255,255,0.12)",
+  },
+  premiumGlowB: {
+    position: "absolute",
+    bottom: -40,
+    left: -20,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: "rgba(168,85,247,0.3)",
+  },
+  premiumLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  premiumIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+  },
+  premiumCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.25)",
+    marginLeft: 10,
+  },
 });
 
 const modalStyles = StyleSheet.create({

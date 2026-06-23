@@ -39,7 +39,7 @@ const Ctx = createContext<SettingsContextType | null>(null);
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const [currencyCode, setCurrencyCode] = useState("NGN");
+  const [currencyCode, setCurrencyCode] = useState("USD");
   const [themeMode, setThemeMode] = useState<ThemeMode>("system");
   const [biometricsEnabled, setBiometricsEnabledState] = useState(false);
   const [loaded, setLoaded] = useState(false);

@@ -1,4 +1,5 @@
-import { Feather } from "@expo/vector-icons";
+import { Feather, FontAwesome6 } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import * as LocalAuthentication from "expo-local-authentication";
 import { router } from "expo-router";
 import React, { useState } from "react";
@@ -136,6 +137,7 @@ export default function AppSettingsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 40 }} showsVerticalScrollIndicator={false}>
+
         <Group title={t("settings.preferences")}>
           <Row
             icon="dollar-sign"
@@ -476,4 +478,59 @@ const styles = StyleSheet.create({
   currRow: { flexDirection: "row", alignItems: "center", gap: 12, padding: 12, borderWidth: 1.5, marginBottom: 8 },
   currSymbol: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   actionBtn: { height: 56, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  // Premium banner
+  premiumBanner: {
+    borderRadius: 20,
+    padding: 18,
+    overflow: "hidden",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 8,
+  },
+  premiumGlowA: {
+    position: "absolute",
+    top: -30,
+    right: -30,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: "rgba(255,255,255,0.12)",
+  },
+  premiumGlowB: {
+    position: "absolute",
+    bottom: -40,
+    left: -20,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: "rgba(168,85,247,0.3)",
+  },
+  premiumLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  premiumIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+  },
+  premiumCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.25)",
+    marginLeft: 10,
+  },
 });

@@ -1441,6 +1441,9 @@ def send_password_reset_code(request):
         defaults={'code': code},
     )
 
+    from .emails import send_password_reset_email
+    send_password_reset_email(email, code)
+
     from core.safe_logger import safe_log, mask_email
     safe_log("info", "Password reset code generated", extra={"email": mask_email(email), "code": "***"})
 
