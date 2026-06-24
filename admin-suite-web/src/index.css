@@ -1340,7 +1340,153 @@ input, select, textarea { font-family: inherit; }
   color: var(--muted-foreground);
 }
 
+/* ---------- Topbar Search ---------- */
+.topbar-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 12px;
+  width: 280px;
+  transition: all var(--transition);
+}
+
+.topbar-search:focus-within {
+  border-color: var(--accent);
+  background: var(--card);
+}
+
+.topbar-search-icon {
+  display: flex;
+  color: var(--muted-foreground);
+  flex-shrink: 0;
+}
+
+.topbar-search-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.topbar-search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 13px;
+  color: var(--foreground);
+}
+
+.topbar-search-input::placeholder {
+  color: var(--muted-foreground);
+}
+
+.topbar-search-shortcut {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  background: var(--card);
+  border: 1px solid var(--border);
+  padding: 1px 5px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+/* ---------- Topbar User Profile ---------- */
+.topbar-profile {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background var(--transition);
+  border: 1px solid var(--border);
+}
+
+.topbar-profile:hover {
+  background: var(--secondary);
+}
+
+.topbar-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.topbar-profile-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar-profile-name {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
+
+.topbar-profile-email {
+  font-size: 10px;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
+
+/* ---------- Financial Pulse Row ---------- */
+.dash-financial-pulse {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.fin-pulse-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition);
+}
+
+.fin-pulse-card:hover {
+  box-shadow: var(--shadow);
+  transform: translateY(-1px);
+}
+
+.fin-pulse-card svg {
+  width: 16px;
+  height: 16px;
+}
+
 /* ---------- Responsive Breakpoints ---------- */
+@media (max-width: 1200px) {
+  .dash-financial-pulse {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .topbar-search {
+    width: 200px;
+  }
+  .topbar-profile-info {
+    display: none;
+  }
+}
+
 @media (max-width: 1024px) {
   .sidebar {
     transform: translateX(-100%);
@@ -1370,6 +1516,9 @@ input, select, textarea { font-family: inherit; }
   .sidebar-overlay.open {
     display: block;
   }
+  .topbar-search {
+    display: none;
+  }
 }
 
 @media (max-width: 768px) {
@@ -1378,6 +1527,15 @@ input, select, textarea { font-family: inherit; }
   }
   .modal {
     max-width: 100%;
+  }
+  .dash-financial-pulse {
+    grid-template-columns: 1fr 1fr;
+  }
+  /* Force 1-col on 3-col dashboard grids on mobile */
+  div[style*="grid-template-columns:1fr 1fr 1.2fr"],
+  div[style*="grid-template-columns:1.2fr 2fr 1.2fr"],
+  div[style*="grid-template-columns:1.2fr 1fr 1fr"] {
+    grid-template-columns: 1fr !important;
   }
 }
 
@@ -1391,4 +1549,8 @@ input, select, textarea { font-family: inherit; }
   .split-left-panel {
     display: none;
   }
+  .dash-financial-pulse {
+    grid-template-columns: 1fr;
+  }
 }
+

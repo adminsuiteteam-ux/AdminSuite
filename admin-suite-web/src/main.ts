@@ -2498,6 +2498,9 @@ function drawSidebar(): string {
 
 function drawTopbar(): string {
   const unreadNotifCount = state.notifications.length;
+  const userName = state.user?.name || state.user?.username || 'Admin';
+  const userEmail = state.user?.email || '';
+  const userInitials = userName.slice(0, 2).toUpperCase();
   
   return `
     <header class="topbar">
@@ -2505,9 +2508,12 @@ function drawTopbar(): string {
         <button class="hamburger" id="hamburger-menu-btn">
           ${getIconSvg('menu')}
         </button>
-        <h1 class="topbar-title">
-          ${state.activeTab.charAt(0).toUpperCase() + state.activeTab.slice(1)} View
-        </h1>
+        <!-- Search Box -->
+        <div class="topbar-search" id="topbar-search-box">
+          <span class="topbar-search-icon">${getIconSvg('search')}</span>
+          <input type="text" class="topbar-search-input" placeholder="Search tasks, employees, projects..." id="topbar-search-input">
+          <span class="topbar-search-shortcut">⌘F</span>
+        </div>
       </div>
       
       <div class="topbar-right" style="position: relative;">
@@ -2517,8 +2523,17 @@ function drawTopbar(): string {
         
         <button class="topbar-btn" id="notification-dropdown-btn" title="View announcements" style="position: relative;">
           ${getIconSvg('bell')}
-          ${unreadNotifCount > 0 ? '<span class="badge-dot" style="position: absolute; top:8px; right:8px; width:8px; height:8px; background:var(--danger); border-radius:50%;"></span>' : ''}
+          ${unreadNotifCount > 0 ? `<span style="position: absolute; top:6px; right:6px; width:8px; height:8px; background:var(--danger); border-radius:50%; border:1.5px solid var(--card);"></span>` : ''}
         </button>
+
+        <!-- User Profile -->
+        <div class="topbar-profile" id="topbar-profile-btn">
+          <div class="topbar-avatar">${sanitizeHtml(userInitials)}</div>
+          <div class="topbar-profile-info">
+            <div class="topbar-profile-name">${sanitizeHtml(userName)}</div>
+            <div class="topbar-profile-email">${sanitizeHtml(userEmail)}</div>
+          </div>
+        </div>
         
         ${drawNotificationDropdown()}
       </div>
@@ -2618,6 +2633,14 @@ function bindNavigationEvents() {
       state.view = 'login';
       renderApp();
       showToast('Logged out successfully', 'info');
+    });
+  }
+
+  // Topbar profile button → go to settings
+  const profileBtn = document.getElementById('topbar-profile-btn');
+  if (profileBtn) {
+    profileBtn.addEventListener('click', () => {
+      navigateToTab('settings');
     });
   }
 }
@@ -3114,6 +3137,11 @@ function formatTimeTracker(sec: number): string {
 }
 
 function drawAdminDashboard(): string {
+  const m = state.metrics || { employees: 0, activeProjects: 0, clients: 0, netProfit: 0, totalIncome: 0, totalExpense: 0 };
+  const payroll = state.payrollMetrics;
+  const totalPayroll = payroll?.total || 0;
+  const staffPaid = payroll?.staffPaid || 0;
+  
   return `
     <!-- Header Section -->
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
@@ -3121,7 +3149,7 @@ function drawAdminDashboard(): string {
         <h2 class="topbar-title" style="font-size:24px; font-weight:800; margin-bottom:4px;">Dashboard</h2>
         <p style="font-size:13px; color:var(--muted-foreground);">Plan, prioritize, and accomplish your tasks with ease.</p>
       </div>
-      <div style="display:flex; gap:10px;">
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
         <button class="btn btn-outline" id="import-data-btn">
           ${getIconSvg('download')} Import Data
         </button>
@@ -3187,6 +3215,61 @@ function drawAdminDashboard(): string {
         <div class="stat-card-label">Pending Projects</div>
         <div class="stat-card-value">${state.projects.filter(p => p.status === 'planned' || p.status === 'on_hold').length}</div>
         <div style="font-size:11px; color:var(--muted-foreground); margin-top:4px;">On discuss queue</div>
+      </div>
+    </div>
+
+    <!-- Financial Pulse Row -->
+    <div class=\"dash-financial-pulse\">
+      <div class=\"fin-pulse-card\" style=\"border-left:4px solid var(--success);\">
+        <div style=\"display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;\">
+          <div>
+            <div style=\"font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted-foreground); margin-bottom:2px;\">Net Profit</div>
+            <div style=\"font-size:22px; font-weight:800; color:var(--success); font-variant-numeric:tabular-nums;\">${formatCurrency(m.netProfit)}</div>
+          </div>
+          <div style=\"background:rgba(22,163,74,0.1); color:var(--success); width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center;\">
+            ${getIconSvg('trending-up')}
+          </div>
+        </div>
+        <div style=\"font-size:11px; color:var(--muted-foreground);\">Income - Expenses</div>
+      </div>
+      
+      <div class=\"fin-pulse-card\" style=\"border-left:4px solid var(--accent);\">
+        <div style=\"display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;\">
+          <div>
+            <div style=\"font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted-foreground); margin-bottom:2px;\">Total Income</div>
+            <div style=\"font-size:22px; font-weight:800; font-variant-numeric:tabular-nums;\">${formatCurrency(m.totalIncome)}</div>
+          </div>
+          <div style=\"background:rgba(76,175,80,0.1); color:var(--accent); width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center;\">
+            ${getIconSvg('dollar-sign')}
+          </div>
+        </div>
+        <div style=\"font-size:11px; color:var(--muted-foreground);\">Total revenue earned</div>
+      </div>
+      
+      <div class=\"fin-pulse-card\" style=\"border-left:4px solid var(--warning);\">
+        <div style=\"display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;\">
+          <div>
+            <div style=\"font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted-foreground); margin-bottom:2px;\">Total Expenses</div>
+            <div style=\"font-size:22px; font-weight:800; color:var(--warning); font-variant-numeric:tabular-nums;\">${formatCurrency(m.totalExpense)}</div>
+          </div>
+          <div style=\"background:rgba(202,138,4,0.1); color:var(--warning); width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center;\">
+            ${getIconSvg('activity')}
+          </div>
+        </div>
+        <div style=\"font-size:11px; color:var(--muted-foreground);\">Total costs incurred</div>
+      </div>
+      
+      <div class=\"fin-pulse-card\" style=\"border-left:4px solid var(--danger);\">
+        <div style=\"display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;\">
+          <div>
+            <div style=\"font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted-foreground); margin-bottom:2px;\">Payroll</div>
+            <div style=\"font-size:22px; font-weight:800; font-variant-numeric:tabular-nums;\">${formatCurrency(totalPayroll)}</div>
+          </div>
+          <div style=\"background:rgba(220,38,38,0.1); color:var(--danger); width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center;\">
+            ${getIconSvg('users')}
+          </div>
+        </div>
+        <div style=\"font-size:11px; color:var(--muted-foreground);\">${staffPaid} staff paid this month</div>
       </div>
     </div>
 
