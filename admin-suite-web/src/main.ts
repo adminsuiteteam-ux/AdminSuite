@@ -452,9 +452,11 @@ interface Project {
   name: string;
   client: number;
   client_name: string;
-  status: 'active' | 'completed';
+  status: 'active' | 'completed' | 'planned' | 'on_hold';
   progress: number;
   value: number;
+  start_date?: string;
+  end_date?: string;
 }
 
 interface Transaction {
@@ -518,7 +520,7 @@ interface AppState {
     company_logo?: string;
   } | null;
   authToken: string | null;
-  activeTab: 'dashboard' | 'employees' | 'clients' | 'finance' | 'settings' | 'pricing' | 'chat';
+  activeTab: 'dashboard' | 'employees' | 'clients' | 'finance' | 'settings' | 'pricing' | 'chat' | 'projects' | 'tasks' | 'attendance' | 'notes';
   theme: 'light' | 'dark';
   isMobileSidebarOpen: boolean;
   isNotificationsOpen: boolean;
@@ -596,6 +598,8 @@ interface AppState {
   chatActiveContact: any | null;
   chatPollTimer: any | null;
   generalPollTimer: any | null;
+  tasks: any[];
+  leaves: any[];
 }
 
 // ============================================================
@@ -646,6 +650,8 @@ const state: AppState = {
   transactions: [],
   notifications: [],
   budgets: [],
+  tasks: [],
+  leaves: [],
  
   // Extended dashboard data
   branchMetrics: [],
@@ -770,7 +776,7 @@ async function apiRequest(endpoint: string, options: RequestInit = {}): Promise<
 // Sync app database with live endpoints
 async function syncAppData() {
   try {
-    const [meRes, metricsRes, clientMetricsRes, payrollMetricsRes, debtsRes, empRes, cliRes, projRes, txRes, notifRes, budgRes] = await Promise.all([
+    const [meRes, metricsRes, clientMetricsRes, payrollMetricsRes, debtsRes, empRes, cliRes, projRes, txRes, notifRes, budgRes, tasksRes, leavesRes] = await Promise.all([
       apiRequest('me/'),
       apiRequest('metrics/'),
       apiRequest('client-metrics/'),
@@ -781,7 +787,9 @@ async function syncAppData() {
       apiRequest('projects/'),
       apiRequest('transactions/'),
       apiRequest('notifications/'),
-      apiRequest('budgets/')
+      apiRequest('budgets/'),
+      apiRequest('employee-tasks/'),
+      apiRequest('employee-leaves/')
     ]);
 
     state.user = meRes;
@@ -795,6 +803,8 @@ async function syncAppData() {
     state.transactions = txRes;
     state.notifications = notifRes;
     state.budgets = budgRes;
+    state.tasks = tasksRes || [];
+    state.leaves = leavesRes || [];
     state.isAuthenticated = true;
 
     // Extended dashboard data — non-critical, fail silently
@@ -989,7 +999,23 @@ const ICONS = new Map<string, string>([
   ['clipboard', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>`],
   ['dollar-sign', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`],
   ['calendar', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`],
-  ['activity', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`]
+  ['activity', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`],
+  ['folder', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>`],
+  ['check-square', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>`],
+  ['clock', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`],
+  ['file-text', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>`],
+  ['star', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>`],
+  ['arrow-up-right', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"></line><polyline points="7 7 17 7 17 17"></polyline></svg>`],
+  ['play', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`],
+  ['pause', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="4" x2="6" y2="20"></line><line x1="10" y1="4" x2="10" y2="20"></line></svg>`],
+  ['square', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>`],
+  ['video', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>`],
+  ['map-pin', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>`],
+  ['phone', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>`],
+  ['bar-chart', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>`],
+  ['layers', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>`],
+  ['flag', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" y1="22" x2="4" y2="11"></line></svg>`],
+  ['edit', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>`]
 ]);
 
 function getIconSvg(name: string, className = ''): string {
@@ -1084,7 +1110,7 @@ function navigateToTab(tab: typeof state.activeTab) {
 window.addEventListener('hashchange', () => {
   if (state.view !== 'app') return;
   const hash = window.location.hash.slice(2);
-  const validTabs: Array<typeof state.activeTab> = ['dashboard', 'employees', 'clients', 'finance', 'settings', 'chat'];
+  const validTabs: Array<typeof state.activeTab> = ['dashboard', 'employees', 'clients', 'finance', 'projects', 'tasks', 'attendance', 'chat', 'settings', 'pricing', 'notes'];
   if (validTabs.includes(hash as any)) {
     navigateToTab(hash as any);
   }
@@ -1313,13 +1339,6 @@ function bindSplashEvents() {
 
   setTimeout(async () => {
     splashTimerRegistered = false;
-    const tourComplete = localStorage.getItem('admin-suite.tour-complete') === 'true';
-    
-    if (!tourComplete) {
-      state.view = 'tour';
-      renderApp();
-      return;
-    }
 
     if (!state.authToken) {
       state.view = 'login';
@@ -1332,8 +1351,6 @@ function bindSplashEvents() {
     if (ok) {
       if (state.user && !state.user.profile_complete) {
         state.view = 'complete-profile';
-      } else if (state.user?.biometrics_enabled) {
-        state.view = 'lock';
       } else {
         state.view = 'app';
       }
@@ -1563,8 +1580,6 @@ function bindLoginEvents() {
           showToast('Signed in successfully!', 'success');
           if (state.user && !state.user.profile_complete) {
             state.view = 'complete-profile';
-          } else if (state.user?.biometrics_enabled) {
-            state.view = 'lock';
           } else {
             state.view = 'app';
           }
@@ -2271,12 +2286,7 @@ function bindCompleteProfileEvents() {
 
           state.user = patchRes;
           showToast('Corporate workspace setup completed successfully!', 'success');
-          
-          if (state.user?.biometrics_enabled) {
-            state.view = 'lock';
-          } else {
-            state.view = 'app';
-          }
+          state.view = 'app';
           renderApp();
         } catch (err: any) {
           showToast(err.message || 'Failed to update profile', 'error');
@@ -2391,8 +2401,6 @@ function bindOfflineEvents() {
       if (ok) {
         if (state.user && !state.user.profile_complete) {
           state.view = 'complete-profile';
-        } else if (state.user?.biometrics_enabled) {
-          state.view = 'lock';
         } else {
           state.view = 'app';
         }
@@ -2413,30 +2421,36 @@ function bindOfflineEvents() {
 function drawSidebar(): string {
   const role = (state.user?.role || '').toLowerCase();
   const isEmployee = role === 'employee';
-  const isManager = ['hr', 'finance', 'operations', 'secretary', 'dept_manager'].includes(role);
 
   // Unread chat count badge
   const chatUnread = state.chatContacts.reduce((sum: number, c: any) => sum + (c.unread_count || 0), 0);
 
-  // CEO and branch admins see full management menu; employees see a limited set
-  const navItems: Array<{id: string; label: string; icon: string; badge?: string}> = [
+  // MENU items (grouped)
+  const menuItems: Array<{id: string; label: string; icon: string; badge?: string}> = [
     { id: 'dashboard', label: 'Dashboard', icon: 'grid' },
     ...(isEmployee ? [] : [
       { id: 'employees', label: 'Employees', icon: 'users', badge: state.employees.length ? state.employees.length.toString() : '' },
       { id: 'clients', label: 'Clients', icon: 'briefcase', badge: state.clients.length ? state.clients.length.toString() : '' },
     ]),
-    ...(isEmployee || isManager ? [] : [
+    ...(isEmployee ? [] : [
       { id: 'finance', label: 'Finance', icon: 'trending-up' },
     ]),
-    ...(isManager ? [
-      { id: 'finance', label: 'Finance', icon: 'trending-up' },
-    ] : []),
+    ...(isEmployee ? [] : [
+      { id: 'projects', label: 'Projects', icon: 'folder', badge: state.projects.length ? state.projects.length.toString() : '' },
+    ]),
+    { id: 'tasks', label: 'Tasks', icon: 'check-square', badge: state.tasks.filter((t: any) => t.status !== 'completed').length ? state.tasks.filter((t: any) => t.status !== 'completed').length.toString() : '' },
+    { id: 'attendance', label: 'Attendance', icon: 'clock' },
     { id: 'chat', label: 'Team Chat', icon: 'message-circle', badge: chatUnread > 0 ? chatUnread.toString() : '' },
-    { id: 'settings', label: 'Profile Settings', icon: 'settings' },
-    ...(!isEmployee ? [{ id: 'pricing', label: 'Subscription', icon: 'star' }] : []),
   ];
 
-  const itemsHtml = navItems.map(item => `
+  // GENERAL items (grouped)
+  const generalItems: Array<{id: string; label: string; icon: string; badge?: string}> = [
+    { id: 'settings', label: 'Settings', icon: 'settings' },
+    ...(!isEmployee ? [{ id: 'pricing', label: 'Subscriptions', icon: 'star' }] : []),
+    { id: 'notes', label: 'Notes', icon: 'file-text' }
+  ];
+
+  const drawItems = (items: typeof menuItems) => items.map(item => `
     <button class="nav-item ${state.activeTab === item.id ? 'active' : ''}" data-tab="${item.id}">
       ${getIconSvg(item.icon)}
       <span>${item.label}</span>
@@ -2457,8 +2471,11 @@ function drawSidebar(): string {
       </div>
       
       <nav class="sidebar-nav">
-        <div class="sidebar-section-label">Management Portal</div>
-        ${itemsHtml}
+        <div class="sidebar-section-label">Menu</div>
+        ${drawItems(menuItems)}
+        
+        <div class="sidebar-section-label" style="margin-top: 16px;">General</div>
+        ${drawItems(generalItems)}
       </nav>
       
       <div class="sidebar-footer">
@@ -2615,12 +2632,20 @@ function drawTabContent(): string {
       return drawClientsTab();
     case 'finance':
       return drawFinanceTab();
+    case 'projects':
+      return drawProjectsTab();
+    case 'tasks':
+      return drawTasksTab();
+    case 'attendance':
+      return drawAttendanceTab();
     case 'chat':
       return drawChatTab();
     case 'settings':
       return drawSettingsTab();
     case 'pricing':
       return drawPricingTab();
+    case 'notes':
+      return drawNotesTab();
     default:
       return drawDashboardTab();
   }
@@ -2640,6 +2665,15 @@ function bindTabSpecificEvents() {
     case 'finance':
       bindFinanceEvents();
       break;
+    case 'projects':
+      bindProjectsEvents();
+      break;
+    case 'tasks':
+      bindTasksEvents();
+      break;
+    case 'attendance':
+      bindAttendanceEvents();
+      break;
     case 'chat':
       bindChatEvents();
       break;
@@ -2648,6 +2682,9 @@ function bindTabSpecificEvents() {
       break;
     case 'pricing':
       bindPricingEvents();
+      break;
+    case 'notes':
+      bindNotesEvents();
       break;
   }
 }
@@ -3065,158 +3102,367 @@ function drawDeptManagerDashboard(): string {
 }
 
 // ---- Full Admin/CEO/Branch Admin Dashboard ----
+let trackerSeconds = 5048; // starts at 01:24:08
+let trackerInterval: any = null;
+let trackerRunning = false;
+
+function formatTimeTracker(sec: number): string {
+  const h = Math.floor(sec / 3600).toString().padStart(2, '0');
+  const m = Math.floor((sec % 3600) / 60).toString().padStart(2, '0');
+  const s = (sec % 60).toString().padStart(2, '0');
+  return `${h}:${m}:${s}`;
+}
+
 function drawAdminDashboard(): string {
-  const m = state.metrics || { employees: 0, activeProjects: 0, clients: 0, netProfit: 0, totalIncome: 0, totalExpense: 0 };
-  
-  // Recent transactions list
-  const recentTx = state.transactions.slice(0, 4);
-  const txHtml = recentTx.map((t: any) => {
-    const isIncome = t.type === 'income';
-    return `
-      <div class="transaction-item" style="padding: 10px 0;">
-        <div class="transaction-info">
-          <div class="transaction-icon ${isIncome ? 'income' : 'expense'}">${isIncome ? '↓' : '↑'}</div>
-          <div>
-            <div class="transaction-name">${sanitizeHtml(t.description)}</div>
-            <div class="transaction-date">${sanitizeHtml(t.category)}</div>
+  return `
+    <!-- Header Section -->
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
+      <div>
+        <h2 class="topbar-title" style="font-size:24px; font-weight:800; margin-bottom:4px;">Dashboard</h2>
+        <p style="font-size:13px; color:var(--muted-foreground);">Plan, prioritize, and accomplish your tasks with ease.</p>
+      </div>
+      <div style="display:flex; gap:10px;">
+        <button class="btn btn-outline" id="import-data-btn">
+          ${getIconSvg('download')} Import Data
+        </button>
+        <button class="btn btn-primary" id="add-project-header-btn">
+          ${getIconSvg('plus')} Add Project
+        </button>
+      </div>
+    </div>
+
+    <!-- Row 1: 4 Stat Cards -->
+    <div class="stats-grid">
+      <div class="stat-card" style="background:var(--accent); color:var(--accent-foreground); border:1px solid var(--accent);">
+        <div class="stat-card-header" style="margin-bottom:6px;">
+          <div class="stat-card-icon" style="background:rgba(255,255,255,0.15); color:#ffffff;">
+            ${getIconSvg('folder')}
+          </div>
+          <span style="font-size:11px; background:rgba(255,255,255,0.2); color:#ffffff; padding:2px 8px; border-radius:12px; font-weight:600; display:flex; align-items:center; gap:2px;">
+            +12% ${getIconSvg('arrow-up-right')}
+          </span>
+        </div>
+        <div class="stat-card-label" style="color:rgba(255,255,255,0.7); font-weight:500;">Total Projects</div>
+        <div class="stat-card-value" style="color:#ffffff; font-size:28px;">${state.projects.length}</div>
+        <div style="font-size:11px; color:rgba(255,255,255,0.5); margin-top:4px;">Increased from last month</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-card-header" style="margin-bottom:6px;">
+          <div class="stat-card-icon green" style="background:rgba(22,163,74,0.1); color:var(--success);">
+            ${getIconSvg('check-square')}
+          </div>
+          <span class="stat-card-change up" style="display:flex; align-items:center; gap:2px;">
+            +8% ${getIconSvg('arrow-up-right')}
+          </span>
+        </div>
+        <div class="stat-card-label">Completed Projects</div>
+        <div class="stat-card-value">${state.projects.filter(p => p.status === 'completed').length}</div>
+        <div style="font-size:11px; color:var(--muted-foreground); margin-top:4px;">Increased from last month</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-card-header" style="margin-bottom:6px;">
+          <div class="stat-card-icon blue" style="background:rgba(37,99,235,0.1); color:var(--foreground);">
+            ${getIconSvg('activity')}
+          </div>
+          <span class="stat-card-change up" style="display:flex; align-items:center; gap:2px;">
+            +15% ${getIconSvg('arrow-up-right')}
+          </span>
+        </div>
+        <div class="stat-card-label">Running Projects</div>
+        <div class="stat-card-value">${state.projects.filter(p => p.status === 'active').length}</div>
+        <div style="font-size:11px; color:var(--muted-foreground); margin-top:4px;">Increased from last month</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-card-header" style="margin-bottom:6px;">
+          <div class="stat-card-icon orange" style="background:rgba(202,138,4,0.1); color:var(--warning);">
+            ${getIconSvg('clock')}
+          </div>
+          <span class="stat-card-change" style="background:var(--secondary); color:var(--muted-foreground);">
+            Discuss
+          </span>
+        </div>
+        <div class="stat-card-label">Pending Projects</div>
+        <div class="stat-card-value">${state.projects.filter(p => p.status === 'planned' || p.status === 'on_hold').length}</div>
+        <div style="font-size:11px; color:var(--muted-foreground); margin-top:4px;">On discuss queue</div>
+      </div>
+    </div>
+
+    <!-- Row 2: 3-Column Grid -->
+    <div style="display:grid; grid-template-columns:1fr 1fr 1.2fr; gap:16px; margin-bottom:24px;">
+      <div class="card" style="display:flex; flex-direction:column;">
+        <div class="card-header">
+          <div class="card-title">${getIconSvg('bar-chart')} Workload Analytics</div>
+        </div>
+        <div class="card-body" style="flex:1; display:flex; justify-content:space-around; align-items:flex-end; padding-top:24px;">
+          ${[
+            { day: 'S', h: '30%' },
+            { day: 'M', h: '65%' },
+            { day: 'T', h: '85%' },
+            { day: 'W', h: '50%' },
+            { day: 'T', h: '75%' },
+            { day: 'F', h: '95%' },
+            { day: 'S', h: '40%' }
+          ].map(d => `
+            <div style="display:flex; flex-direction:column; align-items:center; gap:8px; width:12%;">
+              <div style="height:110px; width:100%; background:var(--secondary); border-radius:4px; display:flex; align-items:flex-end; overflow:hidden;">
+                <div style="height:${d.h}; width:100%; background:var(--accent); border-radius:4px; transition:height 0.4s ease;"></div>
+              </div>
+              <span style="font-size:11px; font-weight:700; color:var(--muted-foreground);">${d.day}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <div class="card" style="display:flex; flex-direction:column;">
+        <div class="card-header">
+          <div class="card-title">${getIconSvg('bell')} Upcoming Reminders</div>
+        </div>
+        <div class="card-body" style="flex:1; display:flex; flex-direction:column; gap:12px;">
+          <div style="padding:10px; border-radius:var(--radius-sm); background:var(--secondary); border-left:3px solid var(--accent);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+              <span style="font-size:12px; font-weight:700;">Team Sync Meeting</span>
+              <span style="font-size:10px; color:var(--accent); font-weight:700;">10:00 AM</span>
+            </div>
+            <div style="font-size:11px; color:var(--muted-foreground); margin-bottom:8px;">Discuss project roadmap & milestones</div>
+            <button class="btn btn-primary btn-sm" id="start-meeting-btn" style="width:100%; justify-content:center;">
+              ${getIconSvg('video')} Start Meeting
+            </button>
+          </div>
+          <div style="padding:8px 10px; border-radius:var(--radius-sm); border:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <div style="font-size:12px; font-weight:700;">Client Invoice Due</div>
+              <div style="font-size:11px; color:var(--muted-foreground);">Acme Corp - $4,500</div>
+            </div>
+            <span style="font-size:10px; font-weight:700; color:var(--muted-foreground);">02:30 PM</span>
           </div>
         </div>
-        <div class="transaction-amount ${isIncome ? 'income' : 'expense'}">
-          ${isIncome ? '+' : '-'}${formatCurrency(t.amount)}
+      </div>
+
+      <div class="card" style="display:flex; flex-direction:column;">
+        <div class="card-header">
+          <div class="card-title">${getIconSvg('folder')} Project List</div>
+          <button class="card-action" id="new-project-list-btn">+ New</button>
         </div>
-      </div>
-    `;
-  }).join('');
-
-  // Active projects bars
-  const activeProj = state.projects.filter((p: any) => p.status === 'active').slice(0, 3);
-  const projHtml = activeProj.map((p: any) => `
-    <div style="margin-bottom: 16px;">
-      <div style="display:flex; justify-content:space-between; font-size:13px; font-weight:600; margin-bottom:6px;">
-        <span>${sanitizeHtml(p.name)} <span style="font-weight:400; color:var(--muted-foreground)">(${sanitizeHtml(p.client_name || 'Project Client')})</span></span>
-        <span>${p.progress}%</span>
-      </div>
-      <div class="progress-bar">
-        <div class="progress-fill blue" style="width: ${p.progress}%;"></div>
-      </div>
-    </div>
-  `).join('');
-
-  return `
-    <div class="gradient-header">
-      <h2>Welcome Back,</h2>
-      <h1>${sanitizeHtml(state.user?.name || state.user?.username || 'Administrator')}</h1>
-      <div class="role-chip">
-        ${getIconSvg('shield')}
-        <span>${sanitizeHtml((state.user?.role || 'admin').toUpperCase())} ACCOUNT</span>
+        <div class="card-body" style="flex:1; max-height:190px; overflow-y:auto; padding:0;">
+          <div style="display:flex; flex-direction:column;">
+            ${state.projects.slice(0, 4).map(p => {
+              const statusColor = p.status === 'completed' ? 'var(--success)' : p.status === 'active' ? 'var(--accent)' : 'var(--muted-foreground)';
+              return `
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 16px; border-bottom:1px solid var(--border);">
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="width:8px; height:8px; border-radius:50%; background:${statusColor};"></span>
+                    <span style="font-size:12.5px; font-weight:600;">${sanitizeHtml(p.name)}</span>
+                  </div>
+                  <span style="font-size:11px; color:var(--muted-foreground); font-variant-numeric:tabular-nums;">${p.end_date || 'N/A'}</span>
+                </div>
+              `;
+            }).join('') || '<div style="padding:24px; text-align:center; color:var(--muted-foreground); font-size:12px;">No projects recorded yet.</div>'}
+          </div>
+        </div>
       </div>
     </div>
 
-    <!-- Live Net profit banner -->
-    <div id="tour-net-profit" class="card" style="margin-bottom: 24px; padding: 24px; background:linear-gradient(135deg, #09090b 0%, #1e3a8a 100%); color:#fff; border:none;">
-      <div style="font-size:14px; font-weight:500; opacity:0.8; margin-bottom:4px;">Net Profit · This Month</div>
-      <div style="font-size:36px; font-weight:800; font-variant-numeric:tabular-nums; margin-bottom:12px;">${formatCurrency(m.netProfit)}</div>
-      <div style="display:flex; gap:16px; font-size:12px; font-weight:600;">
-        <span style="color:#86efac; display:inline-flex; align-items:center; gap:4px;">↓ Income: ${formatCurrency(m.totalIncome)}</span>
-        <span style="color:#fca5a5; display:inline-flex; align-items:center; gap:4px;">↑ Expense: ${formatCurrency(m.totalExpense)}</span>
-      </div>
-    </div>
-
-    <div class="stats-grid" id="tour-stats-grid">
-      <div class="stat-card blue">
-        <div class="stat-card-header">
-          <div class="stat-card-icon blue">${getIconSvg('users')}</div>
-          <span class="stat-card-change up">Stable</span>
-        </div>
-        <div class="stat-card-label">Active Headcount</div>
-        <div class="stat-card-value">${m.employees}</div>
-      </div>
-      
-      <div class="stat-card green">
-        <div class="stat-card-header">
-          <div class="stat-card-icon green">${getIconSvg('briefcase')}</div>
-          <span class="stat-card-change up">+4%</span>
-        </div>
-        <div class="stat-card-label">Client Portfolio</div>
-        <div class="stat-card-value">${m.clients}</div>
-      </div>
-      
-      <div class="stat-card orange">
-        <div class="stat-card-header">
-          <div class="stat-card-icon orange">${getIconSvg('grid')}</div>
-          <span class="stat-card-change up">+12%</span>
-        </div>
-        <div class="stat-card-label">Active Projects</div>
-        <div class="stat-card-value">${m.activeProjects}</div>
-      </div>
-      
-      <div class="stat-card purple">
-        <div class="stat-card-header">
-          <div class="stat-card-icon purple">${getIconSvg('trending-up')}</div>
-          <span class="stat-card-change up">+18%</span>
-        </div>
-        <div class="stat-card-label">Income flow</div>
-        <div class="stat-card-value">${formatCurrency(m.totalIncome)}</div>
-      </div>
-    </div>
-
+    <!-- Row 3: 2-Column Grid -->
     <div class="content-grid">
       <div class="card">
-        <div class="card-body" style="padding: 22px;">
+        <div class="card-header">
+          <div class="card-title">${getIconSvg('users')} Team Collaboration</div>
+          <button class="card-action" id="add-member-collab-btn">+ Add Member</button>
+        </div>
+        <div class="card-body" style="padding:0; max-height:260px; overflow-y:auto;">
+          <div style="display:flex; flex-direction:column;">
+            ${state.employees.slice(0, 4).map(e => `
+              <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 16px; border-bottom:1px solid var(--border);">
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <div class="avatar" style="width:28px; height:28px; font-size:11px; font-weight:700; background:var(--secondary); color:var(--foreground); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; border-radius:50%;">
+                    ${sanitizeHtml(e.initials || e.name[0] || 'E')}
+                  </div>
+                  <div>
+                    <div style="font-size:12.5px; font-weight:600;">${sanitizeHtml(e.name)}</div>
+                    <div style="font-size:11px; color:var(--muted-foreground);">${sanitizeHtml(e.role)}</div>
+                  </div>
+                </div>
+                <span class="status-badge ${e.status === 'active' ? 'active' : 'inactive'}" style="font-size:10px;">
+                  ${sanitizeHtml(e.status)}
+                </span>
+              </div>
+            `).join('') || '<div style="padding:24px; text-align:center; color:var(--muted-foreground); font-size:12px;">No team members.</div>'}
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="display:flex; flex-direction:column; justify-content:space-between;">
+        <div class="card-header">
+          <div class="card-title">${getIconSvg('layers')} Project Progress</div>
+        </div>
+        <div class="card-body" style="flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; padding:24px;">
+          ${(() => {
+            const total = state.projects.length;
+            const completed = state.projects.filter(p => p.status === 'completed').length;
+            const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+            return `
+              <div style="position:relative; width:130px; height:130px; display:flex; align-items:center; justify-content:center; margin-bottom:16px;">
+                <svg width="130" height="130" viewBox="0 0 130 130">
+                  <circle cx="65" cy="65" r="52" fill="none" stroke="var(--secondary)" stroke-width="8"></circle>
+                  <circle cx="65" cy="65" r="52" fill="none" stroke="var(--accent)" stroke-width="8"
+                    stroke-dasharray="326.7" stroke-dashoffset="${326.7 - (326.7 * pct) / 100}"
+                    stroke-linecap="round" transform="rotate(-90 65 65)" style="transition: stroke-dashoffset 0.6s ease;"></circle>
+                </svg>
+                <div style="position:absolute; text-align:center;">
+                  <span style="font-size:22px; font-weight:800; font-family:'Outfit', sans-serif;">${pct}%</span>
+                  <span style="font-size:9px; color:var(--muted-foreground); display:block; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Success</span>
+                </div>
+              </div>
+              <div style="display:flex; gap:16px; justify-content:center; width:100%; font-size:11.5px; font-weight:600; color:var(--muted-foreground);">
+                <div style="display:flex; align-items:center; gap:6px;">
+                  <span style="width:8px; height:8px; border-radius:50%; background:var(--accent);"></span>
+                  <span>Completed (${completed})</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:6px;">
+                  <span style="width:8px; height:8px; border-radius:50%; background:var(--secondary); border:1px solid var(--border);"></span>
+                  <span>Active/Pending (${total - completed})</span>
+                </div>
+              </div>
+            `;
+          })()}
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 4: Trackers -->
+    <div style="display:grid; grid-template-columns:1.2fr 2fr 1.2fr; gap:16px; margin-bottom:24px;">
+      <div class="card" style="display:flex; flex-direction:column;">
+        <div class="card-header">
+          <div class="card-title">${getIconSvg('clock')} Time Tracker</div>
+        </div>
+        <div class="card-body" style="flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; padding:24px 20px;">
+          <div id="tracker-display" style="font-size:32px; font-weight:800; font-family:'Outfit', sans-serif; letter-spacing:1px; margin-bottom:16px; font-variant-numeric:tabular-nums;">01:24:08</div>
+          <div style="display:flex; gap:10px; width:100%;">
+            <button class="btn btn-outline" id="tracker-play-btn" style="flex:1; padding:6px; justify-content:center;">
+              ${getIconSvg('play')} Play
+            </button>
+            <button class="btn btn-outline" id="tracker-pause-btn" style="flex:1; padding:6px; justify-content:center; display:none;">
+              ${getIconSvg('pause')} Pause
+            </button>
+            <button class="btn btn-danger btn-sm" id="tracker-stop-btn" style="flex:1; padding:6px; justify-content:center; font-weight:600;">
+              ${getIconSvg('square')} Stop
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-body" style="padding:16px 20px 10px;">
           ${drawDashboardSvgChart()}
         </div>
       </div>
 
-      <div class="card">
+      <div class="card" style="display:flex; flex-direction:column;">
         <div class="card-header">
-          <div class="card-title">Recent Ledgers</div>
-          <button class="card-action" id="view-finance-card-btn">View Finance</button>
+          <div class="card-title">${getIconSvg('activity')} Recent Activity</div>
         </div>
-        <div class="card-body">
-          <div style="display:flex; flex-direction:column; gap:4px;">
-            ${txHtml || '<div style="padding:20px; text-align:center; color:var(--muted-foreground)">No transactions recorded.</div>'}
+        <div class="card-body" style="flex:1; max-height:190px; overflow-y:auto; padding:0;">
+          <div style="display:flex; flex-direction:column;">
+            ${[
+              { action: 'Sarah Connor updated Project Alpha', time: '10m ago' },
+              { action: 'New payment of $12,500 from Wayne Corp', time: '1h ago' },
+              { action: 'Dave Bowman scheduled leave request', time: '3h ago' },
+              { action: 'John Doe onboarded into Engineering', time: '1d ago' }
+            ].map(a => `
+              <div style="padding:10px 16px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+                <span style="font-size:12px; font-weight:500; color:var(--foreground);">${sanitizeHtml(a.action)}</span>
+                <span style="font-size:10px; color:var(--muted-foreground); flex-shrink:0;">${a.time}</span>
+              </div>
+            `).join('')}
           </div>
         </div>
       </div>
     </div>
 
-    <div class="content-grid">
+    <!-- Row 5: Extended Sections -->
+    <div style="display:grid; grid-template-columns:1.2fr 1fr 1fr; gap:16px;">
       <div class="card">
         <div class="card-header">
-          <div class="card-title">Active Projects Tracking</div>
+          <div class="card-title">${getIconSvg('briefcase')} Client Portfolio LTV</div>
         </div>
-        <div class="card-body">
-          ${projHtml || '<div style="padding:20px; text-align:center; color:var(--muted-foreground)">No active projects.</div>'}
+        <div class="card-body" style="max-height:220px; overflow-y:auto; padding:12px 16px;">
+          <div style="display:flex; flex-direction:column; gap:12px;">
+            ${state.clients.slice(0, 4).map(c => {
+              const clientProj = state.projects.filter(p => p.client === c.id);
+              const budgetSum = clientProj.reduce((sum, p) => sum + (p.value || 0), 0);
+              const budgetMax = Math.max(...state.clients.map(cl => {
+                return state.projects.filter(p => p.client === cl.id).reduce((sum, p) => sum + (p.value || 0), 0);
+              }), 1000);
+              const pct = Math.max(10, Math.min(100, Math.round((budgetSum / budgetMax) * 100)));
+              return `
+                <div>
+                  <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:700; margin-bottom:4px;">
+                    <span>${sanitizeHtml(c.company)}</span>
+                    <span style="font-variant-numeric:tabular-nums;">${formatCurrency(budgetSum)}</span>
+                  </div>
+                  <div class="progress-bar" style="height:6px;">
+                    <div class="progress-fill" style="width:${pct}%; background:var(--accent);"></div>
+                  </div>
+                </div>
+              `;
+            }).join('') || '<div style="padding:24px; text-align:center; color:var(--muted-foreground); font-size:12px;">No client records.</div>'}
+          </div>
         </div>
       </div>
 
-      <div class="card" id="tour-quick-actions">
+      <div class="card">
         <div class="card-header">
-          <div class="card-title">Quick Operations</div>
+          <div class="card-title">${getIconSvg('users')} Team Members</div>
         </div>
-        <div class="card-body">
-          <div class="quick-actions">
-            <button class="quick-action-btn" id="qa-add-staff">
-              <div class="quick-action-icon blue">+</div>
-              <span>Add Staff</span>
-            </button>
-            <button class="quick-action-btn" id="qa-add-client">
-              <div class="quick-action-icon green">+</div>
-              <span>Add Client</span>
-            </button>
-            <button class="quick-action-btn" id="qa-log-cost">
-              <div class="quick-action-icon orange">+</div>
-              <span>Log Cost</span>
-            </button>
-            <button class="quick-action-btn" id="qa-settings">
-              <div class="quick-action-icon purple">⚙</div>
-              <span>Settings</span>
-            </button>
+        <div class="card-body" style="max-height:220px; overflow-y:auto; padding:12px 16px;">
+          <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(65px, 1fr)); gap:10px;">
+            ${state.employees.slice(0, 8).map(e => `
+              <div style="display:flex; flex-direction:column; align-items:center; text-align:center; position:relative;">
+                <div class="avatar" style="width:36px; height:36px; font-size:12px; font-weight:700; background:var(--secondary); color:var(--foreground); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; border-radius:50%; margin-bottom:4px;">
+                  ${sanitizeHtml(e.initials || e.name[0] || 'E')}
+                  <span style="position:absolute; bottom:24px; right:16px; width:8px; height:8px; border-radius:50%; background:var(--success); border:1.5px solid var(--card);"></span>
+                </div>
+                <div style="font-size:10px; font-weight:700; width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${sanitizeHtml(e.name.split(' ')[0] || e.name)}</div>
+                <div style="font-size:8.5px; color:var(--muted-foreground); width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${sanitizeHtml(e.department || 'Staff')}</div>
+              </div>
+            `).join('') || '<div style="grid-column:1/-1; padding:24px; text-align:center; color:var(--muted-foreground); font-size:12px;">No members.</div>'}
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">${getIconSvg('shield')} Workspace Admins</div>
+        </div>
+        <div class="card-body" style="max-height:220px; overflow-y:auto; padding:12px 16px;">
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <div class="avatar" style="width:24px; height:24px; font-size:10px; font-weight:700; background:var(--accent); color:var(--accent-foreground); display:flex; align-items:center; justify-content:center; border-radius:50%;">
+                ${sanitizeHtml((state.user?.name || 'A').slice(0,1).toUpperCase())}
+              </div>
+              <div style="font-size:12px;">
+                <div style="font-weight:700;">${sanitizeHtml(state.user?.name || 'Administrator')}</div>
+                <div style="font-size:10px; color:var(--muted-foreground);">${sanitizeHtml(state.user?.email || 'CEO')}</div>
+              </div>
+            </div>
+            ${state.employees.filter(e => e.role.toLowerCase().includes('admin') || e.role.toLowerCase().includes('manager')).slice(0, 3).map(adm => `
+              <div style="display:flex; align-items:center; gap:8px; border-top:1px solid var(--border); padding-top:8px;">
+                <div class="avatar" style="width:24px; height:24px; font-size:10px; font-weight:700; background:var(--secondary); color:var(--foreground); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; border-radius:50%;">
+                  ${sanitizeHtml(adm.initials || adm.name[0] || 'A')}
+                </div>
+                <div style="font-size:12px;">
+                  <div style="font-weight:700;">${sanitizeHtml(adm.name)}</div>
+                  <div style="font-size:10px; color:var(--muted-foreground);">${sanitizeHtml(adm.role)}</div>
+                </div>
+              </div>
+            `).join('')}
           </div>
         </div>
       </div>
     </div>
-
     ${drawAlertsPanel()}
     ${drawQuotaBars()}
     ${drawBranchLeaderboard()}
@@ -3727,21 +3973,83 @@ function drawDashboardSvgChart(): string {
 }
 
 function bindDashboardEvents() {
-  const viewFinance = document.getElementById('view-finance-card-btn');
-  if (viewFinance) viewFinance.addEventListener('click', () => navigateToTab('finance'));
+  // Time Tracker code
+  const displayEl = document.getElementById('tracker-display');
+  const playBtn = document.getElementById('tracker-play-btn');
+  const pauseBtn = document.getElementById('tracker-pause-btn');
+  const stopBtn = document.getElementById('tracker-stop-btn');
 
-  // Quick Action triggers
-  const addStaff = document.getElementById('qa-add-staff');
-  if (addStaff) addStaff.addEventListener('click', () => { navigateToTab('employees'); openAddEmployeeModal(); });
+  if (trackerRunning) {
+    if (playBtn) playBtn.style.display = 'none';
+    if (pauseBtn) pauseBtn.style.display = 'inline-flex';
+  } else {
+    if (playBtn) playBtn.style.display = 'inline-flex';
+    if (pauseBtn) pauseBtn.style.display = 'none';
+  }
 
-  const addCli = document.getElementById('qa-add-client');
-  if (addCli) addCli.addEventListener('click', () => { navigateToTab('clients'); openAddClientModal(); });
+  if (displayEl) {
+    displayEl.innerText = formatTimeTracker(trackerSeconds);
+  }
 
-  const logCost = document.getElementById('qa-log-cost');
-  if (logCost) logCost.addEventListener('click', () => { navigateToTab('finance'); openAddTransactionModal(); });
+  playBtn?.addEventListener('click', () => {
+    if (trackerRunning) return;
+    trackerRunning = true;
+    if (playBtn) playBtn.style.display = 'none';
+    if (pauseBtn) pauseBtn.style.display = 'inline-flex';
+    if (!trackerInterval) {
+      trackerInterval = setInterval(() => {
+        trackerSeconds++;
+        const disp = document.getElementById('tracker-display');
+        if (disp) disp.innerText = formatTimeTracker(trackerSeconds);
+      }, 1000);
+    }
+  });
 
-  const settings = document.getElementById('qa-settings');
-  if (settings) settings.addEventListener('click', () => navigateToTab('settings'));
+  pauseBtn?.addEventListener('click', () => {
+    if (!trackerRunning) return;
+    trackerRunning = false;
+    if (playBtn) playBtn.style.display = 'inline-flex';
+    if (pauseBtn) pauseBtn.style.display = 'none';
+    if (trackerInterval) {
+      clearInterval(trackerInterval);
+      trackerInterval = null;
+    }
+  });
+
+  stopBtn?.addEventListener('click', () => {
+    trackerRunning = false;
+    trackerSeconds = 0;
+    if (playBtn) playBtn.style.display = 'inline-flex';
+    if (pauseBtn) pauseBtn.style.display = 'none';
+    if (trackerInterval) {
+      clearInterval(trackerInterval);
+      trackerInterval = null;
+    }
+    const disp = document.getElementById('tracker-display');
+    if (disp) disp.innerText = '00:00:00';
+  });
+
+  // Action buttons
+  document.getElementById('import-data-btn')?.addEventListener('click', () => {
+    showToast('Data imported successfully!', 'success');
+  });
+
+  document.getElementById('add-project-header-btn')?.addEventListener('click', () => {
+    openAddProjectModal();
+  });
+
+  document.getElementById('new-project-list-btn')?.addEventListener('click', () => {
+    openAddProjectModal();
+  });
+
+  document.getElementById('start-meeting-btn')?.addEventListener('click', () => {
+    showToast('Meeting session started successfully!', 'success');
+  });
+
+  document.getElementById('add-member-collab-btn')?.addEventListener('click', () => {
+    navigateToTab('employees');
+    openAddEmployeeModal();
+  });
 
   // Range selector clicks
   ['7D', '30D', '12M'].forEach(r => {
@@ -3769,15 +4077,6 @@ function bindDashboardEvents() {
       hoverDots.forEach((hd: any) => hd.style.display = 'none');
     });
   });
-
-  // Dashboard Interactive Tour — triggers on first dashboard visit
-  if (dashboardTourStep >= 0) {
-    // Tour in progress, re-render current step after DOM settles
-    setTimeout(() => renderDashboardTourStep(), 150);
-  } else if (shouldShowDashboardTour()) {
-    // First visit — start tour after UI settles
-    setTimeout(() => startDashboardTour(), 800);
-  }
 }
 
 // ------------------------------------------------------------
@@ -5145,11 +5444,11 @@ function bindSettingsEvents() {
 
 let dashboardTourStep = -1; // -1 = inactive
 
-function shouldShowDashboardTour(): boolean {
-  return !localStorage.getItem('admin-suite.dashboard-tour-complete');
+export function shouldShowDashboardTour(): boolean {
+  return false;
 }
 
-function startDashboardTour() {
+export function startDashboardTour() {
   dashboardTourStep = 0;
   renderDashboardTourStep();
 }
@@ -6773,7 +7072,7 @@ function openCheckoutModal(planId: string, planName: string, planPrice: string) 
 document.addEventListener('DOMContentLoaded', async () => {
   // Set tab based on router hash
   const hash = window.location.hash.slice(2);
-  const validTabs: Array<typeof state.activeTab> = ['dashboard', 'employees', 'clients', 'finance', 'settings', 'pricing', 'chat'];
+  const validTabs: Array<typeof state.activeTab> = ['dashboard', 'employees', 'clients', 'finance', 'projects', 'tasks', 'attendance', 'chat', 'settings', 'pricing', 'notes'];
   if (validTabs.includes(hash as any)) {
     state.activeTab = hash as any;
   }
@@ -6795,3 +7094,852 @@ document.addEventListener('DOMContentLoaded', async () => {
   state.view = 'splash';
   renderApp();
 });
+
+// ============================================================
+// NEW TABS IMPLEMENTATION: PROJECTS, TASKS, ATTENDANCE, NOTES
+// ============================================================
+
+// ── PROJECTS TAB ──
+let projectFilterStatus = 'all';
+
+function drawProjectsTab(): string {
+  const filtered = state.projects.filter(p => {
+    if (projectFilterStatus === 'all') return true;
+    return p.status === projectFilterStatus;
+  });
+
+  const columns = ['planned', 'active', 'on_hold', 'completed'];
+  const columnLabels: Record<string, string> = {
+    planned: 'Planned',
+    active: 'Active',
+    on_hold: 'On Hold',
+    completed: 'Completed'
+  };
+
+  const kanbanHtml = columns.map(col => {
+    const colProjects = filtered.filter(p => p.status === col);
+    const cardsHtml = colProjects.map(p => `
+      <div class="card" style="margin-bottom:12px; cursor:pointer;" data-project-id="${p.id}">
+        <div class="card-body" style="padding:16px;">
+          <div style="font-weight:700; font-size:14px; margin-bottom:4px;">${sanitizeHtml(p.name)}</div>
+          <div style="font-size:12px; color:var(--muted-foreground); margin-bottom:12px;">Client: ${sanitizeHtml(p.client_name || 'N/A')}</div>
+          
+          <div style="display:flex; justify-content:space-between; font-size:11px; font-weight:600; margin-bottom:4px;">
+            <span>Progress</span>
+            <span>${p.progress}%</span>
+          </div>
+          <div class="progress-bar" style="margin-bottom:12px;">
+            <div class="progress-fill" style="width:${p.progress}%; background:var(--accent);"></div>
+          </div>
+          
+          <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:600; border-top:1px solid var(--border); padding-top:8px;">
+            <span style="color:var(--muted-foreground);">Budget</span>
+            <span>${formatCurrency(p.value)}</span>
+          </div>
+        </div>
+      </div>
+    `).join('');
+
+    return `
+      <div style="flex:1; min-width:240px; background:var(--secondary); padding:12px; border-radius:var(--radius-lg); display:flex; flex-direction:column; gap:8px; border:1px solid var(--border);">
+        <div style="display:flex; justify-content:space-between; align-items:center; padding-bottom:8px; border-bottom:1px solid var(--border);">
+          <span style="font-weight:700; font-size:13px; text-transform:uppercase; letter-spacing:0.5px;">${columnLabels[col]}</span>
+          <span style="font-size:11px; background:var(--card); padding:2px 8px; border-radius:var(--radius-sm); border:1px solid var(--border); font-weight:700;">${colProjects.length}</span>
+        </div>
+        <div style="flex:1; overflow-y:auto; max-height:60vh; padding-top:8px;">
+          ${cardsHtml || '<div style="padding:20px; text-align:center; color:var(--muted-foreground); font-size:12px;">No projects.</div>'}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
+      <h2 class="topbar-title">Projects Workspace</h2>
+      <button class="btn btn-primary" id="add-project-btn">
+        ${getIconSvg('plus')} Add Project
+      </button>
+    </div>
+    
+    <div style="display:flex; gap:16px; overflow-x:auto; padding-bottom:16px; align-items:stretch;">
+      ${kanbanHtml}
+    </div>
+  `;
+}
+
+function bindProjectsEvents() {
+  const addBtn = document.getElementById('add-project-btn');
+  if (addBtn) addBtn.addEventListener('click', openAddProjectModal);
+
+  document.querySelectorAll('[data-project-id]').forEach(card => {
+    card.addEventListener('click', (e) => {
+      const id = (e.currentTarget as HTMLElement).dataset.projectId;
+      if (id) openProjectDetailModal(parseInt(id));
+    });
+  });
+}
+
+function openAddProjectModal() {
+  const modalContainer = document.getElementById('modal-container');
+  if (!modalContainer) return;
+
+  const clientOptions = state.clients.map(c => `
+    <option value="${c.id}">${sanitizeHtml(c.company)}</option>
+  `).join('');
+
+  modalContainer.innerHTML = DOMPurify.sanitize(`
+    <div class="modal-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <h2 class="modal-title">New Project</h2>
+          <button class="modal-close" id="modal-close-btn">${getIconSvg('x')}</button>
+        </div>
+        <form id="add-project-form">
+          <div class="modal-body" style="display:flex; flex-direction:column; gap:14px;">
+            <div class="form-group">
+              <label class="form-label" for="proj-name">Project Name</label>
+              <input type="text" class="form-input" id="proj-name" required placeholder="Project Name">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label" for="proj-client">Client</label>
+              <select class="form-input" id="proj-client" required>
+                <option value="">Select Client</option>
+                ${clientOptions}
+              </select>
+            </div>
+            
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="proj-value">Value (USD)</label>
+                <input type="number" class="form-input" id="proj-value" required value="5000">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="proj-progress">Initial Progress (%)</label>
+                <input type="number" min="0" max="100" class="form-input" id="proj-progress" required value="0">
+              </div>
+            </div>
+            
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="proj-start">Start Date</label>
+                <input type="date" class="form-input" id="proj-start">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="proj-end">Due Date</label>
+                <input type="date" class="form-input" id="proj-end">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="proj-status">Status</label>
+              <select class="form-input" id="proj-status" required>
+                <option value="planned">Planned</option>
+                <option value="active" selected>Active</option>
+                <option value="on_hold">On Hold</option>
+                <option value="completed">Completed</option>
+              </select>
+            </div>
+          </div>
+          
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline" id="modal-cancel-btn">Cancel</button>
+            <button type="submit" class="btn btn-primary">Create Project</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `);
+
+  const close = () => { if (modalContainer) modalContainer.innerHTML = DOMPurify.sanitize(''); };
+  document.getElementById('modal-close-btn')?.addEventListener('click', close);
+  document.getElementById('modal-cancel-btn')?.addEventListener('click', close);
+
+  const form = document.getElementById('add-project-form') as HTMLFormElement;
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = (document.getElementById('proj-name') as HTMLInputElement).value.trim();
+    const client = parseInt((document.getElementById('proj-client') as HTMLSelectElement).value);
+    const value = parseFloat((document.getElementById('proj-value') as HTMLInputElement).value);
+    const progress = parseInt((document.getElementById('proj-progress') as HTMLInputElement).value);
+    const start_date = (document.getElementById('proj-start') as HTMLInputElement).value;
+    const end_date = (document.getElementById('proj-end') as HTMLInputElement).value;
+    const status = (document.getElementById('proj-status') as HTMLSelectElement).value;
+
+    try {
+      await apiRequest('projects/', {
+        method: 'POST',
+        body: JSON.stringify({ name, client, value, progress, start_date: start_date || null, end_date: end_date || null, status })
+      });
+      showToast('Project created successfully!', 'success');
+      close();
+      await syncAppData();
+      renderApp();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to create project', 'error');
+    }
+  });
+}
+
+function openProjectDetailModal(id: number) {
+  const p = state.projects.find(proj => proj.id === id);
+  if (!p) return;
+
+  const modalContainer = document.getElementById('modal-container');
+  if (!modalContainer) return;
+
+  modalContainer.innerHTML = DOMPurify.sanitize(`
+    <div class="modal-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <h2 class="modal-title">Project Details: ${sanitizeHtml(p.name)}</h2>
+          <button class="modal-close" id="modal-close-btn">${getIconSvg('x')}</button>
+        </div>
+        <div class="modal-body">
+          <div style="display:flex; flex-direction:column; gap:12px; font-size:14px; margin-bottom:24px;">
+            <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:8px;">
+              <span style="color:var(--muted-foreground);">Client</span>
+              <span style="font-weight:600;">${sanitizeHtml(p.client_name || 'N/A')}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:8px;">
+              <span style="color:var(--muted-foreground);">Budget / Value</span>
+              <span style="font-weight:600;">${formatCurrency(p.value)}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:8px;">
+              <span style="color:var(--muted-foreground);">Start Date</span>
+              <span style="font-weight:600;">${p.start_date || 'N/A'}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:8px;">
+              <span style="color:var(--muted-foreground);">Due Date</span>
+              <span style="font-weight:600;">${p.end_date || 'N/A'}</span>
+            </div>
+            
+            <div class="form-group" style="margin-top:10px;">
+              <label class="form-label" for="edit-proj-progress">Progress (${p.progress}%)</label>
+              <input type="range" class="form-input" id="edit-proj-progress" min="0" max="100" value="${p.progress}" style="padding:0; width:100%;">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label" for="edit-proj-status">Status</label>
+              <select class="form-input" id="edit-proj-status">
+                <option value="planned" ${p.status === 'planned' ? 'selected' : ''}>Planned</option>
+                <option value="active" ${p.status === 'active' ? 'selected' : ''}>Active</option>
+                <option value="on_hold" ${p.status === 'on_hold' ? 'selected' : ''}>On Hold</option>
+                <option value="completed" ${p.status === 'completed' ? 'selected' : ''}>Completed</option>
+              </select>
+            </div>
+          </div>
+          
+          <div style="display:flex; justify-content:space-between; gap:10px;">
+            <button class="btn btn-danger btn-sm" id="delete-project-btn">Delete Project</button>
+            <button class="btn btn-primary btn-sm" id="save-project-btn">Save Changes</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `);
+
+  const close = () => { if (modalContainer) modalContainer.innerHTML = DOMPurify.sanitize(''); };
+  document.getElementById('modal-close-btn')?.addEventListener('click', close);
+
+  document.getElementById('save-project-btn')?.addEventListener('click', async () => {
+    const progress = parseInt((document.getElementById('edit-proj-progress') as HTMLInputElement).value);
+    const status = (document.getElementById('edit-proj-status') as HTMLSelectElement).value;
+
+    try {
+      await apiRequest(`projects/${p.id}/`, {
+        method: 'PATCH',
+        body: JSON.stringify({ progress, status })
+      });
+      showToast('Project updated successfully!', 'success');
+      close();
+      await syncAppData();
+      renderApp();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to update project', 'error');
+    }
+  });
+
+  document.getElementById('delete-project-btn')?.addEventListener('click', async () => {
+    try {
+      await apiRequest(`projects/${p.id}/`, {
+        method: 'DELETE'
+      });
+      showToast('Project deleted successfully', 'error');
+      close();
+      await syncAppData();
+      renderApp();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to delete project', 'error');
+    }
+  });
+}
+
+// ── TASKS TAB ──
+let taskPriorityFilter = 'all';
+
+function drawTasksTab(): string {
+  const filtered = state.tasks.filter(t => {
+    if (taskPriorityFilter === 'all') return true;
+    if (taskPriorityFilter === 'completed') return t.status === 'completed';
+    if (taskPriorityFilter === 'pending') return t.status !== 'completed';
+    return t.priority === taskPriorityFilter;
+  });
+
+  const chips = [
+    { id: 'all', label: 'All Tasks' },
+    { id: 'pending', label: 'Pending' },
+    { id: 'completed', label: 'Completed' },
+    { id: 'high', label: 'High Priority' },
+    { id: 'medium', label: 'Medium' },
+    { id: 'low', label: 'Low' }
+  ];
+
+  const chipsHtml = chips.map(c => `
+    <button class="chip ${taskPriorityFilter === c.id ? 'active' : ''}" data-filter="${c.id}">${c.label}</button>
+  `).join('');
+
+  const rowsHtml = filtered.map(t => {
+    const empName = state.employees.find(e => e.id === t.employee)?.name || 'Unassigned';
+    const isCompleted = t.status === 'completed';
+    
+    return `
+      <tr>
+        <td style="width: 40px; text-align: center;">
+          <input type="checkbox" class="task-checkbox" data-task-id="${t.id}" ${isCompleted ? 'checked' : ''} style="width:16px; height:16px; accent-color:var(--accent);">
+        </td>
+        <td>
+          <div class="cell-primary" style="${isCompleted ? 'text-decoration: line-through; opacity: 0.6;' : ''}">${sanitizeHtml(t.title)}</div>
+          <div class="cell-muted">${sanitizeHtml(t.description || '')}</div>
+        </td>
+        <td>
+          <div class="cell-primary">${sanitizeHtml(empName)}</div>
+        </td>
+        <td>
+          <span class="status-badge ${t.priority === 'high' ? 'on_hold' : t.priority === 'medium' ? 'pending' : 'inactive'}">${sanitizeHtml(t.priority)}</span>
+        </td>
+        <td>
+          <div class="cell-mono">${sanitizeHtml(t.due_date || 'N/A')}</div>
+        </td>
+        <td style="text-align: right;">
+          <button class="btn btn-ghost btn-sm delete-task-btn" data-task-id="${t.id}" style="color:var(--danger); padding:4px;">
+            ${getIconSvg('trash')}
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  return `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
+      <div class="search-box">
+        ${getIconSvg('search')}
+        <input type="text" class="form-input" id="task-search" placeholder="Search tasks...">
+      </div>
+      <button class="btn btn-primary" id="add-task-btn">
+        ${getIconSvg('plus')} Add Task
+      </button>
+    </div>
+    
+    <div class="filter-chips">
+      ${chipsHtml}
+    </div>
+    
+    <div class="card" style="overflow-x: auto;">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width: 40px;"></th>
+            <th>Task Details</th>
+            <th>Assignee</th>
+            <th>Priority</th>
+            <th>Due Date</th>
+            <th style="width: 80px; text-align: right;"></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml || '<tr><td colspan="6" style="text-align:center; padding:32px; color:var(--muted-foreground)">No tasks found.</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function bindTasksEvents() {
+  const addBtn = document.getElementById('add-task-btn');
+  if (addBtn) addBtn.addEventListener('click', openAddTaskModal);
+
+  document.querySelectorAll('.filter-chips .chip').forEach(chip => {
+    chip.addEventListener('click', (e) => {
+      taskPriorityFilter = (e.currentTarget as HTMLButtonElement).dataset.filter || 'all';
+      renderApp();
+    });
+  });
+
+  document.querySelectorAll('.task-checkbox').forEach(cb => {
+    cb.addEventListener('change', async (e) => {
+      const id = (e.currentTarget as HTMLInputElement).dataset.taskId;
+      const isChecked = (e.currentTarget as HTMLInputElement).checked;
+      const status = isChecked ? 'completed' : 'assigned';
+      
+      try {
+        await apiRequest(`employee-tasks/${id}/`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status })
+        });
+        showToast(isChecked ? 'Task marked as completed!' : 'Task reopened', 'success');
+        await syncAppData();
+        renderApp();
+      } catch (err: any) {
+        showToast(err.message || 'Failed to update task', 'error');
+      }
+    });
+  });
+
+  document.querySelectorAll('.delete-task-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const id = (e.currentTarget as HTMLElement).dataset.taskId;
+      try {
+        await apiRequest(`employee-tasks/${id}/`, {
+          method: 'DELETE'
+        });
+        showToast('Task deleted successfully', 'error');
+        await syncAppData();
+        renderApp();
+      } catch (err: any) {
+        showToast(err.message || 'Failed to delete task', 'error');
+      }
+    });
+  });
+}
+
+function openAddTaskModal() {
+  const modalContainer = document.getElementById('modal-container');
+  if (!modalContainer) return;
+
+  const assigneeOptions = state.employees.map(e => `
+    <option value="${e.id}">${sanitizeHtml(e.name)}</option>
+  `).join('');
+
+  modalContainer.innerHTML = DOMPurify.sanitize(`
+    <div class="modal-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <h2 class="modal-title">New Task</h2>
+          <button class="modal-close" id="modal-close-btn">${getIconSvg('x')}</button>
+        </div>
+        <form id="add-task-form">
+          <div class="modal-body" style="display:flex; flex-direction:column; gap:14px;">
+            <div class="form-group">
+              <label class="form-label" for="task-title">Task Title</label>
+              <input type="text" class="form-input" id="task-title" required placeholder="Task Title">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label" for="task-desc">Description</label>
+              <textarea class="form-input" id="task-desc" placeholder="Task description..." rows="3"></textarea>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label" for="task-assignee">Assignee</label>
+              <select class="form-input" id="task-assignee" required>
+                <option value="">Select Assignee</option>
+                ${assigneeOptions}
+              </select>
+            </div>
+            
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="task-priority">Priority</label>
+                <select class="form-input" id="task-priority" required>
+                  <option value="low">Low</option>
+                  <option value="medium" selected>Medium</option>
+                  <option value="high">High</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="task-due">Due Date</label>
+                <input type="date" class="form-input" id="task-due" required>
+              </div>
+            </div>
+          </div>
+          
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline" id="modal-cancel-btn">Cancel</button>
+            <button type="submit" class="btn btn-primary">Create Task</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `);
+
+  const close = () => { if (modalContainer) modalContainer.innerHTML = DOMPurify.sanitize(''); };
+  document.getElementById('modal-close-btn')?.addEventListener('click', close);
+  document.getElementById('modal-cancel-btn')?.addEventListener('click', close);
+
+  const form = document.getElementById('add-task-form') as HTMLFormElement;
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const title = (document.getElementById('task-title') as HTMLInputElement).value.trim();
+    const description = (document.getElementById('task-desc') as HTMLTextAreaElement).value.trim();
+    const employee = parseInt((document.getElementById('task-assignee') as HTMLSelectElement).value);
+    const priority = (document.getElementById('task-priority') as HTMLSelectElement).value;
+    const due_date = (document.getElementById('task-due') as HTMLInputElement).value;
+
+    try {
+      await apiRequest('employee-tasks/', {
+        method: 'POST',
+        body: JSON.stringify({ title, description, employee, priority, due_date, status: 'assigned' })
+      });
+      showToast('Task created successfully!', 'success');
+      close();
+      await syncAppData();
+      renderApp();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to create task', 'error');
+    }
+  });
+}
+
+// ── ATTENDANCE TAB ──
+function drawAttendanceTab(): string {
+  const today = new Date().toISOString().split('T')[0];
+  
+  // Today's summary counts
+  const totalEmployees = state.employees.length;
+  let onLeaveCount = 0;
+  
+  const rowsHtml = state.employees.map(e => {
+    const isLeave = state.leaves.some(l => 
+      l.employee === e.id && 
+      l.start_date <= today && 
+      l.end_date >= today
+    );
+    
+    if (isLeave) onLeaveCount++;
+    const attendanceStatus = isLeave ? 'On Leave' : 'Present';
+    
+    return `
+      <tr>
+        <td>
+          <div class="user-row">
+            <div class="avatar blue">${sanitizeHtml(e.initials || e.name[0] || 'E')}</div>
+            <div>
+              <div class="cell-primary">${sanitizeHtml(e.name)}</div>
+              <div class="cell-muted">${sanitizeHtml(e.email)}</div>
+            </div>
+          </div>
+        </td>
+        <td>
+          <div class="cell-primary">${sanitizeHtml(e.role)}</div>
+          <div class="cell-muted">${sanitizeHtml(e.department)}</div>
+        </td>
+        <td>
+          <span class="status-badge ${isLeave ? 'inactive' : 'active'}">
+            ${attendanceStatus}
+          </span>
+        </td>
+        <td>
+          <div class="cell-mono">${isLeave ? 'On Scheduled Leave' : 'Checked In (09:00 AM)'}</div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  return `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
+      <h2 class="topbar-title">Daily Attendance</h2>
+      <button class="btn btn-primary" id="log-leave-btn">
+        ${getIconSvg('plus')} Request Leave
+      </button>
+    </div>
+    
+    <div class="stats-grid">
+      <div class="stat-card green">
+        <div class="stat-card-header"><div class="stat-card-icon green">${getIconSvg('users')}</div></div>
+        <div class="stat-card-label">Present Staff</div>
+        <div class="stat-card-value">${totalEmployees - onLeaveCount}</div>
+      </div>
+      <div class="stat-card orange">
+        <div class="stat-card-header"><div class="stat-card-icon orange">${getIconSvg('calendar')}</div></div>
+        <div class="stat-card-label">On Leave Today</div>
+        <div class="stat-card-value">${onLeaveCount}</div>
+      </div>
+      <div class="stat-card blue">
+        <div class="stat-card-header"><div class="stat-card-icon blue">${getIconSvg('clock')}</div></div>
+        <div class="stat-card-label">Late Arrivals</div>
+        <div class="stat-card-value">0</div>
+      </div>
+      <div class="stat-card purple">
+        <div class="stat-card-header"><div class="stat-card-icon purple">${getIconSvg('activity')}</div></div>
+        <div class="stat-card-label">Total Roster</div>
+        <div class="stat-card-value">${totalEmployees}</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:24px; overflow-x:auto;">
+      <div class="card-header"><div class="card-title">Staff Shift Log</div></div>
+      <div class="card-body" style="padding:0;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Employee</th>
+              <th>Designation</th>
+              <th>Status</th>
+              <th>Shift Details</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml || '<tr><td colspan="4" style="text-align:center; padding:32px; color:var(--muted-foreground)">No records.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function bindAttendanceEvents() {
+  const logLeaveBtn = document.getElementById('log-leave-btn');
+  if (logLeaveBtn) logLeaveBtn.addEventListener('click', openLogLeaveModal);
+}
+
+function openLogLeaveModal() {
+  const modalContainer = document.getElementById('modal-container');
+  if (!modalContainer) return;
+
+  const staffOptions = state.employees.map(e => `
+    <option value="${e.id}">${sanitizeHtml(e.name)}</option>
+  `).join('');
+
+  modalContainer.innerHTML = DOMPurify.sanitize(`
+    <div class="modal-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <h2 class="modal-title">Request Employee Leave</h2>
+          <button class="modal-close" id="modal-close-btn">${getIconSvg('x')}</button>
+        </div>
+        <form id="log-leave-form">
+          <div class="modal-body" style="display:flex; flex-direction:column; gap:14px;">
+            <div class="form-group">
+              <label class="form-label" for="leave-emp">Employee</label>
+              <select class="form-input" id="leave-emp" required>
+                <option value="">Select Employee</option>
+                ${staffOptions}
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label" for="leave-type">Leave Type</label>
+              <input type="text" class="form-input" id="leave-type" required placeholder="e.g. Annual, Sick, Personal">
+            </div>
+            
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="leave-start">Start Date</label>
+                <input type="date" class="form-input" id="leave-start" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="leave-end">End Date</label>
+                <input type="date" class="form-input" id="leave-end" required>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="leave-duration">Duration (Days)</label>
+              <input type="number" class="form-input" id="leave-duration" required value="1">
+            </div>
+          </div>
+          
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline" id="modal-cancel-btn">Cancel</button>
+            <button type="submit" class="btn btn-primary">File Leave</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `);
+
+  const close = () => { if (modalContainer) modalContainer.innerHTML = DOMPurify.sanitize(''); };
+  document.getElementById('modal-close-btn')?.addEventListener('click', close);
+  document.getElementById('modal-cancel-btn')?.addEventListener('click', close);
+
+  const form = document.getElementById('log-leave-form') as HTMLFormElement;
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const employee = parseInt((document.getElementById('leave-emp') as HTMLSelectElement).value);
+    const leave_type = (document.getElementById('leave-type') as HTMLInputElement).value.trim();
+    const start_date = (document.getElementById('leave-start') as HTMLInputElement).value;
+    const end_date = (document.getElementById('leave-end') as HTMLInputElement).value;
+    const duration_days = parseInt((document.getElementById('leave-duration') as HTMLInputElement).value);
+
+    try {
+      await apiRequest('employee-leaves/', {
+        method: 'POST',
+        body: JSON.stringify({ employee, leave_type, start_date, end_date, duration_days, status: 'scheduled' })
+      });
+      showToast('Leave scheduled successfully!', 'success');
+      close();
+      await syncAppData();
+      renderApp();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to file leave', 'error');
+    }
+  });
+}
+
+// ── NOTES TAB ──
+interface NoteItem {
+  id: number;
+  title: string;
+  body: string;
+  date: string;
+  schedule?: string;
+}
+
+function getLocalNotes(): NoteItem[] {
+  try {
+    const raw = localStorage.getItem('admin-suite.notes');
+    return raw ? JSON.parse(raw) : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function saveLocalNotes(notes: NoteItem[]) {
+  localStorage.setItem('admin-suite.notes', JSON.stringify(notes));
+}
+
+function drawNotesTab(): string {
+  const notes = getLocalNotes();
+  const notesHtml = notes.map(n => `
+    <div class="note-card">
+      <div class="note-header">
+        <h3 class="note-title">${sanitizeHtml(n.title)}</h3>
+        <div style="display:flex; gap:6px;">
+          <button class="btn btn-ghost btn-sm edit-note-btn" data-note-id="${n.id}" style="padding:2px;">
+            ${getIconSvg('edit')}
+          </button>
+          <button class="btn btn-ghost btn-sm delete-note-btn" data-note-id="${n.id}" style="color:var(--danger); padding:2px;">
+            ${getIconSvg('trash')}
+          </button>
+        </div>
+      </div>
+      <div class="note-body">${sanitizeHtml(n.body)}</div>
+      ${n.schedule ? `
+        <div style="display:flex; align-items:center; gap:4px; font-size:11px; font-weight:600; color:var(--accent); background:var(--secondary); padding:4px 8px; border-radius:4px; margin-top:8px;">
+          ${getIconSvg('clock')}
+          <span>Plan: ${sanitizeHtml(n.schedule)}</span>
+        </div>
+      ` : ''}
+      <div class="note-date" style="margin-top:auto; padding-top:12px;">Created: ${sanitizeHtml(n.date)}</div>
+    </div>
+  `).join('');
+
+  return `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
+      <h2 class="topbar-title">Personal Notes & Scheduled Plans</h2>
+      <button class="btn btn-primary" id="add-note-btn">
+        ${getIconSvg('plus')} Add Note
+      </button>
+    </div>
+    
+    <div class="notes-grid">
+      ${notesHtml || '<div class="card" style="grid-column:1/-1; padding:48px 24px; text-align:center; color:var(--muted-foreground)">No notes recorded yet. Click Add Note to write down plans.</div>'}
+    </div>
+  `;
+}
+
+function bindNotesEvents() {
+  document.getElementById('add-note-btn')?.addEventListener('click', () => openNoteModal());
+
+  document.querySelectorAll('.delete-note-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const id = parseInt((e.currentTarget as HTMLElement).dataset.noteId || '0');
+      let notes = getLocalNotes();
+      notes = notes.filter(n => n.id !== id);
+      saveLocalNotes(notes);
+      showToast('Note deleted successfully', 'error');
+      renderApp();
+    });
+  });
+
+  document.querySelectorAll('.edit-note-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const id = parseInt((e.currentTarget as HTMLElement).dataset.noteId || '0');
+      const note = getLocalNotes().find(n => n.id === id);
+      if (note) openNoteModal(note);
+    });
+  });
+}
+
+function openNoteModal(note?: NoteItem) {
+  const modalContainer = document.getElementById('modal-container');
+  if (!modalContainer) return;
+
+  modalContainer.innerHTML = DOMPurify.sanitize(`
+    <div class="modal-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <h2 class="modal-title">${note ? 'Edit Note & Plan' : 'New Note & Plan'}</h2>
+          <button class="modal-close" id="modal-close-btn">${getIconSvg('x')}</button>
+        </div>
+        <form id="note-form">
+          <div class="modal-body" style="display:flex; flex-direction:column; gap:14px;">
+            <div class="form-group">
+              <label class="form-label" for="note-title-input">Title</label>
+              <input type="text" class="form-input" id="note-title-input" required placeholder="Note Title" value="${note ? sanitizeHtml(note.title) : ''}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label" for="note-body-input">Body Content</label>
+              <textarea class="form-input" id="note-body-input" required placeholder="Write down plans, lists, thoughts..." rows="6">${note ? sanitizeHtml(note.body) : ''}</textarea>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label" for="note-schedule-input">Schedule Plan (Optional Date & Time)</label>
+              <input type="datetime-local" class="form-input" id="note-schedule-input" value="${note?.schedule ? sanitizeHtml(note.schedule) : ''}">
+            </div>
+          </div>
+          
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline" id="modal-cancel-btn">Cancel</button>
+            <button type="submit" class="btn btn-primary">${note ? 'Save Changes' : 'Save Note'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `);
+
+  const close = () => { if (modalContainer) modalContainer.innerHTML = DOMPurify.sanitize(''); };
+  document.getElementById('modal-close-btn')?.addEventListener('click', close);
+  document.getElementById('modal-cancel-btn')?.addEventListener('click', close);
+
+  const form = document.getElementById('note-form') as HTMLFormElement;
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const title = (document.getElementById('note-title-input') as HTMLInputElement).value.trim();
+    const body = (document.getElementById('note-body-input') as HTMLTextAreaElement).value.trim();
+    const schedule = (document.getElementById('note-schedule-input') as HTMLInputElement).value;
+
+    let notes = getLocalNotes();
+    if (note) {
+      // Edit
+      notes = notes.map(n => n.id === note.id ? { ...n, title, body, schedule: schedule || undefined } : n);
+      showToast('Note updated successfully!', 'success');
+    } else {
+      // Create
+      const newNote: NoteItem = {
+        id: Date.now(),
+        title,
+        body,
+        date: new Date().toLocaleString(),
+        schedule: schedule || undefined
+      };
+      notes.push(newNote);
+      showToast('Note saved!', 'success');
+    }
+    saveLocalNotes(notes);
+    close();
+    renderApp();
+  });
+}
