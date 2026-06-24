@@ -3,26 +3,26 @@
    ============================================================ */
 
 :root {
-  /* Light Theme Colors (Clean B&W with Forest Green accents) */
-  --background: #fcfcfc;
+  /* Light Theme Colors — Pure Black & White */
+  --background: #f8f8f8;
   --foreground: #111111;
   --card: #ffffff;
   --card-foreground: #111111;
   --primary: #111111;
   --primary-foreground: #ffffff;
-  --secondary: #f4f4f5;
+  --secondary: #f2f2f2;
   --secondary-foreground: #18181b;
-  --muted: #f4f4f5;
-  --muted-foreground: #71717a;
-  --accent: #1b5e20;
-  --accent-hover: #2e7d32;
+  --muted: #f2f2f2;
+  --muted-foreground: #6b7280;
+  --accent: #111111;
+  --accent-hover: #374151;
   --accent-foreground: #ffffff;
-  --success: #16a34a;
-  --warning: #ca8a04;
+  --success: #059669;
+  --warning: #d97706;
   --danger: #dc2626;
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
-  --border: #e4e4e7;
+  --border: #e5e7eb;
   --input: #ffffff;
   
   --radius: 8px;
@@ -30,40 +30,40 @@
   --radius-lg: 12px;
   --radius-full: 9999px;
   
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-lg: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.07), 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -1px rgba(0, 0, 0, 0.05);
   
   --transition: 150ms ease;
   --sidebar-width: 260px;
 }
 
 [data-theme="dark"] {
-  /* Dark Theme Colors (Deep Charcoal/Black with Bright Green accents) */
-  --background: #09090b;
-  --foreground: #fafafa;
-  --card: #18181b;
-  --card-foreground: #fafafa;
-  --primary: #fafafa;
-  --primary-foreground: #09090b;
-  --secondary: #27272a;
-  --secondary-foreground: #fafafa;
-  --muted: #27272a;
-  --muted-foreground: #a1a1aa;
-  --accent: #4caf50;
-  --accent-hover: #66bb6a;
-  --accent-foreground: #09090b;
-  --success: #4caf50;
-  --warning: #fbc02d;
-  --danger: #f44336;
-  --destructive: #f44336;
+  /* Dark Theme Colors — Deep Black & White */
+  --background: #0a0a0a;
+  --foreground: #f5f5f5;
+  --card: #141414;
+  --card-foreground: #f5f5f5;
+  --primary: #f5f5f5;
+  --primary-foreground: #0a0a0a;
+  --secondary: #1f1f1f;
+  --secondary-foreground: #f5f5f5;
+  --muted: #1f1f1f;
+  --muted-foreground: #9ca3af;
+  --accent: #e5e5e5;
+  --accent-hover: #d4d4d4;
+  --accent-foreground: #0a0a0a;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --destructive: #ef4444;
   --destructive-foreground: #ffffff;
-  --border: #27272a;
-  --input: #18181b;
+  --border: #262626;
+  --input: #141414;
   
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
-  --shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.6);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.6);
+  --shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.7);
 }
 
 /* ---------- Reset & Base ---------- */
@@ -226,8 +226,8 @@ input, select, textarea { font-family: inherit; }
 
 .nav-badge {
   margin-left: auto;
-  background: var(--accent);
-  color: var(--accent-foreground);
+  background: var(--secondary);
+  color: var(--foreground);
   font-size: 10px;
   font-weight: 700;
   padding: 1px 6px;
@@ -475,8 +475,8 @@ input, select, textarea { font-family: inherit; }
 }
 
 .stat-card-icon.blue { background: var(--secondary); color: var(--foreground); }
-.stat-card-icon.green { background: rgba(76, 175, 80, 0.1); color: var(--success); }
-.stat-card-icon.orange { background: rgba(251, 192, 45, 0.1); color: var(--warning); }
+.stat-card-icon.green { background: var(--secondary); color: var(--foreground); }
+.stat-card-icon.orange { background: rgba(217, 119, 6, 0.1); color: var(--warning); }
 .stat-card-icon.purple { background: rgba(220, 38, 38, 0.1); color: var(--danger); }
 
 .stat-card-change {
@@ -530,6 +530,30 @@ input, select, textarea { font-family: inherit; }
 .btn svg {
   width: 14px;
   height: 14px;
+}
+
+/* ---------- Font Awesome Icon Sizing ---------- */
+.fa, .fas, .far, .fab, .fal, .fad, .fa-solid, .fa-regular, .fa-brands {
+  font-size: 13px !important;
+  line-height: 1;
+}
+.nav-item .fa, .nav-item .fas, .nav-item .far, .nav-item .fa-solid {
+  font-size: 14px !important;
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.topbar-btn .fa, .topbar-btn .fas, .topbar-btn .fa-solid {
+  font-size: 14px !important;
+}
+.btn .fa, .btn .fas, .btn .fa-solid {
+  font-size: 12px !important;
+}
+.stat-card-icon .fa, .stat-card-icon .fas, .stat-card-icon .fa-solid {
+  font-size: 14px !important;
+}
+.sidebar-logo .fa, .sidebar-logo .fas {
+  font-size: 18px !important;
 }
 
 .btn-primary {
