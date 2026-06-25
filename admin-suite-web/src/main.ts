@@ -6304,14 +6304,14 @@ function updateChatDOM() {
         }
         dateDivider = `
           <div class="chat-date-separator">
-            <span>${displayDate}</span>
+            <span>${sanitizeHtml(displayDate)}</span>
           </div>
         `;
       }
 
       const bubbleHtml = `
         <div class="chat-message ${isOutgoing ? 'outgoing' : 'incoming'}">
-          ${!isOutgoing && c.type === 'group' ? `<div class="chat-contact-avatar" style="width:32px; height:32px; font-size:11px; margin-top:2px; flex-shrink:0;">${initials}</div>` : ''}
+          ${!isOutgoing && c.type === 'group' ? `<div class="chat-contact-avatar" style="width:32px; height:32px; font-size:11px; margin-top:2px; flex-shrink:0;">${sanitizeHtml(initials)}</div>` : ''}
           <div class="chat-message-bubble">
             ${!isOutgoing && c.type === 'group' ? `<div class="chat-message-sender">${senderName}</div>` : ''}
             <p class="chat-message-text">${sanitizeHtml(m.text)}</p>
