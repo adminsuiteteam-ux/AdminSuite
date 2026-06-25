@@ -1020,6 +1020,11 @@ const FA_ICONS: Record<string, string> = {
   'layers': 'fa-solid fa-layer-group',
   'flag': 'fa-solid fa-flag',
   'edit': 'fa-solid fa-pen-to-square',
+  'zap': 'fa-solid fa-bolt',
+  'award': 'fa-solid fa-award',
+  'crown': 'fa-solid fa-crown',
+  'smile': 'fa-solid fa-face-smile',
+  'arrow-left': 'fa-solid fa-arrow-left',
 };
 
 function getIconSvg(name: string, _className = ''): string {
@@ -1087,9 +1092,9 @@ toastContainer.innerHTML = DOMPurify.sanitize(`
 // ============================================================
 
 function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-US', {
+  return new Intl.NumberFormat('en-NG', {
     style: 'currency',
-    currency: 'USD',
+    currency: 'NGN',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0
   }).format(amount);
@@ -3147,7 +3152,7 @@ function drawDeptManagerDashboard(): string {
 }
 
 // ---- Full Admin/CEO/Branch Admin Dashboard ----
-let trackerSeconds = 5048; // starts at 01:24:08
+let trackerSeconds = 0; // starts at 00:00:00
 let trackerInterval: any = null;
 let trackerRunning = false;
 
@@ -3301,23 +3306,12 @@ function drawAdminDashboard(): string {
         <div class="card-header">
           <div class="card-title">${getIconSvg('bar-chart')} Workload Analytics</div>
         </div>
-        <div class="card-body" style="flex:1; display:flex; justify-content:space-around; align-items:flex-end; padding-top:24px;">
-          ${[
-            { day: 'S', h: '30%' },
-            { day: 'M', h: '65%' },
-            { day: 'T', h: '85%' },
-            { day: 'W', h: '50%' },
-            { day: 'T', h: '75%' },
-            { day: 'F', h: '95%' },
-            { day: 'S', h: '40%' }
-          ].map(d => `
-            <div style="display:flex; flex-direction:column; align-items:center; gap:8px; width:12%;">
-              <div style="height:110px; width:100%; background:var(--secondary); border-radius:4px; display:flex; align-items:flex-end; overflow:hidden;">
-                <div style="height:${d.h}; width:100%; background:var(--accent); border-radius:4px; transition:height 0.4s ease;"></div>
-              </div>
-              <span style="font-size:11px; font-weight:700; color:var(--muted-foreground);">${d.day}</span>
-            </div>
-          `).join('')}
+        <div class="card-body" style="flex:1; display:flex; justify-content:center; align-items:center; padding:24px;">
+          <div style="text-align:center; color:var(--muted-foreground);">
+            ${getIconSvg('bar-chart')}
+            <div style="font-size:12px; margin-top:8px; font-weight:500;">No workload data yet.</div>
+            <div style="font-size:11px; margin-top:4px; opacity:0.6;">Data will appear as tasks are logged.</div>
+          </div>
         </div>
       </div>
 
@@ -3325,24 +3319,9 @@ function drawAdminDashboard(): string {
         <div class="card-header">
           <div class="card-title">${getIconSvg('bell')} Upcoming Reminders</div>
         </div>
-        <div class="card-body" style="flex:1; display:flex; flex-direction:column; gap:12px;">
-          <div style="padding:10px; border-radius:var(--radius-sm); background:var(--secondary); border-left:3px solid var(--accent);">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-              <span style="font-size:12px; font-weight:700;">Team Sync Meeting</span>
-              <span style="font-size:10px; color:var(--accent); font-weight:700;">10:00 AM</span>
-            </div>
-            <div style="font-size:11px; color:var(--muted-foreground); margin-bottom:8px;">Discuss project roadmap & milestones</div>
-            <button class="btn btn-primary btn-sm" id="start-meeting-btn" style="width:100%; justify-content:center;">
-              ${getIconSvg('video')} Start Meeting
-            </button>
-          </div>
-          <div style="padding:8px 10px; border-radius:var(--radius-sm); border:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
-            <div>
-              <div style="font-size:12px; font-weight:700;">Client Invoice Due</div>
-              <div style="font-size:11px; color:var(--muted-foreground);">Acme Corp - $4,500</div>
-            </div>
-            <span style="font-size:10px; font-weight:700; color:var(--muted-foreground);">02:30 PM</span>
-          </div>
+        <div class="card-body" style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; padding:24px; text-align:center;">
+          <div style="opacity:0.4;">${getIconSvg('bell')}</div>
+          <div style="font-size:12px; font-weight:600; color:var(--muted-foreground);">No reminders scheduled.</div>
         </div>
       </div>
 
@@ -3444,7 +3423,7 @@ function drawAdminDashboard(): string {
           <div class="card-title">${getIconSvg('clock')} Time Tracker</div>
         </div>
         <div class="card-body" style="flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; padding:24px 20px;">
-          <div id="tracker-display" style="font-size:32px; font-weight:800; font-family:'Outfit', sans-serif; letter-spacing:1px; margin-bottom:16px; font-variant-numeric:tabular-nums;">01:24:08</div>
+          <div id="tracker-display" style="font-size:32px; font-weight:800; font-family:'Outfit', sans-serif; letter-spacing:1px; margin-bottom:16px; font-variant-numeric:tabular-nums;">00:00:00</div>
           <div style="display:flex; gap:10px; width:100%;">
             <button class="btn btn-outline" id="tracker-play-btn" style="flex:1; padding:6px; justify-content:center;">
               ${getIconSvg('play')} Play
@@ -3469,21 +3448,10 @@ function drawAdminDashboard(): string {
         <div class="card-header">
           <div class="card-title">${getIconSvg('activity')} Recent Activity</div>
         </div>
-        <div class="card-body" style="flex:1; max-height:190px; overflow-y:auto; padding:0;">
-          <div style="display:flex; flex-direction:column;">
-            ${[
-              { action: 'Sarah Connor updated Project Alpha', time: '10m ago' },
-              { action: 'New payment of $12,500 from Wayne Corp', time: '1h ago' },
-              { action: 'Dave Bowman scheduled leave request', time: '3h ago' },
-              { action: 'John Doe onboarded into Engineering', time: '1d ago' }
-
-            ].map(a => `
-              <div style="padding:10px 16px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
-                <span style="font-size:12px; font-weight:500; color:var(--foreground);">${sanitizeHtml(a.action)}</span>
-                <span style="font-size:10px; color:var(--muted-foreground); flex-shrink:0;">${a.time}</span>
-              </div>
-            `).join('')}
-          </div>
+        <div class="card-body" style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; padding:24px; text-align:center;">
+          <div style="opacity:0.4;">${getIconSvg('activity')}</div>
+          <div style="font-size:12px; font-weight:600; color:var(--muted-foreground);">No recent activity.</div>
+          <div style="font-size:11px; color:var(--muted-foreground); opacity:0.7;">Actions will appear here as they happen.</div>
         </div>
       </div>
     </div>
@@ -6175,6 +6143,15 @@ async function pollChatData() {
 }
 
 function updateChatDOM() {
+  const chatWrapper = document.querySelector('.chat-wrapper');
+  if (chatWrapper) {
+    if (state.chatActiveContact) {
+      chatWrapper.classList.add('has-active-contact');
+    } else {
+      chatWrapper.classList.remove('has-active-contact');
+    }
+  }
+
   const contactsContainer = document.getElementById('chat-contacts-list-container');
   if (contactsContainer) {
     let contactsHtml = '';
@@ -6200,15 +6177,35 @@ function updateChatDOM() {
         const lastMsg = c.last_message ? sanitizeHtml(c.last_message) : '<span style="font-style:italic; opacity:0.6;">No messages yet</span>';
         const unreadBadge = c.unread_count > 0 ? `<span class="chat-contact-unread">${c.unread_count}</span>` : '';
         
+        // Mock online status: even user IDs are online
+        const isOnline = c.type === 'group' ? false : (c.id % 2 === 0);
+        
+        const lastMsgTime = c.last_message_time ? new Date(c.last_message_time) : null;
+        let formattedLastTime = '';
+        if (lastMsgTime) {
+          const now = new Date();
+          if (lastMsgTime.toDateString() === now.toDateString()) {
+            formattedLastTime = lastMsgTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          } else {
+            formattedLastTime = lastMsgTime.toLocaleDateString([], { month: 'short', day: 'numeric' });
+          }
+        }
+
         return `
           <div class="chat-contact-item ${isActive ? 'active' : ''}" data-chat-id="${c.id}" data-chat-type="${c.type}">
-            <div class="chat-contact-avatar">${avatarHtml}</div>
+            <div class="chat-contact-avatar-wrapper">
+              <div class="chat-contact-avatar">${avatarHtml}</div>
+              ${isOnline ? `<span class="online-indicator"></span>` : ''}
+            </div>
             <div class="chat-contact-info">
-              <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom: 2px;">
                 <div class="chat-contact-name">${sanitizeHtml(c.name)}</div>
+                <div class="chat-contact-time">${formattedLastTime}</div>
+              </div>
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div class="chat-contact-msg">${lastMsg}</div>
                 ${unreadBadge}
               </div>
-              <div class="chat-contact-msg">${lastMsg}</div>
             </div>
           </div>
         `;
@@ -6237,58 +6234,105 @@ function updateChatDOM() {
   const viewportContainer = document.getElementById('chat-viewport-container');
   if (viewportContainer) {
     if (!state.chatActiveContact) {
-
       viewportContainer.innerHTML = DOMPurify.sanitize(`
         <div class="chat-empty-state">
-          <div class="chat-empty-icon">💬</div>
-          <h3>Welcome to Team Chat</h3>
-          <p style="color:var(--muted-foreground); font-size:14px;">Select a conversation to start messaging your colleagues.</p>
+          <div class="chat-empty-icon" style="font-size: 64px; opacity: 0.3;">💬</div>
+          <h3 style="font-size: 22px; font-weight: 300; margin-top: 8px;">AdminSuite Web Chat</h3>
+          <p style="color:var(--muted-foreground); font-size:14px; max-width: 320px; text-align: center; margin-top: 4px; line-height: 1.5;">Send and receive messages with your organization members. Messages are synced automatically.</p>
         </div>
-
       `);
       return;
     }
 
     const c = state.chatActiveContact;
+    const isOnline = c.type === 'group' ? false : (c.id % 2 === 0);
 
     const headerHtml = `
       <div class="chat-header">
         <div class="chat-header-info">
-          <div class="chat-contact-avatar" style="width:36px; height:36px; font-size:12px;">
-            ${c.avatar ? `<img src="${c.avatar}" alt="${sanitizeHtml(c.name)}">` : sanitizeHtml(c.initials || c.name.slice(0,2).toUpperCase())}
+          <button class="chat-mobile-back-btn" id="chat-mobile-back-btn" style="background:none; border:none; color:inherit; cursor:pointer; font-size:16px; display:none; align-items:center; justify-content:center; padding:4px; margin-right:8px;">
+            ${getIconSvg('arrow-left')}
+          </button>
+          <div class="chat-contact-avatar-wrapper">
+            <div class="chat-contact-avatar" style="width:40px; height:40px; font-size:13px;">
+              ${c.avatar ? `<img src="${c.avatar}" alt="${sanitizeHtml(c.name)}">` : sanitizeHtml(c.initials || c.name.slice(0,2).toUpperCase())}
+            </div>
+            ${isOnline ? `<span class="online-indicator"></span>` : ''}
           </div>
           <div>
             <div class="chat-header-name">${sanitizeHtml(c.name)}</div>
-            <div class="chat-header-status">${c.type === 'group' ? 'Group Workspace' : 'Direct Message'}</div>
+            <div class="chat-header-status">${c.type === 'group' ? 'Group Workspace' : (isOnline ? 'Online' : 'Offline')}</div>
           </div>
         </div>
+        <div style="display:flex; gap:16px; color:var(--muted-foreground);">
+          <button style="background:none; border:none; color:inherit; cursor:pointer; font-size:16px;">${getIconSvg('search')}</button>
+          <button style="background:none; border:none; color:inherit; cursor:pointer; font-size:16px;">${getIconSvg('menu')}</button>
+        </div>
       </div>
-
     `;
 
+    const doubleCheckSvg = `
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color:#53bdeb; display:inline-block; vertical-align:middle; margin-left:3px;">
+        <path d="M17 5L8.5 13.5L5 10"></path>
+        <path d="M22 8L15 15"></path>
+      </svg>
+    `;
+
+    let lastDateStr = '';
     const msgsHtml = state.chatMessages.map(m => {
       const isOutgoing = m.sender && m.sender.id === state.user?.id;
       const initials = m.sender ? (m.sender.name ? m.sender.name.slice(0, 2).toUpperCase() : m.sender.username.slice(0, 2).toUpperCase()) : '??';
       const senderName = m.sender ? sanitizeHtml(m.sender.name || m.sender.username) : 'System';
-      const formattedTime = new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       
-      return `
+      const msgDate = new Date(m.created_at);
+      const formattedTime = msgDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      
+      // Calculate Date divider
+      const today = new Date();
+      const yesterday = new Date();
+      yesterday.setDate(today.getDate() - 1);
+      
+      let dateDivider = '';
+      const dateStr = msgDate.toDateString();
+      if (dateStr !== lastDateStr) {
+        lastDateStr = dateStr;
+        let displayDate = msgDate.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+        if (dateStr === today.toDateString()) {
+          displayDate = 'Today';
+        } else if (dateStr === yesterday.toDateString()) {
+          displayDate = 'Yesterday';
+        }
+        dateDivider = `
+          <div class="chat-date-separator">
+            <span>${displayDate}</span>
+          </div>
+        `;
+      }
+
+      const bubbleHtml = `
         <div class="chat-message ${isOutgoing ? 'outgoing' : 'incoming'}">
-          ${isOutgoing ? '' : `<div class="chat-message-avatar">${initials}</div>`}
-          <div class="chat-message-body">
-            ${isOutgoing ? '' : `<div class="chat-message-sender">${senderName}</div>`}
-            <div class="chat-message-text">${sanitizeHtml(m.text)}</div>
-            <div class="chat-message-time">${formattedTime}</div>
+          ${!isOutgoing && c.type === 'group' ? `<div class="chat-contact-avatar" style="width:32px; height:32px; font-size:11px; margin-top:2px; flex-shrink:0;">${initials}</div>` : ''}
+          <div class="chat-message-bubble">
+            ${!isOutgoing && c.type === 'group' ? `<div class="chat-message-sender">${senderName}</div>` : ''}
+            <p class="chat-message-text">${sanitizeHtml(m.text)}</p>
+            <div class="chat-message-meta">
+              <span class="chat-message-time">${formattedTime}</span>
+              ${isOutgoing ? doubleCheckSvg : ''}
+            </div>
           </div>
         </div>
-
       `;
+      
+      return dateDivider + bubbleHtml;
     }).join('');
 
     const footerHtml = `
       <div class="chat-footer">
-        <input type="text" class="chat-input" id="chat-message-input-field" placeholder="Type a message..." autocomplete="off">
-        <button class="chat-send-button" id="chat-send-message-btn">${getIconSvg('send')}</button>
+        <button class="chat-emoji-btn" type="button" title="Emojis">${getIconSvg('smile')}</button>
+        <div class="chat-input-wrapper">
+          <input type="text" class="chat-input" id="chat-message-input-field" placeholder="Type a message..." autocomplete="off">
+        </div>
+        <button class="chat-send-button" id="chat-send-message-btn" title="Send">${getIconSvg('send')}</button>
       </div>
     `;
 
@@ -6307,6 +6351,14 @@ function updateChatDOM() {
 
     const inputField = document.getElementById('chat-message-input-field') as HTMLInputElement;
     const sendBtn = document.getElementById('chat-send-message-btn');
+    const backBtn = document.getElementById('chat-mobile-back-btn');
+
+    if (backBtn) {
+      backBtn.addEventListener('click', () => {
+        state.chatActiveContact = null;
+        updateChatDOM();
+      });
+    }
 
     const sendMessage = async () => {
       if (!inputField) return;
@@ -6469,118 +6521,159 @@ function drawChatTab(): string {
         overflow: hidden;
       }
       .chat-sidebar {
-        width: 300px;
+        width: 320px;
+        background: var(--secondary);
         border-right: 1px solid var(--border);
         display: flex;
         flex-direction: column;
         flex-shrink: 0;
       }
       .chat-sidebar-header {
-        padding: 16px;
-        border-bottom: 1px solid var(--border);
+        padding: 12px 16px;
+        background: var(--card);
+        border-bottom: 1.5px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
       }
       .chat-sidebar-search {
         position: relative;
-        margin-top: 10px;
       }
       .chat-sidebar-search input {
         width: 100%;
-        padding: 8px 12px 8px 32px;
-        border: 1px solid var(--border);
-        border-radius: var(--radius-md);
-        background: var(--background);
+        padding: 8px 12px 8px 36px;
+        border: none;
+        border-radius: 20px;
+        background: var(--secondary);
         color: var(--foreground);
+        font-size: 13px;
+        outline: none;
       }
       .chat-sidebar-search svg {
         position: absolute;
-        left: 10px;
+        left: 12px;
         top: 50%;
         transform: translateY(-50%);
         color: var(--muted-foreground);
+        width: 14px;
+        height: 14px;
       }
       .chat-contacts {
         flex: 1;
         overflow-y: auto;
-        padding: 8px;
+        padding: 0;
+        background: var(--card);
         display: flex;
         flex-direction: column;
-        gap: 4px;
       }
       .chat-contact-item {
         display: flex;
         align-items: center;
         gap: 12px;
-        padding: 10px;
-        border-radius: var(--radius-md);
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--border);
         cursor: pointer;
-        transition: background 0.2s ease;
+        transition: background 0.15s ease;
       }
       .chat-contact-item:hover {
-        background: rgba(255, 255, 255, 0.05);
+        background: var(--secondary);
       }
       .chat-contact-item.active {
-        background: var(--accent);
-        color: #fff;
+        background: rgba(255, 255, 255, 0.08);
+      }
+      [data-theme="light"] .chat-contact-item.active {
+        background: rgba(0, 0, 0, 0.05);
+      }
+      .chat-contact-avatar-wrapper {
+        position: relative;
+        flex-shrink: 0;
       }
       .chat-contact-avatar {
-        width: 40px;
-        height: 40px;
+        width: 45px;
+        height: 45px;
         border-radius: 50%;
         background: rgba(255, 255, 255, 0.1);
         display: flex;
         align-items: center;
         justify-content: center;
         font-weight: bold;
-        flex-shrink: 0;
+        overflow: hidden;
       }
       .chat-contact-avatar img {
         width: 100%;
         height: 100%;
-        border-radius: 50%;
         object-fit: cover;
+      }
+      .online-indicator {
+        position: absolute;
+        bottom: 1px;
+        right: 1px;
+        width: 12px;
+        height: 12px;
+        background-color: var(--success);
+        border: 2.5px solid var(--card);
+        border-radius: 50%;
       }
       .chat-contact-info {
         flex: 1;
         min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
       }
       .chat-contact-name {
         font-weight: 600;
-        font-size: 14px;
+        font-size: 15px;
+        color: var(--foreground);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
       }
+      .chat-contact-time {
+        font-size: 11px;
+        color: var(--muted-foreground);
+        font-weight: 500;
+      }
       .chat-contact-msg {
-        font-size: 12px;
+        font-size: 13px;
         color: var(--muted-foreground);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
       }
-      .chat-contact-item.active .chat-contact-msg {
-        color: rgba(255, 255, 255, 0.8);
-      }
       .chat-contact-unread {
-        background: #ef4444;
+        background: #25d366;
         color: #fff;
-        font-size: 10px;
-        padding: 2px 6px;
-        border-radius: 10px;
-        font-weight: bold;
+        font-size: 10.5px;
+        min-width: 19px;
+        height: 19px;
+        padding: 0 5px;
+        border-radius: 50%;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
       }
       .chat-content {
         flex: 1;
         display: flex;
         flex-direction: column;
-        background: rgba(0, 0, 0, 0.02);
+        background-color: #0b141a;
+        background-image: radial-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 0);
+        background-size: 24px 24px;
+      }
+      [data-theme="light"] .chat-content {
+        background-color: #efeae2;
+        background-image: radial-gradient(rgba(0, 0, 0, 0.02) 1px, transparent 0);
       }
       .chat-header {
-        padding: 16px 24px;
-        border-bottom: 1px solid var(--border);
+        padding: 10px 16px;
+        background: var(--secondary);
+        border-bottom: 1.5px solid var(--border);
         display: flex;
         align-items: center;
         justify-content: space-between;
-        background: var(--card);
       }
       .chat-header-info {
         display: flex;
@@ -6588,8 +6681,9 @@ function drawChatTab(): string {
         gap: 12px;
       }
       .chat-header-name {
-        font-weight: 700;
+        font-weight: 600;
         font-size: 16px;
+        color: var(--foreground);
       }
       .chat-header-status {
         font-size: 12px;
@@ -6598,96 +6692,166 @@ function drawChatTab(): string {
       .chat-messages {
         flex: 1;
         overflow-y: auto;
-        padding: 24px;
+        padding: 20px 30px;
         display: flex;
         flex-direction: column;
-        gap: 16px;
+        gap: 12px;
       }
       .chat-message {
         display: flex;
-        gap: 12px;
-        max-width: 70%;
+        gap: 10px;
+        max-width: 65%;
       }
       .chat-message.incoming {
         align-self: flex-start;
       }
       .chat-message.outgoing {
         align-self: flex-end;
-        flex-direction: row-reverse;
       }
-      .chat-message-avatar {
-        width: 32px;
-        height: 32px;
-        border-radius: 50%;
-        background: rgba(255, 255, 255, 0.1);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 12px;
-        font-weight: bold;
-        flex-shrink: 0;
-      }
-      .chat-message-body {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-      }
-      .chat-message-sender {
-        font-size: 11px;
-        color: var(--muted-foreground);
-        font-weight: 600;
-      }
-      .chat-message-text {
-        padding: 10px 14px;
-        border-radius: var(--radius-md);
-        background: var(--background);
-        border: 1px solid var(--border);
-        font-size: 14px;
-        line-height: 1.4;
+      .chat-message-bubble {
+        position: relative;
+        padding: 6px 70px 6px 12px;
+        min-width: 100px;
+        border-radius: 8.5px;
+        box-shadow: 0 1px 1px rgba(0,0,0,0.1);
+        font-size: 14.5px;
+        line-height: 1.45;
         word-break: break-word;
       }
-      .chat-message.outgoing .chat-message-text {
-        background: var(--accent);
-        color: #fff;
-        border: none;
+      .chat-message.incoming .chat-message-bubble {
+        background: var(--card);
+        color: var(--foreground);
+        border-top-left-radius: 0;
       }
-      .chat-message-time {
+      .chat-message.incoming .chat-message-bubble::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: -8px;
+        width: 0;
+        height: 0;
+        border-top: 0px solid transparent;
+        border-bottom: 8px solid transparent;
+        border-right: 8px solid var(--card);
+      }
+      .chat-message.outgoing .chat-message-bubble {
+        background: #005c4b;
+        color: #e9edef;
+        border-top-right-radius: 0;
+      }
+      .chat-message.outgoing .chat-message-bubble::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        right: -8px;
+        width: 0;
+        height: 0;
+        border-top: 0px solid transparent;
+        border-bottom: 8px solid transparent;
+        border-left: 8px solid #005c4b;
+      }
+      [data-theme="light"] .chat-message.outgoing .chat-message-bubble {
+        background: #d9fdd3;
+        color: #111b21;
+      }
+      [data-theme="light"] .chat-message.outgoing .chat-message-bubble::before {
+        border-left-color: #d9fdd3;
+      }
+      .chat-message-sender {
+        font-size: 12px;
+        color: #00a884;
+        font-weight: 700;
+        margin-bottom: 3px;
+      }
+      .chat-message-text {
+        margin: 0;
+      }
+      .chat-message-meta {
+        position: absolute;
+        bottom: 2px;
+        right: 7px;
+        display: flex;
+        align-items: center;
+        gap: 3px;
         font-size: 10px;
         color: var(--muted-foreground);
-        align-self: flex-end;
+      }
+      .chat-message.outgoing .chat-message-meta {
+        color: rgba(233, 237, 239, 0.6);
+      }
+      [data-theme="light"] .chat-message.outgoing .chat-message-meta {
+        color: rgba(17, 27, 33, 0.6);
+      }
+      .chat-date-separator {
+        display: flex;
+        justify-content: center;
+        margin: 12px 0;
+        width: 100%;
+      }
+      .chat-date-separator span {
+        background: var(--secondary);
+        color: var(--muted-foreground);
+        font-size: 11px;
+        font-weight: 600;
+        padding: 5px 12px;
+        border-radius: 8px;
+        box-shadow: 0 1px 1px rgba(0,0,0,0.08);
       }
       .chat-footer {
-        padding: 16px 24px;
-        border-top: 1px solid var(--border);
-        background: var(--card);
+        padding: 10px 16px;
+        background: var(--secondary);
+        border-top: 1.5px solid var(--border);
         display: flex;
         gap: 12px;
         align-items: center;
       }
-      .chat-input {
-        flex: 1;
-        padding: 10px 14px;
-        border: 1px solid var(--border);
-        border-radius: var(--radius-md);
-        background: var(--background);
+      .chat-emoji-btn {
+        background: none;
+        border: none;
+        color: var(--muted-foreground);
+        font-size: 20px;
+        cursor: pointer;
+        padding: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: color 0.15s ease;
+      }
+      .chat-emoji-btn:hover {
         color: var(--foreground);
-        font-size: 14px;
+      }
+      .chat-input-wrapper {
+        flex: 1;
+        position: relative;
+        display: flex;
+        align-items: center;
+      }
+      .chat-input {
+        width: 100%;
+        padding: 9px 16px;
+        border: none;
+        border-radius: 20px;
+        background: var(--card);
+        color: var(--foreground);
+        font-size: 14.5px;
         outline: none;
       }
       .chat-send-button {
-        padding: 10px 16px;
-        border-radius: var(--radius-md);
-        background: var(--accent);
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: #00a884;
         color: #fff;
         border: none;
         cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
-        transition: background 0.2s ease;
+        transition: background 0.15s ease;
+        flex-shrink: 0;
       }
       .chat-send-button:hover {
-        background: var(--accent-hover);
+        background: #008f72;
       }
       .chat-empty-state {
         flex: 1;
@@ -6702,7 +6866,6 @@ function drawChatTab(): string {
         font-size: 48px;
         opacity: 0.5;
       }
-      
       .chat-modal-overlay {
         position: fixed;
         top: 0;
@@ -6802,7 +6965,7 @@ function drawPricingTab(): string {
       period: '',
       color: '#6366f1',
       gradient: 'linear-gradient(135deg,#4338ca 0%,#7c3aed 100%)',
-      icon: '🚀',
+      icon: 'zap',
       description: 'Perfect for solo founders getting started.',
       features: [
         '5 Employees',
@@ -6818,11 +6981,11 @@ function drawPricingTab(): string {
     {
       id: 'PREMIUM',
       name: 'Premium',
-      price: '$19',
+      price: '₦19',
       period: '/month',
       color: '#f59e0b',
       gradient: 'linear-gradient(135deg,#d97706 0%,#f59e0b 100%)',
-      icon: '⭐',
+      icon: 'star',
       description: 'For growing teams that need more capacity.',
       features: [
         'Unlimited Employees',
@@ -6839,11 +7002,11 @@ function drawPricingTab(): string {
     {
       id: 'PRO',
       name: 'Pro',
-      price: '$49',
+      price: '₦49',
       period: '/month',
       color: 'var(--foreground)',
       gradient: 'linear-gradient(135deg, var(--foreground) 0%, #555 100%)',
-      icon: '💎',
+      icon: 'award',
       popular: true,
       description: 'Full power for serious organizations.',
       features: [
@@ -6862,12 +7025,12 @@ function drawPricingTab(): string {
     {
       id: 'PRO_YEARLY',
       name: 'Pro Annual',
-      price: '$469',
+      price: '₦469',
       period: '/year',
       color: '#ec4899',
       gradient: 'linear-gradient(135deg,#db2777 0%,#f472b6 100%)',
-      icon: '👑',
-      badge: 'Best Value — Save $119',
+      icon: 'crown',
+      badge: 'Best Value — Save ₦119',
       description: 'All Pro features at a discounted annual rate.',
       features: [
         'Everything in Pro',
@@ -6911,7 +7074,7 @@ function drawPricingTab(): string {
         ${isCurrent ? `<div style="position:absolute;top:16px;left:16px;background:var(--accent);color:var(--accent-foreground);font-size:10px;font-weight:700;padding:3px 10px;border-radius:12px;border:1px solid var(--border);">ACTIVE</div>` : ''}
 
         <div style="text-align:center;padding-top:${isCurrent || p.popular || (p as any).badge ? '12px' : '0'}">
-          <div style="font-size:40px;margin-bottom:8px;">${p.icon}</div>
+          <div style="display:inline-flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:50%;background:var(--secondary);color:${p.color};margin-bottom:12px;font-size:24px;">${getIconSvg(p.icon)}</div>
           <div style="font-size:20px;font-weight:800;color:var(--foreground);">${p.name}</div>
           <div style="font-size:13px;color:var(--muted-foreground);margin-top:4px;">${sanitizeHtml(p.description)}</div>
         </div>
@@ -8007,7 +8170,7 @@ function openNoteModal(note?: NoteItem) {
     <div class="modal-overlay">
       <div class="modal">
         <div class="modal-header">
-          <h2 class="modal-title">${note ? 'Edit Note & Plan' : 'New Note & Plan'}</h2>
+          <h2 class="modal-title">${note ? 'Edit Note' : 'New Note'}</h2>
           <button class="modal-close" id="modal-close-btn">${getIconSvg('x')}</button>
         </div>
         <form id="note-form">
@@ -8020,11 +8183,6 @@ function openNoteModal(note?: NoteItem) {
             <div class="form-group">
               <label class="form-label" for="note-body-input">Body Content</label>
               <textarea class="form-input" id="note-body-input" required placeholder="Write down plans, lists, thoughts..." rows="6">${note ? sanitizeHtml(note.body) : ''}</textarea>
-            </div>
-            
-            <div class="form-group">
-              <label class="form-label" for="note-schedule-input">Schedule Plan (Optional Date & Time)</label>
-              <input type="datetime-local" class="form-input" id="note-schedule-input" value="${note?.schedule ? sanitizeHtml(note.schedule) : ''}">
             </div>
           </div>
           
@@ -8046,12 +8204,11 @@ function openNoteModal(note?: NoteItem) {
     e.preventDefault();
     const title = (document.getElementById('note-title-input') as HTMLInputElement).value.trim();
     const body = (document.getElementById('note-body-input') as HTMLTextAreaElement).value.trim();
-    const schedule = (document.getElementById('note-schedule-input') as HTMLInputElement).value;
 
     let notes = getLocalNotes();
     if (note) {
       // Edit
-      notes = notes.map(n => n.id === note.id ? { ...n, title, body, schedule: schedule || undefined } : n);
+      notes = notes.map(n => n.id === note.id ? { ...n, title, body, date: new Date().toLocaleString() } : n);
       showToast('Note updated successfully!', 'success');
     } else {
       // Create
@@ -8059,8 +8216,7 @@ function openNoteModal(note?: NoteItem) {
         id: Date.now(),
         title,
         body,
-        date: new Date().toLocaleString(),
-        schedule: schedule || undefined
+        date: new Date().toLocaleString()
       };
       notes.push(newNote);
       showToast('Note saved!', 'success');
