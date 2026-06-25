@@ -1200,7 +1200,9 @@ input, select, textarea { font-family: inherit; }
    ============================================================ */
 .chat-wrapper {
   display: flex;
-  height: calc(100vh - 56px - 48px); /* 56px topbar + 48px page padding */
+  /* topbar=56px + page top-padding=24px + a little buffer */
+  height: calc(100vh - 56px - 24px - 16px);
+  min-height: 500px;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);

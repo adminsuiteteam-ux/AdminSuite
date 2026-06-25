@@ -1112,6 +1112,7 @@ function navigateToTab(tab: typeof state.activeTab) {
   if (state.chatPollTimer && tab !== 'chat') {
     clearInterval(state.chatPollTimer);
     state.chatPollTimer = null;
+    _renderedContactKey = null; // reset so chat re-renders fully on return
   }
   state.activeTab = tab;
   state.isMobileSidebarOpen = false;
@@ -6142,7 +6143,205 @@ async function pollChatData() {
   }
 }
 
+
+// ─── Track which contact is currently rendered in the viewport ───────────────
+let _renderedContactKey: string | null = null;
+
+function _getChatContactKey(c: any): string {
+  return c ? `${c.type}:${c.id}` : '';
+}
+
+// Builds the messages HTML only (no header, no footer)
+function _buildMessagesHtml(c: any): string {
+  if (!state.chatMessages || state.chatMessages.length === 0) {
+    return '<div style="text-align:center; padding:40px; color:var(--muted-foreground); font-size:13px;">No messages in this chat yet. Say hello! 👋</div>';
+  }
+
+  const doubleCheckSvg = `
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color:#53bdeb; display:inline-block; vertical-align:middle; margin-left:3px;">
+      <path d="M17 5L8.5 13.5L5 10"></path>
+      <path d="M22 8L15 15"></path>
+    </svg>
+  `;
+
+  let lastDateStr = '';
+  return state.chatMessages.map((m: any) => {
+    const isOutgoing = m.sender && m.sender.id === state.user?.id;
+    const initials = m.sender
+      ? (m.sender.name ? m.sender.name.slice(0, 2).toUpperCase() : m.sender.username.slice(0, 2).toUpperCase())
+      : '??';
+    const senderName = m.sender ? sanitizeHtml(m.sender.name || m.sender.username) : 'System';
+
+    const msgDate = new Date(m.created_at);
+    const formattedTime = msgDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+
+    let dateDivider = '';
+    const dateStr = msgDate.toDateString();
+    if (dateStr !== lastDateStr) {
+      lastDateStr = dateStr;
+      let displayDate = msgDate.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+      if (dateStr === today.toDateString()) displayDate = 'Today';
+      else if (dateStr === yesterday.toDateString()) displayDate = 'Yesterday';
+      dateDivider = `<div class="chat-date-separator"><span>${sanitizeHtml(displayDate)}</span></div>`;
+    }
+
+    const bubbleHtml = `
+      <div class="chat-message ${isOutgoing ? 'outgoing' : 'incoming'}">
+        ${!isOutgoing && c.type === 'group' ? `<div class="chat-contact-avatar" style="width:32px; height:32px; font-size:11px; margin-top:2px; flex-shrink:0;">${sanitizeHtml(initials)}</div>` : ''}
+        <div class="chat-message-bubble">
+          ${!isOutgoing && c.type === 'group' ? `<div class="chat-message-sender">${senderName}</div>` : ''}
+          <p class="chat-message-text">${sanitizeHtml(m.text)}</p>
+          <div class="chat-message-meta">
+            <span class="chat-message-time">${formattedTime}</span>
+            ${isOutgoing ? doubleCheckSvg : ''}
+          </div>
+        </div>
+      </div>
+    `;
+    return dateDivider + bubbleHtml;
+  }).join('');
+}
+
+// Full render — called only when switching contacts
+function renderChatViewport(viewportContainer: HTMLElement) {
+  const c = state.chatActiveContact;
+  const isOnline = c.type === 'group' ? false : (c.id % 2 === 0);
+
+  viewportContainer.innerHTML = DOMPurify.sanitize(`
+    <div class="chat-header" id="chat-header-bar">
+      <div class="chat-header-info">
+        <button class="chat-mobile-back-btn" id="chat-mobile-back-btn" style="background:none; border:none; color:inherit; cursor:pointer; display:none; align-items:center; justify-content:center; padding:4px; margin-right:8px;">
+          ${getIconSvg('arrow-left')}
+        </button>
+        <div class="chat-contact-avatar-wrapper">
+          <div class="chat-contact-avatar" style="width:40px; height:40px; font-size:13px;">
+            ${c.avatar ? `<img src="${c.avatar}" alt="${sanitizeHtml(c.name)}">` : sanitizeHtml(c.initials || c.name.slice(0,2).toUpperCase())}
+          </div>
+          ${isOnline ? `<span class="online-indicator"></span>` : ''}
+        </div>
+        <div>
+          <div class="chat-header-name">${sanitizeHtml(c.name)}</div>
+          <div class="chat-header-status">${c.type === 'group' ? 'Group Workspace' : (isOnline ? 'Online' : 'Offline')}</div>
+        </div>
+      </div>
+      <div style="display:flex; gap:16px; color:var(--muted-foreground);">
+        <button style="background:none; border:none; color:inherit; cursor:pointer;">${getIconSvg('search')}</button>
+        <button style="background:none; border:none; color:inherit; cursor:pointer;">${getIconSvg('menu')}</button>
+      </div>
+    </div>
+
+    <div class="chat-messages" id="chat-messages-scroll-container">
+      ${_buildMessagesHtml(c)}
+    </div>
+
+    <div class="chat-footer" id="chat-footer-bar">
+      <button class="chat-emoji-btn" type="button" id="chat-emoji-btn" title="Emojis">${getIconSvg('smile')}</button>
+      <div class="chat-input-wrapper">
+        <input type="text" class="chat-input" id="chat-message-input-field" placeholder="Type a message..." autocomplete="off" spellcheck="true">
+      </div>
+      <button class="chat-send-button" id="chat-send-message-btn" title="Send">${getIconSvg('send')}</button>
+    </div>
+  `);
+
+  // Scroll to bottom
+  const scrollEl = document.getElementById('chat-messages-scroll-container');
+  if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
+
+  // Wire up events
+  _bindChatViewportEvents();
+}
+
+// Lightweight refresh — only update messages list, never touch input
+function refreshChatMessages() {
+  const scrollEl = document.getElementById('chat-messages-scroll-container');
+  if (!scrollEl) return;
+
+  const c = state.chatActiveContact;
+  if (!c) return;
+
+  // Save scroll position: only auto-scroll if already near bottom
+  const wasAtBottom = scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight < 80;
+
+  scrollEl.innerHTML = DOMPurify.sanitize(_buildMessagesHtml(c));
+
+  if (wasAtBottom) {
+    scrollEl.scrollTop = scrollEl.scrollHeight;
+  }
+}
+
+// Bind input / send / back events (called after full render)
+function _bindChatViewportEvents() {
+  const inputField = document.getElementById('chat-message-input-field') as HTMLInputElement;
+  const sendBtn = document.getElementById('chat-send-message-btn');
+  const backBtn = document.getElementById('chat-mobile-back-btn');
+
+  if (backBtn) {
+    backBtn.addEventListener('click', () => {
+      state.chatActiveContact = null;
+      _renderedContactKey = null;
+      updateChatDOM();
+    });
+  }
+
+  const sendMessage = async () => {
+    if (!inputField) return;
+    const text = inputField.value.trim();
+    if (!text) return;
+
+    inputField.value = '';
+    inputField.focus();
+
+    try {
+      const body: any = { text };
+      if (state.chatActiveContact.type === 'private') {
+        body.recipient_id = state.chatActiveContact.id;
+      } else if (state.chatActiveContact.id !== 'group') {
+        body.group_id = state.chatActiveContact.id;
+      }
+
+      await apiRequest('chat/send/', {
+        method: 'POST',
+        body: JSON.stringify(body)
+      });
+
+      // Fetch updated messages and refresh only the messages list
+      const url = state.chatActiveContact.type === 'private'
+        ? `chat/messages/?recipient_id=${state.chatActiveContact.id}`
+        : state.chatActiveContact.id !== 'group'
+          ? `chat/messages/?group_id=${state.chatActiveContact.id}`
+          : 'chat/messages/';
+      state.chatMessages = await apiRequest(url);
+      refreshChatMessages();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to send message', 'error');
+    }
+  };
+
+  if (inputField) {
+    // Prevent any parent keydown handlers from interfering
+    inputField.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+    inputField.addEventListener('keyup', (e) => e.stopPropagation());
+    inputField.addEventListener('keypress', (e) => e.stopPropagation());
+    inputField.focus();
+  }
+
+  if (sendBtn) {
+    sendBtn.addEventListener('click', sendMessage);
+  }
+}
+
 function updateChatDOM() {
+  // Update mobile class on wrapper
   const chatWrapper = document.querySelector('.chat-wrapper');
   if (chatWrapper) {
     if (state.chatActiveContact) {
@@ -6152,43 +6351,45 @@ function updateChatDOM() {
     }
   }
 
+  // ── Update contacts list ─────────────────────────────────────────────────
   const contactsContainer = document.getElementById('chat-contacts-list-container');
   if (contactsContainer) {
-    let contactsHtml = '';
-    
-    const sortedContacts = [...state.chatContacts].sort((a, b) => {
+    const sortedContacts = [...state.chatContacts].sort((a: any, b: any) => {
       const timeA = a.last_message_time ? new Date(a.last_message_time).getTime() : 0;
       const timeB = b.last_message_time ? new Date(b.last_message_time).getTime() : 0;
       return timeB - timeA;
     });
 
-    const filteredContacts = sortedContacts.filter(c => 
+    const filteredContacts = sortedContacts.filter((c: any) =>
       c.name.toLowerCase().includes(chatSearchQuery.toLowerCase())
     );
 
+    let contactsHtml = '';
     if (filteredContacts.length === 0) {
       contactsHtml = `<div style="text-align:center; padding:20px; color:var(--muted-foreground);">No conversations found.</div>`;
     } else {
-      contactsHtml = filteredContacts.map(c => {
-        const isActive = state.chatActiveContact && state.chatActiveContact.id === c.id && state.chatActiveContact.type === c.type;
-        const avatarHtml = c.avatar 
+      contactsHtml = filteredContacts.map((c: any) => {
+        const isActive = state.chatActiveContact
+          && state.chatActiveContact.id === c.id
+          && state.chatActiveContact.type === c.type;
+        const avatarHtml = c.avatar
           ? `<img src="${c.avatar}" alt="${sanitizeHtml(c.name)}">`
           : sanitizeHtml(c.initials || c.name.slice(0, 2).toUpperCase());
-        const lastMsg = c.last_message ? sanitizeHtml(c.last_message) : '<span style="font-style:italic; opacity:0.6;">No messages yet</span>';
-        const unreadBadge = c.unread_count > 0 ? `<span class="chat-contact-unread">${c.unread_count}</span>` : '';
-        
-        // Mock online status: even user IDs are online
+        const lastMsg = c.last_message
+          ? sanitizeHtml(c.last_message)
+          : '<span style="font-style:italic; opacity:0.6;">No messages yet</span>';
+        const unreadBadge = c.unread_count > 0
+          ? `<span class="chat-contact-unread">${c.unread_count}</span>`
+          : '';
         const isOnline = c.type === 'group' ? false : (c.id % 2 === 0);
-        
+
         const lastMsgTime = c.last_message_time ? new Date(c.last_message_time) : null;
         let formattedLastTime = '';
         if (lastMsgTime) {
           const now = new Date();
-          if (lastMsgTime.toDateString() === now.toDateString()) {
-            formattedLastTime = lastMsgTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-          } else {
-            formattedLastTime = lastMsgTime.toLocaleDateString([], { month: 'short', day: 'numeric' });
-          }
+          formattedLastTime = lastMsgTime.toDateString() === now.toDateString()
+            ? lastMsgTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            : lastMsgTime.toLocaleDateString([], { month: 'short', day: 'numeric' });
         }
 
         return `
@@ -6198,7 +6399,7 @@ function updateChatDOM() {
               ${isOnline ? `<span class="online-indicator"></span>` : ''}
             </div>
             <div class="chat-contact-info">
-              <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom: 2px;">
+              <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:2px;">
                 <div class="chat-contact-name">${sanitizeHtml(c.name)}</div>
                 <div class="chat-contact-time">${formattedLastTime}</div>
               </div>
@@ -6211,10 +6412,11 @@ function updateChatDOM() {
         `;
       }).join('');
     }
+
     contactsContainer.innerHTML = DOMPurify.sanitize(contactsHtml);
-    
+
     contactsContainer.querySelectorAll('.chat-contact-item').forEach(item => {
-      item.addEventListener('click', (e) => {
+      item.addEventListener('click', async (e) => {
         const target = e.currentTarget as HTMLElement;
         const chatId = target.dataset.chatId;
         const chatType = target.dataset.chatType;
@@ -6223,181 +6425,41 @@ function updateChatDOM() {
           const contact = state.chatContacts.find((c: any) => c.id === id && c.type === chatType);
           if (contact) {
             state.chatActiveContact = contact;
-            pollChatData();
-            updateChatDOM();
+            _renderedContactKey = null; // force full re-render
+            await pollChatData();
           }
         }
       });
     });
   }
 
+  // ── Update viewport ──────────────────────────────────────────────────────
   const viewportContainer = document.getElementById('chat-viewport-container');
-  if (viewportContainer) {
-    if (!state.chatActiveContact) {
-      viewportContainer.innerHTML = DOMPurify.sanitize(`
-        <div class="chat-empty-state">
-          <div class="chat-empty-icon" style="font-size: 64px; opacity: 0.3;">💬</div>
-          <h3 style="font-size: 22px; font-weight: 300; margin-top: 8px;">AdminSuite Web Chat</h3>
-          <p style="color:var(--muted-foreground); font-size:14px; max-width: 320px; text-align: center; margin-top: 4px; line-height: 1.5;">Send and receive messages with your organization members. Messages are synced automatically.</p>
-        </div>
-      `);
-      return;
-    }
+  if (!viewportContainer) return;
 
-    const c = state.chatActiveContact;
-    const isOnline = c.type === 'group' ? false : (c.id % 2 === 0);
-
-    const headerHtml = `
-      <div class="chat-header">
-        <div class="chat-header-info">
-          <button class="chat-mobile-back-btn" id="chat-mobile-back-btn" style="background:none; border:none; color:inherit; cursor:pointer; font-size:16px; display:none; align-items:center; justify-content:center; padding:4px; margin-right:8px;">
-            ${getIconSvg('arrow-left')}
-          </button>
-          <div class="chat-contact-avatar-wrapper">
-            <div class="chat-contact-avatar" style="width:40px; height:40px; font-size:13px;">
-              ${c.avatar ? `<img src="${c.avatar}" alt="${sanitizeHtml(c.name)}">` : sanitizeHtml(c.initials || c.name.slice(0,2).toUpperCase())}
-            </div>
-            ${isOnline ? `<span class="online-indicator"></span>` : ''}
-          </div>
-          <div>
-            <div class="chat-header-name">${sanitizeHtml(c.name)}</div>
-            <div class="chat-header-status">${c.type === 'group' ? 'Group Workspace' : (isOnline ? 'Online' : 'Offline')}</div>
-          </div>
-        </div>
-        <div style="display:flex; gap:16px; color:var(--muted-foreground);">
-          <button style="background:none; border:none; color:inherit; cursor:pointer; font-size:16px;">${getIconSvg('search')}</button>
-          <button style="background:none; border:none; color:inherit; cursor:pointer; font-size:16px;">${getIconSvg('menu')}</button>
-        </div>
-      </div>
-    `;
-
-    const doubleCheckSvg = `
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color:#53bdeb; display:inline-block; vertical-align:middle; margin-left:3px;">
-        <path d="M17 5L8.5 13.5L5 10"></path>
-        <path d="M22 8L15 15"></path>
-      </svg>
-    `;
-
-    let lastDateStr = '';
-    const msgsHtml = state.chatMessages.map(m => {
-      const isOutgoing = m.sender && m.sender.id === state.user?.id;
-      const initials = m.sender ? (m.sender.name ? m.sender.name.slice(0, 2).toUpperCase() : m.sender.username.slice(0, 2).toUpperCase()) : '??';
-      const senderName = m.sender ? sanitizeHtml(m.sender.name || m.sender.username) : 'System';
-      
-      const msgDate = new Date(m.created_at);
-      const formattedTime = msgDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      
-      // Calculate Date divider
-      const today = new Date();
-      const yesterday = new Date();
-      yesterday.setDate(today.getDate() - 1);
-      
-      let dateDivider = '';
-      const dateStr = msgDate.toDateString();
-      if (dateStr !== lastDateStr) {
-        lastDateStr = dateStr;
-        let displayDate = msgDate.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
-        if (dateStr === today.toDateString()) {
-          displayDate = 'Today';
-        } else if (dateStr === yesterday.toDateString()) {
-          displayDate = 'Yesterday';
-        }
-        dateDivider = `
-          <div class="chat-date-separator">
-            <span>${sanitizeHtml(displayDate)}</span>
-          </div>
-        `;
-      }
-
-      const bubbleHtml = `
-        <div class="chat-message ${isOutgoing ? 'outgoing' : 'incoming'}">
-          ${!isOutgoing && c.type === 'group' ? `<div class="chat-contact-avatar" style="width:32px; height:32px; font-size:11px; margin-top:2px; flex-shrink:0;">${sanitizeHtml(initials)}</div>` : ''}
-          <div class="chat-message-bubble">
-            ${!isOutgoing && c.type === 'group' ? `<div class="chat-message-sender">${senderName}</div>` : ''}
-            <p class="chat-message-text">${sanitizeHtml(m.text)}</p>
-            <div class="chat-message-meta">
-              <span class="chat-message-time">${formattedTime}</span>
-              ${isOutgoing ? doubleCheckSvg : ''}
-            </div>
-          </div>
-        </div>
-      `;
-      
-      return dateDivider + bubbleHtml;
-    }).join('');
-
-    const footerHtml = `
-      <div class="chat-footer">
-        <button class="chat-emoji-btn" type="button" title="Emojis">${getIconSvg('smile')}</button>
-        <div class="chat-input-wrapper">
-          <input type="text" class="chat-input" id="chat-message-input-field" placeholder="Type a message..." autocomplete="off">
-        </div>
-        <button class="chat-send-button" id="chat-send-message-btn" title="Send">${getIconSvg('send')}</button>
-      </div>
-    `;
-
+  if (!state.chatActiveContact) {
+    _renderedContactKey = null;
     viewportContainer.innerHTML = DOMPurify.sanitize(`
-      ${headerHtml}
-      <div class="chat-messages" id="chat-messages-scroll-container">
-        ${msgsHtml || '<div style="text-align:center; padding:40px; color:var(--muted-foreground); font-size:13px;">No messages in this chat yet. Say hello!</div>'}
+      <div class="chat-empty-state">
+        <div style="font-size:64px; opacity:0.3;">💬</div>
+        <h3 style="font-size:22px; font-weight:300; margin-top:8px;">AdminSuite Web Chat</h3>
+        <p style="color:var(--muted-foreground); font-size:14px; max-width:320px; text-align:center; margin-top:4px; line-height:1.5;">
+          Send and receive messages with your organization members. Messages are synced automatically.
+        </p>
       </div>
-      ${footerHtml}
     `);
+    return;
+  }
 
-    const scrollContainer = document.getElementById('chat-messages-scroll-container');
-    if (scrollContainer) {
-      scrollContainer.scrollTop = scrollContainer.scrollHeight;
-    }
+  const newKey = _getChatContactKey(state.chatActiveContact);
 
-    const inputField = document.getElementById('chat-message-input-field') as HTMLInputElement;
-    const sendBtn = document.getElementById('chat-send-message-btn');
-    const backBtn = document.getElementById('chat-mobile-back-btn');
-
-    if (backBtn) {
-      backBtn.addEventListener('click', () => {
-        state.chatActiveContact = null;
-        updateChatDOM();
-      });
-    }
-
-    const sendMessage = async () => {
-      if (!inputField) return;
-      const text = inputField.value.trim();
-      if (!text) return;
-      
-      inputField.value = '';
-      
-      try {
-        const body: any = { text };
-        if (state.chatActiveContact.type === 'private') {
-          body.recipient_id = state.chatActiveContact.id;
-        } else if (state.chatActiveContact.id !== 'group') {
-          body.group_id = state.chatActiveContact.id;
-        }
-
-        await apiRequest('chat/send/', {
-          method: 'POST',
-          body: JSON.stringify(body)
-        });
-
-        await pollChatData();
-      } catch (err: any) {
-        showToast(err.message || 'Failed to send message', 'error');
-      }
-    };
-
-    if (inputField) {
-      inputField.focus();
-      inputField.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-          sendMessage();
-        }
-      });
-    }
-
-    if (sendBtn) {
-      sendBtn.addEventListener('click', sendMessage);
-    }
+  if (newKey !== _renderedContactKey) {
+    // Contact changed — full re-render including header and footer
+    _renderedContactKey = newKey;
+    renderChatViewport(viewportContainer);
+  } else {
+    // Same contact — only refresh messages, preserve the input
+    refreshChatMessages();
   }
 }
 
@@ -6506,7 +6568,7 @@ function bindChatEvents() {
     clearInterval(state.chatPollTimer);
   }
   pollChatData();
-  state.chatPollTimer = setInterval(pollChatData, 3000);
+  state.chatPollTimer = setInterval(pollChatData, 5000);
 }
 
 function drawChatTab(): string {
