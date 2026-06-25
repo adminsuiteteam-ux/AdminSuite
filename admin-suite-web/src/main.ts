@@ -279,6 +279,7 @@ function drawPhoneInput(inputId: string, value: string = '', placeholder: string
   const displayValue = parsed.nationalNumber;
   const country = getSelectedCountry(inputId);
 
+
   return `
     <div class="phone-input-wrapper" id="${inputId}-wrapper">
       <button type="button" class="phone-country-btn" id="${inputId}-country-btn" aria-label="Select country code">
@@ -293,13 +294,16 @@ function drawPhoneInput(inputId: string, value: string = '', placeholder: string
           <input type="text" class="phone-dropdown-search" id="${inputId}-search" placeholder="Search countries..." autocomplete="off">
         </div>
         <div class="phone-dropdown-list" id="${inputId}-list">
-          ${COUNTRIES.map(c => `
-            <button type="button" class="phone-dropdown-item ${c.code === country.code ? 'selected' : ''}" data-code="${c.code}">
-              <span class="phone-dropdown-flag">${c.flag}</span>
-              <span class="phone-dropdown-name">${c.name}</span>
-              <span class="phone-dropdown-dial">${c.dial}</span>
-            </button>
-          `).join('')}
+          ${COUNTRIES.map(c => {
+            const isSelected = c.code === country.code ? 'selected' : '';
+            return `
+              <button type="button" class="phone-dropdown-item ${isSelected}" data-code="${sanitizeHtml(c.code)}">
+                <span class="phone-dropdown-flag">${sanitizeHtml(c.flag)}</span>
+                <span class="phone-dropdown-name">${sanitizeHtml(c.name)}</span>
+                <span class="phone-dropdown-dial">${sanitizeHtml(c.dial)}</span>
+              </button>
+            `;
+          }).join('')}
         </div>
       </div>
     </div>
@@ -937,7 +941,7 @@ const HEARD_FROM_OPTIONS = [
   { value: 'youtube', label: 'YouTube', icon: '▶', color: '#ef4444' },
   { value: 'tiktok', label: 'TikTok', icon: '♪', color: '#00f2fe' },
   { value: 'facebook', label: 'Facebook & Socials', icon: 'f', color: '#1877f2' },
-  { value: 'friend', label: 'A Friend / Colleague', icon: '👤', color: '#10b981' },
+  { value: 'friend', label: 'A Friend / Colleague', icon: '👤', color: 'var(--foreground)' },
   { value: 'others', label: 'Other Sources', icon: '•••', color: '#6366f1' }
 ];
 
@@ -1019,14 +1023,18 @@ const FA_ICONS: Record<string, string> = {
 };
 
 function getIconSvg(name: string, _className = ''): string {
-  const faClass = FA_ICONS[name] || 'fa-solid fa-circle-info';
-  return `<i class="${faClass}" aria-hidden="true"></i>`;
+  const faClass = safeProp(FA_ICONS, name as any) || 'fa-solid fa-circle-info';
+
+  return `<i class="${sanitizeHtml(faClass)}" aria-hidden="true"></i>`;
 }
 
 // LogoMark using mask-image with the unified triangle-wedge logo PNG
 function getLogoMarkSvg(size = 56, color = 'var(--foreground)'): string {
+  const sanitizedSize = Number(size) || 56;
+  const sanitizedColor = sanitizeHtml(color);
+
   return `
-    <span style="display: block; width: ${size}px; height: ${size}px; background-color: ${color}; -webkit-mask: url(/logo.png) no-repeat center / contain; mask: url(/logo.png) no-repeat center / contain;"></span>
+    <span style="display: block; width: ${sanitizedSize}px; height: ${sanitizedSize}px; background-color: ${sanitizedColor}; -webkit-mask: url(/logo.png) no-repeat center / contain; mask: url(/logo.png) no-repeat center / contain;"></span>
   `;
 }
 
@@ -1200,6 +1208,7 @@ export function renderApp() {
       bindOfflineEvents();
       break;
     case 'app':
+
       root.innerHTML = DOMPurify.sanitize(`
         <div class="app-layout">
           <div id="sidebar-overlay" class="sidebar-overlay ${state.isMobileSidebarOpen ? 'open' : ''}"></div>
@@ -1367,6 +1376,7 @@ function drawTour(): string {
     <span class="tour-dot ${i === state.activeTourSlide ? 'active' : ''}" 
           style="width: ${i === state.activeTourSlide ? '20px' : '8px'};"></span>
   `).join('');
+
 
   return `
     <div class="tour-container">
@@ -1739,13 +1749,19 @@ function bindRegisterEvents() {
         const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e'];
         const segs = document.querySelectorAll('.pwd-seg') as NodeListOf<HTMLElement>;
         segs.forEach((s, i) => {
-          s.style.background = i < score ? colors[score - 1] : 'var(--border)';
+          s.style.background = i < score ? (colors.at(score - 1) ?? 'var(--border)') : 'var(--border)';
         });
         const req = (id: string, ok: boolean) => {
           const el = document.getElementById(id);
           if (el) {
-            el.style.color = ok ? '#22c55e' : 'var(--muted-foreground)';
-            el.innerHTML = (ok ? '&#10003;' : '&#10007;') + el.innerHTML.slice(1);
+            el.style.color = ok ? 'var(--foreground)' : 'var(--muted-foreground)';
+            // Use textContent to safely update the check/cross character without innerHTML
+            const icon = ok ? '✓' : '✗';
+            const labelNode = el.querySelector('.req-label');
+            if (labelNode) {
+              labelNode.textContent = el.textContent?.slice(1) ?? '';
+            }
+            el.textContent = icon + (el.textContent?.slice(1) ?? '');
           }
         };
         req('req-len', hasLen);
@@ -1982,6 +1998,7 @@ function drawCompleteProfile(): string {
         </div>
       </div>
     </div>
+
   `;
 }
 
@@ -1990,6 +2007,7 @@ function drawCompleteProfileSlideBody(): string {
 
   switch (state.completeProfileSlide) {
     case 0: // Discovery Source
+
       return `
         <h2 style="font-size:20px; font-weight:700; margin-bottom:12px;">How did you find us?</h2>
         <p style="color:var(--muted-foreground); font-size:14px; margin-bottom:24px;">Please select how you heard about Admin Suite to help us scale.</p>
@@ -2006,6 +2024,7 @@ function drawCompleteProfileSlideBody(): string {
       `;
     
     case 1: // Role Selection
+
       return `
         <h2 style="font-size:20px; font-weight:700; margin-bottom:12px;">Choose your workspace role</h2>
         <p style="color:var(--muted-foreground); font-size:14px; margin-bottom:24px;">Select the title that best describes your workspace responsibilities.</p>
@@ -2535,6 +2554,7 @@ function drawTopbar(): string {
         ${drawNotificationDropdown()}
       </div>
     </header>
+
   `;
 }
 
@@ -2858,6 +2878,7 @@ function drawEmployeePersonalDashboard(): string {
               <span style="color:var(--muted-foreground);">Reimbursements Pending</span>
               <span style="font-weight:600; color:var(--success); font-variant-numeric: tabular-nums;">${formatCurrency(emp.finance.company_owes_employee)}</span>
             </div>
+
             ` : ''}
             <div style="display:flex; justify-content:space-between; font-weight:700; font-size:14px; margin-top:4px; border-top:1px dashed var(--border); padding-top:8px;">
               <span>Net Pay Estimate</span>
@@ -2867,6 +2888,7 @@ function drawEmployeePersonalDashboard(): string {
         </div>
       </div>
     </div>
+
   `;
 }
 
@@ -2922,6 +2944,7 @@ function drawHRDashboard(): string {
         </div>
       </div>
     </div>
+
   `;
 }
 
@@ -2972,6 +2995,7 @@ function drawFinanceDashboard(): string {
         </div>
       </div>
     </div>
+
   `;
 }
 
@@ -3020,6 +3044,7 @@ function drawOpsDashboard(): string {
         </div>
       </div>
     </div>
+
   `;
 }
 
@@ -3451,6 +3476,7 @@ function drawAdminDashboard(): string {
               { action: 'New payment of $12,500 from Wayne Corp', time: '1h ago' },
               { action: 'Dave Bowman scheduled leave request', time: '3h ago' },
               { action: 'John Doe onboarded into Engineering', time: '1d ago' }
+
             ].map(a => `
               <div style="padding:10px 16px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
                 <span style="font-size:12px; font-weight:500; color:var(--foreground);">${sanitizeHtml(a.action)}</span>
@@ -3508,6 +3534,7 @@ function drawAdminDashboard(): string {
                 <div style="font-size:10px; font-weight:700; width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${sanitizeHtml(e.name.split(' ')[0] || e.name)}</div>
                 <div style="font-size:8.5px; color:var(--muted-foreground); width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${sanitizeHtml(e.department || 'Staff')}</div>
               </div>
+
             `).join('') || '<div style="grid-column:1/-1; padding:24px; text-align:center; color:var(--muted-foreground); font-size:12px;">No members.</div>'}
           </div>
         </div>
@@ -3581,6 +3608,7 @@ function drawAlertsPanel(): string {
   `;
   }).join('');
 
+
   return `
     <div class="card" style="margin-bottom:24px; border:1px solid rgba(239,68,68,0.25);">
       <div class="card-header">
@@ -3594,6 +3622,7 @@ function drawAlertsPanel(): string {
         ${alertItems}
       </div>
     </div>
+
   `;
 }
 
@@ -3604,7 +3633,7 @@ function drawQuotaBars(): string {
 
   const plan = sub.plan || 'BASIC';
   const usage = sub.usage as Record<string, { current: number; limit: number }>;
-  const planColor: Record<string, string> = { BASIC: '#6366f1', PREMIUM: '#f59e0b', ENTERPRISE: '#10b981' };
+  const planColor: Record<string, string> = { BASIC: '#6366f1', PREMIUM: '#f59e0b', ENTERPRISE: 'var(--foreground)' };
   const color = planColor[plan] || '#6366f1';
 
   const barItems = Object.entries(usage).map(([key, val]: [string, any]) => {
@@ -3643,8 +3672,8 @@ function drawBranchLeaderboard(): string {
 
   const sorted = [...branches].sort((a: any, b: any) => b.netProfit - a.netProfit);
   const rows = sorted.map((b: any, i: number) => {
-    const rankColor = ['#f59e0b', '#9ca3af', '#cd7f32'][i] || 'var(--muted-foreground)';
-    const profitColor = b.netProfit >= 0 ? '#10b981' : '#ef4444';
+    const rankColor = ['#f59e0b', '#9ca3af', '#cd7f32'].at(i) || 'var(--muted-foreground)';
+    const profitColor = b.netProfit >= 0 ? 'var(--foreground)' : '#ef4444';
     return `
       <tr style="border-bottom:1px solid var(--border);">
         <td style="padding:12px 8px; font-size:18px; font-weight:800; color:${rankColor}; text-align:center;">#${i + 1}</td>
@@ -3716,11 +3745,11 @@ function drawFinancialCategories(): string {
     <div class="content-grid" style="margin-bottom:24px;">
       <div class="card">
         <div class="card-header">
-          <div class="card-title" style="color:#10b981;">↓ Income by Category</div>
+          <div class="card-title">↓ Income by Category</div>
           <span style="font-size:12px; color:var(--muted-foreground);">${formatCurrency(totalIncome)} total</span>
         </div>
         <div class="card-body">
-          ${makeBar(incomeItems, totalIncome, '#10b981') || '<div style="color:var(--muted-foreground); font-size:13px;">No income categories.</div>'}
+          ${makeBar(incomeItems, totalIncome, 'var(--foreground)') || '<div style="color:var(--muted-foreground); font-size:13px;">No income categories.</div>'}
         </div>
       </div>
       <div class="card">
@@ -3898,10 +3927,10 @@ function drawDashboardSvgChart(): string {
       <div style="display:flex; justify-content:space-between; align-items:center;">
         <div style="display:flex; align-items:center; gap:8px;">
           <div style="position:relative; width:12px; height:12px; display:flex; align-items:center; justify-content:center;">
-            <div class="live-dot-pulse" style="position:absolute; width:12px; height:12px; border-radius:50%; background:#22c55e;"></div>
-            <div style="width:6px; height:6px; border-radius:50%; background:#22c55e;"></div>
+            <div class="live-dot-pulse" style="position:absolute; width:12px; height:12px; border-radius:50%; background:var(--foreground);"></div>
+            <div style="width:6px; height:6px; border-radius:50%; background:var(--foreground);"></div>
           </div>
-          <span style="color:#22c55e; font-size:10px; font-weight:700; letter-spacing:1.2px;">LIVE</span>
+          <span style="color:var(--foreground); font-size:10px; font-weight:700; letter-spacing:1.2px;">LIVE</span>
           <h3 style="font-size:16px; font-weight:700; margin:0; margin-left:4px; color:var(--foreground);">Financial Pulse</h3>
         </div>
         
@@ -3939,7 +3968,7 @@ function drawDashboardSvgChart(): string {
         <!-- Income Pill -->
         <div style="flex:1; min-width:0;">
           <div style="display:flex; align-items:center; gap:5px; margin-bottom:2px;">
-            <div style="width:7px; height:7px; border-radius:50%; background:#22c55e;"></div>
+            <div style="width:7px; height:7px; border-radius:50%; background:var(--foreground);"></div>
             <span style="color:var(--muted-foreground); font-size:10px; text-transform:uppercase; font-weight:600; letter-spacing:0.5px;">In</span>
           </div>
           <div style="color:var(--foreground); font-size:14px; font-weight:700; font-variant-numeric:tabular-nums;">${formatCurrency(totalIncome)}</div>
@@ -3959,17 +3988,19 @@ function drawDashboardSvgChart(): string {
         <svg viewBox="0 0 500 240" style="width:100%; min-width:400px; display:block;">
           <defs>
             <linearGradient id="incomeFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#22c55e" stop-opacity="0.18"></stop>
-              <stop offset="100%" stop-color="#22c55e" stop-opacity="0.00"></stop>
+              <stop offset="0%" stop-color="var(--foreground)" stop-opacity="0.10"></stop>
+              <stop offset="100%" stop-color="var(--foreground)" stop-opacity="0.00"></stop>
             </linearGradient>
           </defs>
 
           <!-- Grid Lines -->
+
           ${yTicks.map(tv => {
             const y = yFor(tv);
             return `
               <line x1="${PADDING.left}" x2="${500 - PADDING.right}" y1="${y}" y2="${y}" stroke="var(--border)" stroke-dasharray="3" stroke-width="1"></line>
               <text x="${PADDING.left - 8}" y="${y + 4}" fill="var(--muted-foreground)" font-size="9.5" font-weight="600" text-anchor="end">${formatCurrencyShort(tv)}</text>
+
             `;
           }).join('')}
 
@@ -3981,13 +4012,14 @@ function drawDashboardSvgChart(): string {
           <!-- Curves -->
           ${expensePath ? `<path d="${expensePath}" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path>` : ''}
           ${profitPath ? `<path d="${profitPath}" fill="none" stroke="#f97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path>` : ''}
-          ${incomePath ? `<path d="${incomePath}" fill="none" stroke="#22c55e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>` : ''}
+          ${incomePath ? `<path d="${incomePath}" fill="none" stroke="var(--foreground)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>` : ''}
 
           <!-- Pulsing Pin Points for Last Coordinates -->
           ${[
-            { last: incomePts.at(-1), color: '#22c55e' },
+            { last: incomePts.at(-1), color: 'var(--foreground)' },
             { last: profitPts.at(-1), color: '#f97316' },
             { last: expensePts.at(-1), color: '#ef4444' }
+
           ].map(s => {
             if (!s.last) return '';
             return `
@@ -4011,18 +4043,19 @@ function drawDashboardSvgChart(): string {
                 <rect x="${incP.x - 15}" y="${PADDING.top}" width="30" height="${innerH}" fill="transparent"></rect>
                 
                 <!-- Bullet points shown on hover -->
-                <circle cx="${incP.x}" cy="${incP.y}" r="4" fill="#22c55e" stroke="var(--background)" stroke-width="1.5" style="display:none;" class="hover-dot"></circle>
+                <circle cx="${incP.x}" cy="${incP.y}" r="4" fill="var(--foreground)" stroke="var(--background)" stroke-width="1.5" style="display:none;" class="hover-dot"></circle>
                 <circle cx="${expP.x}" cy="${expP.y}" r="4" fill="#ef4444" stroke="var(--background)" stroke-width="1.5" style="display:none;" class="hover-dot"></circle>
                 <circle cx="${prfP.x}" cy="${prfP.y}" r="4" fill="#f97316" stroke="var(--background)" stroke-width="1.5" style="display:none;" class="hover-dot"></circle>
                 
                 <g class="chart-tooltip-g" style="display:none; pointer-events:none;">
                   <rect x="${incP.x - 65}" y="${tooltipY - 62}" width="130" height="52" rx="6" fill="var(--foreground)" opacity="0.96" filter="drop-shadow(0 4px 6px rgba(0,0,0,0.15))"></rect>
                   <text x="${incP.x}" y="${tooltipY - 48}" fill="var(--background)" font-size="9" font-weight="700" text-anchor="middle">${lab}</text>
-                  <text x="${incP.x}" y="${tooltipY - 36}" fill="#22c55e" font-size="8.5" font-weight="700" text-anchor="middle">In: ${formatCurrency(res.income.at(i) || 0)}</text>
+                  <text x="${incP.x}" y="${tooltipY - 36}" fill="var(--foreground)" font-size="8.5" font-weight="700" text-anchor="middle">In: ${formatCurrency(res.income.at(i) || 0)}</text>
                   <text x="${incP.x}" y="${tooltipY - 24}" fill="#ef4444" font-size="8.5" font-weight="700" text-anchor="middle">Out: ${formatCurrency(res.expense.at(i) || 0)}</text>
                   <text x="${incP.x}" y="${tooltipY - 14}" fill="#f97316" font-size="8.5" font-weight="700" text-anchor="middle">Net: ${formatCurrency(profit.at(i) || 0)}</text>
                 </g>
               </g>
+
             `;
           }).join('')}
 
@@ -4036,7 +4069,7 @@ function drawDashboardSvgChart(): string {
       <!-- Legend Row -->
       <div style="display:flex; justify-content:center; gap:20px; margin-top:4px;">
         <div style="display:flex; align-items:center; gap:6px;">
-          <div style="width:8px; height:8px; border-radius:50%; background:#22c55e;"></div>
+          <div style="width:8px; height:8px; border-radius:50%; background:var(--foreground);"></div>
           <span style="color:var(--muted-foreground); font-size:11px; font-weight:600;">Income</span>
         </div>
         <div style="display:flex; align-items:center; gap:6px;">
@@ -4969,6 +5002,7 @@ function drawFinanceTab(): string {
           <div class="progress-fill ${b.color || 'blue'}" style="width: ${pct}%;"></div>
         </div>
       </div>
+
     `;
   }).join('');
 
@@ -6161,7 +6195,7 @@ function updateChatDOM() {
       contactsHtml = filteredContacts.map(c => {
         const isActive = state.chatActiveContact && state.chatActiveContact.id === c.id && state.chatActiveContact.type === c.type;
         const avatarHtml = c.avatar 
-          ? `<img src="${c.avatar}" alt="${sanitizeHtml(c.name)}">` 
+          ? `<img src="${c.avatar}" alt="${sanitizeHtml(c.name)}">`
           : sanitizeHtml(c.initials || c.name.slice(0, 2).toUpperCase());
         const lastMsg = c.last_message ? sanitizeHtml(c.last_message) : '<span style="font-style:italic; opacity:0.6;">No messages yet</span>';
         const unreadBadge = c.unread_count > 0 ? `<span class="chat-contact-unread">${c.unread_count}</span>` : '';
@@ -6203,17 +6237,20 @@ function updateChatDOM() {
   const viewportContainer = document.getElementById('chat-viewport-container');
   if (viewportContainer) {
     if (!state.chatActiveContact) {
+
       viewportContainer.innerHTML = DOMPurify.sanitize(`
         <div class="chat-empty-state">
           <div class="chat-empty-icon">💬</div>
           <h3>Welcome to Team Chat</h3>
           <p style="color:var(--muted-foreground); font-size:14px;">Select a conversation to start messaging your colleagues.</p>
         </div>
+
       `);
       return;
     }
 
     const c = state.chatActiveContact;
+
     const headerHtml = `
       <div class="chat-header">
         <div class="chat-header-info">
@@ -6226,6 +6263,7 @@ function updateChatDOM() {
           </div>
         </div>
       </div>
+
     `;
 
     const msgsHtml = state.chatMessages.map(m => {
@@ -6243,6 +6281,7 @@ function updateChatDOM() {
             <div class="chat-message-time">${formattedTime}</div>
           </div>
         </div>
+
       `;
     }).join('');
 
@@ -6802,8 +6841,8 @@ function drawPricingTab(): string {
       name: 'Pro',
       price: '$49',
       period: '/month',
-      color: '#10b981',
-      gradient: 'linear-gradient(135deg,#059669 0%,#34d399 100%)',
+      color: 'var(--foreground)',
+      gradient: 'linear-gradient(135deg, var(--foreground) 0%, #555 100%)',
       icon: '💎',
       popular: true,
       description: 'Full power for serious organizations.',
@@ -6852,6 +6891,7 @@ function drawPricingTab(): string {
       </div>
     `).join('');
 
+
     return `
       <div class="pricing-card ${isCurrent ? 'pricing-current' : ''}" data-plan="${p.id}" style="
         position:relative;
@@ -6868,7 +6908,7 @@ function drawPricingTab(): string {
       ">
         ${p.popular ? `<div style="position:absolute;top:-14px;left:50%;transform:translateX(-50%);background:${p.gradient};color:#fff;font-size:11px;font-weight:800;padding:4px 16px;border-radius:20px;letter-spacing:1px;white-space:nowrap;">MOST POPULAR</div>` : ''}
         ${(p as any).badge ? `<div style="position:absolute;top:16px;right:16px;background:${p.gradient};color:#fff;font-size:10px;font-weight:700;padding:3px 10px;border-radius:12px;">${sanitizeHtml((p as any).badge)}</div>` : ''}
-        ${isCurrent ? `<div style="position:absolute;top:16px;left:16px;background:#22c55e22;color:#22c55e;font-size:10px;font-weight:700;padding:3px 10px;border-radius:12px;border:1px solid #22c55e;">ACTIVE</div>` : ''}
+        ${isCurrent ? `<div style="position:absolute;top:16px;left:16px;background:var(--accent);color:var(--accent-foreground);font-size:10px;font-weight:700;padding:3px 10px;border-radius:12px;border:1px solid var(--border);">ACTIVE</div>` : ''}
 
         <div style="text-align:center;padding-top:${isCurrent || p.popular || (p as any).badge ? '12px' : '0'}">
           <div style="font-size:40px;margin-bottom:8px;">${p.icon}</div>
@@ -6885,10 +6925,13 @@ function drawPricingTab(): string {
           ${featureList}
         </div>
 
-        ${isCurrent
-          ? `<button class="btn" style="width:100%;background:var(--muted);color:var(--muted-foreground);cursor:not-allowed;border-radius:12px;font-weight:700;" disabled>${p.cta === 'Current Plan' ? '✓ Current Plan' : p.cta}</button>`
-          : `<button class="btn btn-primary pricing-upgrade-btn" data-plan="${p.id}" data-price="${p.price}${p.period}" data-name="${p.name}" style="width:100%;background:${p.gradient};border:none;border-radius:12px;font-weight:700;font-size:14px;padding:14px;transition:opacity 0.2s;">${p.cta}</button>`
-        }
+        ${((): string => {
+          const ctaLabel = p.cta === 'Current Plan' ? '\u2713 Current Plan' : sanitizeHtml(p.cta);
+          if (isCurrent) {
+            return '<button class="btn" style="width:100%;background:var(--muted);color:var(--muted-foreground);cursor:not-allowed;border-radius:12px;font-weight:700;" disabled>' + ctaLabel + '</button>';
+          }
+          return '<button class="btn btn-primary pricing-upgrade-btn" data-plan="' + sanitizeHtml(p.id) + '" data-price="' + sanitizeHtml(p.price + p.period) + '" data-name="' + sanitizeHtml(p.name) + '" style="width:100%;background:' + sanitizeHtml(p.gradient) + ';border:none;border-radius:12px;font-weight:700;font-size:14px;padding:14px;transition:opacity 0.2s;">' + ctaLabel + '</button>';
+        })()}
       </div>
     `;
   }).join('');
@@ -6917,7 +6960,7 @@ function drawPricingTab(): string {
                 <th style="text-align:left;padding:10px 12px;color:var(--muted-foreground);">Feature</th>
                 <th style="text-align:center;padding:10px 12px;">Starter</th>
                 <th style="text-align:center;padding:10px 12px;color:#f59e0b;">Premium</th>
-                <th style="text-align:center;padding:10px 12px;color:#10b981;">Pro</th>
+                <th style="text-align:center;padding:10px 12px;color:var(--foreground);">Pro</th>
                 <th style="text-align:center;padding:10px 12px;color:#ec4899;">Pro Annual</th>
               </tr>
             </thead>
@@ -6932,12 +6975,16 @@ function drawPricingTab(): string {
                 ['Push Notifications','—','✓','✓','✓'],
                 ['Branch Leaderboard','—','—','✓','✓'],
                 ['Dedicated Support','—','—','—','✓'],
-              ].map(row => `
-                <tr style="border-bottom:1px solid var(--border);">
-                  <td style="padding:10px 12px;font-weight:600;">${row[0]}</td>
-                  ${row.slice(1).map((v,i) => `<td style="text-align:center;padding:10px 12px;color:${v==='✓'?['#6366f1','#f59e0b','#10b981','#ec4899'][i]:(v==='—'?'var(--muted-foreground)':'var(--foreground)')};font-weight:${v==='✓'?'700':'400'};">${v}</td>`).join('')}
-                </tr>
-              `).join('')}
+
+              ].map(row => {
+                const cellColors = ['#6366f1','#f59e0b','var(--foreground)','#ec4899'];
+                const cells = row.slice(1).map((v, i) => {
+                  const color = v === '\u2713' ? (cellColors.at(i) ?? 'var(--foreground)') : (v === '\u2014' ? 'var(--muted-foreground)' : 'var(--foreground)');
+                  const weight = v === '\u2713' ? '700' : '400';
+                  return '<td style="text-align:center;padding:10px 12px;color:' + color + ';font-weight:' + weight + ';">' + v + '</td>';
+                }).join('');
+                return '<tr style="border-bottom:1px solid var(--border);"><td style="padding:10px 12px;font-weight:600;">' + row[0] + '</td>' + cells + '</tr>';
+              }).join('')}
             </tbody>
           </table>
         </div>
@@ -7223,7 +7270,7 @@ function drawProjectsTab(): string {
     return `
       <div style="flex:1; min-width:240px; background:var(--secondary); padding:12px; border-radius:var(--radius-lg); display:flex; flex-direction:column; gap:8px; border:1px solid var(--border);">
         <div style="display:flex; justify-content:space-between; align-items:center; padding-bottom:8px; border-bottom:1px solid var(--border);">
-          <span style="font-weight:700; font-size:13px; text-transform:uppercase; letter-spacing:0.5px;">${columnLabels[col]}</span>
+          <span style="font-weight:700; font-size:13px; text-transform:uppercase; letter-spacing:0.5px;">${sanitizeHtml(safeProp(columnLabels, col as keyof typeof columnLabels) ?? col)}</span>
           <span style="font-size:11px; background:var(--card); padding:2px 8px; border-radius:var(--radius-sm); border:1px solid var(--border); font-weight:700;">${colProjects.length}</span>
         </div>
         <div style="flex:1; overflow-y:auto; max-height:60vh; padding-top:8px;">

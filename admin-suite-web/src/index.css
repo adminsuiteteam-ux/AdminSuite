@@ -1032,11 +1032,35 @@ input, select, textarea { font-family: inherit; }
 /* ---------- Preloader / Splash ---------- */
 .splash-gate {
   min-height: 100vh;
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   background: var(--background);
+  color: var(--foreground);
+}
+
+.powered-footer {
+  position: absolute;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0.5;
+  white-space: nowrap;
+  color: var(--foreground);
+  letter-spacing: 0.3px;
+}
+
+.brand-dima {
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.brand-code {
+  font-weight: 700;
   color: var(--foreground);
 }
 
