@@ -1453,8 +1453,8 @@ function drawAuthLeftPanel(): string {
         <p class="split-hero-sub">A centralized control center to manage your employees, clients, projects, and finances seamlessly in one beautiful platform.</p>
       </div>
       
-      <div style="font-size:11px; opacity:0.6; font-weight:500;">
-        Powered by <span style="font-weight:700;">Dima</span><span style="color:var(--accent); font-weight:700;">Code</span>
+      <div style="font-size:11px; opacity:0.5; font-weight:500; color:#ffffff;">
+        Powered by <span style="font-weight:700; color:#ffffff;">Dima</span><span style="font-weight:700; color:#2563eb;">Code</span>
       </div>
     </div>
   `;

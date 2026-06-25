@@ -576,6 +576,11 @@ input, select, textarea { font-family: inherit; }
 }
 .btn-outline:hover {
   background: var(--muted);
+  color: var(--foreground);
+}
+[data-theme="dark"] .btn-outline {
+  color: var(--foreground) !important;
+  border-color: var(--border);
 }
 
 .btn-ghost {
@@ -1056,23 +1061,25 @@ input, select, textarea { font-family: inherit; }
 
 .brand-dima {
   font-weight: 700;
+  /* B&W: white in dark, black in light — inherits from foreground */
   color: var(--foreground);
+}
+[data-theme="dark"] .brand-dima {
+  color: #ffffff;
 }
 
 .brand-code {
   font-weight: 700;
-  color: var(--foreground);
+  color: #2563eb; /* Always blue regardless of theme */
 }
 
 .mark-ring {
   width: 90px;
   height: 90px;
-  border-radius: var(--radius-lg);
   align-items: center;
   justify-content: center;
   display: flex;
-  background: var(--card);
-  border: 1px solid var(--border);
+  /* No box — removed background, border, and border-radius */
   margin-bottom: 16px;
 }
 
