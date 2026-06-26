@@ -794,7 +794,10 @@ async function apiRequest(endpoint: string, options: RequestInit = {}): Promise<
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
-    throw new Error(err.detail || err.error || err.message || JSON.stringify(err) || `Error ${response.status}`);
+    const errMsg = err.detail || err.error || err.message ||
+      (Object.keys(err).length ? JSON.stringify(err) : null) ||
+      `Request failed (${response.status})`;
+    throw new Error(errMsg);
   }
 
   if (response.status === 204) return null;
@@ -6670,7 +6673,8 @@ async function pollChatData() {
         state.chatActiveChannel = null;
       }
       const messagesData = await apiRequest(url);
-      state.chatMessages = messagesData;
+      // Normalise: DRF may return paginated { results: [] } or a plain array
+      state.chatMessages = Array.isArray(messagesData) ? messagesData : (messagesData?.results ?? []);
     }
     
     updateChatDOM();
@@ -6945,12 +6949,22 @@ function _bindChatViewportEvents() {
         body.channel_id = state.chatActiveChannel.id;
       }
 
-      await apiRequest('chat/send/', {
+      // Send message — response is the newly created message object
+      const sentMsg = await apiRequest('chat/send/', {
         method: 'POST',
         body: JSON.stringify(body)
       });
 
-      // Fetch updated messages and refresh only the messages list
+      // Optimistically append the sent message immediately so the UI feels instant
+      if (sentMsg && sentMsg.id) {
+        const exists = state.chatMessages.find((m: any) => m.id === sentMsg.id);
+        if (!exists) {
+          state.chatMessages = [...state.chatMessages, sentMsg];
+          appendMessageToDOM(sentMsg);
+        }
+      }
+
+      // Re-fetch the full list to sync with backend (handles reactions, read receipts, etc.)
       let url = 'chat/messages/';
       if (state.chatActiveContact.type === 'private' || state.chatActiveContact.type === 'dm') {
         url += `?recipient_id=${state.chatActiveContact.id}`;
@@ -6960,10 +6974,14 @@ function _bindChatViewportEvents() {
       if (state.chatActiveChannel) {
         url = `chat/messages/?channel_id=${state.chatActiveChannel.id}`;
       }
-      state.chatMessages = await apiRequest(url);
+      const rawMsgs = await apiRequest(url);
+      // Normalise: DRF may return paginated { results: [] } or a plain array
+      state.chatMessages = Array.isArray(rawMsgs) ? rawMsgs : (rawMsgs?.results ?? []);
       refreshChatMessages();
     } catch (err: any) {
-      showToast(err.message || 'Failed to send message', 'error');
+      // Strip bare "{}" error messages — show a friendly fallback instead
+      const msg = err.message || '';
+      showToast(msg === '{}' || !msg ? 'Failed to send message. Please try again.' : msg, 'error');
     }
   };
 
@@ -7039,7 +7057,8 @@ function _bindChatViewportEvents() {
         const url = c.type === 'dm'
           ? `chat/messages/?recipient_id=${c.id}`
           : c.type === 'group' ? `chat/messages/?group_id=${c.id}` : 'chat/messages/';
-        state.chatMessages = await apiRequest(url);
+        const rawMsgsA = await apiRequest(url);
+        state.chatMessages = Array.isArray(rawMsgsA) ? rawMsgsA : (rawMsgsA?.results ?? []);
         refreshChatMessages();
         showToast('File sent', 'success');
       } catch (err: any) {
