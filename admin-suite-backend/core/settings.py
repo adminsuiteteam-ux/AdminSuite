@@ -22,8 +22,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / '.env')
 
 cloudinary.config(
-    cloud_name="dlzn0moho",
-    api_key="967749748734626",
+    cloud_name="db3m3jumf",
+    api_key="221272228917619",
     api_secret="HMaEaoKbX9CmOSiLgSiwNtzUePY"
 )
 
