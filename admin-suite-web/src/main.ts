@@ -1027,6 +1027,14 @@ const FA_ICONS: Record<string, string> = {
   'crown': 'fa-solid fa-crown',
   'smile': 'fa-solid fa-face-smile',
   'arrow-left': 'fa-solid fa-arrow-left',
+  'more-vertical': 'fa-solid fa-ellipsis-vertical',
+  'bell-off': 'fa-solid fa-bell-slash',
+  'heart': 'fa-solid fa-heart',
+  'link': 'fa-solid fa-link',
+  'thumbs-down': 'fa-solid fa-thumbs-down',
+  'slash': 'fa-solid fa-ban',
+  'trash-2': 'fa-solid fa-trash-can',
+  'chevron-down': 'fa-solid fa-chevron-down',
 };
 
 function getIconSvg(name: string, _className = ''): string {
@@ -2404,12 +2412,11 @@ function drawOfflineScreen(): string {
         <div class="offline-icon">
           ${getIconSvg('wifi-off')}
         </div>
-        <h2>Ecosystem Connection Failed</h2>
+        <h2>Connection Lost</h2>
         <p>
-          Unable to establish contact with the Django REST Backend server on <strong>http://localhost:8000/</strong>.<br/>
-          Make sure server execution command (<code>python manage.py runserver</code>) is running.
+          We've lost contact with the backend services. Please check your network connection or try again.
         </p>
-        <button class="btn btn-primary" id="retry-sync-btn" style="width:100%;">Retry Connection</button>
+        <button class="btn btn-primary" id="retry-sync-btn" style="width:100%;">Reconnect</button>
       </div>
     </div>
   `;
@@ -3768,10 +3775,10 @@ function drawAdminDashboard(): string {
     <div class="stats-grid">
       <div class="stat-card" style="background:var(--accent); color:var(--accent-foreground); border:1px solid var(--accent);">
         <div class="stat-card-header" style="margin-bottom:6px;">
-          <div class="stat-card-icon" style="background:var(--secondary); color:var(--accent-foreground);">
+          <div class="stat-card-icon" style="background:var(--accent-foreground); color:var(--accent);">
             ${getIconSvg('folder')}
           </div>
-          <span style="font-size:11px; background:var(--secondary); color:var(--accent-foreground); padding:2px 8px; border-radius:12px; font-weight:600; display:flex; align-items:center; gap:2px;">
+          <span style="font-size:11px; background:var(--accent-foreground); color:var(--accent); padding:2px 8px; border-radius:12px; font-weight:600; display:flex; align-items:center; gap:2px;">
             +12% ${getIconSvg('arrow-up-right')}
           </span>
         </div>
@@ -6559,8 +6566,17 @@ function _getChatContactKey(c: any): string {
 
 // Builds the messages HTML only (no header, no footer)
 function _buildMessagesHtml(c: any): string {
-  if (!state.chatMessages || state.chatMessages.length === 0) {
-    return '<div style="text-align:center; padding:40px; color:var(--muted-foreground); font-size:13px;">No messages in this chat yet. Say hello! 👋</div>';
+  let messages = state.chatMessages || [];
+  if ((state as any).chatMessageSearchQuery) {
+    const q = (state as any).chatMessageSearchQuery.toLowerCase();
+    messages = messages.filter((m: any) => {
+      const senderName = m.sender_name || (m.sender ? (m.sender.name || m.sender.username) : 'System');
+      return m.text.toLowerCase().includes(q) || senderName.toLowerCase().includes(q);
+    });
+  }
+
+  if (messages.length === 0) {
+    return `<div style="text-align:center; padding:40px; color:var(--muted-foreground); font-size:13px;">${(state as any).chatMessageSearchQuery ? 'No matching messages found.' : 'No messages in this chat yet. Say hello! 👋'}</div>`;
   }
 
   const doubleCheckSvg = `
@@ -6571,7 +6587,7 @@ function _buildMessagesHtml(c: any): string {
   `;
 
   let lastDateStr = '';
-  return state.chatMessages.map((m: any) => {
+  return messages.map((m: any) => {
     const senderId = m.sender_id || (m.sender ? m.sender.id : null);
     const isOutgoing = !!(senderId && state.user && senderId === state.user.id);
     const initials = m.sender_initials || (m.sender
@@ -6599,9 +6615,18 @@ function _buildMessagesHtml(c: any): string {
     const bubbleHtml = `
       <div class="chat-message ${isOutgoing ? 'outgoing' : 'incoming'}">
         ${!isOutgoing && c.type === 'group' ? `<div class="chat-contact-avatar" style="width:32px; height:32px; font-size:11px; margin-top:2px; flex-shrink:0;">${sanitizeHtml(initials)}</div>` : ''}
-        <div class="chat-message-bubble">
+        <div class="chat-message-bubble" data-msg-id="${m.id}" data-msg-text="${encodeURIComponent(m.text)}">
           ${!isOutgoing && c.type === 'group' ? `<div class="chat-message-sender">${senderName}</div>` : ''}
           <p class="chat-message-text">${sanitizeHtml(m.text)}</p>
+          <button class="chat-message-options-btn" title="Options">${getIconSvg('chevron-down')}</button>
+          <div class="chat-message-dropdown">
+            <div class="chat-message-dropdown-item" data-action="reply">Reply</div>
+            <div class="chat-message-dropdown-item" data-action="edit">Edit</div>
+            <div class="chat-message-dropdown-item" data-action="delete">Delete</div>
+            <div class="chat-message-dropdown-item" data-action="copy">Copy</div>
+            <div class="chat-message-dropdown-item" data-action="forward">Forward</div>
+            <div class="chat-message-dropdown-item" data-action="pin">Pin</div>
+          </div>
           <div class="chat-message-meta">
             <span class="chat-message-time">${formattedTime}</span>
             ${isOutgoing ? doubleCheckSvg : ''}
@@ -6619,8 +6644,8 @@ function renderChatViewport(viewportContainer: HTMLElement) {
   const isOnline = c.type === 'group' ? false : (c.id % 2 === 0);
 
   viewportContainer.innerHTML = DOMPurify.sanitize(`
-    <div class="chat-header" id="chat-header-bar">
-      <div class="chat-header-info">
+    <div class="chat-header" id="chat-header-bar" style="position:relative; z-index:11;">
+      <div class="chat-header-info" id="chat-header-profile-btn" style="cursor:pointer;">
         <button class="chat-mobile-back-btn" id="chat-mobile-back-btn" style="background:none; border:none; color:inherit; cursor:pointer; display:none; align-items:center; justify-content:center; padding:4px; margin-right:8px;">
           ${getIconSvg('arrow-left')}
         </button>
@@ -6635,17 +6660,52 @@ function renderChatViewport(viewportContainer: HTMLElement) {
           <div class="chat-header-status">${c.type === 'group' ? 'Group Workspace' : (isOnline ? 'Online' : 'Offline')}</div>
         </div>
       </div>
-      <div style="display:flex; gap:16px; color:var(--muted-foreground);">
-        <button style="background:none; border:none; color:inherit; cursor:pointer;">${getIconSvg('search')}</button>
-        <button style="background:none; border:none; color:inherit; cursor:pointer;">${getIconSvg('menu')}</button>
+      <div style="display:flex; gap:16px; color:var(--muted-foreground); position:relative;">
+        <button id="chat-header-search-btn" style="background:none; border:none; color:inherit; cursor:pointer; display:flex; align-items:center; justify-content:center;">${getIconSvg('search')}</button>
+        <button id="chat-header-menu-btn" style="background:none; border:none; color:inherit; cursor:pointer; display:flex; align-items:center; justify-content:center;">${getIconSvg('more-vertical')}</button>
       </div>
+
+      <!-- Vertical Dropdown Menu -->
+      <div class="chat-header-menu-dropdown" id="chat-header-menu-dropdown" style="display:none; position:absolute; top:52px; right:16px; background:var(--card); border:1px solid var(--border); border-radius:var(--radius-lg); box-shadow:var(--shadow-lg); z-index:100; min-width:220px; padding:6px 0;">
+        <div class="chat-dropdown-menu-item" data-action="contact-info">${getIconSvg('info')} Contact info</div>
+        <div class="chat-dropdown-menu-item" data-action="select-messages">${getIconSvg('check-square')} Select messages</div>
+        <div class="chat-dropdown-menu-item" data-action="mute">${getIconSvg('bell-off')} Mute notifications</div>
+        <div class="chat-dropdown-menu-item" data-action="disappearing">${getIconSvg('clock')} Disappearing messages</div>
+        <div class="chat-dropdown-menu-item" data-action="favourites">${getIconSvg('heart')} Add to favourites</div>
+        <div class="chat-dropdown-menu-item" data-action="close">${getIconSvg('x')} Close chat</div>
+        <div class="chat-dropdown-menu-divider" style="height:1px; background:var(--border); margin:4px 0;"></div>
+        <div class="chat-dropdown-menu-item" data-action="call-link">${getIconSvg('link')} Send call link</div>
+        <div class="chat-dropdown-menu-item" data-action="schedule-call">${getIconSvg('calendar')} Schedule call</div>
+        <div class="chat-dropdown-menu-item" data-action="new-group-call">${getIconSvg('users')} New group call</div>
+        <div class="chat-dropdown-menu-divider" style="height:1px; background:var(--border); margin:4px 0;"></div>
+        <div class="chat-dropdown-menu-item text-danger" style="color:var(--danger);" data-action="report">${getIconSvg('thumbs-down')} Report</div>
+        <div class="chat-dropdown-menu-item text-danger" style="color:var(--danger);" data-action="block">${getIconSvg('slash')} Block</div>
+        <div class="chat-dropdown-menu-item text-danger" style="color:var(--danger);" data-action="clear">${getIconSvg('trash-2')} Clear chat</div>
+        <div class="chat-dropdown-menu-item text-danger" style="color:var(--danger);" data-action="delete">${getIconSvg('trash')} Delete chat</div>
+      </div>
+    </div>
+
+    <!-- Toggleable Active Chat Search Container -->
+    <div class="chat-message-search-bar-container" id="chat-message-search-bar-container" style="display:none; padding:8px 16px; border-bottom:1.5px solid var(--border); background:var(--card); align-items:center; gap:8px; position:relative; z-index:10;">
+      <div style="position:relative; flex:1;">
+        <span style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--muted-foreground);">${getIconSvg('search')}</span>
+        <input type="text" id="chat-message-search-input" placeholder="Search in this chat..." style="width:100%; background:var(--secondary); border:1px solid var(--border); border-radius:20px; padding:6px 12px 6px 36px; font-size:13px; color:var(--foreground); outline:none; box-sizing:border-box;">
+      </div>
+      <button id="chat-message-search-close-btn" class="btn-ghost" style="padding:4px; cursor:pointer; display:flex; align-items:center; justify-content:center;">${getIconSvg('x')}</button>
     </div>
 
     <div class="chat-messages" id="chat-messages-scroll-container">
       ${_buildMessagesHtml(c)}
     </div>
 
-    <div class="chat-footer" id="chat-footer-bar">
+    <div class="chat-footer" id="chat-footer-bar" style="position:relative;">
+      <!-- Emoji Picker Panel -->
+      <div class="chat-emoji-picker" id="chat-emoji-picker" style="display:none; position:absolute; bottom:56px; left:16px; background:var(--card); border:1px solid var(--border); border-radius:var(--radius-lg); box-shadow:var(--shadow-lg); z-index:100; padding:10px; width:260px; grid-template-columns: repeat(7, 1fr); gap:6px; max-height: 180px; overflow-y: auto;">
+        ${['😀','😃','😄','😁','😆','😅','😂','🤣','😊','😇','🙂','🙃','😉','😌','😍','🥰','😘','😗','😙','😚','😋','😛','😝','😜','🤪','🤨','🧐','🤓','😎','🥸','🤩','🥳','😏','😒','😞','😔','😟','😕','🙁','☹️','😣','😖','😫','😩','🥺','😢','😭','😤','😠','😡','🤬','🤯','😳','🥵','🥶','😱','😨','😰','😥','😓','🤗','🤔','🫣','🤭','🤫','🫡','✍️','👋','👍','👎','👏','🙌','🙏','❤️','🔥'].map(emoji => `
+          <span class="emoji-item" style="font-size:20px; cursor:pointer; text-align:center; padding:4px; display:inline-block; transition:transform 0.15s ease;" data-emoji="${emoji}">${emoji}</span>
+        `).join('')}
+      </div>
+
       <button class="chat-emoji-btn" type="button" id="chat-emoji-btn" title="Emojis">${getIconSvg('smile')}</button>
       <div class="chat-input-wrapper">
         <input type="text" class="chat-input" id="chat-message-input-field" placeholder="Type a message..." autocomplete="off" spellcheck="true">
@@ -6690,6 +6750,8 @@ function _bindChatViewportEvents() {
     backBtn.addEventListener('click', () => {
       state.chatActiveContact = null;
       _renderedContactKey = null;
+      const drawer = document.getElementById('chat-profile-drawer');
+      if (drawer) drawer.classList.remove('open');
       updateChatDOM();
     });
   }
@@ -6745,6 +6807,324 @@ function _bindChatViewportEvents() {
   if (sendBtn) {
     sendBtn.addEventListener('click', sendMessage);
   }
+
+  // Emoji Picker toggle
+  const emojiBtn = document.getElementById('chat-emoji-btn');
+  const emojiPicker = document.getElementById('chat-emoji-picker');
+  if (emojiBtn && emojiPicker) {
+    emojiBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isHidden = emojiPicker.style.display === 'none';
+      emojiPicker.style.display = isHidden ? 'grid' : 'none';
+    });
+    // Append emojis
+    emojiPicker.querySelectorAll('.emoji-item').forEach(el => {
+      el.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const emoji = (el as HTMLElement).dataset.emoji;
+        if (emoji && inputField) {
+          inputField.value += emoji;
+          inputField.focus();
+        }
+      });
+    });
+  }
+
+  // Chat message search toggle
+  const searchBtn = document.getElementById('chat-header-search-btn');
+  const searchBar = document.getElementById('chat-message-search-bar-container');
+  const searchInput = document.getElementById('chat-message-search-input') as HTMLInputElement;
+  const searchClose = document.getElementById('chat-message-search-close-btn');
+
+  if (searchBtn && searchBar && searchInput && searchClose) {
+    searchBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isHidden = searchBar.style.display === 'none';
+      searchBar.style.display = isHidden ? 'flex' : 'none';
+      if (isHidden) {
+        searchInput.focus();
+      } else {
+        (state as any).chatMessageSearchQuery = '';
+        searchInput.value = '';
+        refreshChatMessages();
+      }
+    });
+
+    searchInput.addEventListener('input', () => {
+      (state as any).chatMessageSearchQuery = searchInput.value;
+      refreshChatMessages();
+    });
+
+    searchClose.addEventListener('click', (e) => {
+      e.stopPropagation();
+      searchBar.style.display = 'none';
+      (state as any).chatMessageSearchQuery = '';
+      searchInput.value = '';
+      refreshChatMessages();
+    });
+  }
+
+  // Three-dots menu toggle
+  const menuBtn = document.getElementById('chat-header-menu-btn');
+  const menuDropdown = document.getElementById('chat-header-menu-dropdown');
+  if (menuBtn && menuDropdown) {
+    menuBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isHidden = menuDropdown.style.display === 'none';
+      menuDropdown.style.display = isHidden ? 'block' : 'none';
+    });
+
+    menuDropdown.querySelectorAll('.chat-dropdown-menu-item').forEach(item => {
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menuDropdown.style.display = 'none';
+        const action = (item as HTMLElement).dataset.action;
+        if (action === 'contact-info') {
+          renderChatProfileDrawer();
+        } else if (action === 'close') {
+          state.chatActiveContact = null;
+          _renderedContactKey = null;
+          const drawer = document.getElementById('chat-profile-drawer');
+          if (drawer) drawer.classList.remove('open');
+          updateChatDOM();
+        } else {
+          showToast(`Action "${action}" selected`, 'info');
+        }
+      });
+    });
+  }
+
+  // Click on chat header profile info opens side drawer
+  const headerProfileBtn = document.getElementById('chat-header-profile-btn');
+  if (headerProfileBtn) {
+    headerProfileBtn.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      if (backBtn?.contains(target) || searchBtn?.contains(target) || menuBtn?.contains(target)) {
+        return;
+      }
+      renderChatProfileDrawer();
+    });
+  }
+
+  // Document click handler to dismiss float menus
+  document.addEventListener('click', (e) => {
+    const target = e.target as Node;
+    if (emojiPicker && emojiBtn && !emojiPicker.contains(target) && target !== emojiBtn) {
+      emojiPicker.style.display = 'none';
+    }
+    if (menuDropdown && menuBtn && !menuDropdown.contains(target) && !menuBtn.contains(target)) {
+      menuDropdown.style.display = 'none';
+    }
+    // Close message dropdowns
+    document.querySelectorAll('.chat-message-dropdown.show').forEach(el => {
+      const parent = el.closest('.chat-message-bubble');
+      if (parent && !parent.contains(target)) {
+        el.classList.remove('show');
+      }
+    });
+  });
+
+  // Message Bubble dropdown triggers delegate event
+  const messagesScrollContainer = document.getElementById('chat-messages-scroll-container');
+  if (messagesScrollContainer) {
+    messagesScrollContainer.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      
+      const optionsBtn = target.closest('.chat-message-options-btn');
+      if (optionsBtn) {
+        e.stopPropagation();
+        document.querySelectorAll('.chat-message-dropdown.show').forEach(el => {
+          if (el !== optionsBtn.nextElementSibling) el.classList.remove('show');
+        });
+        const dropdown = optionsBtn.nextElementSibling as HTMLElement;
+        if (dropdown) dropdown.classList.toggle('show');
+        return;
+      }
+
+      const dropdownItem = target.closest('.chat-message-dropdown-item');
+      if (dropdownItem) {
+        e.stopPropagation();
+        const action = dropdownItem.getAttribute('data-action');
+        const bubble = dropdownItem.closest('.chat-message-bubble') as HTMLElement;
+        const msgId = bubble?.dataset.msgId;
+        const msgTextEncoded = bubble?.dataset.msgText;
+        const msgText = msgTextEncoded ? decodeURIComponent(msgTextEncoded) : '';
+
+        dropdownItem.closest('.chat-message-dropdown')?.classList.remove('show');
+
+        if (action === 'copy') {
+          navigator.clipboard.writeText(msgText).then(() => {
+            showToast('Message copied to clipboard!', 'success');
+          }).catch(() => {
+            showToast('Failed to copy text', 'error');
+          });
+        } else {
+          showToast(`Action "${action}" selected for message ${msgId}`, 'info');
+        }
+      }
+    });
+  }
+}
+
+function renderChatProfileDrawer() {
+  const drawer = document.getElementById('chat-profile-drawer');
+  if (!drawer) return;
+
+  const c = state.chatActiveContact;
+  if (!c) {
+    drawer.classList.remove('open');
+    drawer.innerHTML = '';
+    return;
+  }
+
+  drawer.innerHTML = DOMPurify.sanitize(`
+    <div class="drawer-header" style="padding: 16px 20px; border-bottom: 1.5px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: var(--secondary);">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <button class="btn-ghost" id="chat-profile-close-btn" style="padding:4px; font-size:16px; display:flex; align-items:center; justify-content:center; background:none; border:none; color:inherit; cursor:pointer;">${getIconSvg('x')}</button>
+        <span style="font-weight:700; font-size:15px; color:var(--foreground);">Contact info</span>
+      </div>
+      <button class="btn-ghost" style="padding:4px; font-size:16px; display:flex; align-items:center; justify-content:center; background:none; border:none; color:inherit; cursor:pointer;">${getIconSvg('edit')}</button>
+    </div>
+    
+    <div class="drawer-body" style="padding: 20px; display: flex; flex-direction: column; gap: 20px; overflow-y:auto; flex:1;">
+      <!-- Big Avatar and Name -->
+      <div style="display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; border-bottom: 1.5px solid var(--border); padding-bottom: 20px;">
+        <div class="chat-contact-avatar" style="width: 120px; height: 120px; font-size: 32px; border-radius: 50%;">
+          ${c.avatar ? `<img src="${c.avatar}" alt="${sanitizeHtml(c.name)}">` : sanitizeHtml(c.initials || c.name.slice(0,2).toUpperCase())}
+        </div>
+        <div>
+          <h3 style="font-size: 18px; font-weight: 700; margin: 0; color:var(--foreground);">${sanitizeHtml(c.name)}</h3>
+          <p style="color: var(--muted-foreground); font-size: 12.5px; margin: 2px 0 0 0;">${c.type === 'group' ? 'Group Workspace' : 'Other business'}</p>
+        </div>
+        <button class="btn btn-outline" style="border-radius: 20px; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 6px 16px;">
+          ${getIconSvg('send')} Share
+        </button>
+      </div>
+
+      <!-- Business Notice -->
+      <div style="background: var(--secondary); padding: 12px 16px; border-radius: var(--radius-sm); font-size: 12.5px; line-height: 1.5; color: var(--foreground); display: flex; gap: 10px; align-items: flex-start; border:1px solid var(--border);">
+        <span style="color: var(--success); font-size: 14px; margin-top: 2px; display:flex; align-items:center; justify-content:center;">${getIconSvg('info')}</span>
+        <div>
+          <div style="font-weight: 600;">This is a business account.</div>
+        </div>
+      </div>
+
+      <!-- Media, links and docs -->
+      <div style="border-bottom: 1.5px solid var(--border); padding-bottom: 16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; font-size: 13px;">
+          <span style="color: var(--muted-foreground); font-weight: 600;">Media, links and docs</span>
+          <span style="color: var(--muted-foreground); font-weight: 700;">13</span>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <div style="width: 60px; height: 60px; border-radius: var(--radius-sm); overflow: hidden; background: var(--secondary); border:1px solid var(--border); cursor: pointer;">
+            <img src="/logo.png" style="width:100%; height:100%; object-fit:cover; opacity:0.8;">
+          </div>
+          <div style="width: 60px; height: 60px; border-radius: var(--radius-sm); overflow: hidden; background: var(--secondary); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; cursor: pointer; color: var(--muted-foreground);">
+            ${getIconSvg('video')}
+          </div>
+        </div>
+      </div>
+
+      <!-- Settings options -->
+      <div style="display: flex; flex-direction: column; gap: 14px; border-bottom: 1.5px solid var(--border); padding-bottom: 16px; font-size: 13px; color:var(--foreground);">
+        <div style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="color: var(--muted-foreground); display:flex; align-items:center;">${getIconSvg('star')}</span>
+            <span>Starred messages</span>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="color: var(--muted-foreground); display:flex; align-items:center;">${getIconSvg('bell')}</span>
+            <span>Notification settings</span>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="color: var(--muted-foreground); display:flex; align-items:center;">${getIconSvg('clock')}</span>
+            <div>
+              <div>Disappearing messages</div>
+              <div style="font-size: 11px; color: var(--muted-foreground);">Off</div>
+            </div>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="color: var(--muted-foreground); display:flex; align-items:center;">${getIconSvg('shield')}</span>
+            <div>
+              <div>Advanced chat privacy</div>
+              <div style="font-size: 11px; color: var(--muted-foreground);">Off</div>
+            </div>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="color: var(--muted-foreground); display:flex; align-items:center;">${getIconSvg('lock')}</span>
+            <div>
+              <div>Encryption</div>
+              <div style="font-size: 11px; color: var(--muted-foreground); max-width:200px; line-height:1.3;">Messages are end-to-end encrypted. Click to verify.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- About and phone number -->
+      <div style="border-bottom: 1.5px solid var(--border); padding-bottom: 16px; font-size: 13px; color:var(--foreground);">
+        <div style="color: var(--muted-foreground); font-size: 11px; margin-bottom: 6px; font-weight: 600; text-transform:uppercase;">About and phone number</div>
+        <div style="font-weight: 600; margin-bottom: 2px;">+234 812 373 2939</div>
+        <div style="font-size: 11.5px; color: var(--muted-foreground);">Linked Email: ${sanitizeHtml(c.email || 'N/A')}</div>
+      </div>
+
+      <!-- Actions -->
+      <div style="display: flex; flex-direction: column; gap: 16px; font-size: 13.5px; font-weight: 600;">
+        <div style="display: flex; align-items: center; gap: 12px; color: var(--muted-foreground); cursor: pointer;" id="chat-drawer-fav-btn">
+          <span style="display:flex; align-items:center;">${getIconSvg('heart')}</span>
+          <span>Add to favourites</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px; color: var(--danger); cursor: pointer;" id="chat-drawer-clear-btn">
+          <span style="display:flex; align-items:center;">${getIconSvg('trash-2')}</span>
+          <span>Clear chat</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px; color: var(--danger); cursor: pointer;" id="chat-drawer-block-btn">
+          <span style="display:flex; align-items:center;">${getIconSvg('slash')}</span>
+          <span>Block ${sanitizeHtml(c.name)}</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px; color: var(--danger); cursor: pointer;" id="chat-drawer-report-btn">
+          <span style="display:flex; align-items:center;">${getIconSvg('thumbs-down')}</span>
+          <span>Report business</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px; color: var(--danger); cursor: pointer;" id="chat-drawer-delete-btn">
+          <span style="display:flex; align-items:center;">${getIconSvg('trash')}</span>
+          <span>Delete chat</span>
+        </div>
+      </div>
+    </div>
+  `);
+
+  drawer.classList.add('open');
+
+  // Wire up close button inside drawer
+  document.getElementById('chat-profile-close-btn')?.addEventListener('click', () => {
+    drawer.classList.remove('open');
+  });
+
+  // Action toasts inside drawer
+  const actionToasts: Record<string, string> = {
+    'chat-drawer-fav-btn': 'Added to favourites!',
+    'chat-drawer-clear-btn': 'Chat cleared!',
+    'chat-drawer-block-btn': `Blocked ${c.name}!`,
+    'chat-drawer-report-btn': 'Report submitted!',
+    'chat-drawer-delete-btn': 'Chat deleted successfully.'
+  };
+
+  Object.entries(actionToasts).forEach(([id, msg]) => {
+    document.getElementById(id)?.addEventListener('click', () => {
+      showToast(msg, 'info');
+      if (id === 'chat-drawer-delete-btn' || id === 'chat-drawer-clear-btn') {
+        drawer.classList.remove('open');
+      }
+    });
+  });
 }
 
 function updateChatDOM() {
@@ -7003,6 +7383,7 @@ function drawChatTab(): string {
           <p style="color:var(--muted-foreground); font-size:14px;">Select a conversation to start messaging your colleagues.</p>
         </div>
       </div>
+      <div class="chat-profile-drawer" id="chat-profile-drawer"></div>
     </div>
   `;
 }
