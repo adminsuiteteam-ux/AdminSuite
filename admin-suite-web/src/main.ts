@@ -999,6 +999,7 @@ const ROLE_OPTIONS = [
 
 const FA_ICONS: Record<string, string> = {
   'grid': 'fa-solid fa-grip',
+  'book': 'fa-solid fa-book',
   'users': 'fa-solid fa-users',
   'briefcase': 'fa-solid fa-briefcase',
   'trending-up': 'fa-solid fa-arrow-trend-up',
@@ -1184,9 +1185,17 @@ export function renderApp() {
     if (!state.generalPollTimer) {
       state.generalPollTimer = setInterval(async () => {
         if (state.isAuthenticated && state.view === 'app') {
-          await syncAppData(); // Silently sync state — no re-render to avoid page blink
+          const success = await syncAppData(); // Silently sync state
+          if (success) {
+            // Only update view if the user is not actively typing in an input/textarea
+            const activeEl = document.activeElement;
+            const isTyping = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.hasAttribute('contenteditable'));
+            if (!isTyping) {
+              _patchAppView();
+            }
+          }
         }
-      }, 90000); // Poll every 90 seconds
+      }, 10000); // Poll every 10 seconds for fast refresh rate
     }
   } else {
     if (state.generalPollTimer) {
@@ -2500,13 +2509,13 @@ function drawSidebar(): string {
     { id: 'tasks', label: 'Tasks', icon: 'check-square', badge: state.tasks.filter((t: any) => t.status !== 'completed').length ? state.tasks.filter((t: any) => t.status !== 'completed').length.toString() : '' },
     { id: 'attendance', label: 'Attendance', icon: 'clock' },
     { id: 'chat', label: 'Team Chat', icon: 'message-circle', badge: chatUnread > 0 ? chatUnread.toString() : '' },
+    { id: 'notes', label: 'Notebook', icon: 'book' }
   ];
 
   // GENERAL items (grouped)
   const generalItems: Array<{id: string; label: string; icon: string; badge?: string}> = [
     { id: 'settings', label: 'Settings', icon: 'settings' },
-    ...(!isEmployee ? [{ id: 'pricing', label: 'Subscriptions', icon: 'star' }] : []),
-    { id: 'notes', label: 'Notes', icon: 'file-text' }
+    ...(!isEmployee ? [{ id: 'pricing', label: 'Subscriptions', icon: 'star' }] : [])
   ];
 
   const drawItems = (items: typeof menuItems) => items.map(item => `
@@ -9582,14 +9591,14 @@ function drawNotesTab(): string {
 
   return `
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
-      <h2 class="topbar-title">Personal Notes & Scheduled Plans</h2>
+      <h2 class="topbar-title">Personal Notebook & Scheduled Plans</h2>
       <button class="btn btn-primary" id="add-note-btn">
-        ${getIconSvg('plus')} Add Note
+        ${getIconSvg('plus')} Add Page
       </button>
     </div>
     
     <div class="notes-grid">
-      ${notesHtml || '<div class="card" style="grid-column:1/-1; padding:48px 24px; text-align:center; color:var(--muted-foreground)">No notes recorded yet. Click Add Note to write down plans.</div>'}
+      ${notesHtml || '<div class="card" style="grid-column:1/-1; padding:48px 24px; text-align:center; color:var(--muted-foreground)">No pages recorded yet. Click Add Page to write down plans.</div>'}
     </div>
   `;
 }
@@ -9603,7 +9612,7 @@ function bindNotesEvents() {
       let notes = getLocalNotes();
       notes = notes.filter(n => n.id !== id);
       saveLocalNotes(notes);
-      showToast('Note deleted successfully', 'error');
+      showToast('Page deleted successfully', 'error');
       renderApp();
     });
   });
@@ -9625,14 +9634,14 @@ function openNoteModal(note?: NoteItem) {
     <div class="modal-overlay">
       <div class="modal">
         <div class="modal-header">
-          <h2 class="modal-title">${note ? 'Edit Note' : 'New Note'}</h2>
+          <h2 class="modal-title">${note ? 'Edit Page' : 'New Page'}</h2>
           <button class="modal-close" id="modal-close-btn">${getIconSvg('x')}</button>
         </div>
         <form id="note-form">
           <div class="modal-body" style="display:flex; flex-direction:column; gap:14px;">
             <div class="form-group">
               <label class="form-label" for="note-title-input">Title</label>
-              <input type="text" class="form-input" id="note-title-input" required placeholder="Note Title" value="${note ? sanitizeHtml(note.title) : ''}">
+              <input type="text" class="form-input" id="note-title-input" required placeholder="Page Title" value="${note ? sanitizeHtml(note.title) : ''}">
             </div>
             
             <div class="form-group">
@@ -9643,7 +9652,7 @@ function openNoteModal(note?: NoteItem) {
           
           <div class="modal-footer">
             <button type="button" class="btn btn-outline" id="modal-cancel-btn">Cancel</button>
-            <button type="submit" class="btn btn-primary">${note ? 'Save Changes' : 'Save Note'}</button>
+            <button type="submit" class="btn btn-primary">${note ? 'Save Changes' : 'Save Page'}</button>
           </div>
         </form>
       </div>
@@ -9664,7 +9673,7 @@ function openNoteModal(note?: NoteItem) {
     if (note) {
       // Edit
       notes = notes.map(n => n.id === note.id ? { ...n, title, body, date: new Date().toLocaleString() } : n);
-      showToast('Note updated successfully!', 'success');
+      showToast('Page updated successfully!', 'success');
     } else {
       // Create
       const newNote: NoteItem = {
@@ -9674,7 +9683,7 @@ function openNoteModal(note?: NoteItem) {
         date: new Date().toLocaleString()
       };
       notes.push(newNote);
-      showToast('Note saved!', 'success');
+      showToast('Page saved!', 'success');
     }
     saveLocalNotes(notes);
     close();
