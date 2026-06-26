@@ -605,6 +605,17 @@ interface AppState {
   generalPollTimer: any | null;
   tasks: any[];
   leaves: any[];
+  chatChannels: any[];
+  chatActiveChannel: any | null;
+
+  // Enterprise communication state
+  wsSocket: WebSocket | null;
+  wsStatus: 'connected' | 'reconnecting' | 'disconnected';
+  wsPresence: Record<number, { status: string; status_message: string }>;
+  wsTyping: Record<string, { username: string; ts: number }>; // key=contextKey
+  wsReconnectAttempts: number;
+  activeCallRecord: any | null;     // current outgoing/incoming call
+  callTimerInterval: any | null;    // call duration ticker
 }
 
 // ============================================================
@@ -672,6 +683,17 @@ const state: AppState = {
   chatActiveContact: null,
   chatPollTimer: null,
   generalPollTimer: null,
+  chatChannels: [],
+  chatActiveChannel: null,
+
+  // Enterprise communication
+  wsSocket: null,
+  wsStatus: 'disconnected',
+  wsPresence: {},
+  wsTyping: {},
+  wsReconnectAttempts: 0,
+  activeCallRecord: null,
+  callTimerInterval: null,
 };
 
 // Set theme attributes on bootstrap
@@ -1123,6 +1145,8 @@ function navigateToTab(tab: typeof state.activeTab) {
     clearInterval(state.chatPollTimer);
     state.chatPollTimer = null;
     _renderedContactKey = null; // reset so chat re-renders fully on return
+    // Disconnect WebSocket when leaving chat tab
+    disconnectChatWebSocket();
   }
   state.activeProfile = null;
   state.activeTab = tab;
@@ -6616,10 +6640,34 @@ async function pollChatData() {
 
     if (state.chatActiveContact) {
       let url = 'chat/messages/';
-      if (state.chatActiveContact.type === 'private') {
+      if (state.chatActiveContact.type === 'private' || state.chatActiveContact.type === 'dm') {
         url += `?recipient_id=${state.chatActiveContact.id}`;
-      } else if (state.chatActiveContact.id !== 'group') {
-        url += `?group_id=${state.chatActiveContact.id}`;
+        state.chatChannels = [];
+        state.chatActiveChannel = null;
+      } else if (state.chatActiveContact.type === 'group' && state.chatActiveContact.id !== 'group') {
+        // Fetch channels for this group
+        try {
+          const channels = await apiRequest(`chat/channels/?group_id=${state.chatActiveContact.id}`);
+          state.chatChannels = channels;
+          if (channels.length > 0 && !state.chatActiveChannel) {
+            // Set first channel as active by default
+            state.chatActiveChannel = channels[0];
+          }
+        } catch (err) {
+          state.chatChannels = [];
+          state.chatActiveChannel = null;
+        }
+
+        if (state.chatActiveChannel) {
+          url += `?channel_id=${state.chatActiveChannel.id}`;
+        } else {
+          url += `?group_id=${state.chatActiveContact.id}`;
+        }
+      } else {
+        // Company-wide group chat
+        url += '';
+        state.chatChannels = [];
+        state.chatActiveChannel = null;
       }
       const messagesData = await apiRequest(url);
       state.chatMessages = messagesData;
@@ -6716,7 +6764,25 @@ function _buildMessagesHtml(c: any): string {
 // Full render — called only when switching contacts
 function renderChatViewport(viewportContainer: HTMLElement) {
   const c = state.chatActiveContact;
-  const isOnline = c.type === 'group' ? false : (c.id % 2 === 0);
+  let presenceStatus = 'offline';
+  if (c.type === 'dm') {
+    const presence = state.wsPresence[c.id];
+    if (presence) {
+      presenceStatus = presence.status;
+    }
+  }
+  const presenceDot = c.type === 'dm'
+    ? `<span class="presence-dot header-presence-dot ${presenceStatus}" data-uid="${c.id}"></span>`
+    : '';
+  const statusLabel = c.type === 'group'
+    ? 'Group Workspace'
+    : (presenceStatus === 'online'
+      ? 'Online'
+      : presenceStatus === 'away'
+        ? 'Away'
+        : presenceStatus === 'busy'
+          ? 'Busy'
+          : 'Offline');
 
   viewportContainer.innerHTML = DOMPurify.sanitize(`
     <div class="chat-header" id="chat-header-bar" style="position:relative; z-index:11;">
@@ -6728,14 +6794,21 @@ function renderChatViewport(viewportContainer: HTMLElement) {
           <div class="chat-contact-avatar" style="width:40px; height:40px; font-size:13px;">
             ${c.avatar ? `<img src="${c.avatar}" alt="${sanitizeHtml(c.name)}">` : sanitizeHtml(c.initials || c.name.slice(0,2).toUpperCase())}
           </div>
-          ${isOnline ? `<span class="online-indicator"></span>` : ''}
+          ${presenceDot}
         </div>
         <div>
           <div class="chat-header-name">${sanitizeHtml(c.name)}</div>
-          <div class="chat-header-status">${c.type === 'group' ? 'Group Workspace' : (isOnline ? 'Online' : 'Offline')}</div>
+          <div class="chat-header-status" id="chat-header-status-text">${statusLabel}</div>
         </div>
       </div>
-      <div style="display:flex; gap:16px; color:var(--muted-foreground); position:relative;">
+      <div style="display:flex; gap:10px; align-items:center; color:var(--muted-foreground); position:relative;">
+        <span id="ws-status-badge" class="ws-status ${state.wsStatus}">
+          <span class="ws-status__dot"></span>${state.wsStatus === 'connected' ? '● Live' : state.wsStatus === 'reconnecting' ? '○ Reconnecting…' : '○ Offline'}
+        </span>
+        ${c.type === 'dm' ? `
+          <button title="Voice call" onclick="initiateCall(${c.id},'${sanitizeHtml(c.name)}','voice')" style="background:none; border:none; color:inherit; cursor:pointer; display:flex; align-items:center; justify-content:center; padding:6px; border-radius:8px; transition:background 0.15s;" onmouseover="this.style.background='rgba(255,255,255,0.07)'" onmouseout="this.style.background='none'">📞</button>
+          <button title="Video call" onclick="initiateCall(${c.id},'${sanitizeHtml(c.name)}','video')" style="background:none; border:none; color:inherit; cursor:pointer; display:flex; align-items:center; justify-content:center; padding:6px; border-radius:8px; transition:background 0.15s;" onmouseover="this.style.background='rgba(255,255,255,0.07)'" onmouseout="this.style.background='none'">📹</button>
+        ` : ''}
         <button id="chat-header-search-btn" style="background:none; border:none; color:inherit; cursor:pointer; display:flex; align-items:center; justify-content:center;">${getIconSvg('search')}</button>
         <button id="chat-header-menu-btn" style="background:none; border:none; color:inherit; cursor:pointer; display:flex; align-items:center; justify-content:center;">${getIconSvg('more-vertical')}</button>
       </div>
@@ -6782,7 +6855,10 @@ function renderChatViewport(viewportContainer: HTMLElement) {
       </div>
 
       <button class="chat-emoji-btn" type="button" id="chat-emoji-btn" title="Emojis">${getIconSvg('smile')}</button>
+      <button class="chat-attach-btn" type="button" id="chat-attach-btn" title="Attach file">📎</button>
+      <input type="file" id="chat-file-input" style="display:none;" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt">
       <div class="chat-input-wrapper">
+        <div id="chat-typing-indicator" class="typing-indicator" style="display:none;"></div>
         <input type="text" class="chat-input" id="chat-message-input-field" placeholder="Type a message..." autocomplete="off" spellcheck="true">
       </div>
       <button class="chat-send-button" id="chat-send-message-btn" title="Send">${getIconSvg('send')}</button>
@@ -6839,12 +6915,34 @@ function _bindChatViewportEvents() {
     inputField.value = '';
     inputField.focus();
 
+    // Send via WebSocket if open
+    if (state.wsSocket && state.wsSocket.readyState === WebSocket.OPEN) {
+      const payload: any = {
+        type: 'chat.message',
+        text: text,
+      };
+      if (state.chatActiveContact.type === 'private' || state.chatActiveContact.type === 'dm') {
+        payload.recipient_id = state.chatActiveContact.id;
+      } else if (state.chatActiveContact.id !== 'group') {
+        payload.group_id = state.chatActiveContact.id;
+      }
+      if (state.chatActiveChannel) {
+        payload.channel_id = state.chatActiveChannel.id;
+      }
+      wsSend(payload);
+      return;
+    }
+
+    // REST fallback
     try {
       const body: any = { text };
-      if (state.chatActiveContact.type === 'private') {
+      if (state.chatActiveContact.type === 'private' || state.chatActiveContact.type === 'dm') {
         body.recipient_id = state.chatActiveContact.id;
       } else if (state.chatActiveContact.id !== 'group') {
         body.group_id = state.chatActiveContact.id;
+      }
+      if (state.chatActiveChannel) {
+        body.channel_id = state.chatActiveChannel.id;
       }
 
       await apiRequest('chat/send/', {
@@ -6853,11 +6951,15 @@ function _bindChatViewportEvents() {
       });
 
       // Fetch updated messages and refresh only the messages list
-      const url = state.chatActiveContact.type === 'private'
-        ? `chat/messages/?recipient_id=${state.chatActiveContact.id}`
-        : state.chatActiveContact.id !== 'group'
-          ? `chat/messages/?group_id=${state.chatActiveContact.id}`
-          : 'chat/messages/';
+      let url = 'chat/messages/';
+      if (state.chatActiveContact.type === 'private' || state.chatActiveContact.type === 'dm') {
+        url += `?recipient_id=${state.chatActiveContact.id}`;
+      } else if (state.chatActiveContact.id !== 'group') {
+        url += `?group_id=${state.chatActiveContact.id}`;
+      }
+      if (state.chatActiveChannel) {
+        url = `chat/messages/?channel_id=${state.chatActiveChannel.id}`;
+      }
       state.chatMessages = await apiRequest(url);
       refreshChatMessages();
     } catch (err: any) {
@@ -6876,11 +6978,74 @@ function _bindChatViewportEvents() {
     });
     inputField.addEventListener('keyup', (e) => e.stopPropagation());
     inputField.addEventListener('keypress', (e) => e.stopPropagation());
+
+    // Broadcast typing indicator via WebSocket
+    let _typingTimeout: any = null;
+    inputField.addEventListener('input', () => {
+      const c = state.chatActiveContact;
+      if (!c) return;
+      const payload: any = { type: 'chat.typing', is_typing: true };
+      if (c.type === 'dm') payload.recipient_id = c.id;
+      else if (c.type === 'group') payload.group_id = c.id;
+      wsSend(payload);
+
+      clearTimeout(_typingTimeout);
+      _typingTimeout = setTimeout(() => {
+        const stopPayload: any = { type: 'chat.typing', is_typing: false };
+        if (c.type === 'dm') stopPayload.recipient_id = c.id;
+        else if (c.type === 'group') stopPayload.group_id = c.id;
+        wsSend(stopPayload);
+      }, 2000);
+    });
+
     inputField.focus();
   }
 
   if (sendBtn) {
     sendBtn.addEventListener('click', sendMessage);
+  }
+
+  // File attachment button
+  const attachBtn = document.getElementById('chat-attach-btn');
+  const fileInput = document.getElementById('chat-file-input') as HTMLInputElement;
+  if (attachBtn && fileInput) {
+    attachBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', async () => {
+      const file = fileInput.files?.[0];
+      if (!file) return;
+      fileInput.value = '';
+
+      const c = state.chatActiveContact;
+      if (!c) return;
+
+      try {
+        // First send an empty/attachment-only message
+        const body: any = { text: `📎 ${file.name}` };
+        if (c.type === 'dm') body.recipient_id = c.id;
+        else if (c.type !== 'team') body.group_id = c.id;
+
+        const sentMsg = await apiRequest('chat/send/', { method: 'POST', body: JSON.stringify(body) });
+
+        // Upload the file attachment
+        const formData = new FormData();
+        formData.append('file', file);
+        await fetch(`${(window as any).API_BASE || 'https://adminsuite.onrender.com'}/api/chat/messages/${sentMsg.id}/attach/`, {
+          method: 'POST',
+          headers: { 'Authorization': `Token ${state.authToken}` },
+          body: formData,
+        });
+
+        // Refresh messages
+        const url = c.type === 'dm'
+          ? `chat/messages/?recipient_id=${c.id}`
+          : c.type === 'group' ? `chat/messages/?group_id=${c.id}` : 'chat/messages/';
+        state.chatMessages = await apiRequest(url);
+        refreshChatMessages();
+        showToast('File sent', 'success');
+      } catch (err: any) {
+        showToast(err.message || 'Failed to upload file', 'error');
+      }
+    });
   }
 
   // Emoji Picker toggle
@@ -7243,7 +7408,16 @@ function updateChatDOM() {
         const unreadBadge = c.unread_count > 0
           ? `<span class="chat-contact-unread">${c.unread_count}</span>`
           : '';
-        const isOnline = c.type === 'group' ? false : (c.id % 2 === 0);
+        let presenceStatus = 'offline';
+        if (c.type === 'dm') {
+          const presence = state.wsPresence[c.id];
+          if (presence) {
+            presenceStatus = presence.status;
+          }
+        }
+        const presenceDot = c.type === 'dm'
+          ? `<span class="presence-dot contact-presence-dot ${presenceStatus}" data-uid="${c.id}"></span>`
+          : '';
 
         const lastMsgTime = c.last_message_time ? new Date(c.last_message_time) : null;
         let formattedLastTime = '';
@@ -7258,7 +7432,7 @@ function updateChatDOM() {
           <div class="chat-contact-item ${isActive ? 'active' : ''}" data-chat-id="${c.id}" data-chat-type="${c.type}">
             <div class="chat-contact-avatar-wrapper">
               <div class="chat-contact-avatar">${avatarHtml}</div>
-              ${isOnline ? `<span class="online-indicator"></span>` : ''}
+              ${presenceDot}
             </div>
             <div class="chat-contact-info">
               <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:2px;">
@@ -7287,12 +7461,69 @@ function updateChatDOM() {
           const contact = state.chatContacts.find((c: any) => c.id === id && c.type === chatType);
           if (contact) {
             state.chatActiveContact = contact;
+            state.chatActiveChannel = null;
             _renderedContactKey = null; // force full re-render
             await pollChatData();
           }
         }
       });
     });
+  }
+
+  // ── Update channels sidebar ──────────────────────────────────────────────
+  const channelsSidebar = document.getElementById('chat-channels-sidebar');
+  if (channelsSidebar) {
+    if (state.chatActiveContact && state.chatActiveContact.type === 'group' && state.chatActiveContact.id !== 'group') {
+      channelsSidebar.style.display = 'flex';
+      channelsSidebar.style.width = '180px';
+      channelsSidebar.style.flexDirection = 'column';
+      channelsSidebar.style.padding = '16px 12px';
+      channelsSidebar.style.borderRight = '1px solid var(--border)';
+      channelsSidebar.style.background = 'rgba(0,0,0,0.15)';
+      
+      const isAdmin = state.chatActiveContact.admins?.includes(state.user?.id) || state.user?.id === state.chatActiveContact.company_user_id || state.user?.id === state.chatActiveContact.company_user;
+      
+      channelsSidebar.innerHTML = DOMPurify.sanitize(`
+        <div class="chat-channels-header" style="display:flex; justify-content:space-between; align-items:center; padding-bottom:8px; border-bottom:1px solid var(--border);">
+          <span style="font-size:12px; font-weight:600; text-transform:uppercase; color:var(--muted-foreground); letter-spacing:0.5px;">Channels</span>
+          ${isAdmin ? `
+            <button id="chat-create-channel-btn" style="background:none; border:none; color:var(--accent-foreground); cursor:pointer; font-size:18px; line-height:1; padding:2px;" title="Create Channel">+</button>
+          ` : ''}
+        </div>
+        <div class="channel-list" style="display:flex; flex-direction:column; gap:1px; margin-top:8px;">
+          ${state.chatChannels.map((chan: any) => {
+            const isChanActive = state.chatActiveChannel && state.chatActiveChannel.id === chan.id;
+            return `
+              <div class="channel-item ${isChanActive ? 'active' : ''}" data-channel-id="${chan.id}">
+                <span class="channel-hash">#</span>
+                <span class="channel-name">${sanitizeHtml(chan.name)}</span>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `);
+
+      // Bind channel selection click events
+      channelsSidebar.querySelectorAll('.channel-item').forEach(item => {
+        item.addEventListener('click', async (e) => {
+          const target = e.currentTarget as HTMLElement;
+          const channelId = parseInt(target.dataset.channelId || '0');
+          const channel = state.chatChannels.find((ch: any) => ch.id === channelId);
+          if (channel) {
+            state.chatActiveChannel = channel;
+            _renderedContactKey = null; // force viewport refresh
+            await pollChatData();
+          }
+        });
+      });
+
+      // Bind create channel button click event
+      document.getElementById('chat-create-channel-btn')?.addEventListener('click', openCreateChannelModal);
+
+    } else {
+      channelsSidebar.style.display = 'none';
+      channelsSidebar.innerHTML = '';
+    }
   }
 
   // ── Update viewport ──────────────────────────────────────────────────────
@@ -7410,6 +7641,84 @@ function openCreateGroupModal() {
   });
 }
 
+function openCreateChannelModal() {
+  const modalContainer = document.getElementById('modal-container');
+  if (!modalContainer) return;
+
+  modalContainer.innerHTML = DOMPurify.sanitize(`
+    <div class="chat-modal-overlay">
+      <div class="chat-modal">
+        <div class="chat-modal-header">
+          <h2 class="chat-modal-title">Create Channel</h2>
+          <button class="chat-modal-close" id="channel-modal-close-btn">${getIconSvg('x')}</button>
+        </div>
+        
+        <form id="create-channel-form">
+          <div class="chat-modal-body">
+            <div class="form-group">
+              <label class="form-label" for="channel-name-input">Channel Name</label>
+              <input type="text" class="form-input" id="channel-name-input" required placeholder="e.g. announcements">
+            </div>
+            <div class="form-group" style="margin-top:12px;">
+              <label class="form-label" for="channel-desc-input">Description</label>
+              <input type="text" class="form-input" id="channel-desc-input" placeholder="What is this channel about?">
+            </div>
+            <div class="form-group" style="display:flex; align-items:center; gap:8px; margin-top:12px;">
+              <input type="checkbox" id="channel-private-checkbox">
+              <label for="channel-private-checkbox" style="font-size:14px; cursor:pointer; user-select:none;">Private Channel</label>
+            </div>
+          </div>
+          
+          <div class="chat-modal-footer">
+            <button type="button" class="btn btn-outline" id="channel-modal-cancel-btn">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="channel-submit-btn">Create Channel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `);
+
+  const close = () => modalContainer.innerHTML = DOMPurify.sanitize('');
+  document.getElementById('channel-modal-close-btn')?.addEventListener('click', close);
+  document.getElementById('channel-modal-cancel-btn')?.addEventListener('click', close);
+
+  const form = document.getElementById('create-channel-form') as HTMLFormElement;
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const submitBtn = document.getElementById('channel-submit-btn') as HTMLButtonElement;
+    const name = (document.getElementById('channel-name-input') as HTMLInputElement).value.trim();
+    const description = (document.getElementById('channel-desc-input') as HTMLInputElement).value.trim();
+    const isPrivate = (document.getElementById('channel-private-checkbox') as HTMLInputElement).checked;
+    
+    if (!name || !state.chatActiveContact) return;
+
+    submitBtn.disabled = true;
+    submitBtn.innerText = 'Creating...';
+
+    try {
+      const channel = await apiRequest('chat/channels/', {
+        method: 'POST',
+        body: JSON.stringify({
+          group_id: state.chatActiveContact.id,
+          name,
+          description,
+          is_private: isPrivate
+        })
+      });
+
+      showToast(`Channel "#${name}" created!`, 'success');
+      close();
+      state.chatActiveChannel = channel;
+      _renderedContactKey = null;
+      await pollChatData();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to create channel', 'error');
+      submitBtn.disabled = false;
+      submitBtn.innerText = 'Create Channel';
+    }
+  });
+}
+
 function bindChatEvents() {
   chatSearchQuery = '';
   const searchInput = document.getElementById('chat-search-input') as HTMLInputElement;
@@ -7431,7 +7740,577 @@ function bindChatEvents() {
   }
   pollChatData();
   state.chatPollTimer = setInterval(pollChatData, 5000);
+
+  // Also connect WebSocket for real-time delivery
+  connectChatWebSocket();
 }
+
+// ============================================================
+// WEBSOCKET MANAGER — Real-time Chat
+// ============================================================
+
+const WS_MAX_RECONNECT = 8;
+const WS_RECONNECT_BASE_MS = 1000;
+
+function getChatWsUrl(): string | null {
+  const apiBase = (window as any).API_BASE || 'https://adminsuite.onrender.com';
+  const token = state.authToken;
+  const user = state.user;
+  if (!token || !user) return null;
+
+  // Derive workspace_id (admin is own workspace; employee looks up admin)
+  const workspaceId: number = (user as any).admin_id || user.id;
+  const wsBase = apiBase.replace(/^https?:\/\//, '').replace(/\/$/, '');
+  const proto = apiBase.startsWith('https') ? 'wss' : 'ws';
+  return `${proto}://${wsBase}/ws/chat/${workspaceId}/?token=${token}`;
+}
+
+function connectChatWebSocket(): void {
+  if (state.wsSocket && state.wsSocket.readyState < 2) return; // already open/connecting
+
+  const url = getChatWsUrl();
+  if (!url) return;
+
+  state.wsStatus = 'reconnecting';
+  updateWsStatusBadge();
+
+  let ws: WebSocket;
+  try {
+    ws = new WebSocket(url);
+  } catch {
+    scheduleWsReconnect();
+    return;
+  }
+
+  state.wsSocket = ws;
+
+  ws.onopen = () => {
+    state.wsStatus = 'connected';
+    state.wsReconnectAttempts = 0;
+    updateWsStatusBadge();
+    // Start heartbeat ping every 25s
+    (ws as any)._pingTimer = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'ping' }));
+      }
+    }, 25000);
+  };
+
+  ws.onmessage = (evt) => {
+    try {
+      const data = JSON.parse(evt.data);
+      handleWsEvent(data);
+    } catch { /* ignore malformed frames */ }
+  };
+
+  ws.onerror = () => {
+    /* handled by onclose */
+  };
+
+  ws.onclose = (evt) => {
+    clearInterval((ws as any)._pingTimer);
+    state.wsStatus = 'disconnected';
+    updateWsStatusBadge();
+
+    // Don't reconnect if closed cleanly (user navigated away)
+    if (evt.code === 1000 || state.activeTab !== 'chat') return;
+    scheduleWsReconnect();
+  };
+}
+
+function scheduleWsReconnect(): void {
+  if (state.wsReconnectAttempts >= WS_MAX_RECONNECT) return;
+  state.wsReconnectAttempts++;
+  state.wsStatus = 'reconnecting';
+  updateWsStatusBadge();
+
+  const delay = WS_RECONNECT_BASE_MS * Math.pow(2, state.wsReconnectAttempts - 1);
+  setTimeout(() => {
+    if (state.activeTab === 'chat') connectChatWebSocket();
+  }, Math.min(delay, 30000));
+}
+
+function disconnectChatWebSocket(): void {
+  if (state.wsSocket) {
+    clearInterval((state.wsSocket as any)._pingTimer);
+    state.wsSocket.close(1000, 'tab-change');
+    state.wsSocket = null;
+  }
+  state.wsStatus = 'disconnected';
+}
+
+function wsSend(payload: object): void {
+  if (state.wsSocket && state.wsSocket.readyState === WebSocket.OPEN) {
+    state.wsSocket.send(JSON.stringify(payload));
+  }
+}
+
+function handleWsEvent(data: any): void {
+  switch (data.type) {
+    case 'chat.message':
+      onWsNewMessage(data.message);
+      break;
+    case 'chat.edited':
+      onWsMessageEdited(data.message_id, data.text);
+      break;
+    case 'chat.deleted':
+      onWsMessageDeleted(data.message_id);
+      break;
+    case 'chat.typing':
+      onWsTyping(data);
+      break;
+    case 'chat.reaction':
+      onWsReaction(data);
+      break;
+    case 'chat.read':
+      onWsReadReceipt(data.message_ids, data.reader_id);
+      break;
+    case 'presence.update':
+      onWsPresence(data);
+      break;
+    case 'call.signal':
+      onWsCallSignal(data);
+      break;
+    case 'pong':
+      break; // heartbeat ack
+    default:
+      break;
+  }
+}
+
+// --- Individual event handlers ---
+
+function onWsNewMessage(msg: any): void {
+  // Determine if this message belongs to the active conversation
+  const contact = state.chatActiveContact;
+  if (!contact) return;
+
+  const isForThisConvo = (
+    ((contact.type === 'dm' || contact.type === 'private') && (msg.sender_id === contact.id || msg.recipient_id === contact.id)) ||
+    (contact.type === 'group' && msg.group === contact.id && (
+      (!state.chatActiveChannel && !msg.channel) ||
+      (state.chatActiveChannel && msg.channel === state.chatActiveChannel.id)
+    )) ||
+    (contact.type === 'team')
+  );
+
+  if (isForThisConvo) {
+    // Append to messages list (avoid duplicate if REST poll already fetched it)
+    const exists = state.chatMessages.find((m: any) => m.id === msg.id);
+    if (!exists) {
+      state.chatMessages = [...state.chatMessages, msg];
+      appendMessageToDOM(msg);
+    }
+  }
+
+  // Update unread count in sidebar
+  updateContactUnread(msg);
+}
+
+function onWsMessageEdited(msgId: number, text: string): void {
+  // Update in state
+  state.chatMessages = state.chatMessages.map((m: any) =>
+    m.id === msgId ? { ...m, text, is_edited: true } : m
+  );
+  // Update DOM if visible
+  const bubble = document.querySelector(`[data-msg-id="${msgId}"] .chat-bubble-text`);
+  if (bubble) {
+    bubble.textContent = text;
+    const editMark = document.querySelector(`[data-msg-id="${msgId}"] .edited-mark`);
+    if (!editMark) {
+      const mark = document.createElement('span');
+      mark.className = 'edited-mark';
+      mark.textContent = ' (edited)';
+      mark.style.cssText = 'font-size:0.68rem;opacity:0.45;';
+      bubble.appendChild(mark);
+    }
+  }
+}
+
+function onWsMessageDeleted(msgId: number): void {
+  state.chatMessages = state.chatMessages.map((m: any) =>
+    m.id === msgId ? { ...m, is_deleted: true, text: '' } : m
+  );
+  const bubble = document.querySelector(`[data-msg-id="${msgId}"] .chat-bubble-text`);
+  if (bubble) {
+    (bubble as HTMLElement).style.cssText = 'font-style:italic;opacity:0.4;';
+    bubble.textContent = 'This message was deleted';
+  }
+}
+
+function onWsTyping(data: any): void {
+  const me = state.user;
+  if (!me || data.user_id === me.id) return;
+
+  const key = data.recipient_id
+    ? `dm-${Math.min(me.id, data.user_id)}-${Math.max(me.id, data.user_id)}`
+    : data.group_id
+      ? `group-${data.group_id}`
+      : 'team';
+
+  if (data.is_typing !== false) {
+    state.wsTyping[key] = { username: data.username, ts: Date.now() };
+  } else {
+    delete state.wsTyping[key];
+  }
+
+  // Clear stale typing after 5s
+  setTimeout(() => {
+    if (state.wsTyping[key] && Date.now() - state.wsTyping[key].ts > 4800) {
+      delete state.wsTyping[key];
+      renderTypingIndicator();
+    }
+  }, 5000);
+
+  renderTypingIndicator();
+}
+
+function onWsReaction(data: any): void {
+  // Update the reaction row below the message bubble
+  const reactionRow = document.querySelector(`[data-msg-id="${data.message_id}"] .msg-reactions`);
+  if (!reactionRow) return;
+
+  // Re-render the reaction chips from the updated counts
+  const counts: Record<string, number> = data.reaction_counts || {};
+  const me = state.user;
+  reactionRow.innerHTML = Object.entries(counts).map(([emoji, count]) => {
+    const isMine = (data.action === 'add' && data.user_id === me?.id && emoji === data.emoji);
+    return `<button class="reaction-chip${isMine ? ' mine' : ''}" onclick="toggleReaction(${data.message_id},'${emoji}')" title="React with ${emoji}">
+      ${emoji}<span class="reaction-count">${count}</span>
+    </button>`;
+  }).join('');
+}
+
+function onWsReadReceipt(messageIds: number[], readerId: number): void {
+  const me = state.user;
+  if (!me || readerId === me.id) return;
+  // Update tick icons for messages we sent
+  messageIds.forEach(id => {
+    const tick = document.querySelector(`[data-msg-id="${id}"] .read-receipt`);
+    if (tick) {
+      tick.className = 'read-receipt read';
+      tick.textContent = '✓✓';
+      tick.setAttribute('title', 'Read');
+    }
+  });
+}
+
+function onWsPresence(data: any): void {
+  if (data.user_id) {
+    state.wsPresence[data.user_id] = {
+      status: data.status,
+      status_message: data.status_message || '',
+    };
+    // Update presence dot in sidebar
+    const dot = document.querySelector(`.contact-presence-dot[data-uid="${data.user_id}"]`);
+    if (dot) {
+      dot.className = `presence-dot contact-presence-dot ${data.status}`;
+    }
+    // Update presence dot in header if this contact is currently open
+    const headerDot = document.querySelector(`.header-presence-dot[data-uid="${data.user_id}"]`);
+    if (headerDot) {
+      headerDot.className = `presence-dot header-presence-dot ${data.status}`;
+    }
+    const statusText = document.getElementById('chat-header-status-text');
+    if (statusText && state.chatActiveContact && state.chatActiveContact.id === data.user_id && state.chatActiveContact.type === 'dm') {
+      const labels: Record<string, string> = {
+        online: 'Online',
+        away: 'Away',
+        busy: 'Busy',
+        offline: 'Offline'
+      };
+      statusText.textContent = labels[data.status] || 'Offline';
+    }
+  }
+}
+
+function onWsCallSignal(data: any): void {
+  const me = state.user;
+  if (!me || data.recipient_id !== me.id) return;
+
+  if (data.signal_type === 'offer') {
+    // Show incoming call overlay
+    showIncomingCallOverlay(data);
+  } else if (['reject', 'end'].includes(data.signal_type)) {
+    hideCallOverlay();
+  }
+}
+
+// --- UI helpers ---
+
+function updateWsStatusBadge(): void {
+  const badge = document.getElementById('ws-status-badge');
+  if (!badge) return;
+  const labels: Record<string, string> = {
+    connected: '● Live',
+    reconnecting: '○ Reconnecting…',
+    disconnected: '○ Offline',
+  };
+  badge.className = `ws-status ${state.wsStatus}`;
+  badge.innerHTML = `<span class="ws-status__dot"></span>${labels[state.wsStatus]}`;
+}
+
+function renderTypingIndicator(): void {
+  const contact = state.chatActiveContact;
+  if (!contact) return;
+
+  const me = state.user;
+  if (!me) return;
+
+  const key = contact.type === 'dm'
+    ? `dm-${Math.min(me.id, contact.id)}-${Math.max(me.id, contact.id)}`
+    : contact.type === 'group'
+      ? `group-${contact.id}`
+      : 'team';
+
+  const typing = state.wsTyping[key];
+  const el = document.getElementById('chat-typing-indicator');
+  if (!el) return;
+
+  if (typing) {
+    el.innerHTML = `<span>${typing.username} is typing</span>
+      <span class="typing-dots"><span></span><span></span><span></span></span>`;
+    el.style.display = 'flex';
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+function appendMessageToDOM(msg: any): void {
+  const list = document.getElementById('chat-messages-list');
+  if (!list) return;
+  const me = state.user;
+  const isMine = msg.sender === me?.id || msg.sender_id === me?.id;
+  const bubbleHtml = renderMessageBubble(msg, isMine);
+  list.insertAdjacentHTML('beforeend', bubbleHtml);
+  list.scrollTop = list.scrollHeight;
+}
+
+function renderMessageBubble(msg: any, isMine: boolean): string {
+  const text = msg.is_deleted
+    ? `<span style="font-style:italic;opacity:0.4;">This message was deleted</span>`
+    : escapeHtml(msg.display_text || msg.text || '');
+
+  const time = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  const forwarded = msg.forwarded_from
+    ? `<div class="msg-forwarded-label">↩ Forwarded</div>`
+    : '';
+
+  const reactions = msg.reactions && msg.reactions.length
+    ? `<div class="msg-reactions">${renderReactionChips(msg)}</div>`
+    : `<div class="msg-reactions" data-msg-reactions="${msg.id}"></div>`;
+
+  const tick = isMine
+    ? `<span class="read-receipt ${msg.delivery_status || 'sent'}" title="${msg.delivery_status || 'sent'}">✓${msg.delivery_status === 'read' ? '✓' : ''}</span>`
+    : '';
+
+  const reactionPickerHtml = `
+    <div class="reaction-picker" id="rp-${msg.id}">
+      ${['👍','❤️','😂','😮','😢','🔥'].map(e =>
+        `<button onclick="toggleReaction(${msg.id},'${e}')">${e}</button>`
+      ).join('')}
+    </div>`;
+
+  return `
+    <div class="msg-row ${isMine ? 'msg-row--mine' : ''}" data-msg-id="${msg.id}" style="position:relative;"
+         onmouseenter="document.getElementById('rp-${msg.id}')?.classList.add('visible')"
+         onmouseleave="document.getElementById('rp-${msg.id}')?.classList.remove('visible')">
+      ${reactionPickerHtml}
+      <div class="chat-bubble ${isMine ? 'chat-bubble--mine' : 'chat-bubble--theirs'}">
+        ${forwarded}
+        <div class="chat-bubble-text">${text}</div>
+        ${renderAttachments(msg)}
+        <div class="chat-bubble-meta">
+          <span class="chat-time">${time}${msg.is_edited ? ' <span style="opacity:0.5;font-size:0.68rem;">(edited)</span>' : ''}</span>
+          ${tick}
+        </div>
+      </div>
+      ${reactions}
+    </div>`;
+}
+
+function renderAttachments(msg: any): string {
+  if (!msg.attachments || !msg.attachments.length) return '';
+  return msg.attachments.map((a: any) => {
+    if (a.file_type === 'image') {
+      return `<div class="msg-attachment">
+        <img src="${a.file_url}" class="msg-image-preview" alt="${escapeHtml(a.original_filename)}" onclick="window.open('${a.file_url}','_blank')">
+      </div>`;
+    }
+    const icons: Record<string, string> = { document: '📄', audio: '🎵', video: '🎬', other: '📎' };
+    const icon = icons[a.file_type] || '📎';
+    const size = a.file_size > 1048576
+      ? `${(a.file_size / 1048576).toFixed(1)} MB`
+      : `${Math.round(a.file_size / 1024)} KB`;
+    return `<div class="msg-attachment">
+      <a href="${a.file_url}" target="_blank" class="msg-file-chip" download="${escapeHtml(a.original_filename)}">
+        <span class="msg-file-icon">${icon}</span>
+        <div class="msg-file-info">
+          <div class="msg-file-name">${escapeHtml(a.original_filename)}</div>
+          <div class="msg-file-size">${size}</div>
+        </div>
+      </a>
+    </div>`;
+  }).join('');
+}
+
+function renderReactionChips(msg: any): string {
+  const me = state.user;
+  // Aggregate by emoji
+  const counts: Record<string, { count: number; mine: boolean }> = {};
+  (msg.reactions || []).forEach((r: any) => {
+    if (!counts[r.emoji]) counts[r.emoji] = { count: 0, mine: false };
+    counts[r.emoji].count++;
+    if (r.user === me?.id) counts[r.emoji].mine = true;
+  });
+  return Object.entries(counts).map(([emoji, info]) =>
+    `<button class="reaction-chip${info.mine ? ' mine' : ''}"
+       onclick="toggleReaction(${msg.id},'${emoji}')">${emoji}
+      <span class="reaction-count">${info.count}</span>
+    </button>`
+  ).join('');
+}
+
+function updateContactUnread(msg: any): void {
+  const me = state.user;
+  if (!me || msg.sender === me.id) return;
+  // Refresh contact list to update unread badge
+  updateChatDOM();
+}
+
+function escapeHtml(text: string): string {
+  return (text || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Global reaction toggle (called from inline onclick)
+(window as any).toggleReaction = function(msgId: number, emoji: string) {
+  // Check if user already reacted
+  const msg = state.chatMessages.find((m: any) => m.id === msgId);
+  const me = state.user;
+  const alreadyReacted = msg?.reactions?.some((r: any) => r.user === me?.id && r.emoji === emoji);
+  const action = alreadyReacted ? 'remove' : 'add';
+
+  wsSend({ type: 'chat.reaction', message_id: msgId, emoji, action });
+
+  // Also call REST for persistence if WS not connected
+  if (!state.wsSocket || state.wsSocket.readyState !== WebSocket.OPEN) {
+    const method = action === 'add' ? 'POST' : 'DELETE';
+    apiRequest(`chat/messages/${msgId}/react/`, { method, body: JSON.stringify({ emoji }) }).catch(() => {});
+  }
+};
+
+// ============================================================
+// CALL OVERLAY
+// ============================================================
+
+function showIncomingCallOverlay(data: any): void {
+  const existing = document.getElementById('call-overlay');
+  if (existing) existing.remove();
+
+  const type = data.call_type === 'video' ? '📹 Video' : '📞 Voice';
+  const overlay = document.createElement('div');
+  overlay.className = 'call-overlay';
+  overlay.id = 'call-overlay';
+  overlay.innerHTML = `
+    <div class="call-overlay__initials">${(data.caller_name || '?')[0].toUpperCase()}</div>
+    <div class="call-overlay__name">${escapeHtml(data.caller_name || 'Unknown')}</div>
+    <div class="call-overlay__status">Incoming ${type} Call…</div>
+    <div class="call-overlay__actions">
+      <button class="call-btn decline" title="Decline" onclick="declineCall(${data.caller_id})">📵</button>
+      <button class="call-btn answer"  title="Answer"  onclick="answerCall(${data.caller_id},'${data.call_type}')">📞</button>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+function showOutgoingCallOverlay(callee: any, callType: string, callId: number): void {
+  const existing = document.getElementById('call-overlay');
+  if (existing) existing.remove();
+
+  const type = callType === 'video' ? '📹 Video' : '📞 Voice';
+  const overlay = document.createElement('div');
+  overlay.className = 'call-overlay';
+  overlay.id = 'call-overlay';
+  overlay.innerHTML = `
+    <div class="call-overlay__initials">${(callee.name || callee.username || '?')[0].toUpperCase()}</div>
+    <div class="call-overlay__name">${escapeHtml(callee.name || callee.username || 'Unknown')}</div>
+    <div class="call-overlay__status">${type} calling…</div>
+    <div class="call-overlay__actions">
+      <button class="call-btn end" title="Cancel" onclick="endCall(${callId})">📵</button>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+function hideCallOverlay(): void {
+  const overlay = document.getElementById('call-overlay');
+  if (overlay) {
+    overlay.style.opacity = '0';
+    overlay.style.transition = 'opacity 0.3s';
+    setTimeout(() => overlay.remove(), 320);
+  }
+  if (state.callTimerInterval) {
+    clearInterval(state.callTimerInterval);
+    state.callTimerInterval = null;
+  }
+  state.activeCallRecord = null;
+}
+
+(window as any).declineCall = function(callerId: number) {
+  wsSend({ type: 'call.signal', signal_type: 'reject', recipient_id: callerId });
+  hideCallOverlay();
+};
+
+(window as any).answerCall = function(callerId: number, callType: string) {
+  wsSend({ type: 'call.signal', signal_type: 'answer', recipient_id: callerId, call_type: callType });
+  const overlay = document.getElementById('call-overlay');
+  if (overlay) {
+    const status = overlay.querySelector('.call-overlay__status');
+    if (status) status.textContent = `${callType === 'video' ? '📹 Video' : '📞 Voice'} • Connected`;
+    const actions = overlay.querySelector('.call-overlay__actions');
+    if (actions) {
+      actions.innerHTML = `
+        <button class="call-btn mute"   title="Mute"          onclick="this.style.opacity=this.style.opacity==='0.5'?'1':'0.5'">🔇</button>
+        <button class="call-btn end"    title="End call"       onclick="endCall(0)">📵</button>
+        ${callType === 'video' ? `<button class="call-btn camera" title="Toggle Camera" onclick="this.style.opacity=this.style.opacity==='0.5'?'1':'0.5'">📷</button>` : ''}`;
+    }
+    // Start timer
+    let seconds = 0;
+    const timerEl = document.createElement('div');
+    timerEl.className = 'call-overlay__timer';
+    overlay.appendChild(timerEl);
+    state.callTimerInterval = setInterval(() => {
+      seconds++;
+      const m = String(Math.floor(seconds / 60)).padStart(2, '0');
+      const s = String(seconds % 60).padStart(2, '0');
+      timerEl.textContent = `${m}:${s}`;
+    }, 1000);
+  }
+};
+
+(window as any).endCall = function(callId: number) {
+  wsSend({ type: 'call.signal', signal_type: 'end', recipient_id: 0 });
+  if (callId) {
+    apiRequest(`chat/calls/${callId}/end/`, { method: 'POST', body: JSON.stringify({ status: 'ended' }) }).catch(() => {});
+  }
+  hideCallOverlay();
+};
+
+// Initiate call from chat header
+(window as any).initiateCall = function(calleeId: number, calleeName: string, callType: string = 'voice') {
+  apiRequest('chat/calls/', {
+    method: 'POST',
+    body: JSON.stringify({ callee_id: calleeId, call_type: callType }),
+  }).then((res: any) => {
+    state.activeCallRecord = res;
+    wsSend({
+      type: 'call.signal',
+      signal_type: 'offer',
+      recipient_id: calleeId,
+      call_type: callType,
+    });
+    showOutgoingCallOverlay({ name: calleeName }, callType, res.id);
+  }).catch(() => {});
+};
 
 function drawChatTab(): string {
   return `
@@ -7451,6 +8330,7 @@ function drawChatTab(): string {
           <div style="text-align:center; padding:20px; color:var(--muted-foreground);">Loading conversations...</div>
         </div>
       </div>
+      <div class="chat-channels-sidebar" id="chat-channels-sidebar" style="display:none;"></div>
       <div class="chat-content" id="chat-viewport-container">
         <div class="chat-empty-state">
           <div class="chat-empty-icon">💬</div>

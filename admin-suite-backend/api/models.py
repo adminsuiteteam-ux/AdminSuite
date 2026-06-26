@@ -402,6 +402,11 @@ class ChatMessage(models.Model):
     - If recipient is set → private message between two users.
     The 'company_user' field identifies which admin workspace this message belongs to.
     """
+    DELIVERY_STATUS_CHOICES = [
+        ('sent', 'Sent'),
+        ('delivered', 'Delivered'),
+        ('read', 'Read'),
+    ]
     company_user = models.ForeignKey(
         'auth.User', on_delete=models.CASCADE, related_name='company_chat_messages'
     )
@@ -415,12 +420,22 @@ class ChatMessage(models.Model):
     group = models.ForeignKey(
         'ChatGroup', on_delete=models.CASCADE, null=True, blank=True, related_name='messages'
     )
-    text = models.TextField()
+    channel = models.ForeignKey(
+        'ChatChannel', on_delete=models.CASCADE, null=True, blank=True,
+        related_name='channel_messages'
+    )
+    text = models.TextField(blank=True, default='')
     is_pinned = models.BooleanField(default=False)
     is_edited = models.BooleanField(default=False)
     is_deleted = models.BooleanField(default=False)
+    delivery_status = models.CharField(
+        max_length=10, choices=DELIVERY_STATUS_CHOICES, default='sent'
+    )
     reply_to = models.ForeignKey(
         'self', on_delete=models.SET_NULL, null=True, blank=True, related_name='replies'
+    )
+    forwarded_from = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True, related_name='forwarded_copies'
     )
     read_by = models.ManyToManyField(
         'auth.User', blank=True, related_name='read_chat_messages'
@@ -434,6 +449,7 @@ class ChatMessage(models.Model):
     def __str__(self):
         dest = f"→ {self.recipient.username}" if self.recipient else "→ Group"
         return f"[{self.sender.username} {dest}]: {self.text[:40]}"
+
 
 
 class ChatSettings(models.Model):
@@ -491,4 +507,159 @@ class UserDevice(models.Model):
     def __str__(self):
         return f"{self.user.username} - {self.device_name or self.expo_push_token[:15]}"
 
+
+# ---------------------------------------------------------------------------
+# Enterprise Communication System — Extended Models
+# ---------------------------------------------------------------------------
+
+class UserPresence(models.Model):
+    """
+    Tracks each user's real-time presence status within a company workspace.
+    Updated via WebSocket heartbeats and REST endpoint.
+    """
+    STATUS_CHOICES = [
+        ('online', 'Online'),
+        ('away', 'Away'),
+        ('busy', 'Busy / Do Not Disturb'),
+        ('offline', 'Offline'),
+    ]
+    company_user = models.ForeignKey(
+        'auth.User', on_delete=models.CASCADE, related_name='workspace_presences'
+    )
+    user = models.ForeignKey(
+        'auth.User', on_delete=models.CASCADE, related_name='presence_records'
+    )
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='offline')
+    status_message = models.CharField(max_length=120, blank=True, default='')
+    last_seen = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('company_user', 'user')
+        verbose_name_plural = 'User presences'
+
+    def __str__(self):
+        return f"{self.user.username} [{self.status}]"
+
+
+class ChatChannel(models.Model):
+    """
+    Named sub-channels within a ChatGroup (e.g. #general, #announcements, #dev).
+    Mirrors Slack-style channel structure within a group.
+    """
+    group = models.ForeignKey(
+        'ChatGroup', on_delete=models.CASCADE, related_name='channels'
+    )
+    company_user = models.ForeignKey(
+        'auth.User', on_delete=models.CASCADE, related_name='chat_channels'
+    )
+    name = models.CharField(max_length=80)           # e.g. "general", "dev"
+    description = models.TextField(blank=True, default='')
+    is_private = models.BooleanField(default=False)  # private channels need explicit invite
+    members = models.ManyToManyField(
+        'auth.User', blank=True, related_name='joined_chat_channels'
+    )
+    created_by = models.ForeignKey(
+        'auth.User', on_delete=models.SET_NULL, null=True, related_name='created_channels'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('group', 'name')
+        ordering = ['name']
+
+    def __str__(self):
+        return f"#{self.name} ({self.group.name})"
+
+
+class MessageAttachment(models.Model):
+    """
+    File/image/audio attachments associated with a chat message.
+    One message can have multiple attachments.
+    """
+    TYPE_CHOICES = [
+        ('image', 'Image'),
+        ('video', 'Video'),
+        ('audio', 'Audio'),
+        ('document', 'Document'),
+        ('other', 'Other'),
+    ]
+    message = models.ForeignKey(
+        'ChatMessage', on_delete=models.CASCADE, related_name='attachments'
+    )
+    file = models.FileField(upload_to='chat_attachments/%Y/%m/')
+    original_filename = models.CharField(max_length=255)
+    file_type = models.CharField(max_length=10, choices=TYPE_CHOICES, default='other')
+    file_size = models.PositiveIntegerField(default=0)  # bytes
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Attachment: {self.original_filename} (msg #{self.message_id})"
+
+
+class MessageReaction(models.Model):
+    """
+    Emoji reactions on a chat message. Each (message, user, emoji) triple is unique.
+    """
+    message = models.ForeignKey(
+        'ChatMessage', on_delete=models.CASCADE, related_name='reactions'
+    )
+    user = models.ForeignKey(
+        'auth.User', on_delete=models.CASCADE, related_name='message_reactions'
+    )
+    emoji = models.CharField(max_length=10)   # Unicode emoji, e.g. "👍"
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('message', 'user', 'emoji')
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"{self.user.username} reacted {self.emoji} to msg #{self.message_id}"
+
+
+class CallRecord(models.Model):
+    """
+    Log of voice and video call sessions between users.
+    """
+    CALL_TYPE_CHOICES = [
+        ('voice', 'Voice Call'),
+        ('video', 'Video Call'),
+    ]
+    STATUS_CHOICES = [
+        ('initiated', 'Initiated'),
+        ('ringing', 'Ringing'),
+        ('accepted', 'Accepted'),
+        ('rejected', 'Rejected'),
+        ('missed', 'Missed'),
+        ('ended', 'Ended'),
+        ('failed', 'Failed'),
+    ]
+    company_user = models.ForeignKey(
+        'auth.User', on_delete=models.CASCADE, related_name='company_call_records'
+    )
+    caller = models.ForeignKey(
+        'auth.User', on_delete=models.CASCADE, related_name='outgoing_calls'
+    )
+    callee = models.ForeignKey(
+        'auth.User', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='incoming_calls'
+    )
+    group = models.ForeignKey(
+        'ChatGroup', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='group_calls'
+    )
+    call_type = models.CharField(max_length=10, choices=CALL_TYPE_CHOICES, default='voice')
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default='initiated')
+    started_at = models.DateTimeField(auto_now_add=True)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    duration_seconds = models.PositiveIntegerField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-started_at']
+
+    def __str__(self):
+        dest = self.callee.username if self.callee else f"Group {self.group}"
+        return f"[{self.call_type}] {self.caller.username} → {dest} ({self.status})"
 

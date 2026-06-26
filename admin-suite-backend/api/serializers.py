@@ -8,7 +8,8 @@ from .models import (
     Transaction, Notification, Debt, BudgetCategory, Savings,
     UserProfile, EmployeeActivityLog, EmployeeQuery, EmployeeTask,
     EmployeeLeave, EmployeeMessage, EmployeeDocument, SalaryAdjustment,
-    ChatMessage, ChatSettings, ChatGroup
+    ChatMessage, ChatSettings, ChatGroup,
+    MessageAttachment, MessageReaction, UserPresence, ChatChannel, CallRecord,
 )
 from .extended_models import Organization, Branch, Subscription, UserExtension  # multi‑branch models
 
@@ -658,3 +659,96 @@ class UserExtensionSerializer(serializers.ModelSerializer):
         model = UserExtension
         fields = ['id', 'user', 'role', 'organization', 'branch']
         read_only_fields = ['id']
+
+
+# ---------------------------------------------------------------------------
+# Enterprise Communication Serializers
+# ---------------------------------------------------------------------------
+
+class MessageAttachmentSerializer(serializers.ModelSerializer):
+    file_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = MessageAttachment
+        fields = ['id', 'original_filename', 'file_type', 'file_size', 'file_url', 'uploaded_at']
+        read_only_fields = ['id', 'uploaded_at']
+
+    def get_file_url(self, obj):
+        request = self.context.get('request')
+        if request and obj.file:
+            return request.build_absolute_uri(obj.file.url)
+        return obj.file.url if obj.file else None
+
+
+class MessageReactionSerializer(serializers.ModelSerializer):
+    username = serializers.ReadOnlyField(source='user.username')
+
+    class Meta:
+        model = MessageReaction
+        fields = ['id', 'emoji', 'user', 'username', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+
+class UserPresenceSerializer(serializers.ModelSerializer):
+    user_id = serializers.ReadOnlyField(source='user.id')
+    username = serializers.ReadOnlyField(source='user.username')
+    full_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = UserPresence
+        fields = ['user_id', 'username', 'full_name', 'status', 'status_message', 'last_seen']
+        read_only_fields = ['last_seen']
+
+    def get_full_name(self, obj):
+        return obj.user.get_full_name() or obj.user.username
+
+
+class ChatChannelSerializer(serializers.ModelSerializer):
+    member_count = serializers.SerializerMethodField()
+    created_by_username = serializers.ReadOnlyField(source='created_by.username')
+
+    class Meta:
+        model = ChatChannel
+        fields = [
+            'id', 'group', 'name', 'description', 'is_private',
+            'member_count', 'created_by_username', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def get_member_count(self, obj):
+        return obj.members.count()
+
+
+class CallRecordSerializer(serializers.ModelSerializer):
+    caller_name = serializers.SerializerMethodField()
+    callee_name = serializers.SerializerMethodField()
+    duration_label = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CallRecord
+        fields = [
+            'id', 'caller', 'caller_name', 'callee', 'callee_name',
+            'call_type', 'status', 'started_at', 'accepted_at', 'ended_at',
+            'duration_seconds', 'duration_label',
+        ]
+        read_only_fields = ['id', 'started_at']
+
+    def get_caller_name(self, obj):
+        return obj.caller.get_full_name() or obj.caller.username
+
+    def get_callee_name(self, obj):
+        if obj.callee:
+            return obj.callee.get_full_name() or obj.callee.username
+        return None
+
+    def get_duration_label(self, obj):
+        secs = obj.duration_seconds
+        if not secs:
+            return None
+        m, s = divmod(secs, 60)
+        h, m = divmod(m, 60)
+        if h:
+            return f'{h}h {m}m {s}s'
+        if m:
+            return f'{m}m {s}s'
+        return f'{s}s'

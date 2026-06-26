@@ -16,6 +16,9 @@ from .views import (
     chat_settings, chat_block_user, chat_groups, chat_group_detail, chat_typing,
     register_device, unregister_device,
     branch_metrics, subscription_limits, subscription_upgrade, transaction_categories, dashboard_alerts,
+    # Enterprise communication
+    chat_presence, chat_react, chat_forward, chat_attach,
+    chat_calls, chat_call_end, chat_channels, chat_channel_detail,
 )
 from payments.stripe_helper import stripe_webhook
 
@@ -68,7 +71,7 @@ urlpatterns = [
     path('employee-portal/dashboard/', employee_dashboard, name='employee-dashboard'),
     path('employee-portal/finance/', employee_finance, name='employee-finance'),
     path('employee-portal/tasks/<int:pk>/update/', employee_update_task, name='employee-update-task'),
-    # Chat
+    # Chat — core
     path('chat/messages/', chat_messages, name='chat-messages'),
     path('chat/send/', chat_send, name='chat-send'),
     path('chat/messages/<int:pk>/', chat_message_detail, name='chat-message-detail'),
@@ -79,6 +82,15 @@ urlpatterns = [
     path('chat/groups/', chat_groups, name='chat-groups'),
     path('chat/groups/<int:pk>/', chat_group_detail, name='chat-group-detail'),
     path('chat/typing/', chat_typing, name='chat-typing'),  # type: ignore[arg-type]
+    # Chat — enterprise extensions
+    path('chat/presence/', chat_presence, name='chat-presence'),
+    path('chat/messages/<int:pk>/react/', chat_react, name='chat-react'),
+    path('chat/messages/<int:pk>/forward/', chat_forward, name='chat-forward'),
+    path('chat/messages/<int:pk>/attach/', chat_attach, name='chat-attach'),
+    path('chat/calls/', chat_calls, name='chat-calls'),
+    path('chat/calls/<int:pk>/end/', chat_call_end, name='chat-call-end'),
+    path('chat/channels/', chat_channels, name='chat-channels'),
+    path('chat/channels/<int:pk>/', chat_channel_detail, name='chat-channel-detail'),
     path('export/', export_data, name='export-data'),
     path('devices/register/', register_device, name='register-device'),
     path('devices/unregister/', unregister_device, name='unregister-device'),

@@ -2049,3 +2049,612 @@ input, select, textarea { font-family: inherit; }
   }
 }
 
+
+/* ==========================================================================
+   Enterprise Communication System — Styles
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Presence Indicators
+   -------------------------------------------------------------------------- */
+
+.presence-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--card, #1e1e2e);
+  flex-shrink: 0;
+  transition: background 0.3s;
+}
+
+.presence-dot.online  { background: #22c55e; }
+.presence-dot.away    { background: #f59e0b; }
+.presence-dot.busy    { background: #ef4444; }
+.presence-dot.offline { background: #6b7280; }
+
+/* Pulsing ring on online status */
+.presence-dot.online::after {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(34,197,94,0.4);
+  animation: presence-pulse 2s ease-in-out infinite;
+}
+
+@keyframes presence-pulse {
+  0%   { transform: scale(1);   opacity: 0.8; }
+  50%  { transform: scale(2.2); opacity: 0; }
+  100% { transform: scale(1);   opacity: 0.8; }
+}
+
+/* Container for avatar + presence dot */
+.chat-avatar-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.chat-avatar-wrap .presence-dot {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+}
+
+/* --------------------------------------------------------------------------
+   Typing Indicator
+   -------------------------------------------------------------------------- */
+
+.typing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px 6px 14px;
+  font-size: 0.75rem;
+  color: var(--text-secondary, rgba(255,255,255,0.5));
+  min-height: 28px;
+}
+
+.typing-dots {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.typing-dots span {
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary, #6366f1);
+  animation: typing-bounce 1.2s ease-in-out infinite both;
+}
+
+.typing-dots span:nth-child(1) { animation-delay: 0s;    }
+.typing-dots span:nth-child(2) { animation-delay: 0.18s; }
+.typing-dots span:nth-child(3) { animation-delay: 0.36s; }
+
+@keyframes typing-bounce {
+  0%, 60%, 100% { transform: translateY(0);   opacity: 0.4; }
+  30%            { transform: translateY(-7px); opacity: 1;   }
+}
+
+/* --------------------------------------------------------------------------
+   Emoji Reactions
+   -------------------------------------------------------------------------- */
+
+.msg-reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.reaction-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 12px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  user-select: none;
+}
+
+.reaction-chip:hover {
+  background: rgba(99,102,241,0.22);
+  border-color: rgba(99,102,241,0.45);
+  transform: scale(1.08);
+}
+
+.reaction-chip.mine {
+  background: rgba(99,102,241,0.25);
+  border-color: rgba(99,102,241,0.55);
+}
+
+.reaction-count {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: rgba(255,255,255,0.65);
+}
+
+/* Floating reaction picker bar */
+.reaction-picker {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  display: flex;
+  gap: 2px;
+  background: rgba(15,23,42,0.96);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 24px;
+  padding: 6px 8px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.45);
+  z-index: 100;
+  opacity: 0;
+  transform: translateY(4px) scale(0.92);
+  pointer-events: none;
+  transition: opacity 0.15s, transform 0.15s;
+}
+
+.reaction-picker.visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+.reaction-picker button {
+  font-size: 1.25rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 3px 5px;
+  border-radius: 8px;
+  transition: transform 0.12s, background 0.1s;
+  line-height: 1;
+}
+
+.reaction-picker button:hover {
+  transform: scale(1.3);
+  background: rgba(255,255,255,0.08);
+}
+
+/* --------------------------------------------------------------------------
+   Message Attachment Preview
+   -------------------------------------------------------------------------- */
+
+.msg-attachment {
+  margin-top: 6px;
+  border-radius: 10px;
+  overflow: hidden;
+  max-width: 260px;
+}
+
+.msg-image-preview {
+  display: block;
+  width: 100%;
+  max-width: 260px;
+  max-height: 200px;
+  object-fit: cover;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.msg-image-preview:hover { opacity: 0.88; }
+
+.msg-file-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  text-decoration: none;
+  color: inherit;
+  transition: background 0.15s;
+}
+
+.msg-file-chip:hover { background: rgba(99,102,241,0.15); }
+
+.msg-file-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.msg-file-info { overflow: hidden; }
+
+.msg-file-name {
+  font-size: 0.82rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: rgba(255,255,255,0.9);
+}
+
+.msg-file-size {
+  font-size: 0.71rem;
+  color: rgba(255,255,255,0.45);
+}
+
+/* Forwarded message label */
+.msg-forwarded-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
+  color: rgba(255,255,255,0.45);
+  margin-bottom: 3px;
+  font-style: italic;
+}
+
+/* --------------------------------------------------------------------------
+   Read Receipt Ticks
+   -------------------------------------------------------------------------- */
+
+.read-receipt {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.7rem;
+  margin-left: 4px;
+}
+
+.read-receipt.sent      { color: rgba(255,255,255,0.35); }
+.read-receipt.delivered { color: rgba(255,255,255,0.55); }
+.read-receipt.read      { color: #22c55e; }
+
+/* --------------------------------------------------------------------------
+   Sub-channel Sidebar
+   -------------------------------------------------------------------------- */
+
+.channel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 8px;
+  padding-left: 8px;
+}
+
+.channel-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  color: rgba(255,255,255,0.55);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.channel-item:hover {
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.85);
+}
+
+.channel-item.active {
+  background: rgba(99,102,241,0.2);
+  color: #818cf8;
+  font-weight: 600;
+}
+
+.channel-item .channel-hash {
+  font-size: 0.9rem;
+  opacity: 0.7;
+}
+
+/* --------------------------------------------------------------------------
+   Call Overlay
+   -------------------------------------------------------------------------- */
+
+.call-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.88);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  backdrop-filter: blur(12px);
+  animation: call-fade-in 0.3s ease;
+}
+
+@keyframes call-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.call-overlay__avatar {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid rgba(255,255,255,0.2);
+  box-shadow: 0 0 0 12px rgba(99,102,241,0.12), 0 0 0 24px rgba(99,102,241,0.06);
+  margin-bottom: 20px;
+  animation: call-ring 2.5s ease-in-out infinite;
+}
+
+.call-overlay__initials {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  font-weight: 700;
+  color: white;
+  box-shadow: 0 0 0 12px rgba(99,102,241,0.12), 0 0 0 24px rgba(99,102,241,0.06);
+  margin-bottom: 20px;
+  animation: call-ring 2.5s ease-in-out infinite;
+}
+
+@keyframes call-ring {
+  0%,100% { box-shadow: 0 0 0 12px rgba(99,102,241,0.12), 0 0 0 24px rgba(99,102,241,0.06); }
+  50%      { box-shadow: 0 0 0 16px rgba(99,102,241,0.18), 0 0 0 32px rgba(99,102,241,0.08); }
+}
+
+.call-overlay__name {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: white;
+  margin-bottom: 6px;
+}
+
+.call-overlay__status {
+  font-size: 0.9rem;
+  color: rgba(255,255,255,0.55);
+  margin-bottom: 40px;
+  letter-spacing: 0.5px;
+}
+
+.call-overlay__actions {
+  display: flex;
+  gap: 32px;
+  align-items: center;
+}
+
+.call-btn {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  transition: transform 0.15s, opacity 0.15s;
+}
+
+.call-btn:hover  { transform: scale(1.1); }
+.call-btn:active { transform: scale(0.95); opacity: 0.85; }
+
+.call-btn.answer  { background: #22c55e; color: white; }
+.call-btn.decline { background: #ef4444; color: white; }
+.call-btn.mute    { background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2); }
+.call-btn.camera  { background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2); }
+.call-btn.end     { background: #ef4444; color: white; }
+
+.call-overlay__timer {
+  margin-top: 20px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: rgba(255,255,255,0.7);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 1px;
+}
+
+/* Mini call bar (pinned at top when call is in progress) */
+.call-mini-bar {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15,23,42,0.95);
+  border: 1px solid rgba(34,197,94,0.4);
+  border-radius: 24px;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 9998;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  animation: call-fade-in 0.3s ease;
+}
+
+.call-mini-bar__status {
+  font-size: 0.8rem;
+  color: #22c55e;
+  font-weight: 600;
+}
+
+.call-mini-bar__timer {
+  font-size: 0.82rem;
+  color: rgba(255,255,255,0.7);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------------------------------------------------------------------------
+   WebSocket Connection Status Badge
+   -------------------------------------------------------------------------- */
+
+.ws-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+.ws-status.connected {
+  color: #22c55e;
+  background: rgba(34,197,94,0.1);
+}
+
+.ws-status.reconnecting {
+  color: #f59e0b;
+  background: rgba(245,158,11,0.1);
+}
+
+.ws-status.disconnected {
+  color: #ef4444;
+  background: rgba(239,68,68,0.1);
+}
+
+.ws-status__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.ws-status.connected    .ws-status__dot { background: #22c55e; animation: presence-pulse 2s infinite; }
+.ws-status.reconnecting .ws-status__dot { background: #f59e0b; animation: presence-pulse 1s infinite; }
+.ws-status.disconnected .ws-status__dot { background: #ef4444; }
+
+/* --------------------------------------------------------------------------
+   Attach file button + drag zone
+   -------------------------------------------------------------------------- */
+
+.chat-attach-btn {
+  background: none;
+  border: none;
+  padding: 6px;
+  cursor: pointer;
+  color: rgba(255,255,255,0.45);
+  border-radius: 8px;
+  transition: color 0.15s, background 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chat-attach-btn:hover {
+  color: rgba(255,255,255,0.85);
+  background: rgba(255,255,255,0.06);
+}
+
+.chat-input-drop-zone {
+  border: 2px dashed rgba(99,102,241,0.45);
+  border-radius: 12px;
+  background: rgba(99,102,241,0.06);
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.chat-input-drop-zone.drag-over {
+  border-color: #818cf8;
+  background: rgba(99,102,241,0.14);
+}
+
+/* --------------------------------------------------------------------------
+   Call log entry in chat contacts / conversation list
+   -------------------------------------------------------------------------- */
+
+.call-log-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.5);
+  border-top: 1px solid rgba(255,255,255,0.04);
+}
+
+.call-log-entry .call-icon { font-size: 1rem; }
+.call-log-entry.missed .call-icon { color: #ef4444; }
+.call-log-entry.answered .call-icon { color: #22c55e; }
+
+/* --------------------------------------------------------------------------
+   Offline Gate & Connection Lost Card
+   -------------------------------------------------------------------------- */
+
+.offline-gate {
+  position: fixed;
+  inset: 0;
+  background: var(--background);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 24px;
+}
+
+.offline-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 40px 32px;
+  width: 100%;
+  max-width: 420px;
+  text-align: center;
+  box-shadow: var(--shadow-xl);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  animation: cardSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes cardSlideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.offline-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  margin-bottom: 8px;
+  animation: wifiPulse 2s infinite ease-in-out;
+}
+
+@keyframes wifiPulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.2);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 12px rgba(239, 68, 68, 0);
+  }
+}
+
+.offline-card h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--foreground);
+}
+
+.offline-card p {
+  font-size: 0.92rem;
+  color: var(--muted-foreground);
+  line-height: 1.5;
+  margin: 0 0 8px 0;
+}

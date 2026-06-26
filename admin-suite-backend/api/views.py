@@ -13,7 +13,9 @@ from .models import (
     Employee, EmployeeFinance, PayHistory, Client, Project, Transaction,
     Notification, Debt, BudgetCategory, Savings, EmployeeActivityLog,
     EmployeeQuery, EmployeeTask, EmployeeLeave, EmployeeMessage,
-    EmployeeDocument, SalaryAdjustment, PayrollStatus, ChatMessage, ChatSettings, ChatGroup, ChatTypingStatus, UserDevice
+    EmployeeDocument, SalaryAdjustment, PayrollStatus, ChatMessage, ChatSettings,
+    ChatGroup, ChatTypingStatus, UserDevice,
+    MessageAttachment, MessageReaction, UserPresence, ChatChannel, CallRecord,
 )
 from .serializers import (
     EmployeeSerializer, ClientSerializer, ProjectSerializer,
@@ -23,7 +25,9 @@ from .serializers import (
     EmployeeQuerySerializer, EmployeeTaskSerializer, EmployeeLeaveSerializer,
     EmployeeMessageSerializer, EmployeeDocumentSerializer, SalaryAdjustmentSerializer,
     EmployeeFinanceSerializer, PayHistorySerializer, ChatMessageSerializer,
-    ChatSettingsSerializer, ChatGroupSerializer
+    ChatSettingsSerializer, ChatGroupSerializer,
+    MessageAttachmentSerializer, MessageReactionSerializer, UserPresenceSerializer,
+    ChatChannelSerializer, CallRecordSerializer,
 )
 from .notifications import send_push_notification
 
@@ -2048,17 +2052,28 @@ def chat_messages(request):
 
     recipient_id = request.GET.get('recipient_id')
     group_id = request.GET.get('group_id')
+    channel_id = request.GET.get('channel_id')
     profile = getattr(request.user, 'profile', None)
     is_employee = profile and profile.role == 'employee'
 
-    if group_id:
+    if channel_id:
+        try:
+            chat_channel = ChatChannel.objects.get(id=channel_id, company_user=company_user)
+        except ChatChannel.DoesNotExist:
+            return Response({'error': 'Channel not found.'}, status=status.HTTP_404_NOT_FOUND)
+        msgs = ChatMessage.objects.filter(
+            company_user=company_user,
+            channel=chat_channel
+        ).select_related('sender', 'reply_to', 'reply_to__sender')
+    elif group_id:
         try:
             chat_group = ChatGroup.objects.get(id=group_id, company_user=company_user)
         except ChatGroup.DoesNotExist:
             return Response({'error': 'Chat group not found.'}, status=status.HTTP_404_NOT_FOUND)
         msgs = ChatMessage.objects.filter(
             company_user=company_user,
-            group=chat_group
+            group=chat_group,
+            channel__isnull=True
         ).select_related('sender', 'reply_to', 'reply_to__sender')
     elif recipient_id:
         try:
@@ -2116,11 +2131,19 @@ def chat_send(request):
 
     recipient_id = request.data.get('recipient_id')
     group_id = request.data.get('group_id')
+    channel_id = request.data.get('channel_id')
     reply_to_id = request.data.get('reply_to_id')
 
     recipient = None
     chat_group = None
-    if group_id:
+    chat_channel = None
+    if channel_id:
+        try:
+            chat_channel = ChatChannel.objects.get(id=channel_id, company_user=company_user)
+            chat_group = chat_channel.group
+        except ChatChannel.DoesNotExist:
+            return Response({'error': 'Channel not found.'}, status=status.HTTP_404_NOT_FOUND)
+    elif group_id:
         try:
             chat_group = ChatGroup.objects.get(id=group_id, company_user=company_user)
         except ChatGroup.DoesNotExist:
@@ -2174,6 +2197,7 @@ def chat_send(request):
         sender=request.user,
         recipient=recipient,
         group=chat_group,
+        channel=chat_channel,
         text=text,
         reply_to=reply_to,
     )
@@ -2810,4 +2834,377 @@ def unregister_device(request):
         return Response({'status': 'success', 'message': 'Device token unregistered successfully.'}, status=status.HTTP_200_OK)
     return Response({'error': 'Device token not found or not associated with your user.'}, status=status.HTTP_404_NOT_FOUND)
 
+
+# ===========================================================================
+# Enterprise Communication System — REST API Endpoints
+# ===========================================================================
+
+import os
+from django.utils import timezone as django_tz
+
+
+# ---------------------------------------------------------------------------
+# Presence
+# ---------------------------------------------------------------------------
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def chat_presence(request):
+    """
+    GET  /api/chat/presence/  → Returns workspace-wide presence list
+    POST /api/chat/presence/  → Update own presence
+      Body: { status: 'online'|'away'|'busy'|'offline', status_message?: str }
+    """
+    company_user = _get_company_user(request)
+    if not company_user:
+        return Response({'error': 'Company profile not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        presences = UserPresence.objects.filter(company_user=company_user).select_related('user')
+        return Response(UserPresenceSerializer(presences, many=True).data)
+
+    # POST — update own presence
+    new_status = request.data.get('status', 'online')
+    if new_status not in ('online', 'away', 'busy', 'offline'):
+        return Response({'error': 'Invalid status.'}, status=status.HTTP_400_BAD_REQUEST)
+    status_msg = (request.data.get('status_message') or '')[:120]
+
+    presence, _ = UserPresence.objects.get_or_create(
+        company_user=company_user, user=request.user
+    )
+    presence.status = new_status
+    presence.status_message = status_msg
+    presence.save()
+    return Response(UserPresenceSerializer(presence).data)
+
+
+# ---------------------------------------------------------------------------
+# Message Reactions
+# ---------------------------------------------------------------------------
+
+@api_view(['POST', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def chat_react(request, pk):
+    """
+    POST   /api/chat/messages/<pk>/react/   → Add reaction  { emoji: '👍' }
+    DELETE /api/chat/messages/<pk>/react/   → Remove reaction  { emoji: '👍' }
+    """
+    company_user = _get_company_user(request)
+    try:
+        msg = ChatMessage.objects.get(pk=pk, company_user=company_user)
+    except ChatMessage.DoesNotExist:
+        return Response({'error': 'Message not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    emoji = (request.data.get('emoji') or '').strip()
+    if not emoji:
+        return Response({'error': 'emoji is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if request.method == 'POST':
+        MessageReaction.objects.get_or_create(message=msg, user=request.user, emoji=emoji)
+    else:
+        MessageReaction.objects.filter(message=msg, user=request.user, emoji=emoji).delete()
+
+    # Return aggregated counts for this message
+    from django.db.models import Count
+    counts = (
+        MessageReaction.objects.filter(message=msg)
+        .values('emoji')
+        .annotate(count=Count('id'))
+    )
+    return Response({
+        'message_id': pk,
+        'reactions': {item['emoji']: item['count'] for item in counts},
+    })
+
+
+# ---------------------------------------------------------------------------
+# Message Forwarding
+# ---------------------------------------------------------------------------
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def chat_forward(request, pk):
+    """
+    POST /api/chat/messages/<pk>/forward/
+    Body: { recipient_id? OR group_id? }
+    Forwards a message to another conversation.
+    """
+    company_user = _get_company_user(request)
+    try:
+        original = ChatMessage.objects.get(pk=pk, company_user=company_user)
+    except ChatMessage.DoesNotExist:
+        return Response({'error': 'Message not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    recipient_id = request.data.get('recipient_id')
+    group_id = request.data.get('group_id')
+    recipient = None
+    group = None
+
+    if recipient_id:
+        try:
+            recipient = User.objects.get(pk=recipient_id)
+        except User.DoesNotExist:
+            return Response({'error': 'Recipient not found.'}, status=status.HTTP_404_NOT_FOUND)
+    elif group_id:
+        try:
+            group = ChatGroup.objects.get(pk=group_id, company_user=company_user)
+        except ChatGroup.DoesNotExist:
+            return Response({'error': 'Group not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    forwarded = ChatMessage.objects.create(
+        company_user=company_user,
+        sender=request.user,
+        recipient=recipient,
+        group=group,
+        text=original.text,
+        forwarded_from=original,
+    )
+    forwarded.read_by.add(request.user)
+    return Response(ChatMessageSerializer(forwarded, context={'request': request}).data, status=status.HTTP_201_CREATED)
+
+
+# ---------------------------------------------------------------------------
+# Message Attachments
+# ---------------------------------------------------------------------------
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def chat_attach(request, pk):
+    """
+    POST /api/chat/messages/<pk>/attach/
+    Multipart body: { file: <file> }
+    Attaches a file to an existing message.
+    """
+    company_user = _get_company_user(request)
+    try:
+        msg = ChatMessage.objects.get(pk=pk, company_user=company_user, sender=request.user)
+    except ChatMessage.DoesNotExist:
+        return Response({'error': 'Message not found or not yours.'}, status=status.HTTP_404_NOT_FOUND)
+
+    uploaded_file = request.FILES.get('file')
+    if not uploaded_file:
+        return Response({'error': 'No file provided.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    MAX_SIZE = 25 * 1024 * 1024  # 25 MB
+    if uploaded_file.size > MAX_SIZE:
+        return Response({'error': 'File too large (max 25 MB).'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Determine file type from content-type
+    ct = uploaded_file.content_type or ''
+    if ct.startswith('image/'):
+        file_type = 'image'
+    elif ct.startswith('video/'):
+        file_type = 'video'
+    elif ct.startswith('audio/'):
+        file_type = 'audio'
+    elif ct in ('application/pdf', 'application/msword', 'text/plain',
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'):
+        file_type = 'document'
+    else:
+        file_type = 'other'
+
+    attachment = MessageAttachment.objects.create(
+        message=msg,
+        file=uploaded_file,
+        original_filename=uploaded_file.name,
+        file_type=file_type,
+        file_size=uploaded_file.size,
+    )
+    return Response(
+        MessageAttachmentSerializer(attachment, context={'request': request}).data,
+        status=status.HTTP_201_CREATED
+    )
+
+
+# ---------------------------------------------------------------------------
+# Calls (initiate, list, end)
+# ---------------------------------------------------------------------------
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def chat_calls(request):
+    """
+    GET  /api/chat/calls/      → Call history for current user
+    POST /api/chat/calls/      → Initiate a call
+      Body: { callee_id, call_type: 'voice'|'video', group_id? }
+    """
+    company_user = _get_company_user(request)
+    if not company_user:
+        return Response({'error': 'Company profile not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        calls = CallRecord.objects.filter(
+            company_user=company_user
+        ).filter(
+            models.Q(caller=request.user) | models.Q(callee=request.user)
+        ).select_related('caller', 'callee', 'group')[:50]
+        return Response(CallRecordSerializer(calls, many=True).data)
+
+    # POST — initiate call
+    callee_id = request.data.get('callee_id')
+    call_type = request.data.get('call_type', 'voice')
+    group_id = request.data.get('group_id')
+
+    if call_type not in ('voice', 'video'):
+        return Response({'error': 'call_type must be voice or video.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    callee = None
+    group = None
+    if callee_id:
+        try:
+            callee = User.objects.get(pk=callee_id)
+        except User.DoesNotExist:
+            return Response({'error': 'Callee not found.'}, status=status.HTTP_404_NOT_FOUND)
+    elif group_id:
+        try:
+            group = ChatGroup.objects.get(pk=group_id, company_user=company_user)
+        except ChatGroup.DoesNotExist:
+            return Response({'error': 'Group not found.'}, status=status.HTTP_404_NOT_FOUND)
+    else:
+        return Response({'error': 'callee_id or group_id required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    call = CallRecord.objects.create(
+        company_user=company_user,
+        caller=request.user,
+        callee=callee,
+        group=group,
+        call_type=call_type,
+        status='initiated',
+    )
+
+    # Notify callee via push
+    if callee:
+        caller_name = request.user.get_full_name() or request.user.username
+        icon = '📞' if call_type == 'voice' else '📹'
+        send_push_notification(
+            user=callee,
+            title=f'{icon} Incoming {call_type} call from {caller_name}',
+            body='Tap to answer',
+            data={
+                'screen': 'call',
+                'callId': str(call.id),
+                'callType': call_type,
+                'callerId': str(request.user.id),
+            },
+        )
+
+    return Response(CallRecordSerializer(call).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def chat_call_end(request, pk):
+    """
+    POST /api/chat/calls/<pk>/end/
+    Body: { status: 'ended'|'rejected'|'missed' }
+    """
+    company_user = _get_company_user(request)
+    try:
+        call = CallRecord.objects.get(
+            pk=pk, company_user=company_user
+        )
+    except CallRecord.DoesNotExist:
+        return Response({'error': 'Call not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.user not in (call.caller, call.callee):
+        return Response({'error': 'Not authorized.'}, status=status.HTTP_403_FORBIDDEN)
+
+    new_status = request.data.get('status', 'ended')
+    if new_status not in ('ended', 'rejected', 'missed', 'accepted', 'failed'):
+        new_status = 'ended'
+
+    if new_status == 'accepted' and not call.accepted_at:
+        call.accepted_at = django_tz.now()
+
+    call.ended_at = django_tz.now()
+    call.status = new_status
+    if call.accepted_at and call.ended_at:
+        delta = call.ended_at - call.accepted_at
+        call.duration_seconds = int(delta.total_seconds())
+    call.save()
+    return Response(CallRecordSerializer(call).data)
+
+
+# ---------------------------------------------------------------------------
+# Chat Channels (sub-channels within groups)
+# ---------------------------------------------------------------------------
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def chat_channels(request):
+    """
+    GET  /api/chat/channels/?group_id=<id>  → List channels for a group
+    POST /api/chat/channels/                → Create a new channel
+      Body: { group_id, name, description?, is_private? }
+    """
+    company_user = _get_company_user(request)
+    if not company_user:
+        return Response({'error': 'Company profile not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        group_id = request.GET.get('group_id')
+        if not group_id:
+            return Response({'error': 'group_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        channels = ChatChannel.objects.filter(
+            company_user=company_user,
+            group__id=group_id,
+        ).prefetch_related('members')
+        # Filter private channels: only show if user is a member or admin
+        is_admin = (request.user == company_user)
+        if not is_admin:
+            channels = channels.filter(
+                models.Q(is_private=False) | models.Q(members=request.user)
+            ).distinct()
+        return Response(ChatChannelSerializer(channels, many=True).data)
+
+    # POST
+    group_id = request.data.get('group_id')
+    name = (request.data.get('name') or '').strip().lower().replace(' ', '-')
+    if not group_id or not name:
+        return Response({'error': 'group_id and name are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        group = ChatGroup.objects.get(pk=group_id, company_user=company_user)
+    except ChatGroup.DoesNotExist:
+        return Response({'error': 'Group not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    channel, created = ChatChannel.objects.get_or_create(
+        group=group,
+        name=name,
+        company_user=company_user,
+        defaults={
+            'description': request.data.get('description', ''),
+            'is_private': bool(request.data.get('is_private', False)),
+            'created_by': request.user,
+        }
+    )
+    if not created:
+        return Response({'error': f'Channel #{name} already exists in this group.'}, status=status.HTTP_409_CONFLICT)
+
+    channel.members.add(request.user)  # creator is always a member
+    return Response(ChatChannelSerializer(channel).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def chat_channel_detail(request, pk):
+    """
+    GET    /api/chat/channels/<pk>/  → Channel detail
+    DELETE /api/chat/channels/<pk>/  → Delete channel (admin only)
+    """
+    company_user = _get_company_user(request)
+    try:
+        channel = ChatChannel.objects.get(pk=pk, company_user=company_user)
+    except ChatChannel.DoesNotExist:
+        return Response({'error': 'Channel not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        return Response(ChatChannelSerializer(channel).data)
+
+    # DELETE — admin only
+    if request.user != company_user:
+        return Response({'error': 'Only admin can delete channels.'}, status=status.HTTP_403_FORBIDDEN)
+    channel.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
 
