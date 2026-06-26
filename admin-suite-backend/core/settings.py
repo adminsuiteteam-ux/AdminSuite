@@ -13,12 +13,19 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+import cloudinary
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Load environment variables from .env file
 load_dotenv(BASE_DIR / '.env')
+
+cloudinary.config(
+    cloud_name="dlzn0moho",
+    api_key="967749748734626",
+    api_secret="HMaEaoKbX9CmOSiLgSiwNtzUePY"
+)
 
 import sentry_sdk
 from sentry_sdk.integrations.django import DjangoIntegration
@@ -83,12 +90,14 @@ else:
 
 INSTALLED_APPS = [
     'daphne',                          # ASGI server — must be first
+    'cloudinary_storage',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'cloudinary',
     'rest_framework',
     'rest_framework.authtoken',
     'corsheaders',
@@ -229,7 +238,15 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [
     BASE_DIR / 'static',
 ]
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+if not DEBUG:
+    # Production: use WhiteNoise for serving static files
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+else:
+    # Development: use default storage (or Cloudinary if desired)
+    STATICFILES_STORAGE = 'cloudinary_storage.storage.StaticHashedCloudinaryStorage'
+
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 # SECURITY: In production, set CORS_ALLOWED_ORIGINS env var (comma-separated)
 # Mobile apps (React Native / Expo) do not send an Origin header,
