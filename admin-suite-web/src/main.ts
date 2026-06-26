@@ -4042,8 +4042,10 @@ function drawAdminDashboard(): string {
 
     <!-- Row 4: Trackers -->
     <div style="display:grid; grid-template-columns:2fr 1.2fr; gap:16px; margin-bottom:24px;">
-      <div class="card">
-        <div class="card-body" style="padding:16px 20px 10px;">
+      <div class="card" style="position:relative; border-radius:22px; overflow:hidden; background:linear-gradient(135deg,#000000 0%,#0a0a0a 60%,#1e3a8a 100%); border:1px solid rgba(255,255,255,0.08); box-shadow:0 8px 40px rgba(0,0,0,0.28); color:#fff;">
+        <div style="position:absolute; top:-60px; right:-40px; width:180px; height:180px; border-radius:90px; background:rgba(37,99,235,0.18); pointer-events:none;"></div>
+        <div style="position:absolute; bottom:-80px; left:-40px; width:200px; height:200px; border-radius:100px; background:rgba(249,115,22,0.12); pointer-events:none;"></div>
+        <div class="card-body" style="position:relative; padding:24px 28px 20px; z-index:1;">
           ${drawDashboardSvgChart()}
         </div>
       </div>
@@ -4499,11 +4501,11 @@ function drawDashboardSvgChart(): string {
       <div style="display:flex; justify-content:space-between; align-items:center;">
         <div style="display:flex; align-items:center; gap:8px;">
           <div style="position:relative; width:12px; height:12px; display:flex; align-items:center; justify-content:center;">
-            <div class="live-dot-pulse" style="position:absolute; width:12px; height:12px; border-radius:50%; background:var(--foreground);"></div>
-            <div style="width:6px; height:6px; border-radius:50%; background:var(--foreground);"></div>
+            <div class="live-dot-pulse" style="position:absolute; width:12px; height:12px; border-radius:50%; background:#22c55e; box-shadow:0 0 8px #22c55e;"></div>
+            <div style="width:6px; height:6px; border-radius:50%; background:#22c55e;"></div>
           </div>
-          <span style="color:var(--foreground); font-size:10px; font-weight:700; letter-spacing:1.2px;">LIVE</span>
-          <h3 style="font-size:16px; font-weight:700; margin:0; margin-left:4px; color:var(--foreground);">Financial Pulse</h3>
+          <span style="color:#22c55e; font-size:10px; font-weight:700; letter-spacing:1.2px;">LIVE</span>
+          <h3 style="font-size:16px; font-weight:700; margin:0; margin-left:4px; color:#ffffff;">Financial Pulse</h3>
         </div>
         
         <!-- Range chips -->
@@ -4514,9 +4516,9 @@ function drawDashboardSvgChart(): string {
               <button id="dash-range-${r}" style="
                 padding: 5px 12px;
                 border-radius: 999px;
-                border: 1px solid ${active ? 'var(--accent)' : 'var(--border)'};
-                background: ${active ? 'var(--accent)' : 'transparent'};
-                color: ${active ? '#fff' : 'var(--muted-foreground)'};
+                border: 1px solid ${active ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.12)'};
+                background: ${active ? 'rgba(255,255,255,0.18)' : 'transparent'};
+                color: ${active ? '#fff' : 'rgba(255,255,255,0.6)'};
                 font-size: 11px;
                 font-weight: 600;
                 cursor: pointer;
@@ -4533,25 +4535,25 @@ function drawDashboardSvgChart(): string {
         <div style="flex:1.2; min-width:0;">
           <div style="display:flex; align-items:center; gap:5px; margin-bottom:2px;">
             <div style="width:7px; height:7px; border-radius:50%; background:#f97316;"></div>
-            <span style="color:var(--muted-foreground); font-size:10px; text-transform:uppercase; font-weight:600; letter-spacing:0.5px;">Net</span>
+            <span style="color:rgba(255,255,255,0.6); font-size:10px; text-transform:uppercase; font-weight:600; letter-spacing:0.5px;">Net</span>
           </div>
-          <div style="color:var(--foreground); font-size:22px; font-weight:800; font-variant-numeric:tabular-nums; letter-spacing:-0.5px;">${formatCurrency(netProfit)}</div>
+          <div style="color:#ffffff; font-size:22px; font-weight:800; font-variant-numeric:tabular-nums; letter-spacing:-0.5px;">${formatCurrency(netProfit)}</div>
         </div>
         <!-- Income Pill -->
         <div style="flex:1; min-width:0;">
           <div style="display:flex; align-items:center; gap:5px; margin-bottom:2px;">
-            <div style="width:7px; height:7px; border-radius:50%; background:var(--foreground);"></div>
-            <span style="color:var(--muted-foreground); font-size:10px; text-transform:uppercase; font-weight:600; letter-spacing:0.5px;">In</span>
+            <div style="width:7px; height:7px; border-radius:50%; background:#22c55e;"></div>
+            <span style="color:rgba(255,255,255,0.6); font-size:10px; text-transform:uppercase; font-weight:600; letter-spacing:0.5px;">In</span>
           </div>
-          <div style="color:var(--foreground); font-size:14px; font-weight:700; font-variant-numeric:tabular-nums;">${formatCurrency(totalIncome)}</div>
+          <div style="color:#ffffff; font-size:14px; font-weight:700; font-variant-numeric:tabular-nums;">${formatCurrency(totalIncome)}</div>
         </div>
         <!-- Expense Pill -->
         <div style="flex:1; min-width:0;">
           <div style="display:flex; align-items:center; gap:5px; margin-bottom:2px;">
             <div style="width:7px; height:7px; border-radius:50%; background:#ef4444;"></div>
-            <span style="color:var(--muted-foreground); font-size:10px; text-transform:uppercase; font-weight:600; letter-spacing:0.5px;">Out</span>
+            <span style="color:rgba(255,255,255,0.6); font-size:10px; text-transform:uppercase; font-weight:600; letter-spacing:0.5px;">Out</span>
           </div>
-          <div style="color:var(--foreground); font-size:14px; font-weight:700; font-variant-numeric:tabular-nums;">${formatCurrency(totalExpense)}</div>
+          <div style="color:#ffffff; font-size:14px; font-weight:700; font-variant-numeric:tabular-nums;">${formatCurrency(totalExpense)}</div>
         </div>
       </div>
 
@@ -4560,8 +4562,8 @@ function drawDashboardSvgChart(): string {
         <svg viewBox="0 0 500 240" style="width:100%; min-width:400px; display:block;">
           <defs>
             <linearGradient id="incomeFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="var(--foreground)" stop-opacity="0.10"></stop>
-              <stop offset="100%" stop-color="var(--foreground)" stop-opacity="0.00"></stop>
+              <stop offset="0%" stop-color="#22c55e" stop-opacity="0.35"></stop>
+              <stop offset="100%" stop-color="#22c55e" stop-opacity="0.00"></stop>
             </linearGradient>
           </defs>
 
@@ -4570,13 +4572,13 @@ function drawDashboardSvgChart(): string {
           ${yTicks.map(tv => {
             const y = yFor(tv);
             return `
-              <line x1="${PADDING.left}" x2="${500 - PADDING.right}" y1="${y}" y2="${y}" stroke="var(--border)" stroke-dasharray="3" stroke-width="1"></line>
-              <text x="${PADDING.left - 8}" y="${y + 4}" fill="var(--muted-foreground)" font-size="9.5" font-weight="600" text-anchor="end">${formatCurrencyShort(tv)}</text>
+              <line x1="${PADDING.left}" x2="${500 - PADDING.right}" y1="${y}" y2="${y}" stroke="rgba(255,255,255,0.06)" stroke-dasharray="3" stroke-width="1"></line>
+              <text x="${PADDING.left - 8}" y="${y + 4}" fill="rgba(255,255,255,0.55)" font-size="9.5" font-weight="600" text-anchor="end">${formatCurrencyShort(tv)}</text>
 
             `;
           }).join('')}
 
-          <line x1="${PADDING.left}" x2="${500 - PADDING.right}" y1="${height - PADDING.bottom}" y2="${height - PADDING.bottom}" stroke="var(--border)" stroke-width="1.5"></line>
+          <line x1="${PADDING.left}" x2="${500 - PADDING.right}" y1="${height - PADDING.bottom}" y2="${height - PADDING.bottom}" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"></line>
 
           <!-- Area Fill for Income -->
           ${areaPath ? `<path d="${areaPath}" fill="url(#incomeFill)"></path>` : ''}
@@ -4584,11 +4586,11 @@ function drawDashboardSvgChart(): string {
           <!-- Curves -->
           ${expensePath ? `<path d="${expensePath}" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path>` : ''}
           ${profitPath ? `<path d="${profitPath}" fill="none" stroke="#f97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path>` : ''}
-          ${incomePath ? `<path d="${incomePath}" fill="none" stroke="var(--foreground)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>` : ''}
+          ${incomePath ? `<path d="${incomePath}" fill="none" stroke="#22c55e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>` : ''}
 
           <!-- Pulsing Pin Points for Last Coordinates -->
           ${[
-            { last: incomePts.at(-1), color: 'var(--foreground)' },
+            { last: incomePts.at(-1), color: '#22c55e' },
             { last: profitPts.at(-1), color: '#f97316' },
             { last: expensePts.at(-1), color: '#ef4444' }
 
@@ -4597,7 +4599,7 @@ function drawDashboardSvgChart(): string {
             return `
               <g>
                 <circle cx="${s.last.x}" cy="${s.last.y}" r="7" fill="${s.color}" opacity="0.35" class="live-dot-pulse"></circle>
-                <circle cx="${s.last.x}" cy="${s.last.y}" r="3.5" fill="${s.color}" stroke="var(--background)" stroke-width="1.5"></circle>
+                <circle cx="${s.last.x}" cy="${s.last.y}" r="3.5" fill="${s.color}" stroke="#000000" stroke-width="1.5"></circle>
               </g>
             `;
           }).join('')}
@@ -4615,14 +4617,14 @@ function drawDashboardSvgChart(): string {
                 <rect x="${incP.x - 15}" y="${PADDING.top}" width="30" height="${innerH}" fill="transparent"></rect>
                 
                 <!-- Bullet points shown on hover -->
-                <circle cx="${incP.x}" cy="${incP.y}" r="4" fill="var(--foreground)" stroke="var(--background)" stroke-width="1.5" style="display:none;" class="hover-dot"></circle>
-                <circle cx="${expP.x}" cy="${expP.y}" r="4" fill="#ef4444" stroke="var(--background)" stroke-width="1.5" style="display:none;" class="hover-dot"></circle>
-                <circle cx="${prfP.x}" cy="${prfP.y}" r="4" fill="#f97316" stroke="var(--background)" stroke-width="1.5" style="display:none;" class="hover-dot"></circle>
+                <circle cx="${incP.x}" cy="${incP.y}" r="4" fill="#22c55e" stroke="#000000" stroke-width="1.5" style="display:none;" class="hover-dot"></circle>
+                <circle cx="${expP.x}" cy="${expP.y}" r="4" fill="#ef4444" stroke="#000000" stroke-width="1.5" style="display:none;" class="hover-dot"></circle>
+                <circle cx="${prfP.x}" cy="${prfP.y}" r="4" fill="#f97316" stroke="#000000" stroke-width="1.5" style="display:none;" class="hover-dot"></circle>
                 
                 <g class="chart-tooltip-g" style="display:none; pointer-events:none;">
-                  <rect x="${incP.x - 65}" y="${tooltipY - 62}" width="130" height="52" rx="6" fill="var(--foreground)" opacity="0.96" filter="drop-shadow(0 4px 6px rgba(0,0,0,0.15))"></rect>
-                  <text x="${incP.x}" y="${tooltipY - 48}" fill="var(--background)" font-size="9" font-weight="700" text-anchor="middle">${lab}</text>
-                  <text x="${incP.x}" y="${tooltipY - 36}" fill="var(--foreground)" font-size="8.5" font-weight="700" text-anchor="middle">In: ${formatCurrency(res.income.at(i) || 0)}</text>
+                  <rect x="${incP.x - 65}" y="${tooltipY - 62}" width="130" height="52" rx="6" fill="rgba(15,23,42,0.95)" stroke="rgba(255,255,255,0.15)" stroke-width="1" filter="drop-shadow(0 4px 6px rgba(0,0,0,0.15))"></rect>
+                  <text x="${incP.x}" y="${tooltipY - 48}" fill="rgba(255,255,255,0.9)" font-size="9" font-weight="700" text-anchor="middle">${lab}</text>
+                  <text x="${incP.x}" y="${tooltipY - 36}" fill="#22c55e" font-size="8.5" font-weight="700" text-anchor="middle">In: ${formatCurrency(res.income.at(i) || 0)}</text>
                   <text x="${incP.x}" y="${tooltipY - 24}" fill="#ef4444" font-size="8.5" font-weight="700" text-anchor="middle">Out: ${formatCurrency(res.expense.at(i) || 0)}</text>
                   <text x="${incP.x}" y="${tooltipY - 14}" fill="#f97316" font-size="8.5" font-weight="700" text-anchor="middle">Net: ${formatCurrency(profit.at(i) || 0)}</text>
                 </g>
@@ -4633,7 +4635,7 @@ function drawDashboardSvgChart(): string {
 
           <!-- X Axis Labels -->
           ${res.labels.map((lab, i) => `
-            <text x="${xFor(i)}" y="${height - 8}" fill="var(--muted-foreground)" font-size="9.5" font-weight="600" text-anchor="middle">${lab}</text>
+            <text x="${xFor(i)}" y="${height - 8}" fill="rgba(255,255,255,0.55)" font-size="9.5" font-weight="600" text-anchor="middle">${lab}</text>
           `).join('')}
         </svg>
       </div>
@@ -4641,16 +4643,16 @@ function drawDashboardSvgChart(): string {
       <!-- Legend Row -->
       <div style="display:flex; justify-content:center; gap:20px; margin-top:4px;">
         <div style="display:flex; align-items:center; gap:6px;">
-          <div style="width:8px; height:8px; border-radius:50%; background:var(--foreground);"></div>
-          <span style="color:var(--muted-foreground); font-size:11px; font-weight:600;">Income</span>
+          <div style="width:8px; height:8px; border-radius:50%; background:#22c55e;"></div>
+          <span style="color:rgba(255,255,255,0.7); font-size:11px; font-weight:600;">Income</span>
         </div>
         <div style="display:flex; align-items:center; gap:6px;">
           <div style="width:8px; height:8px; border-radius:50%; background:#ef4444;"></div>
-          <span style="color:var(--muted-foreground); font-size:11px; font-weight:600;">Expense</span>
+          <span style="color:rgba(255,255,255,0.7); font-size:11px; font-weight:600;">Expense</span>
         </div>
         <div style="display:flex; align-items:center; gap:6px;">
           <div style="width:8px; height:8px; border-radius:50%; background:#f97316;"></div>
-          <span style="color:var(--muted-foreground); font-size:11px; font-weight:600;">Net Profit</span>
+          <span style="color:rgba(255,255,255,0.7); font-size:11px; font-weight:600;">Net Profit</span>
         </div>
       </div>
     </div>
