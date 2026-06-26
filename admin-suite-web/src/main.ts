@@ -522,6 +522,7 @@ interface AppState {
     biometrics_enabled?: boolean;
     notifications_enabled?: boolean;
     company_logo?: string;
+    avatar?: string;
   } | null;
   authToken: string | null;
   activeTab: 'dashboard' | 'employees' | 'clients' | 'finance' | 'settings' | 'pricing' | 'chat' | 'projects' | 'tasks' | 'attendance' | 'notes';
@@ -2548,8 +2549,10 @@ function drawSidebar(): string {
       
       <div class="sidebar-footer">
         <div class="sidebar-user">
-          <div class="sidebar-avatar" style="font-weight:700;">
-            ${sanitizeHtml((state.user?.name || state.user?.username || 'A').slice(0, 2).toUpperCase())}
+          <div class="sidebar-avatar" style="font-weight:700; overflow:hidden; display:flex; align-items:center; justify-content:center;">
+            ${state.user?.avatar 
+              ? `<img src="${state.user.avatar}" alt="Avatar" style="width:100%; height:100%; object-fit:cover;">` 
+              : sanitizeHtml((state.user?.name || state.user?.username || 'A').slice(0, 2).toUpperCase())}
           </div>
           <div class="sidebar-user-info">
             <div class="sidebar-user-name">${sanitizeHtml(state.user?.name || state.user?.username || 'User')}</div>
@@ -2596,7 +2599,11 @@ function drawTopbar(): string {
 
         <!-- User Profile -->
         <div class="topbar-profile" id="topbar-profile-btn">
-          <div class="topbar-avatar">${sanitizeHtml(userInitials)}</div>
+          <div class="topbar-avatar" style="overflow:hidden; display:flex; align-items:center; justify-content:center;">
+            ${state.user?.avatar 
+              ? `<img src="${state.user.avatar}" alt="Avatar" style="width:100%; height:100%; object-fit:cover;">` 
+              : sanitizeHtml(userInitials)}
+          </div>
           <div class="topbar-profile-info">
             <div class="topbar-profile-name">${sanitizeHtml(userName)}</div>
             <div class="topbar-profile-email">${sanitizeHtml(userEmail)}</div>
@@ -5688,51 +5695,120 @@ function openAddTransactionModal() {
 
 function drawSettingsTab(): string {
   const u: any = state.user || {};
-  return `
-    <div class="content-grid">
-      <!-- Profile settings card -->
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title">Corporate Admin Profile</div>
-        </div>
-        <div class="card-body">
-          <form id="settings-profile-form">
-            <div class="form-group">
-              <label class="form-label" for="set-name">Administrator Name</label>
-              <input type="text" class="form-input" id="set-name" required value="${sanitizeHtml(u.name || '')}">
-            </div>
-            
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label" for="set-phone">Contact Phone</label>
-                ${drawPhoneInput('set-phone', u.phone || '', 'e.g. 555-0199')}
-              </div>
-              <div class="form-group">
-                <label class="form-label" for="set-location">Location</label>
-                <input type="text" class="form-input" id="set-location" required value="${sanitizeHtml(u.location || '')}">
-              </div>
-            </div>
+  const userInitials = (u.name || u.username || 'US').slice(0, 2).toUpperCase();
 
-            <div class="form-group">
-              <label class="form-label" for="set-bio">Brief Biography</label>
-              <textarea class="form-input" id="set-bio" rows="3">${sanitizeHtml(u.bio || '')}</textarea>
+  const avatarHtml = u.avatar
+    ? `<img src="${u.avatar}" alt="${sanitizeHtml(u.name || 'Admin')}">`
+    : sanitizeHtml(userInitials);
+
+  const phoneVal = u.phone || 'Not set';
+  const locationVal = u.location || 'Not set';
+  const bioVal = u.bio || 'Not set';
+
+  const socialLinkHtml = u.social_link && u.social_link !== 'Not set'
+    ? `<a href="${sanitizeHtml(u.social_link)}" target="_blank" rel="noopener noreferrer">${sanitizeHtml(u.social_link)}</a>`
+    : 'Not set';
+
+  return `
+    <div class="profile-gradient-banner">
+      <div class="profile-banner-content">
+        <div class="profile-banner-left">
+          <div class="profile-banner-avatar-wrap">
+            ${avatarHtml}
+          </div>
+          <div class="profile-banner-info">
+            <div class="profile-role-chip">
+              ${getIconSvg('shield')} <span>${sanitizeHtml((u.role || 'admin').toUpperCase())}</span>
             </div>
-            
-            <button type="submit" class="btn btn-primary" id="set-submit-btn" style="width:100%; margin-top:8px;">Update Admin Profile</button>
-          </form>
+            <h1>${sanitizeHtml(u.name || u.username || 'Administrator')}</h1>
+            <div class="profile-banner-email">
+              ${getIconSvg('mail')} <span>${sanitizeHtml(u.email || 'No email set')}</span>
+            </div>
+          </div>
+        </div>
+        <button class="profile-btn-edit" id="web-profile-edit-btn">
+          ${getIconSvg('edit')} Edit Profile
+        </button>
+      </div>
+    </div>
+
+    <div class="card profile-details-card">
+      <div class="card-header">
+        <div class="card-title">${getIconSvg('user')} Personal Details</div>
+      </div>
+      <div class="card-body">
+        <div class="profile-details-grid">
+          <div class="profile-detail-row">
+            <div class="profile-detail-icon-wrap">${getIconSvg('map-pin')}</div>
+            <div class="profile-detail-content">
+              <div class="profile-detail-label">Location</div>
+              <div class="profile-detail-value" id="set-disp-location">${sanitizeHtml(locationVal)}</div>
+            </div>
+          </div>
+          <div class="profile-detail-row">
+            <div class="profile-detail-icon-wrap">${getIconSvg('phone')}</div>
+            <div class="profile-detail-content">
+              <div class="profile-detail-label">Phone</div>
+              <div class="profile-detail-value" id="set-disp-phone">${sanitizeHtml(phoneVal)}</div>
+            </div>
+          </div>
+          <div class="profile-detail-row">
+            <div class="profile-detail-icon-wrap">${getIconSvg('file-text')}</div>
+            <div class="profile-detail-content">
+              <div class="profile-detail-label">Bio</div>
+              <div class="profile-detail-value" id="set-disp-bio">${sanitizeHtml(bioVal)}</div>
+            </div>
+          </div>
+          <div class="profile-detail-row">
+            <div class="profile-detail-icon-wrap">${getIconSvg('link')}</div>
+            <div class="profile-detail-content">
+              <div class="profile-detail-label">Social Link</div>
+              <div class="profile-detail-value" id="set-disp-social">${socialLinkHtml}</div>
+            </div>
+          </div>
         </div>
       </div>
-      
-      <!-- Real CSV/PDF Exporter card -->
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title">System Utilities & Exports</div>
-        </div>
-        <div class="card-body" style="display:flex; flex-direction:column; gap:20px;">
-          <div>
-            <span style="font-size:13px; font-weight:600; display:block; margin-bottom:4px;">Export Workspace Sheet</span>
-            <p style="font-size:11px; color:var(--muted-foreground); margin-bottom:12px;">Trigger backend document compiler to download employee and client records.</p>
-            
+    </div>
+
+    <div class="profile-sections-wrapper">
+      <!-- Workspace Management Section -->
+      <div class="card settings-group-card">
+        <div class="settings-group-title">Workspace Settings</div>
+        <div class="settings-row-list">
+          <div class="settings-action-row" id="set-row-org">
+            <div class="settings-action-row-left">
+              <div class="settings-action-icon">${getIconSvg('briefcase')}</div>
+              <div>
+                <div class="settings-action-label">Organization Details</div>
+                <div class="settings-action-hint">Configure business branding and company logo</div>
+              </div>
+            </div>
+            ${getIconSvg('chevron')}
+          </div>
+          <div class="settings-action-row" id="set-row-clients">
+            <div class="settings-action-row-left">
+              <div class="settings-action-icon">${getIconSvg('globe')}</div>
+              <div>
+                <div class="settings-action-label">All Clients</div>
+                <div class="settings-action-hint">Manage enterprise client portfolios</div>
+              </div>
+            </div>
+            ${getIconSvg('chevron')}
+          </div>
+          <div class="settings-action-row" id="set-row-employees">
+            <div class="settings-action-row-left">
+              <div class="settings-action-icon">${getIconSvg('users')}</div>
+              <div>
+                <div class="settings-action-label">Team & Roles</div>
+                <div class="settings-action-hint">Assign roles and manage staff headcount</div>
+              </div>
+            </div>
+            ${getIconSvg('chevron')}
+          </div>
+
+          <!-- Document Compiler (Exporter) Card embedded directly here -->
+          <div style="border-top:1px solid var(--border); padding-top:16px; margin-top:8px;">
+            <span style="font-size:12px; font-weight:700; display:block; margin-bottom:8px; text-transform:uppercase; color:var(--muted-foreground); letter-spacing:0.5px;">Export Workspace Sheet</span>
             <div style="display:flex; gap:10px; margin-bottom:12px;">
               <select class="form-input" id="export-type-select" style="font-size:12px; background:var(--background);">
                 <option value="general">General Audit Report</option>
@@ -5740,27 +5816,39 @@ function drawSettingsTab(): string {
                 <option value="client">Client Roster Only</option>
                 <option value="financials">Financial Ledgers Sheet</option>
               </select>
-              
               <select class="form-input" id="export-format-select" style="font-size:12px; background:var(--background); width:80px;">
                 <option value="csv">CSV</option>
                 <option value="pdf">PDF</option>
               </select>
             </div>
-
-            <button class="btn btn-outline btn-sm" id="real-export-btn" style="width:100%; gap:6px;">
+            <button class="btn btn-outline btn-sm" id="real-export-btn" style="width:100%; gap:6px; justify-content:center;">
               ${getIconSvg('download')} Trigger Remote Export
             </button>
           </div>
-          
-          <div style="border-top:1px solid var(--border); padding-top:16px;">
-            <span style="font-size:13px; font-weight:600; display:block; margin-bottom:4px;">Security Lock Credentials</span>
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-top:10px; padding:12px; background:var(--muted); border-radius:8px; border:1px solid var(--border);">
-              <div>
-                <span style="font-weight:700; font-size:13px; display:block;">Biometrics Lock</span>
-                <span style="font-size:10px; color:var(--muted-foreground);">Prompt simulated biometric check on reload.</span>
-              </div>
-              <input type="checkbox" id="set-biometrics-checkbox" ${u.biometrics_enabled ? 'checked' : ''} style="width:18px; height:18px; cursor:pointer;">
+        </div>
+      </div>
+
+      <!-- Security & Preferences Section -->
+      <div class="card settings-group-card">
+        <div class="settings-group-title">Preferences & Security</div>
+        <div class="settings-row-list">
+          <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 16px; background:var(--muted); border-radius:var(--radius-md); border:1px solid var(--border);">
+            <div>
+              <span style="font-weight:700; font-size:13.5px; display:block; color:var(--foreground);">Biometrics Lock</span>
+              <span style="font-size:11px; color:var(--muted-foreground);">Prompt simulated biometric check on reload</span>
             </div>
+            <input type="checkbox" id="set-biometrics-checkbox" ${u.biometrics_enabled ? 'checked' : ''} style="width:18px; height:18px; cursor:pointer;">
+          </div>
+          
+          <div class="settings-action-row" id="set-row-logout" style="border-color: rgba(239, 68, 68, 0.2); background: rgba(239, 68, 68, 0.04);">
+            <div class="settings-action-row-left">
+              <div class="settings-action-icon" style="background: rgba(239, 68, 68, 0.1); color: #ef4444;">${getIconSvg('log-out')}</div>
+              <div>
+                <div class="settings-action-label" style="color: #ef4444;">Log Out</div>
+                <div class="settings-action-hint" style="color: rgba(239, 68, 68, 0.75);">Sign out of your administrator account</div>
+              </div>
+            </div>
+            <span style="color:#ef4444;">${getIconSvg('chevron')}</span>
           </div>
         </div>
       </div>
@@ -5768,59 +5856,337 @@ function drawSettingsTab(): string {
   `;
 }
 
-function bindSettingsEvents() {
-  const profileForm = document.getElementById('settings-profile-form') as HTMLFormElement;
-  
-  // Bind phone input events
-  const setPhoneInput = document.getElementById('set-phone') as HTMLInputElement;
-  const initialCountry = getSelectedCountry('set-phone');
-  let setPhoneVal = initialCountry.dial + (setPhoneInput?.value || '');
-  bindPhoneInputEvents('set-phone', (fullVal) => {
-    setPhoneVal = fullVal;
+function openEditProfileModal(activeTab: 'personal' | 'org' = 'personal') {
+  const modalContainer = document.getElementById('modal-container');
+  if (!modalContainer) return;
+
+  const u: any = state.user || {};
+  let selectedAvatarFile: File | null = null;
+  let selectedLogoFile: File | null = null;
+
+  const avatarInitials = (u.name || u.username || 'US').slice(0, 2).toUpperCase();
+  const avatarSrc = u.avatar ? u.avatar : '';
+  const logoSrc = u.company_logo ? u.company_logo : '';
+
+  modalContainer.innerHTML = DOMPurify.sanitize(`
+    <div class="modal-overlay">
+      <div class="modal" style="max-width: 520px;">
+        <div class="modal-header">
+          <h2 class="modal-title">Edit Admin Profile</h2>
+          <button class="modal-close" id="profile-modal-close-btn">${getIconSvg('x')}</button>
+        </div>
+        
+        <div class="modal-body" style="padding: 20px; overflow-y: auto; max-height: 70vh;">
+          <!-- Tabs -->
+          <div style="display:flex; border-bottom:1px solid var(--border); margin-bottom:20px; gap:16px;">
+            <button type="button" id="tab-btn-personal" style="background:none; border:none; border-bottom:2px solid ${activeTab === 'personal' ? 'var(--primary)' : 'transparent'}; color:${activeTab === 'personal' ? 'var(--foreground)' : 'var(--muted-foreground)'}; font-weight:700; padding:8px 4px; cursor:pointer;">
+              Personal Details
+            </button>
+            <button type="button" id="tab-btn-org" style="background:none; border:none; border-bottom:2px solid ${activeTab === 'org' ? 'var(--primary)' : 'transparent'}; color:${activeTab === 'org' ? 'var(--foreground)' : 'var(--muted-foreground)'}; font-weight:700; padding:8px 4px; cursor:pointer;">
+              Organization Branding
+            </button>
+          </div>
+
+          <!-- Personal Tab Content -->
+          <div id="tab-content-personal" style="display:${activeTab === 'personal' ? 'block' : 'none'};">
+            <!-- Avatar Upload Circle -->
+            <div class="avatar-upload-container">
+              <div class="avatar-upload-preview" id="avatar-upload-trigger">
+                ${avatarSrc ? `<img src="${avatarSrc}" id="avatar-edit-img" alt="Avatar">` : `<span id="avatar-edit-initials">${avatarInitials}</span>`}
+                <div class="avatar-upload-overlay">
+                  ${getIconSvg('video')}
+                  <span>Upload</span>
+                </div>
+              </div>
+              <input type="file" id="edit-avatar-file-input" accept="image/*" style="display:none;">
+            </div>
+
+            <div class="form-group" style="margin-bottom:14px;">
+              <label class="form-label" for="edit-name">Full Name</label>
+              <input type="text" class="form-input" id="edit-name" value="${sanitizeHtml(u.name || '')}" placeholder="Administrator Name" required>
+            </div>
+
+            <div class="form-row" style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px;">
+              <div class="form-group">
+                <label class="form-label" for="edit-phone">Phone Number</label>
+                ${drawPhoneInput('edit-phone', u.phone || '', 'Phone')}
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="edit-location">Location</label>
+                <input type="text" class="form-input" id="edit-location" value="${sanitizeHtml(u.location || '')}" placeholder="e.g. London, UK">
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom:14px;">
+              <label class="form-label" for="edit-bio">Biography</label>
+              <textarea class="form-input" id="edit-bio" rows="3" placeholder="A short bio...">${sanitizeHtml(u.bio || '')}</textarea>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="edit-social">Social Link</label>
+              <input type="text" class="form-input" id="edit-social" value="${sanitizeHtml(u.social_link || '')}" placeholder="https://linkedin.com/in/username">
+            </div>
+          </div>
+
+          <!-- Organization Tab Content -->
+          <div id="tab-content-org" style="display:${activeTab === 'org' ? 'block' : 'none'};">
+            <!-- Logo Upload Box -->
+            <div class="avatar-upload-container">
+              <div class="avatar-upload-preview" id="logo-upload-trigger" style="border-radius:12px; width:160px; height:80px;">
+                ${logoSrc ? `<img src="${logoSrc}" id="logo-edit-img" alt="Logo">` : `<span id="logo-edit-placeholder" style="font-size:12px; font-weight:600; color:var(--muted-foreground);">Upload Logo</span>`}
+                <div class="avatar-upload-overlay" style="border-radius:12px;">
+                  ${getIconSvg('download')}
+                  <span>Upload Logo</span>
+                </div>
+              </div>
+              <input type="file" id="edit-logo-file-input" accept="image/*" style="display:none;">
+            </div>
+
+            <div class="form-group" style="margin-bottom:14px;">
+              <label class="form-label" for="edit-biz-name">Business Name</label>
+              <input type="text" class="form-input" id="edit-biz-name" value="${sanitizeHtml(u.business_name || '')}" placeholder="e.g. Enterprise Corp">
+            </div>
+
+            <div class="form-row" style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px;">
+              <div class="form-group">
+                <label class="form-label" for="edit-org-email">Business Email</label>
+                <input type="email" class="form-input" id="edit-org-email" value="${sanitizeHtml(u.org_email || '')}" placeholder="org@company.com">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="edit-org-location">Headquarters Location</label>
+                <input type="text" class="form-input" id="edit-org-location" value="${sanitizeHtml(u.org_location || '')}" placeholder="e.g. London, UK">
+              </div>
+            </div>
+
+            <div class="form-row" style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px;">
+              <div class="form-group">
+                <label class="form-label" for="edit-company-line">Company Slogan</label>
+                <input type="text" class="form-input" id="edit-company-line" value="${sanitizeHtml(u.company_line || '')}" placeholder="Slogan/Line">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="edit-average-revenue">Average Revenue</label>
+                <input type="text" class="form-input" id="edit-average-revenue" value="${sanitizeHtml(u.average_revenue || '')}" placeholder="e.g. $1M - $5M">
+              </div>
+            </div>
+
+            <div class="form-row" style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+              <div class="form-group">
+                <label class="form-label" for="edit-total-workers">Total Workers</label>
+                <input type="text" class="form-input" id="edit-total-workers" value="${sanitizeHtml(u.total_workers || '')}" placeholder="e.g. 50-100">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="edit-social-handles">Social Handles</label>
+                <input type="text" class="form-input" id="edit-social-handles" value="${sanitizeHtml(u.social_handles || '')}" placeholder="@username">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" id="profile-modal-cancel-btn">Cancel</button>
+          <button type="button" class="btn btn-primary" id="profile-modal-save-btn">
+            ${getIconSvg('check')} Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+  `);
+
+  // Bind tabs
+  const tabBtnPersonal = document.getElementById('tab-btn-personal') as HTMLButtonElement;
+  const tabBtnOrg = document.getElementById('tab-btn-org') as HTMLButtonElement;
+  const tabContentPersonal = document.getElementById('tab-content-personal') as HTMLDivElement;
+  const tabContentOrg = document.getElementById('tab-content-org') as HTMLDivElement;
+
+  tabBtnPersonal.addEventListener('click', () => {
+    tabBtnPersonal.style.borderBottom = '2px solid var(--primary)';
+    tabBtnPersonal.style.color = 'var(--foreground)';
+    tabBtnOrg.style.borderBottom = '2px solid transparent';
+    tabBtnOrg.style.color = 'var(--muted-foreground)';
+    tabContentPersonal.style.display = 'block';
+    tabContentOrg.style.display = 'none';
   });
 
-  if (profileForm) {
-    profileForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const submitBtn = document.getElementById('set-submit-btn') as HTMLButtonElement;
+  tabBtnOrg.addEventListener('click', () => {
+    tabBtnOrg.style.borderBottom = '2px solid var(--primary)';
+    tabBtnOrg.style.color = 'var(--foreground)';
+    tabBtnPersonal.style.borderBottom = '2px solid transparent';
+    tabBtnPersonal.style.color = 'var(--muted-foreground)';
+    tabContentPersonal.style.display = 'none';
+    tabContentOrg.style.display = 'block';
+  });
 
-      const name = (document.getElementById('set-name') as HTMLInputElement).value;
-      const location = (document.getElementById('set-location') as HTMLInputElement).value;
-      const bio = (document.getElementById('set-bio') as HTMLTextAreaElement).value;
+  // Bind phone input in modal
+  const editPhoneInput = document.getElementById('edit-phone') as HTMLInputElement;
+  let fullPhoneVal = u.phone || '';
+  bindPhoneInputEvents('edit-phone', (fullVal) => {
+    fullPhoneVal = fullVal;
+  });
 
-      submitBtn.disabled = true;
-      submitBtn.innerText = 'Updating...';
+  // Close helper
+  const close = () => {
+    modalContainer.innerHTML = DOMPurify.sanitize('');
+  };
+  document.getElementById('profile-modal-close-btn')?.addEventListener('click', close);
+  document.getElementById('profile-modal-cancel-btn')?.addEventListener('click', close);
 
-      const selectedCountry = _phoneCountryState.get('set-phone') || 'US';
-      const phoneCheck = validateAndFormatPhone(setPhoneVal, selectedCountry);
+  // Avatar pick trigger
+  const avatarTrigger = document.getElementById('avatar-upload-trigger');
+  const avatarInput = document.getElementById('edit-avatar-file-input') as HTMLInputElement;
+  avatarTrigger?.addEventListener('click', () => avatarInput.click());
+
+  avatarInput?.addEventListener('change', () => {
+    if (avatarInput.files && avatarInput.files[0]) {
+      const file = avatarInput.files[0];
+      selectedAvatarFile = file;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const preview = document.getElementById('avatar-upload-trigger');
+        if (preview && e.target?.result) {
+          preview.innerHTML = DOMPurify.sanitize(`
+            <img src="${e.target.result}" id="avatar-edit-img" alt="Avatar">
+            <div class="avatar-upload-overlay">
+              ${getIconSvg('video')}
+              <span>Upload</span>
+            </div>
+          `);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+
+  // Logo pick trigger
+  const logoTrigger = document.getElementById('logo-upload-trigger');
+  const logoInput = document.getElementById('edit-logo-file-input') as HTMLInputElement;
+  logoTrigger?.addEventListener('click', () => logoInput.click());
+
+  logoInput?.addEventListener('change', () => {
+    if (logoInput.files && logoInput.files[0]) {
+      const file = logoInput.files[0];
+      selectedLogoFile = file;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const preview = document.getElementById('logo-upload-trigger');
+        if (preview && e.target?.result) {
+          preview.innerHTML = DOMPurify.sanitize(`
+            <img src="${e.target.result}" id="logo-edit-img" alt="Logo">
+            <div class="avatar-upload-overlay" style="border-radius:12px;">
+              ${getIconSvg('download')}
+              <span>Upload Logo</span>
+            </div>
+          `);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+
+  // Save changes
+  const saveBtn = document.getElementById('profile-modal-save-btn') as HTMLButtonElement;
+  saveBtn?.addEventListener('click', async () => {
+    const nameInput = document.getElementById('edit-name') as HTMLInputElement;
+    const name = nameInput.value.trim();
+    if (!name) {
+      showToast('Name is required', 'error');
+      return;
+    }
+
+    const location = (document.getElementById('edit-location') as HTMLInputElement).value.trim();
+    const bio = (document.getElementById('edit-bio') as HTMLTextAreaElement).value.trim();
+    const social = (document.getElementById('edit-social') as HTMLInputElement).value.trim();
+
+    const bizName = (document.getElementById('edit-biz-name') as HTMLInputElement).value.trim();
+    const orgEmail = (document.getElementById('edit-org-email') as HTMLInputElement).value.trim();
+    const orgLocation = (document.getElementById('edit-org-location') as HTMLInputElement).value.trim();
+    const companyLine = (document.getElementById('edit-company-line') as HTMLInputElement).value.trim();
+    const averageRevenue = (document.getElementById('edit-average-revenue') as HTMLInputElement).value.trim();
+    const totalWorkers = (document.getElementById('edit-total-workers') as HTMLInputElement).value.trim();
+    const socialHandles = (document.getElementById('edit-social-handles') as HTMLInputElement).value.trim();
+
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = DOMPurify.sanitize('Saving...');
+
+    // Validate phone if not empty
+    let formattedPhone = fullPhoneVal;
+    if (fullPhoneVal && editPhoneInput.value.trim()) {
+      const selectedCountry = _phoneCountryState.get('edit-phone') || 'US';
+      const phoneCheck = validateAndFormatPhone(fullPhoneVal, selectedCountry);
       if (!phoneCheck.isValid) {
         showToast('Please enter a valid phone number', 'error');
-        submitBtn.disabled = false;
-        submitBtn.innerText = 'Update Admin Profile';
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = DOMPurify.sanitize(`${getIconSvg('check')} Save Changes`);
         return;
       }
+      formattedPhone = phoneCheck.formatted;
+    }
 
-      try {
-        const patchRes = await apiRequest('me/', {
-          method: 'PATCH',
-          body: JSON.stringify({
-            first_name: name.split(' ')[0] || name,
-            phone: phoneCheck.formatted,
-            location,
-            bio
-          })
-        });
+    try {
+      const formData = new FormData();
+      formData.append('first_name', name.split(' ')[0] || name);
+      formData.append('last_name', name.split(' ').slice(1).join(' ') || '');
+      formData.append('phone', formattedPhone);
+      formData.append('location', location);
+      formData.append('bio', bio);
+      formData.append('social_link', social);
 
-        state.user = patchRes;
-        showToast('Admin Profile card updated successfully!', 'success');
-        renderApp();
-      } catch (err: any) {
-        showToast(err.message || 'Profile update failed', 'error');
-        submitBtn.disabled = false;
-        submitBtn.innerText = 'Update Admin Profile';
+      formData.append('business_name', bizName);
+      formData.append('org_email', orgEmail);
+      formData.append('org_location', orgLocation);
+      formData.append('company_line', companyLine);
+      formData.append('average_revenue', averageRevenue);
+      formData.append('total_workers', totalWorkers);
+      formData.append('social_handles', socialHandles);
+
+      if (selectedAvatarFile) {
+        formData.append('avatar', selectedAvatarFile);
       }
-    });
-  }
+      if (selectedLogoFile) {
+        formData.append('company_logo', selectedLogoFile);
+      }
+
+      const res = await apiRequest('me/', {
+        method: 'PATCH',
+        body: formData
+      });
+
+      state.user = res;
+      showToast('Admin Profile updated successfully!', 'success');
+      close();
+      renderApp();
+    } catch (err: any) {
+      showToast(err.message || 'Profile update failed', 'error');
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = DOMPurify.sanitize(`${getIconSvg('check')} Save Changes`);
+    }
+  });
+}
+
+function bindSettingsEvents() {
+  // Bind Edit Profile click
+  document.getElementById('web-profile-edit-btn')?.addEventListener('click', () => {
+    openEditProfileModal('personal');
+  });
+
+  // Bind Organization click
+  document.getElementById('set-row-org')?.addEventListener('click', () => {
+    openEditProfileModal('org');
+  });
+
+  // Bind All Clients click
+  document.getElementById('set-row-clients')?.addEventListener('click', () => {
+    navigateToTab('clients');
+  });
+
+  // Bind Team & Roles click
+  document.getElementById('set-row-employees')?.addEventListener('click', () => {
+    navigateToTab('employees');
+  });
+
+  // Bind Log Out click
+  document.getElementById('set-row-logout')?.addEventListener('click', () => {
+    document.getElementById('logout-sidebar-btn')?.click();
+  });
 
   // Biometrics toggle update
   const bioCheckbox = document.getElementById('set-biometrics-checkbox') as HTMLInputElement;
@@ -6029,7 +6395,7 @@ function bindSettingsEvents() {
           exportBtn.innerHTML = DOMPurify.sanitize(`${getIconSvg('download')} Trigger Remote Export`);
           showBrandingWarningModal(
             () => {
-              navigateToTab('settings');
+              openEditProfileModal('org');
             },
             async () => {
               await executeExport(true);

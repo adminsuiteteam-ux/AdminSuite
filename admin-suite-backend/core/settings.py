@@ -239,14 +239,15 @@ STATICFILES_DIRS = [
     BASE_DIR / 'static',
 ]
 
-if not DEBUG:
-    # Production: use WhiteNoise for serving static files
-    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-else:
-    # Development: use default storage (or Cloudinary if desired)
-    STATICFILES_STORAGE = 'cloudinary_storage.storage.StaticHashedCloudinaryStorage'
-
-DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+# Configure storage backends for Django 5.0+
+STORAGES = {
+    "default": {
+        "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage" if (os.environ.get('CLOUDINARY_URL') or os.environ.get('CLOUDINARY_API_SECRET')) else "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage" if DEBUG else "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 
 # SECURITY: In production, set CORS_ALLOWED_ORIGINS env var (comma-separated)
 # Mobile apps (React Native / Expo) do not send an Origin header,
@@ -335,15 +336,6 @@ LOGGING = {
 
 # Cloudinary Storage Settings (Production Media Files)
 CLOUDINARY_URL = os.environ.get('CLOUDINARY_URL')
-if CLOUDINARY_URL:
-    try:
-        idx = INSTALLED_APPS.index('django.contrib.staticfiles')
-        INSTALLED_APPS.insert(idx, 'cloudinary_storage')
-    except ValueError:
-        INSTALLED_APPS.insert(0, 'cloudinary_storage')
-    
-    INSTALLED_APPS.append('cloudinary')
-    DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 # Email Configuration
 if DEBUG:
