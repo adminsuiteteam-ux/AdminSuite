@@ -1333,8 +1333,8 @@ function drawSplashGate(): string {
       </div>
       <div class="splash-title">Admin Suite</div>
       <div class="splash-tagline">Run the entire company</div>
-      
-      <div class="dot-loader">
+
+      <div class="dot-loader splash-dots">
         <span></span>
         <span></span>
         <span></span>
@@ -4836,116 +4836,7 @@ function bindEmployeesEvents() {
   if (addBtn) addBtn.addEventListener('click', openAddEmployeeModal);
 }
 
-function openEmployeeDetailModal(id: number) {
-  const emp = state.employees.find(e => e.id === id);
-  if (!emp) return;
 
-  const modalContainer = document.getElementById('modal-container');
-  if (!modalContainer) return;
-
-  modalContainer.innerHTML = DOMPurify.sanitize(`
-    <div class="modal-overlay">
-      <div class="modal">
-        <div class="modal-header">
-          <h2 class="modal-title">Staff File Details</h2>
-          <button class="modal-close" id="modal-close-btn">${getIconSvg('x')}</button>
-        </div>
-        <div class="modal-body">
-          <div style="display:flex; align-items:center; gap:16px; margin-bottom:24px;">
-            <div class="avatar blue" style="width:64px; height:64px; font-size:24px;">${sanitizeHtml(emp.name[0])}</div>
-            <div>
-              <h2 style="font-size:18px; font-weight:700;">${sanitizeHtml(emp.name)}</h2>
-              <p style="color:var(--muted-foreground); font-size:13px;">${sanitizeHtml(emp.role)} · ${sanitizeHtml(emp.department)}</p>
-            </div>
-          </div>
-          
-          <div style="display:flex; flex-direction:column; gap:12px; font-size:14px; margin-bottom:24px;">
-            <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:8px;">
-              <span style="color:var(--muted-foreground);">Direct Email</span>
-              <span style="font-weight:600;">${sanitizeHtml(emp.email)}</span>
-            </div>
-            <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:8px;">
-              <span style="color:var(--muted-foreground);">Contact Phone</span>
-              <span style="font-weight:600;">${sanitizeHtml(emp.phone || 'N/A')}</span>
-            </div>
-            <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:8px;">
-              <span style="color:var(--muted-foreground);">Location</span>
-              <span style="font-weight:600;">${sanitizeHtml(emp.location || 'N/A')}</span>
-            </div>
-            <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:8px;">
-              <span style="color:var(--muted-foreground);">Compensation</span>
-              <span style="font-weight:700;">${formatCurrency(emp.salary)} / mo</span>
-            </div>
-            <div style="display:flex; justify-content:space-between;">
-              <span style="color:var(--muted-foreground);">Activity Status</span>
-              <span class="status-badge ${emp.status === 'active' ? 'active' : 'inactive'}">${sanitizeHtml(emp.status)}</span>
-            </div>
-          </div>
-          
-          <div style="display:flex; justify-content:space-between; gap:10px;">
-            <button class="btn btn-danger btn-sm" id="delete-employee-modal-btn">Delete Profile</button>
-            ${['PRO','PRO_YEARLY'].includes(state.subscriptionLimits?.plan || '') ? `<button class="btn btn-primary btn-sm" id="edit-finance-modal-btn">Edit Financials</button>` : `<button class="btn btn-outline btn-sm" id="upgrade-to-edit-finance-btn" title="Upgrade to PRO to edit financials" style="opacity:0.7;">🔒 PRO Feature</button>`}
-            <button class="btn btn-outline btn-sm" id="toggle-status-modal-btn">
-              Toggle to ${emp.status === 'active' ? 'Inactive' : 'Active'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  `);
-
-  const close = () => modalContainer.innerHTML = DOMPurify.sanitize('');
-  document.getElementById('modal-close-btn')?.addEventListener('click', close);
-
-  // Edit employee financials (PRO gate)
-  document.getElementById('edit-finance-modal-btn')?.addEventListener('click', () => {
-    openEditFinanceModal(emp);
-  });
-  document.getElementById('upgrade-to-edit-finance-btn')?.addEventListener('click', () => {
-    close();
-    navigateToTab('pricing');
-    showToast('Upgrade to PRO to unlock financial editing', 'info');
-  });
-
-  // Toggle employee status
-  document.getElementById('toggle-status-modal-btn')?.addEventListener('click', async () => {
-    const nextStatus = emp.status === 'active' ? 'inactive' : 'active';
-    try {
-      await apiRequest(`employees/${emp.id}/`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          name: emp.name,
-          role: emp.role,
-          department: emp.department,
-          salary: emp.salary,
-          email: emp.email,
-          status: nextStatus
-        })
-      });
-      showToast(`${emp.name} updated successfully!`, 'success');
-      close();
-      await syncAppData();
-      renderApp();
-    } catch (err: any) {
-      showToast(err.message || 'Status update failed', 'error');
-    }
-  });
-
-  // Purge/delete profile
-  document.getElementById('delete-employee-modal-btn')?.addEventListener('click', async () => {
-    try {
-      await apiRequest(`employees/${emp.id}/`, {
-        method: 'DELETE'
-      });
-      showToast('Employee profile removed successfully', 'error');
-      close();
-      await syncAppData();
-      renderApp();
-    } catch (err: any) {
-      showToast(err.message || 'Purging failed', 'error');
-    }
-  });
-}
 
 function openEditFinanceModal(emp: Employee) {
   const modalContainer = document.getElementById('modal-container');
@@ -5352,58 +5243,7 @@ function bindClientsEvents() {
   if (addBtn) addBtn.addEventListener('click', openAddClientModal);
 }
 
-function openClientDetailModal(id: number) {
-  const client = state.clients.find(c => c.id === id);
-  if (!client) return;
 
-  const modalContainer = document.getElementById('modal-container');
-  if (!modalContainer) return;
-
-  modalContainer.innerHTML = DOMPurify.sanitize(`
-    <div class="modal-overlay">
-      <div class="modal">
-        <div class="modal-header">
-          <h2 class="modal-title">Client Portfolio Profile</h2>
-          <button class="modal-close" id="modal-close-btn">${getIconSvg('x')}</button>
-        </div>
-        <div class="modal-body">
-          <div style="margin-bottom: 24px;">
-            <h1 style="font-size:22px; font-weight:700; letter-spacing:-0.5px;">${client.company}</h1>
-            <p style="color:var(--muted-foreground); font-size:13px; margin-top:2px;">Lead Representative: ${client.contact}</p>
-          </div>
-          
-          <div style="display:flex; flex-direction:column; gap:12px; font-size:14px; margin-bottom:24px;">
-            <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:8px;">
-              <span style="color:var(--muted-foreground);">Contact Address</span>
-              <span style="font-weight:600;">${client.email}</span>
-            </div>
-            <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:8px;">
-              <span style="color:var(--muted-foreground);">HQ Location</span>
-              <span style="font-weight:600;">${client.location || 'N/A'}</span>
-            </div>
-            <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:8px;">
-              <span style="color:var(--muted-foreground);">Total Retainer Worth</span>
-              <span style="font-weight:700; color:var(--accent);">${formatCurrency(client.lifetime_value)}</span>
-            </div>
-            <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:8px;">
-              <span style="color:var(--muted-foreground);">Client Status</span>
-              <span class="status-badge ${client.status === 'active' ? 'active' : client.status === 'pending' ? 'pending' : 'completed'}">${client.status}</span>
-            </div>
-            <div style="display:flex; flex-direction:column; gap:4px;">
-              <span style="color:var(--muted-foreground);">Client File Records & Notes</span>
-              <div style="background:var(--muted); padding:10px; border-radius:var(--radius-sm); font-size:12px; line-height:1.5;">
-                ${client.description || 'No notes currently attached to this account record.'}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  `);
-
-  const close = () => modalContainer.innerHTML = DOMPurify.sanitize('');
-  document.getElementById('modal-close-btn')?.addEventListener('click', close);
-}
 
 function openAddClientModal() {
   const modalContainer = document.getElementById('modal-container');
@@ -7791,99 +7631,7 @@ function openAddProjectModal() {
   });
 }
 
-function openProjectDetailModal(id: number) {
-  const p = state.projects.find(proj => proj.id === id);
-  if (!p) return;
 
-  const modalContainer = document.getElementById('modal-container');
-  if (!modalContainer) return;
-
-  modalContainer.innerHTML = DOMPurify.sanitize(`
-    <div class="modal-overlay">
-      <div class="modal">
-        <div class="modal-header">
-          <h2 class="modal-title">Project Details: ${sanitizeHtml(p.name)}</h2>
-          <button class="modal-close" id="modal-close-btn">${getIconSvg('x')}</button>
-        </div>
-        <div class="modal-body">
-          <div style="display:flex; flex-direction:column; gap:12px; font-size:14px; margin-bottom:24px;">
-            <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:8px;">
-              <span style="color:var(--muted-foreground);">Client</span>
-              <span style="font-weight:600;">${sanitizeHtml(p.client_name || 'N/A')}</span>
-            </div>
-            <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:8px;">
-              <span style="color:var(--muted-foreground);">Budget / Value</span>
-              <span style="font-weight:600;">${formatCurrency(p.value)}</span>
-            </div>
-            <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:8px;">
-              <span style="color:var(--muted-foreground);">Start Date</span>
-              <span style="font-weight:600;">${p.start_date || 'N/A'}</span>
-            </div>
-            <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:8px;">
-              <span style="color:var(--muted-foreground);">Due Date</span>
-              <span style="font-weight:600;">${p.end_date || 'N/A'}</span>
-            </div>
-            
-            <div class="form-group" style="margin-top:10px;">
-              <label class="form-label" for="edit-proj-progress">Progress (${p.progress}%)</label>
-              <input type="range" class="form-input" id="edit-proj-progress" min="0" max="100" value="${p.progress}" style="padding:0; width:100%;">
-            </div>
-            
-            <div class="form-group">
-              <label class="form-label" for="edit-proj-status">Status</label>
-              <select class="form-input" id="edit-proj-status">
-                <option value="planned" ${p.status === 'planned' ? 'selected' : ''}>Planned</option>
-                <option value="active" ${p.status === 'active' ? 'selected' : ''}>Active</option>
-                <option value="on_hold" ${p.status === 'on_hold' ? 'selected' : ''}>On Hold</option>
-                <option value="completed" ${p.status === 'completed' ? 'selected' : ''}>Completed</option>
-              </select>
-            </div>
-          </div>
-          
-          <div style="display:flex; justify-content:space-between; gap:10px;">
-            <button class="btn btn-danger btn-sm" id="delete-project-btn">Delete Project</button>
-            <button class="btn btn-primary btn-sm" id="save-project-btn">Save Changes</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  `);
-
-  const close = () => { if (modalContainer) modalContainer.innerHTML = DOMPurify.sanitize(''); };
-  document.getElementById('modal-close-btn')?.addEventListener('click', close);
-
-  document.getElementById('save-project-btn')?.addEventListener('click', async () => {
-    const progress = parseInt((document.getElementById('edit-proj-progress') as HTMLInputElement).value);
-    const status = (document.getElementById('edit-proj-status') as HTMLSelectElement).value;
-
-    try {
-      await apiRequest(`projects/${p.id}/`, {
-        method: 'PATCH',
-        body: JSON.stringify({ progress, status })
-      });
-      showToast('Project updated successfully!', 'success');
-      close();
-      await syncAppData();
-      renderApp();
-    } catch (err: any) {
-      showToast(err.message || 'Failed to update project', 'error');
-    }
-  });
-
-  document.getElementById('delete-project-btn')?.addEventListener('click', async () => {
-    try {
-      await apiRequest(`projects/${p.id}/`, {
-        method: 'DELETE'
-      });
-      showToast('Project deleted successfully', 'error');
-      close();
-      await syncAppData();
-      renderApp();
-    } catch (err: any) {
-      showToast(err.message || 'Failed to delete project', 'error');
-    }
-  });
-}
 
 // ── TASKS TAB ──
 let taskPriorityFilter = 'all';
