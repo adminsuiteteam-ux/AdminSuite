@@ -6688,7 +6688,9 @@ async function pollChatData() {
 let _renderedContactKey: string | null = null;
 
 function _getChatContactKey(c: any): string {
-  return c ? `${c.type}:${c.id}` : '';
+  if (!c) return '';
+  const chanId = state.chatActiveChannel ? state.chatActiveChannel.id : '';
+  return `${c.type}:${c.id}:${chanId}`;
 }
 
 // Builds the messages HTML only (no header, no footer)
@@ -6801,18 +6803,26 @@ function renderChatViewport(viewportContainer: HTMLElement) {
           ${presenceDot}
         </div>
         <div>
-          <div class="chat-header-name">${sanitizeHtml(c.name)}</div>
-          <div class="chat-header-status" id="chat-header-status-text">${statusLabel}</div>
+          <div class="chat-header-name">
+            ${sanitizeHtml(c.name)}${state.chatActiveChannel ? ` <span style="opacity:0.5; font-size: 0.9em; font-weight: normal; margin: 0 4px;">&rsaquo;</span> <span style="color:var(--accent-foreground); font-weight:600;">#${sanitizeHtml(state.chatActiveChannel.name)}</span>` : ''}
+          </div>
+          <div class="chat-header-status" id="chat-header-status-text">${state.chatActiveChannel ? sanitizeHtml(state.chatActiveChannel.description || 'Channel conversation') : statusLabel}</div>
         </div>
       </div>
-      <div style="display:flex; gap:10px; align-items:center; color:var(--muted-foreground); position:relative;">
-        <span id="ws-status-badge" class="ws-status ${state.wsStatus}">
-          <span class="ws-status__dot"></span>${state.wsStatus === 'connected' ? '● Live' : state.wsStatus === 'reconnecting' ? '○ Reconnecting…' : '○ Offline'}
-        </span>
+      <div style="display:flex; gap:8px; align-items:center; color:var(--muted-foreground); position:relative;">
         ${c.type === 'dm' ? `
-          <button title="Voice call" onclick="initiateCall(${c.id},'${sanitizeHtml(c.name)}','voice')" style="background:none; border:none; color:inherit; cursor:pointer; display:flex; align-items:center; justify-content:center; padding:6px; border-radius:8px; transition:background 0.15s;" onmouseover="this.style.background='rgba(255,255,255,0.07)'" onmouseout="this.style.background='none'">📞</button>
-          <button title="Video call" onclick="initiateCall(${c.id},'${sanitizeHtml(c.name)}','video')" style="background:none; border:none; color:inherit; cursor:pointer; display:flex; align-items:center; justify-content:center; padding:6px; border-radius:8px; transition:background 0.15s;" onmouseover="this.style.background='rgba(255,255,255,0.07)'" onmouseout="this.style.background='none'">📹</button>
-        ` : ''}
+          <button title="Voice call" onclick="initiateCall(${c.id},'${sanitizeHtml(c.name)}','voice')" class="chat-hdr-icon-btn" id="chat-voice-call-btn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.67A2 2 0 012 .18h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.1 7.92a16 16 0 006 6l1.06-1.06a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92v2z"/></svg>
+          </button>
+          <button title="Video call" onclick="initiateCall(${c.id},'${sanitizeHtml(c.name)}','video')" class="chat-hdr-icon-btn" id="chat-video-call-btn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+          </button>
+        ` : `
+          <button title="Start Group Call" onclick="initiateGroupCall('${sanitizeHtml(c.name)}')" class="chat-hdr-icon-btn chat-hdr-group-call-btn" id="chat-group-call-btn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.67A2 2 0 012 .18h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.1 7.92a16 16 0 006 6l1.06-1.06a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92v2z"/></svg>
+            <span style="font-size:11px; font-weight:600; margin-left:4px;">Call</span>
+          </button>
+        `}
         <button id="chat-header-search-btn" style="background:none; border:none; color:inherit; cursor:pointer; display:flex; align-items:center; justify-content:center;">${getIconSvg('search')}</button>
         <button id="chat-header-menu-btn" style="background:none; border:none; color:inherit; cursor:pointer; display:flex; align-items:center; justify-content:center;">${getIconSvg('more-vertical')}</button>
       </div>
@@ -7530,7 +7540,7 @@ function updateChatDOM() {
           const channel = state.chatChannels.find((ch: any) => ch.id === channelId);
           if (channel) {
             state.chatActiveChannel = channel;
-            _renderedContactKey = null; // force viewport refresh
+            _renderedContactKey = null; // force full re-render so messages + header update
             await pollChatData();
           }
         });
@@ -8057,28 +8067,83 @@ function onWsPresence(data: any): void {
 
 function onWsCallSignal(data: any): void {
   const me = state.user;
-  if (!me || data.recipient_id !== me.id) return;
+  if (!me) return;
 
-  if (data.signal_type === 'offer') {
-    // Show incoming call overlay
-    showIncomingCallOverlay(data);
-  } else if (['reject', 'end'].includes(data.signal_type)) {
-    hideCallOverlay();
+  if (data.is_group_call) {
+    const isCaller = state.activeCallRecord && state.activeCallRecord.id === data.call_id;
+    if (isCaller) {
+      if (data.signal_type === 'answer') {
+        const overlay = document.getElementById('call-overlay');
+        if (overlay) {
+          const status = overlay.querySelector('.call-overlay__status');
+          if (status) status.textContent = `${data.call_type === 'video' ? '📹 Video' : '📞 Voice'} • Connected (${data.caller_name || 'Someone'} joined)`;
+          if (!state.callTimerInterval) {
+            let seconds = 0;
+            const timerEl = document.createElement('div');
+            timerEl.className = 'call-overlay__timer';
+            overlay.appendChild(timerEl);
+            state.callTimerInterval = setInterval(() => {
+              seconds++;
+              const m = String(Math.floor(seconds / 60)).padStart(2, '0');
+              const s = String(seconds % 60).padStart(2, '0');
+              timerEl.textContent = `${m}:${s}`;
+            }, 1000);
+          }
+        }
+      } else if (data.signal_type === 'end') {
+        hideCallOverlay();
+      }
+      return;
+    }
+
+    const isMemberOfGroup = state.chatContacts.some((c: any) => c.type === 'group' && c.id === data.group_id);
+    if (!isMemberOfGroup) return;
+
+    if (data.signal_type === 'offer') {
+      showIncomingCallOverlay(data);
+    } else if (['reject', 'end'].includes(data.signal_type)) {
+      hideCallOverlay();
+    }
+  } else {
+    if (data.recipient_id !== me.id) return;
+
+    if (data.signal_type === 'offer') {
+      showIncomingCallOverlay(data);
+    } else if (data.signal_type === 'answer') {
+      const overlay = document.getElementById('call-overlay');
+      if (overlay) {
+        const status = overlay.querySelector('.call-overlay__status');
+        if (status) status.textContent = `${data.call_type === 'video' ? '📹 Video' : '📞 Voice'} • Connected`;
+        if (!state.callTimerInterval) {
+          let seconds = 0;
+          const timerEl = document.createElement('div');
+          timerEl.className = 'call-overlay__timer';
+          overlay.appendChild(timerEl);
+          state.callTimerInterval = setInterval(() => {
+            seconds++;
+            const m = String(Math.floor(seconds / 60)).padStart(2, '0');
+            const s = String(seconds % 60).padStart(2, '0');
+            timerEl.textContent = `${m}:${s}`;
+          }, 1000);
+        }
+      }
+    } else if (['reject', 'end'].includes(data.signal_type)) {
+      hideCallOverlay();
+    }
   }
 }
 
 // --- UI helpers ---
 
 function updateWsStatusBadge(): void {
-  const badge = document.getElementById('ws-status-badge');
-  if (!badge) return;
-  const labels: Record<string, string> = {
-    connected: '● Live',
-    reconnecting: '○ Reconnecting…',
-    disconnected: '○ Offline',
-  };
-  badge.className = `ws-status ${state.wsStatus}`;
-  badge.innerHTML = `<span class="ws-status__dot"></span>${labels[state.wsStatus]}`;
+  // Badge removed — update the header status sub-text if visible
+  const statusEl = document.getElementById('chat-header-status-text');
+  if (statusEl) {
+    const c = state.chatActiveContact;
+    if (c && c.type === 'group') {
+      statusEl.textContent = state.wsStatus === 'connected' ? 'Live ●' : state.wsStatus === 'reconnecting' ? 'Reconnecting…' : 'Group Workspace';
+    }
+  }
 }
 
 function renderTypingIndicator(): void {
@@ -8243,13 +8308,20 @@ function showIncomingCallOverlay(data: any): void {
   const overlay = document.createElement('div');
   overlay.className = 'call-overlay';
   overlay.id = 'call-overlay';
+  
+  const callerName = data.caller_name || 'Unknown';
+  const isGroup = !!data.is_group_call;
+  const groupId = data.group_id;
+  const callId = data.call_id;
+  const callerId = data.caller_id;
+
   overlay.innerHTML = `
-    <div class="call-overlay__initials">${(data.caller_name || '?')[0].toUpperCase()}</div>
-    <div class="call-overlay__name">${escapeHtml(data.caller_name || 'Unknown')}</div>
+    <div class="call-overlay__initials">${(callerName || '?')[0].toUpperCase()}</div>
+    <div class="call-overlay__name">${escapeHtml(callerName)}${isGroup ? ' (Group Call)' : ''}</div>
     <div class="call-overlay__status">Incoming ${type} Call…</div>
     <div class="call-overlay__actions">
-      <button class="call-btn decline" title="Decline" onclick="declineCall(${data.caller_id})">📵</button>
-      <button class="call-btn answer"  title="Answer"  onclick="answerCall(${data.caller_id},'${data.call_type}')">📞</button>
+      <button class="call-btn decline" title="Decline" onclick="declineCall(${callerId}, ${callId || 0})">📵</button>
+      <button class="call-btn answer"  title="Answer"  onclick="answerCall(${callerId},'${data.call_type || 'voice'}',${callId || 0},${isGroup},${groupId || 0})">📞</button>
     </div>`;
   document.body.appendChild(overlay);
 }
@@ -8286,13 +8358,27 @@ function hideCallOverlay(): void {
   state.activeCallRecord = null;
 }
 
-(window as any).declineCall = function(callerId: number) {
-  wsSend({ type: 'call.signal', signal_type: 'reject', recipient_id: callerId });
+(window as any).declineCall = function(callerId: number, callId?: number) {
+  wsSend({ type: 'call.signal', signal_type: 'reject', recipient_id: callerId, call_id: callId });
+  if (callId) {
+    apiRequest(`chat/calls/${callId}/end/`, { method: 'POST', body: JSON.stringify({ status: 'rejected' }) }).catch(() => {});
+  }
   hideCallOverlay();
 };
 
-(window as any).answerCall = function(callerId: number, callType: string) {
-  wsSend({ type: 'call.signal', signal_type: 'answer', recipient_id: callerId, call_type: callType });
+(window as any).answerCall = function(callerId: number, callType: string, callId?: number, isGroupCall?: boolean, groupId?: number) {
+  wsSend({
+    type: 'call.signal',
+    signal_type: 'answer',
+    recipient_id: callerId,
+    call_type: callType,
+    call_id: callId,
+    is_group_call: isGroupCall,
+    group_id: groupId
+  });
+  if (callId) {
+    apiRequest(`chat/calls/${callId}/end/`, { method: 'POST', body: JSON.stringify({ status: 'accepted' }) }).catch(() => {});
+  }
   const overlay = document.getElementById('call-overlay');
   if (overlay) {
     const status = overlay.querySelector('.call-overlay__status');
@@ -8301,32 +8387,33 @@ function hideCallOverlay(): void {
     if (actions) {
       actions.innerHTML = `
         <button class="call-btn mute"   title="Mute"          onclick="this.style.opacity=this.style.opacity==='0.5'?'1':'0.5'">🔇</button>
-        <button class="call-btn end"    title="End call"       onclick="endCall(0)">📵</button>
+        <button class="call-btn end"    title="End call"       onclick="endCall(${callId || 0})">📵</button>
         ${callType === 'video' ? `<button class="call-btn camera" title="Toggle Camera" onclick="this.style.opacity=this.style.opacity==='0.5'?'1':'0.5'">📷</button>` : ''}`;
     }
-    // Start timer
-    let seconds = 0;
-    const timerEl = document.createElement('div');
-    timerEl.className = 'call-overlay__timer';
-    overlay.appendChild(timerEl);
-    state.callTimerInterval = setInterval(() => {
-      seconds++;
-      const m = String(Math.floor(seconds / 60)).padStart(2, '0');
-      const s = String(seconds % 60).padStart(2, '0');
-      timerEl.textContent = `${m}:${s}`;
-    }, 1000);
+    if (!state.callTimerInterval) {
+      let seconds = 0;
+      const timerEl = document.createElement('div');
+      timerEl.className = 'call-overlay__timer';
+      overlay.appendChild(timerEl);
+      state.callTimerInterval = setInterval(() => {
+        seconds++;
+        const m = String(Math.floor(seconds / 60)).padStart(2, '0');
+        const s = String(seconds % 60).padStart(2, '0');
+        timerEl.textContent = `${m}:${s}`;
+      }, 1000);
+    }
   }
 };
 
 (window as any).endCall = function(callId: number) {
-  wsSend({ type: 'call.signal', signal_type: 'end', recipient_id: 0 });
-  if (callId) {
-    apiRequest(`chat/calls/${callId}/end/`, { method: 'POST', body: JSON.stringify({ status: 'ended' }) }).catch(() => {});
+  wsSend({ type: 'call.signal', signal_type: 'end', recipient_id: 0, call_id: callId });
+  const idToEnd = callId || (state.activeCallRecord ? state.activeCallRecord.id : 0);
+  if (idToEnd) {
+    apiRequest(`chat/calls/${idToEnd}/end/`, { method: 'POST', body: JSON.stringify({ status: 'ended' }) }).catch(() => {});
   }
   hideCallOverlay();
 };
 
-// Initiate call from chat header
 (window as any).initiateCall = function(calleeId: number, calleeName: string, callType: string = 'voice') {
   apiRequest('chat/calls/', {
     method: 'POST',
@@ -8337,10 +8424,45 @@ function hideCallOverlay(): void {
       type: 'call.signal',
       signal_type: 'offer',
       recipient_id: calleeId,
+      call_id: res.id,
       call_type: callType,
     });
     showOutgoingCallOverlay({ name: calleeName }, callType, res.id);
   }).catch(() => {});
+};
+
+// Initiate a group call — signals ALL online members in the active group
+(window as any).initiateGroupCall = function(groupName: string) {
+  const contact = state.chatActiveContact;
+  if (!contact) return;
+
+  apiRequest('chat/calls/', {
+    method: 'POST',
+    body: JSON.stringify({ group_id: contact.id, call_type: 'voice', is_group_call: true }),
+  }).then((res: any) => {
+    state.activeCallRecord = res;
+    showOutgoingCallOverlay({ name: groupName }, 'voice', res.id);
+
+    wsSend({
+      type: 'call.signal',
+      signal_type: 'offer',
+      call_type: 'voice',
+      group_id: contact.id,
+      is_group_call: true,
+      call_id: res.id,
+      caller_name: state.user?.name || state.user?.username || 'Someone',
+    });
+  }).catch(() => {
+    showOutgoingCallOverlay({ name: groupName }, 'voice', 0);
+    wsSend({
+      type: 'call.signal',
+      signal_type: 'offer',
+      call_type: 'voice',
+      group_id: contact.id,
+      is_group_call: true,
+      caller_name: state.user?.name || state.user?.username || 'Someone',
+    });
+  });
 };
 
 function drawChatTab(): string {

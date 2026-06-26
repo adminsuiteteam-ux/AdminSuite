@@ -267,8 +267,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
         This consumer does NOT handle WebRTC media — it's a signaling relay only.
         """
         recipient_id = data.get('recipient_id')
-        if not recipient_id:
-            await self._send_error('recipient_id required for call signal')
+        group_id = data.get('group_id')
+        is_group_call = data.get('is_group_call', False)
+        if not recipient_id and not group_id and not is_group_call:
+            await self._send_error('recipient_id or group_id required for call signal')
             return
 
         await self.channel_layer.group_send(self.workspace_group, {
@@ -279,6 +281,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 'caller_id': self.user.id,
                 'caller_name': self.user.get_full_name() or self.user.username,
                 'recipient_id': recipient_id,
+                'group_id': group_id,
+                'is_group_call': is_group_call,
+                'call_id': data.get('call_id'),
                 'sdp': data.get('sdp'),
                 'candidate': data.get('candidate'),
                 'call_type': data.get('call_type', 'voice'),

@@ -2490,41 +2490,46 @@ input, select, textarea { font-family: inherit; }
    WebSocket Connection Status Badge
    -------------------------------------------------------------------------- */
 
-.ws-status {
+/* ws-status kept for possible future use but hidden from chat header */
+.ws-status { display: none; }
+
+/* ── Chat header icon buttons (voice / video / group call) ───────── */
+.chat-hdr-icon-btn {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  font-size: 0.72rem;
-  padding: 2px 8px;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  padding: 7px 10px;
   border-radius: 10px;
-  font-weight: 500;
+  transition: background 0.15s, color 0.15s, transform 0.1s;
+  line-height: 1;
+}
+.chat-hdr-icon-btn:hover {
+  background: rgba(255,255,255,0.08);
+  color: var(--foreground);
+  transform: scale(1.08);
+}
+.chat-hdr-icon-btn:active {
+  transform: scale(0.94);
 }
 
-.ws-status.connected {
+/* Group call button — green accent pill */
+.chat-hdr-group-call-btn {
+  background: rgba(34,197,94,0.12);
   color: #22c55e;
-  background: rgba(34,197,94,0.1);
+  border: 1px solid rgba(34,197,94,0.25);
+  padding: 6px 12px;
+  font-size: 12px;
+  gap: 4px;
 }
-
-.ws-status.reconnecting {
-  color: #f59e0b;
-  background: rgba(245,158,11,0.1);
+.chat-hdr-group-call-btn:hover {
+  background: rgba(34,197,94,0.22);
+  color: #16a34a;
+  border-color: rgba(34,197,94,0.5);
 }
-
-.ws-status.disconnected {
-  color: #ef4444;
-  background: rgba(239,68,68,0.1);
-}
-
-.ws-status__dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.ws-status.connected    .ws-status__dot { background: #22c55e; animation: presence-pulse 2s infinite; }
-.ws-status.reconnecting .ws-status__dot { background: #f59e0b; animation: presence-pulse 1s infinite; }
-.ws-status.disconnected .ws-status__dot { background: #ef4444; }
 
 /* --------------------------------------------------------------------------
    Attach file button + drag zone

@@ -3107,15 +3107,25 @@ def chat_call_end(request, pk):
     except CallRecord.DoesNotExist:
         return Response({'error': 'Call not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-    if request.user not in (call.caller, call.callee):
+    is_authorized = False
+    if call.group:
+        is_authorized = (request.user == call.caller) or call.group.members.filter(pk=request.user.pk).exists()
+    else:
+        is_authorized = request.user in (call.caller, call.callee)
+
+    if not is_authorized:
         return Response({'error': 'Not authorized.'}, status=status.HTTP_403_FORBIDDEN)
 
     new_status = request.data.get('status', 'ended')
     if new_status not in ('ended', 'rejected', 'missed', 'accepted', 'failed'):
         new_status = 'ended'
 
-    if new_status == 'accepted' and not call.accepted_at:
-        call.accepted_at = django_tz.now()
+    if new_status == 'accepted':
+        if not call.accepted_at:
+            call.accepted_at = django_tz.now()
+        call.status = new_status
+        call.save()
+        return Response(CallRecordSerializer(call).data)
 
     call.ended_at = django_tz.now()
     call.status = new_status
