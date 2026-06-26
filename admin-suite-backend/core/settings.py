@@ -18,13 +18,14 @@ import cloudinary
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Load environment variables from .env file
+# Load .env FIRST so all os.environ.get() calls below pick up local overrides
 load_dotenv(BASE_DIR / '.env')
 
+# Configure Cloudinary from environment variables (works both locally and on Render)
 cloudinary.config(
-    cloud_name="db3m3jumf",
-    api_key="221272228917619",
-    api_secret="HMaEaoKbX9CmOSiLgSiwNtzUePY"
+    cloud_name=os.environ.get('CLOUDINARY_CLOUD_NAME', 'db3m3jumf'),
+    api_key=os.environ.get('CLOUDINARY_API_KEY', '221272228917619'),
+    api_secret=os.environ.get('CLOUDINARY_API_SECRET', ''),
 )
 
 import sentry_sdk
@@ -172,20 +173,10 @@ DATABASES = {
     }
 }
 
-# If DATABASE_URL is set, run a quick pre-initialization check to verify Supabase is reachable.
-# If connection fails, fall back to SQLite default database to prevent app crashes.
-db_url = os.environ.get('DATABASE_URL')
-if db_url and (db_url.startswith('postgres://') or db_url.startswith('postgresql://')):
-    try:
-        import psycopg2
-        # Parse the connection string to override or inject timeout parameter safely
-        conn = psycopg2.connect(db_url, connect_timeout=3)
-        conn.close()
-    except Exception as e:
-        import sys
-        # Mask exception to prevent raw credential leaks in console/logs
-        print("⚠️ Warning: Supabase primary database unreachable. Falling back to SQLite.", file=sys.stderr)
-        DATABASES['default'] = DATABASES['backup']
+# NOTE: We do NOT fall back to SQLite when Supabase is unreachable.
+# A silent fallback causes data to be written to Render's ephemeral disk
+# and then permanently lost on the next deploy. If the DB is unreachable,
+# Django will raise a connection error which is the correct, safe behaviour.
 
 import sys
 if 'test' in sys.argv:

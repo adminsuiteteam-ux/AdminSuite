@@ -2551,7 +2551,7 @@ function drawSidebar(): string {
         <div class="sidebar-user">
           <div class="sidebar-avatar" style="font-weight:700; overflow:hidden; display:flex; align-items:center; justify-content:center;">
             ${state.user?.avatar 
-              ? `<img src="${state.user.avatar}" alt="Avatar" style="width:100%; height:100%; object-fit:cover;">` 
+              ? `<img src="${state.user.avatar}" alt="Avatar" style="width:100%; height:100%; object-fit:cover;" onerror="this.style.display='none';this.parentElement.textContent='${sanitizeHtml((state.user?.name || state.user?.username || 'A').slice(0, 2).toUpperCase())}'">` 
               : sanitizeHtml((state.user?.name || state.user?.username || 'A').slice(0, 2).toUpperCase())}
           </div>
           <div class="sidebar-user-info">
@@ -2601,7 +2601,7 @@ function drawTopbar(): string {
         <div class="topbar-profile" id="topbar-profile-btn">
           <div class="topbar-avatar" style="overflow:hidden; display:flex; align-items:center; justify-content:center;">
             ${state.user?.avatar 
-              ? `<img src="${state.user.avatar}" alt="Avatar" style="width:100%; height:100%; object-fit:cover;">` 
+              ? `<img src="${state.user.avatar}" alt="Avatar" style="width:100%; height:100%; object-fit:cover;" onerror="this.style.display='none';this.parentElement.textContent='${sanitizeHtml(userInitials)}'">` 
               : sanitizeHtml(userInitials)}
           </div>
           <div class="topbar-profile-info">
