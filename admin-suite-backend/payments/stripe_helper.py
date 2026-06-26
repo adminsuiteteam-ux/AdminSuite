@@ -43,7 +43,7 @@ def create_checkout_session(request, organization_id, plan):
                     'product_data': {
                         'name': f'{plan.title()} Plan Subscription',
                     },
-                    'unit_amount': 2500 if plan == 'PREMIUM' else 4500,
+                    'unit_amount': 2500 if plan == 'PREMIUM' else (12000 if plan == 'PRO_YEARLY' else 4500),
                 },
                 'quantity': 1,
             }],

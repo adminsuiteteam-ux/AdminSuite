@@ -7494,7 +7494,7 @@ function drawPricingTab(): string {
     {
       id: 'PREMIUM',
       name: 'Premium',
-      price: '₦19',
+      price: '$25',
       period: '/month',
       color: '#f59e0b',
       gradient: 'linear-gradient(135deg,#d97706 0%,#f59e0b 100%)',
@@ -7515,7 +7515,7 @@ function drawPricingTab(): string {
     {
       id: 'PRO',
       name: 'Pro',
-      price: '₦49',
+      price: '$45',
       period: '/month',
       color: 'var(--foreground)',
       gradient: 'linear-gradient(135deg, var(--foreground) 0%, #555 100%)',
@@ -7538,16 +7538,16 @@ function drawPricingTab(): string {
     {
       id: 'PRO_YEARLY',
       name: 'Pro Annual',
-      price: '₦469',
+      price: '$120',
       period: '/year',
       color: '#ec4899',
       gradient: 'linear-gradient(135deg,#db2777 0%,#f472b6 100%)',
       icon: 'crown',
-      badge: 'Best Value — Save ₦119',
+      badge: 'Best Value — Save $420',
       description: 'All Pro features at a discounted annual rate.',
       features: [
         'Everything in Pro',
-        '12 months for the price of ~9.5',
+        'Save over 70% annually',
         'Priority SLA & Dedicated Support',
         'Early Access to New Features',
         'Annual Usage Report',
