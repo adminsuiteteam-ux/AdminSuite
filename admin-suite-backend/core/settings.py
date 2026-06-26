@@ -25,8 +25,14 @@ load_dotenv(BASE_DIR / '.env')
 cloudinary.config(
     cloud_name=os.environ.get('CLOUDINARY_CLOUD_NAME', 'db3m3jumf'),
     api_key=os.environ.get('CLOUDINARY_API_KEY', '221272228917619'),
-    api_secret=os.environ.get('CLOUDINARY_API_SECRET', ''),
+    api_secret=os.environ.get('CLOUDINARY_API_SECRET', '1QWAEeTV6fQKBz7IGbw3Np11URY'),
 )
+
+CLOUDINARY_STORAGE = {
+    'CLOUD_NAME': os.environ.get('CLOUDINARY_CLOUD_NAME', 'db3m3jumf'),
+    'API_KEY': os.environ.get('CLOUDINARY_API_KEY', '221272228917619'),
+    'API_SECRET': os.environ.get('CLOUDINARY_API_SECRET', '1QWAEeTV6fQKBz7IGbw3Np11URY'),
+}
 
 import sentry_sdk
 from sentry_sdk.integrations.django import DjangoIntegration
@@ -233,7 +239,7 @@ STATICFILES_DIRS = [
 # Configure storage backends for Django 5.0+
 STORAGES = {
     "default": {
-        "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage" if (os.environ.get('CLOUDINARY_URL') or os.environ.get('CLOUDINARY_API_SECRET')) else "django.core.files.storage.FileSystemStorage",
+        "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
     },
     "staticfiles": {
         "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage" if DEBUG else "whitenoise.storage.CompressedManifestStaticFilesStorage",
