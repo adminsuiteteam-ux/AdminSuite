@@ -525,6 +525,7 @@ interface AppState {
   } | null;
   authToken: string | null;
   activeTab: 'dashboard' | 'employees' | 'clients' | 'finance' | 'settings' | 'pricing' | 'chat' | 'projects' | 'tasks' | 'attendance' | 'notes';
+  activeProfile: { type: 'employee' | 'client' | 'project', id: number } | null;
   theme: 'light' | 'dark';
   isMobileSidebarOpen: boolean;
   isNotificationsOpen: boolean;
@@ -616,6 +617,7 @@ const state: AppState = {
   user: null,
   authToken: localStorage.getItem('admin-suite.token'),
   activeTab: 'dashboard',
+  activeProfile: null,
   theme: (localStorage.getItem('theme') as 'light' | 'dark') || 'dark',
   isMobileSidebarOpen: false,
   isNotificationsOpen: false,
@@ -1114,6 +1116,7 @@ function navigateToTab(tab: typeof state.activeTab) {
     state.chatPollTimer = null;
     _renderedContactKey = null; // reset so chat re-renders fully on return
   }
+  state.activeProfile = null;
   state.activeTab = tab;
   state.isMobileSidebarOpen = false;
   
@@ -2669,6 +2672,9 @@ function bindNavigationEvents() {
 }
 
 function drawTabContent(): string {
+  if (state.activeProfile) {
+    return drawProfilePage();
+  }
   switch (state.activeTab) {
     case 'dashboard':
       return drawDashboardTab();
@@ -2698,6 +2704,10 @@ function drawTabContent(): string {
 }
 
 function bindTabSpecificEvents() {
+  if (state.activeProfile) {
+    bindProfileEvents();
+    return;
+  }
   switch (state.activeTab) {
     case 'dashboard':
       bindDashboardEvents();
@@ -2732,6 +2742,573 @@ function bindTabSpecificEvents() {
     case 'notes':
       bindNotesEvents();
       break;
+  }
+}
+
+function drawProfilePage(): string {
+  const ap = state.activeProfile;
+  if (!ap) return '';
+
+  if (ap.type === 'employee') {
+    const emp = state.employees.find(e => e.id === ap.id);
+    if (!emp) {
+      return `
+        <div style="padding:40px; text-align:center;">
+          <h3>Employee not found</h3>
+          <button class="btn btn-primary btn-sm" id="profile-back-btn" style="margin-top:16px;">Back to List</button>
+        </div>
+      `;
+    }
+
+    const tasksHtml = emp.tasks && emp.tasks.length > 0 ? emp.tasks.map((t: any) => `
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:12px 16px; font-weight:600;">${sanitizeHtml(t.title)}</td>
+        <td style="padding:12px 16px;"><span class="status-badge ${t.priority === 'high' ? 'inactive' : t.priority === 'medium' ? '' : 'active'}">${sanitizeHtml(t.priority)}</span></td>
+        <td style="padding:12px 16px; color:var(--muted-foreground);">${sanitizeHtml(t.due_date || 'N/A')}</td>
+        <td style="padding:12px 16px;"><span class="status-badge ${t.status === 'completed' ? 'active' : 'pending'}">${sanitizeHtml(t.status)}</span></td>
+      </tr>
+    `).join('') : '';
+
+    const leavesHtml = emp.leaves && emp.leaves.length > 0 ? emp.leaves.map((l: any) => `
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:12px 16px; font-weight:600;">${sanitizeHtml(l.leave_type)}</td>
+        <td style="padding:12px 16px;">${l.duration_days} Days</td>
+        <td style="padding:12px 16px; color:var(--muted-foreground);">${sanitizeHtml(l.start_date)} - ${sanitizeHtml(l.end_date)}</td>
+        <td style="padding:12px 16px;"><span class="status-badge ${l.status === 'approved' || l.status === 'active' ? 'active' : l.status === 'pending' ? 'pending' : 'inactive'}">${sanitizeHtml(l.status)}</span></td>
+      </tr>
+    `).join('') : '';
+
+    return `
+      <div class="gradient-header" style="background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); margin-bottom:24px; padding: 24px; border-radius: var(--radius-lg); color:#ffffff; position:relative;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; width:100%; flex-wrap:wrap; gap:12px;">
+          <div>
+            <h2 style="font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:1px; opacity:0.8; margin:0;">Staff Profile File</h2>
+            <h1 style="font-size:32px; font-weight:800; margin:6px 0 0 0; letter-spacing:-0.5px; color:#ffffff;">${sanitizeHtml(emp.name)}</h1>
+            <div class="role-chip" style="margin-top:10px; display:inline-flex; align-items:center; gap:6px; background:rgba(255,255,255,0.15); color:#ffffff; padding:4px 10px; border-radius:12px; font-size:12px; font-weight:600;">
+              ${getIconSvg('user')} <span>${sanitizeHtml(emp.role)}</span>
+            </div>
+          </div>
+          <button class="btn btn-outline" id="profile-back-btn" style="border-color:rgba(255,255,255,0.4); color:#ffffff; background:none;">
+            ${getIconSvg('arrow-left')} Back to List
+          </button>
+        </div>
+      </div>
+
+      <div class="content-grid" style="display:grid; grid-template-columns: 1fr 2fr; gap:20px;">
+        <!-- Left Column -->
+        <div style="display:flex; flex-direction:column; gap:20px;">
+          <div class="card">
+            <div class="card-header"><div class="card-title">Bio & Personal Details</div></div>
+            <div class="card-body">
+              <div style="display:flex; flex-direction:column; gap:14px; font-size:13.5px;">
+                <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:8px;">
+                  <span style="color:var(--muted-foreground);">Department</span>
+                  <span style="font-weight:600;">${sanitizeHtml(emp.department)}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:8px;">
+                  <span style="color:var(--muted-foreground);">Office/Branch</span>
+                  <span style="font-weight:600;">${sanitizeHtml(emp.office || 'Main Branch')}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:8px;">
+                  <span style="color:var(--muted-foreground);">Direct Email</span>
+                  <span style="font-weight:600; text-overflow:ellipsis; overflow:hidden; max-width:180px;">${sanitizeHtml(emp.email)}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:8px;">
+                  <span style="color:var(--muted-foreground);">Contact Phone</span>
+                  <span style="font-weight:600;">${sanitizeHtml(emp.phone || 'N/A')}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:8px;">
+                  <span style="color:var(--muted-foreground);">Location</span>
+                  <span style="font-weight:600;">${sanitizeHtml(emp.location || 'N/A')}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:8px;">
+                  <span style="color:var(--muted-foreground);">Base Salary</span>
+                  <span style="font-weight:700;">${formatCurrency(emp.salary)} / mo</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:8px;">
+                  <span style="color:var(--muted-foreground);">Performance</span>
+                  <span style="font-weight:600; color:var(--success);">${emp.performance || 0}%</span>
+                </div>
+                <div style="display:flex; justify-content:space-between;">
+                  <span style="color:var(--muted-foreground);">Work Status</span>
+                  <span class="status-badge ${emp.status === 'active' ? 'active' : 'inactive'}">${sanitizeHtml(emp.status)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="card">
+            <div class="card-header"><div class="card-title">Administrative Actions</div></div>
+            <div class="card-body" style="display:flex; flex-direction:column; gap:10px;">
+              <button class="btn btn-outline" id="profile-toggle-status-btn" style="width:100%; justify-content:center;">
+                ${getIconSvg('activity')} Mark as ${emp.status === 'active' ? 'Inactive' : 'Active'}
+              </button>
+              ${['PRO','PRO_YEARLY'].includes(state.subscriptionLimits?.plan || '') ? `
+                <button class="btn btn-primary" id="profile-edit-finance-btn" style="width:100%; justify-content:center;">
+                  ${getIconSvg('dollar-sign')} Edit Financials
+                </button>
+              ` : `
+                <button class="btn btn-outline" id="profile-upgrade-finance-btn" style="width:100%; justify-content:center; opacity:0.7;">
+                  🔒 Edit Financials (PRO)
+                </button>
+              `}
+              <button class="btn btn-danger" id="profile-delete-btn" style="width:100%; justify-content:center;">
+                ${getIconSvg('trash')} Terminate Profile
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column -->
+        <div style="display:flex; flex-direction:column; gap:20px;">
+          <!-- Financial Details -->
+          <div class="card">
+            <div class="card-header"><div class="card-title">Financial Profile Summary</div></div>
+            <div class="card-body">
+              <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap:12px;">
+                <div style="background:var(--muted); padding:12px; border-radius:var(--radius-sm);">
+                  <div style="font-size:11px; color:var(--muted-foreground);">Current Salary</div>
+                  <div style="font-size:18px; font-weight:700; margin-top:4px;">${formatCurrency(emp.finance?.current_pay || emp.salary)}</div>
+                </div>
+                <div style="background:var(--muted); padding:12px; border-radius:var(--radius-sm);">
+                  <div style="font-size:11px; color:var(--muted-foreground);">Bonuses</div>
+                  <div style="font-size:18px; font-weight:700; margin-top:4px; color:var(--success);">${formatCurrency(emp.finance?.bonuses || 0)}</div>
+                </div>
+                <div style="background:var(--muted); padding:12px; border-radius:var(--radius-sm);">
+                  <div style="font-size:11px; color:var(--muted-foreground);">Deductions</div>
+                  <div style="font-size:18px; font-weight:700; margin-top:4px; color:var(--danger);">${formatCurrency(emp.finance?.deductions || 0)}</div>
+                </div>
+              </div>
+              <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px; margin-top:16px; border-top:1px solid var(--border); padding-top:16px;">
+                <div style="border-left:4px solid var(--warning); padding-left:12px;">
+                  <div style="font-size:11px; color:var(--muted-foreground);">Owes Company</div>
+                  <div style="font-size:16px; font-weight:700; margin-top:2px;">${formatCurrency(emp.finance?.employee_owes_company || 0)}</div>
+                </div>
+                <div style="border-left:4px solid var(--success); padding-left:12px;">
+                  <div style="font-size:11px; color:var(--muted-foreground);">Company Owes Employee</div>
+                  <div style="font-size:16px; font-weight:700; margin-top:2px;">${formatCurrency(emp.finance?.company_owes_employee || 0)}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tasks Table -->
+          <div class="card">
+            <div class="card-header"><div class="card-title">Assigned Projects & Tasks</div></div>
+            <div class="card-body" style="padding:0; overflow-x:auto;">
+              ${tasksHtml ? `
+                <table class="data-table" style="width:100%; border-collapse:collapse; min-width:500px;">
+                  <thead>
+                    <tr style="border-bottom:1px solid var(--border); background:rgba(0,0,0,0.02);">
+                      <th style="padding:12px 16px; text-align:left; font-size:12px; color:var(--muted-foreground);">Task Title</th>
+                      <th style="padding:12px 16px; text-align:left; font-size:12px; color:var(--muted-foreground);">Priority</th>
+                      <th style="padding:12px 16px; text-align:left; font-size:12px; color:var(--muted-foreground);">Due Date</th>
+                      <th style="padding:12px 16px; text-align:left; font-size:12px; color:var(--muted-foreground);">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${tasksHtml}
+                  </tbody>
+                </table>
+              ` : `<div style="padding:40px; text-align:center; color:var(--muted-foreground); font-size:14px;">No tasks currently assigned to this employee.</div>`}
+            </div>
+          </div>
+
+          <!-- Leaves Table -->
+          <div class="card">
+            <div class="card-header"><div class="card-title">Leave History & Requests</div></div>
+            <div class="card-body" style="padding:0; overflow-x:auto;">
+              ${leavesHtml ? `
+                <table class="data-table" style="width:100%; border-collapse:collapse; min-width:500px;">
+                  <thead>
+                    <tr style="border-bottom:1px solid var(--border); background:rgba(0,0,0,0.02);">
+                      <th style="padding:12px 16px; text-align:left; font-size:12px; color:var(--muted-foreground);">Leave Type</th>
+                      <th style="padding:12px 16px; text-align:left; font-size:12px; color:var(--muted-foreground);">Duration</th>
+                      <th style="padding:12px 16px; text-align:left; font-size:12px; color:var(--muted-foreground);">Dates</th>
+                      <th style="padding:12px 16px; text-align:left; font-size:12px; color:var(--muted-foreground);">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${leavesHtml}
+                  </tbody>
+                </table>
+              ` : `<div style="padding:40px; text-align:center; color:var(--muted-foreground); font-size:14px;">No leave logs recorded on this file.</div>`}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  if (ap.type === 'client') {
+    const client = state.clients.find(c => c.id === ap.id);
+    if (!client) {
+      return `
+        <div style="padding:40px; text-align:center;">
+          <h3>Client portfolio record not found</h3>
+          <button class="btn btn-primary btn-sm" id="profile-back-btn" style="margin-top:16px;">Back to List</button>
+        </div>
+      `;
+    }
+
+    const clientProj = state.projects.filter(p => p.client === client.id);
+    const projectsHtml = clientProj.length > 0 ? clientProj.map(p => `
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:12px 16px; font-weight:600;">${sanitizeHtml(p.name)}</td>
+        <td style="padding:12px 16px; font-weight:600; color:var(--accent);">${formatCurrency(p.value)}</td>
+        <td style="padding:12px 16px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div style="background:var(--muted); height:6px; flex:1; border-radius:3px; overflow:hidden; max-width:120px;">
+              <div style="background:var(--accent); width:${p.progress}%; height:100%;"></div>
+            </div>
+            <span style="font-size:11px; font-weight:600;">${p.progress}%</span>
+          </div>
+        </td>
+        <td style="padding:12px 16px;"><span class="status-badge ${p.status === 'active' ? 'active' : p.status === 'completed' ? 'active' : 'inactive'}">${sanitizeHtml(p.status)}</span></td>
+      </tr>
+    `).join('') : '';
+
+    return `
+      <div class="gradient-header" style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); margin-bottom:24px; padding: 24px; border-radius: var(--radius-lg); color:#ffffff; position:relative;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; width:100%; flex-wrap:wrap; gap:12px;">
+          <div>
+            <h2 style="font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:1px; opacity:0.8; margin:0;">Enterprise Client Profile</h2>
+            <h1 style="font-size:32px; font-weight:800; margin:6px 0 0 0; letter-spacing:-0.5px; color:#ffffff;">${sanitizeHtml(client.company)}</h1>
+            <div class="role-chip" style="margin-top:10px; display:inline-flex; align-items:center; gap:6px; background:rgba(255,255,255,0.15); color:#ffffff; padding:4px 10px; border-radius:12px; font-size:12px; font-weight:600;">
+              ${getIconSvg('users')} <span>Lead: ${sanitizeHtml(client.contact)}</span>
+            </div>
+          </div>
+          <button class="btn btn-outline" id="profile-back-btn" style="border-color:rgba(255,255,255,0.4); color:#ffffff; background:none;">
+            ${getIconSvg('arrow-left')} Back to List
+          </button>
+        </div>
+      </div>
+
+      <div class="content-grid" style="display:grid; grid-template-columns: 1fr 2fr; gap:20px;">
+        <!-- Left Column -->
+        <div style="display:flex; flex-direction:column; gap:20px;">
+          <div class="card">
+            <div class="card-header"><div class="card-title">Corporate Portfolio Details</div></div>
+            <div class="card-body">
+              <div style="display:flex; flex-direction:column; gap:14px; font-size:13.5px;">
+                <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:8px;">
+                  <span style="color:var(--muted-foreground);">HQ Location</span>
+                  <span style="font-weight:600;">${sanitizeHtml(client.location || 'N/A')}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:8px;">
+                  <span style="color:var(--muted-foreground);">Contact Address</span>
+                  <span style="font-weight:600; text-overflow:ellipsis; overflow:hidden; max-width:180px;">${sanitizeHtml(client.email)}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:8px;">
+                  <span style="color:var(--muted-foreground);">LTV Retainer Worth</span>
+                  <span style="font-weight:700; color:var(--success);">${formatCurrency(client.lifetime_value)}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between;">
+                  <span style="color:var(--muted-foreground);">Client Status</span>
+                  <span class="status-badge ${client.status === 'active' ? 'active' : 'inactive'}">${sanitizeHtml(client.status)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><div class="card-title">Administrative Actions</div></div>
+            <div class="card-body">
+              <button class="btn btn-danger" id="client-profile-delete-btn" style="width:100%; justify-content:center;">
+                ${getIconSvg('trash')} Delete Client Portfolio
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column -->
+        <div style="display:flex; flex-direction:column; gap:20px;">
+          <!-- Description / Notes -->
+          <div class="card">
+            <div class="card-header"><div class="card-title">Corporate Notes & Description</div></div>
+            <div class="card-body">
+              <div style="background:var(--muted); padding:16px; border-radius:var(--radius); font-size:14px; line-height:1.6; white-space:pre-wrap;">
+                ${sanitizeHtml(client.description || 'No notes currently attached to this account record.')}
+              </div>
+            </div>
+          </div>
+
+          <!-- Associated Projects Table -->
+          <div class="card">
+            <div class="card-header"><div class="card-title">Projects & Contracts Portfolio</div></div>
+            <div class="card-body" style="padding:0; overflow-x:auto;">
+              ${projectsHtml ? `
+                <table class="data-table" style="width:100%; border-collapse:collapse; min-width:500px;">
+                  <thead>
+                    <tr style="border-bottom:1px solid var(--border); background:rgba(0,0,0,0.02);">
+                      <th style="padding:12px 16px; text-align:left; font-size:12px; color:var(--muted-foreground);">Project Name</th>
+                      <th style="padding:12px 16px; text-align:left; font-size:12px; color:var(--muted-foreground);">Budget Value</th>
+                      <th style="padding:12px 16px; text-align:left; font-size:12px; color:var(--muted-foreground);">Completeness</th>
+                      <th style="padding:12px 16px; text-align:left; font-size:12px; color:var(--muted-foreground);">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${projectsHtml}
+                  </tbody>
+                </table>
+              ` : `<div style="padding:40px; text-align:center; color:var(--muted-foreground); font-size:14px;">No projects currently registered under this client account.</div>`}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  if (ap.type === 'project') {
+    const p = state.projects.find(proj => proj.id === ap.id);
+    if (!p) {
+      return `
+        <div style="padding:40px; text-align:center;">
+          <h3>Project file not found</h3>
+          <button class="btn btn-primary btn-sm" id="profile-back-btn" style="margin-top:16px;">Back to List</button>
+        </div>
+      `;
+    }
+
+    const projTasks = state.tasks.filter(t => t.project === p.id);
+    const tasksHtml = projTasks.length > 0 ? projTasks.map((t: any) => `
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:12px 16px; font-weight:600;">${sanitizeHtml(t.title)}</td>
+        <td style="padding:12px 16px;"><span class="status-badge ${t.priority === 'high' ? 'inactive' : t.priority === 'medium' ? '' : 'active'}">${sanitizeHtml(t.priority)}</span></td>
+        <td style="padding:12px 16px; color:var(--muted-foreground);">${sanitizeHtml(t.due_date || 'N/A')}</td>
+        <td style="padding:12px 16px;"><span class="status-badge ${t.status === 'completed' ? 'active' : 'pending'}">${sanitizeHtml(t.status)}</span></td>
+      </tr>
+    `).join('') : '';
+
+    return `
+      <div class="gradient-header" style="background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%); margin-bottom:24px; padding: 24px; border-radius: var(--radius-lg); color:#ffffff; position:relative;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; width:100%; flex-wrap:wrap; gap:12px;">
+          <div>
+            <h2 style="font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:1px; opacity:0.8; margin:0;">Corporate Project Milestone File</h2>
+            <h1 style="font-size:32px; font-weight:800; margin:6px 0 0 0; letter-spacing:-0.5px; color:#ffffff;">${sanitizeHtml(p.name)}</h1>
+            <div class="role-chip" style="margin-top:10px; display:inline-flex; align-items:center; gap:6px; background:rgba(255,255,255,0.15); color:#ffffff; padding:4px 10px; border-radius:12px; font-size:12px; font-weight:600;">
+              ${getIconSvg('folder')} <span>Client: ${sanitizeHtml(p.client_name || 'N/A')}</span>
+            </div>
+          </div>
+          <button class="btn btn-outline" id="profile-back-btn" style="border-color:rgba(255,255,255,0.4); color:#ffffff; background:none;">
+            ${getIconSvg('arrow-left')} Back to List
+          </button>
+        </div>
+      </div>
+
+      <div class="content-grid" style="display:grid; grid-template-columns: 1fr 2.2fr; gap:20px;">
+        <!-- Left Column -->
+        <div style="display:flex; flex-direction:column; gap:20px;">
+          <div class="card">
+            <div class="card-header"><div class="card-title">Project Details</div></div>
+            <div class="card-body">
+              <div style="display:flex; flex-direction:column; gap:14px; font-size:13.5px;">
+                <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:8px;">
+                  <span style="color:var(--muted-foreground);">Client Name</span>
+                  <span style="font-weight:600; text-overflow:ellipsis; overflow:hidden; max-width:180px;">${sanitizeHtml(p.client_name || 'N/A')}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:8px;">
+                  <span style="color:var(--muted-foreground);">Budget Contract</span>
+                  <span style="font-weight:700; color:var(--accent);">${formatCurrency(p.value)}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:8px;">
+                  <span style="color:var(--muted-foreground);">Start Date</span>
+                  <span style="font-weight:600;">${p.start_date || 'N/A'}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:8px;">
+                  <span style="color:var(--muted-foreground);">Due Date</span>
+                  <span style="font-weight:600;">${p.end_date || 'N/A'}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between;">
+                  <span style="color:var(--muted-foreground);">Project Status</span>
+                  <span class="status-badge ${p.status === 'active' ? 'active' : p.status === 'completed' ? 'active' : 'inactive'}">${sanitizeHtml(p.status)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><div class="card-title">Update Project Milestones</div></div>
+            <div class="card-body">
+              <form id="profile-project-form" style="display:flex; flex-direction:column; gap:14px;">
+                <div class="form-group">
+                  <label class="form-label" for="profile-proj-progress" style="display:flex; justify-content:space-between;">
+                    <span>Milestone Progress</span>
+                    <span style="font-weight:700;">${p.progress}%</span>
+                  </label>
+                  <input type="range" class="form-input" id="profile-proj-progress" min="0" max="100" value="${p.progress}" style="padding:0; width:100%; height:8px; cursor:pointer;">
+                </div>
+                
+                <div class="form-group">
+                  <label class="form-label" for="profile-proj-status">Delivery Status</label>
+                  <select class="form-input" id="profile-proj-status" style="width:100%;">
+                    <option value="planned" ${p.status === 'planned' ? 'selected' : ''}>Planned</option>
+                    <option value="active" ${p.status === 'active' ? 'selected' : ''}>Active</option>
+                    <option value="on_hold" ${p.status === 'on_hold' ? 'selected' : ''}>On Hold</option>
+                    <option value="completed" ${p.status === 'completed' ? 'selected' : ''}>Completed</option>
+                  </select>
+                </div>
+
+                <div style="display:flex; justify-content:space-between; gap:10px; margin-top:10px;">
+                  <button type="button" class="btn btn-danger btn-sm" id="profile-delete-project-btn">Delete Project</button>
+                  <button type="submit" class="btn btn-primary btn-sm">Save Changes</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column -->
+        <div style="display:flex; flex-direction:column; gap:20px;">
+          <!-- Progress Circular indicator -->
+          <div class="card">
+            <div class="card-header"><div class="card-title">Milestone Progress Rate</div></div>
+            <div class="card-body" style="text-align:center; padding:32px 20px;">
+              <div style="font-size:54px; font-weight:800; color:var(--accent); letter-spacing:-1px;">${p.progress}%</div>
+              <div style="font-size:12px; color:var(--muted-foreground); margin-top:4px;">Project milestone completeness rate</div>
+              <div style="background:var(--muted); height:10px; border-radius:5px; overflow:hidden; margin-top:20px; width:100%;">
+                <div style="background:linear-gradient(90deg, var(--accent) 0%, #4f46e5 100%); width:${p.progress}%; height:100%;"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Milestones Table -->
+          <div class="card">
+            <div class="card-header"><div class="card-title">Milestones / Task Breakdown</div></div>
+            <div class="card-body" style="padding:0; overflow-x:auto;">
+              ${tasksHtml ? `
+                <table class="data-table" style="width:100%; border-collapse:collapse; min-width:500px;">
+                  <thead>
+                    <tr style="border-bottom:1px solid var(--border); background:rgba(0,0,0,0.02);">
+                      <th style="padding:12px 16px; text-align:left; font-size:12px; color:var(--muted-foreground);">Task / Milestone</th>
+                      <th style="padding:12px 16px; text-align:left; font-size:12px; color:var(--muted-foreground);">Priority</th>
+                      <th style="padding:12px 16px; text-align:left; font-size:12px; color:var(--muted-foreground);">Due Date</th>
+                      <th style="padding:12px 16px; text-align:left; font-size:12px; color:var(--muted-foreground);">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${tasksHtml}
+                  </tbody>
+                </table>
+              ` : `<div style="padding:40px; text-align:center; color:var(--muted-foreground); font-size:14px;">No tasks or milestones currently registered under this project contract.</div>`}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  return '';
+}
+
+function bindProfileEvents() {
+  const backBtn = document.getElementById('profile-back-btn');
+  if (backBtn) {
+    backBtn.addEventListener('click', () => {
+      state.activeProfile = null;
+      renderApp();
+    });
+  }
+
+  const ap = state.activeProfile;
+  if (!ap) return;
+
+  if (ap.type === 'employee') {
+    const empId = ap.id;
+    const emp = state.employees.find(e => e.id === empId);
+    if (!emp) return;
+
+    document.getElementById('profile-toggle-status-btn')?.addEventListener('click', async () => {
+      const nextStatus = emp.status === 'active' ? 'inactive' : 'active';
+      try {
+        await apiRequest(`employees/${emp.id}/`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            name: emp.name,
+            role: emp.role,
+            department: emp.department,
+            salary: emp.salary,
+            email: emp.email,
+            status: nextStatus
+          })
+        });
+        showToast(`${emp.name} status updated to ${nextStatus}!`, 'success');
+        await syncAppData();
+        renderApp();
+      } catch (err: any) {
+        showToast(err.message || 'Status update failed', 'error');
+      }
+    });
+
+    document.getElementById('profile-edit-finance-btn')?.addEventListener('click', () => {
+      openEditFinanceModal(emp);
+    });
+
+    document.getElementById('profile-delete-btn')?.addEventListener('click', async () => {
+      if (!confirm('Are you sure you want to delete this employee profile?')) return;
+      try {
+        await apiRequest(`employees/${emp.id}/`, { method: 'DELETE' });
+        showToast('Employee profile removed successfully', 'error');
+        state.activeProfile = null;
+        await syncAppData();
+        renderApp();
+      } catch (err: any) {
+        showToast(err.message || 'Deletion failed', 'error');
+      }
+    });
+  } else if (ap.type === 'client') {
+    const clientId = ap.id;
+    const client = state.clients.find(c => c.id === clientId);
+    if (!client) return;
+
+    document.getElementById('client-profile-delete-btn')?.addEventListener('click', async () => {
+      if (!confirm('Are you sure you want to remove this client portfolio record?')) return;
+      try {
+        await apiRequest(`clients/${client.id}/`, { method: 'DELETE' });
+        showToast('Client record deleted successfully!', 'success');
+        state.activeProfile = null;
+        await syncAppData();
+        renderApp();
+      } catch (err: any) {
+        showToast(err.message || 'Failed to delete client', 'error');
+      }
+    });
+  } else if (ap.type === 'project') {
+    const projId = ap.id;
+    const p = state.projects.find(proj => proj.id === projId);
+    if (!p) return;
+
+    const form = document.getElementById('profile-project-form') as HTMLFormElement;
+    form?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const progress = parseInt((document.getElementById('profile-proj-progress') as HTMLInputElement).value);
+      const status = (document.getElementById('profile-proj-status') as HTMLSelectElement).value;
+
+      try {
+        await apiRequest(`projects/${p.id}/`, {
+          method: 'PATCH',
+          body: JSON.stringify({ progress, status })
+        });
+        showToast('Project updated successfully!', 'success');
+        await syncAppData();
+        renderApp();
+      } catch (err: any) {
+        showToast(err.message || 'Failed to update project', 'error');
+      }
+    });
+
+    document.getElementById('profile-delete-project-btn')?.addEventListener('click', async () => {
+      if (!confirm('Are you sure you want to delete this project?')) return;
+      try {
+        await apiRequest(`projects/${p.id}/`, { method: 'DELETE' });
+        showToast('Project deleted successfully!', 'success');
+        state.activeProfile = null;
+        await syncAppData();
+        renderApp();
+      } catch (err: any) {
+        showToast(err.message || 'Failed to delete project', 'error');
+      }
+    });
   }
 }
 
@@ -3191,16 +3768,16 @@ function drawAdminDashboard(): string {
     <div class="stats-grid">
       <div class="stat-card" style="background:var(--accent); color:var(--accent-foreground); border:1px solid var(--accent);">
         <div class="stat-card-header" style="margin-bottom:6px;">
-          <div class="stat-card-icon" style="background:rgba(255,255,255,0.15); color:#ffffff;">
+          <div class="stat-card-icon" style="background:var(--secondary); color:var(--accent-foreground);">
             ${getIconSvg('folder')}
           </div>
-          <span style="font-size:11px; background:rgba(255,255,255,0.2); color:#ffffff; padding:2px 8px; border-radius:12px; font-weight:600; display:flex; align-items:center; gap:2px;">
+          <span style="font-size:11px; background:var(--secondary); color:var(--accent-foreground); padding:2px 8px; border-radius:12px; font-weight:600; display:flex; align-items:center; gap:2px;">
             +12% ${getIconSvg('arrow-up-right')}
           </span>
         </div>
-        <div class="stat-card-label" style="color:rgba(255,255,255,0.7); font-weight:500;">Total Projects</div>
-        <div class="stat-card-value" style="color:#ffffff; font-size:28px;">${state.projects.length}</div>
-        <div style="font-size:11px; color:rgba(255,255,255,0.5); margin-top:4px;">Increased from last month</div>
+        <div class="stat-card-label" style="color:var(--accent-foreground); opacity:0.8; font-weight:500;">Total Projects</div>
+        <div class="stat-card-value" style="color:var(--accent-foreground); font-size:28px;">${state.projects.length}</div>
+        <div style="font-size:11px; color:var(--accent-foreground); opacity:0.6; margin-top:4px;">Increased from last month</div>
       </div>
 
       <div class="stat-card">
@@ -3418,27 +3995,7 @@ function drawAdminDashboard(): string {
     </div>
 
     <!-- Row 4: Trackers -->
-    <div style="display:grid; grid-template-columns:1.2fr 2fr 1.2fr; gap:16px; margin-bottom:24px;">
-      <div class="card" style="display:flex; flex-direction:column;">
-        <div class="card-header">
-          <div class="card-title">${getIconSvg('clock')} Time Tracker</div>
-        </div>
-        <div class="card-body" style="flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; padding:24px 20px;">
-          <div id="tracker-display" style="font-size:32px; font-weight:800; font-family:'Outfit', sans-serif; letter-spacing:1px; margin-bottom:16px; font-variant-numeric:tabular-nums;">00:00:00</div>
-          <div style="display:flex; gap:10px; width:100%;">
-            <button class="btn btn-outline" id="tracker-play-btn" style="flex:1; padding:6px; justify-content:center;">
-              ${getIconSvg('play')} Play
-            </button>
-            <button class="btn btn-outline" id="tracker-pause-btn" style="flex:1; padding:6px; justify-content:center; display:none;">
-              ${getIconSvg('pause')} Pause
-            </button>
-            <button class="btn btn-danger btn-sm" id="tracker-stop-btn" style="flex:1; padding:6px; justify-content:center; font-weight:600;">
-              ${getIconSvg('square')} Stop
-            </button>
-          </div>
-        </div>
-      </div>
-
+    <div style="display:grid; grid-template-columns:2fr 1.2fr; gap:16px; margin-bottom:24px;">
       <div class="card">
         <div class="card-body" style="padding:16px 20px 10px;">
           ${drawDashboardSvgChart()}
@@ -4268,7 +4825,10 @@ function bindEmployeesEvents() {
   document.querySelectorAll('.data-table tbody tr').forEach(row => {
     row.addEventListener('click', (e) => {
       const id = (e.currentTarget as HTMLElement).dataset.employeeId;
-      if (id) openEmployeeDetailModal(parseInt(id));
+      if (id) {
+        state.activeProfile = { type: 'employee', id: parseInt(id) };
+        renderApp();
+      }
     });
   });
 
@@ -4444,7 +5004,10 @@ function openEditFinanceModal(emp: Employee) {
   `);
 
   const close = () => {
-    openEmployeeDetailModal(emp.id);
+    state.activeProfile = { type: 'employee', id: emp.id };
+    const modalContainer = document.getElementById('modal-container');
+    if (modalContainer) modalContainer.innerHTML = DOMPurify.sanitize('');
+    renderApp();
   };
   document.getElementById('modal-close-btn')?.addEventListener('click', close);
   document.getElementById('modal-cancel-btn')?.addEventListener('click', close);
@@ -4479,7 +5042,7 @@ function openEditFinanceModal(emp: Employee) {
       const modalContainer = document.getElementById('modal-container');
       if (modalContainer) modalContainer.innerHTML = DOMPurify.sanitize('');
       await syncAppData();
-      openEmployeeDetailModal(emp.id);
+      state.activeProfile = { type: 'employee', id: emp.id };
       renderApp();
     } catch (err: any) {
       showToast(err.message || 'Failed to update financials', 'error');
@@ -4778,7 +5341,10 @@ function bindClientsEvents() {
   document.querySelectorAll('[data-client-id]').forEach(card => {
     card.addEventListener('click', (e) => {
       const id = (e.currentTarget as HTMLElement).dataset.clientId;
-      if (id) openClientDetailModal(parseInt(id));
+      if (id) {
+        state.activeProfile = { type: 'client', id: parseInt(id) };
+        renderApp();
+      }
     });
   });
 
@@ -6166,11 +6732,12 @@ function _buildMessagesHtml(c: any): string {
 
   let lastDateStr = '';
   return state.chatMessages.map((m: any) => {
-    const isOutgoing = m.sender && m.sender.id === state.user?.id;
-    const initials = m.sender
+    const senderId = m.sender_id || (m.sender ? m.sender.id : null);
+    const isOutgoing = !!(senderId && state.user && senderId === state.user.id);
+    const initials = m.sender_initials || (m.sender
       ? (m.sender.name ? m.sender.name.slice(0, 2).toUpperCase() : m.sender.username.slice(0, 2).toUpperCase())
-      : '??';
-    const senderName = m.sender ? sanitizeHtml(m.sender.name || m.sender.username) : 'System';
+      : '??');
+    const senderName = m.sender_name || (m.sender ? sanitizeHtml(m.sender.name || m.sender.username) : 'System');
 
     const msgDate = new Date(m.created_at);
     const formattedTime = msgDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -7114,7 +7681,10 @@ function bindProjectsEvents() {
   document.querySelectorAll('[data-project-id]').forEach(card => {
     card.addEventListener('click', (e) => {
       const id = (e.currentTarget as HTMLElement).dataset.projectId;
-      if (id) openProjectDetailModal(parseInt(id));
+      if (id) {
+        state.activeProfile = { type: 'project', id: parseInt(id) };
+        renderApp();
+      }
     });
   });
 }

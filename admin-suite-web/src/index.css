@@ -1099,6 +1099,12 @@ input, select, textarea { font-family: inherit; }
   display: flex;
   gap: 6px;
 }
+.splash-gate .dot-loader {
+  position: absolute;
+  bottom: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+}
 .dot-loader span {
   width: 6px;
   height: 6px;
