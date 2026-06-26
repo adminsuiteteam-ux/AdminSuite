@@ -6869,8 +6869,6 @@ function renderChatViewport(viewportContainer: HTMLElement) {
       </div>
 
       <button class="chat-emoji-btn" type="button" id="chat-emoji-btn" title="Emojis">${getIconSvg('smile')}</button>
-      <button class="chat-attach-btn" type="button" id="chat-attach-btn" title="Attach file">📎</button>
-      <input type="file" id="chat-file-input" style="display:none;" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt">
       <div class="chat-input-wrapper">
         <div id="chat-typing-indicator" class="typing-indicator" style="display:none;"></div>
         <input type="text" class="chat-input" id="chat-message-input-field" placeholder="Type a message..." autocomplete="off" spellcheck="true">
