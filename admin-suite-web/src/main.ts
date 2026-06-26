@@ -7768,8 +7768,8 @@ function bindChatEvents() {
 // WEBSOCKET MANAGER — Real-time Chat
 // ============================================================
 
-const WS_MAX_RECONNECT = 8;
-const WS_RECONNECT_BASE_MS = 1000;
+const WS_MAX_RECONNECT = 5;          // max retry attempts before giving up
+const WS_RECONNECT_BASE_MS = 3000;   // start at 3 s (not 1 s) to avoid rapid-fire beeps
 
 function getChatWsUrl(): string | null {
   const apiBase = (window as any).API_BASE || 'https://adminsuite.onrender.com';
@@ -7790,6 +7790,9 @@ function connectChatWebSocket(): void {
   const url = getChatWsUrl();
   if (!url) return;
 
+  // If we've already given up, don't attempt again (avoids beep loop)
+  if ((state as any).wsGaveUp) return;
+
   state.wsStatus = 'reconnecting';
   updateWsStatusBadge();
 
@@ -7806,6 +7809,7 @@ function connectChatWebSocket(): void {
   ws.onopen = () => {
     state.wsStatus = 'connected';
     state.wsReconnectAttempts = 0;
+    (state as any).wsGaveUp = false;
     updateWsStatusBadge();
     // Start heartbeat ping every 25s
     (ws as any)._pingTimer = setInterval(() => {
@@ -7822,8 +7826,9 @@ function connectChatWebSocket(): void {
     } catch { /* ignore malformed frames */ }
   };
 
-  ws.onerror = () => {
-    /* handled by onclose */
+  // Suppress the browser default error sound — handled silently by onclose
+  ws.onerror = (evt) => {
+    evt.preventDefault?.();
   };
 
   ws.onclose = (evt) => {
@@ -7831,22 +7836,29 @@ function connectChatWebSocket(): void {
     state.wsStatus = 'disconnected';
     updateWsStatusBadge();
 
-    // Don't reconnect if closed cleanly (user navigated away)
+    // Don't reconnect on clean close (code 1000) or if user left chat tab
     if (evt.code === 1000 || state.activeTab !== 'chat') return;
     scheduleWsReconnect();
   };
 }
 
 function scheduleWsReconnect(): void {
-  if (state.wsReconnectAttempts >= WS_MAX_RECONNECT) return;
+  if (state.wsReconnectAttempts >= WS_MAX_RECONNECT) {
+    // Give up silently — REST polling still works, no more beeps
+    state.wsStatus = 'disconnected';
+    (state as any).wsGaveUp = true;
+    updateWsStatusBadge();
+    return;
+  }
   state.wsReconnectAttempts++;
   state.wsStatus = 'reconnecting';
   updateWsStatusBadge();
 
+  // Exponential backoff capped at 60 s — keeps the retries spread out
   const delay = WS_RECONNECT_BASE_MS * Math.pow(2, state.wsReconnectAttempts - 1);
   setTimeout(() => {
     if (state.activeTab === 'chat') connectChatWebSocket();
-  }, Math.min(delay, 30000));
+  }, Math.min(delay, 60000));
 }
 
 function disconnectChatWebSocket(): void {
