@@ -3721,31 +3721,7 @@ function drawDeptManagerDashboard(): string {
         </table>
       </div>
     </div>
-
-    <div class="card" style="margin-top:20px;">
-      <div class="card-header"><div class="card-title">Quick Actions</div></div>
-      <div class="card-body">
-        <div class="quick-actions">
-          <button class="quick-action-btn" id="dm-qa-employees"><div class="quick-action-icon blue">+</div><span>Add Member</span></button>
-          <button class="quick-action-btn" id="dm-qa-clients"><div class="quick-action-icon green">💼</div><span>Clients</span></button>
-          <button class="quick-action-btn" id="dm-qa-chat"><div class="quick-action-icon orange">${getIconSvg('message-circle')}</div><span>Team Chat</span></button>
-          <button class="quick-action-btn" id="dm-qa-settings"><div class="quick-action-icon purple">⚙</div><span>Settings</span></button>
-        </div>
-      </div>
-    </div>
   `;
-}
-
-// ---- Full Admin/CEO/Branch Admin Dashboard ----
-let trackerSeconds = 0; // starts at 00:00:00
-let trackerInterval: any = null;
-let trackerRunning = false;
-
-function formatTimeTracker(sec: number): string {
-  const h = Math.floor(sec / 3600).toString().padStart(2, '0');
-  const m = Math.floor((sec % 3600) / 60).toString().padStart(2, '0');
-  const s = (sec % 60).toString().padStart(2, '0');
-  return `${h}:${m}:${s}`;
 }
 
 function drawAdminDashboard(): string {
@@ -3769,6 +3745,69 @@ function drawAdminDashboard(): string {
           ${getIconSvg('plus')} Add Project
         </button>
       </div>
+    </div>
+
+    <!-- Mobile-App Style Gradient Hero Card (mirrors mobile FinancialChart glow design) -->
+    <div style="position:relative; border-radius:22px; overflow:hidden; margin-bottom:24px; background:linear-gradient(135deg,#000000 0%,#0a0a0a 60%,#1e3a8a 100%); padding:28px 32px 24px; color:#fff; box-shadow:0 8px 40px rgba(0,0,0,0.28);">
+      <div style="position:absolute; top:-60px; right:-40px; width:200px; height:200px; border-radius:100px; background:rgba(37,99,235,0.18); pointer-events:none;"></div>
+      <div style="position:absolute; bottom:-80px; left:-40px; width:220px; height:220px; border-radius:110px; background:rgba(249,115,22,0.10); pointer-events:none;"></div>
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:16px; position:relative;">
+        <div>
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+            <div style="width:8px; height:8px; border-radius:4px; background:#22c55e; box-shadow:0 0 8px #22c55e;"></div>
+            <span style="font-size:10px; font-weight:700; letter-spacing:1.2px; color:#22c55e;">LIVE</span>
+          </div>
+          <div style="font-size:12px; font-weight:600; opacity:0.6; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px;">Net Profit</div>
+          <div style="font-size:34px; font-weight:800; letter-spacing:-1px; font-variant-numeric:tabular-nums;">${formatCurrency(m.netProfit)}</div>
+          <div style="display:flex; gap:20px; margin-top:14px; flex-wrap:wrap;">
+            <div style="display:flex; align-items:center; gap:6px;">
+              ${getIconSvg('arrow-down-left')}
+              <span style="font-size:12px; opacity:0.75; font-variant-numeric:tabular-nums;">Income <strong style="color:#86efac;">${formatCurrency(m.totalIncome)}</strong></span>
+            </div>
+            <div style="display:flex; align-items:center; gap:6px;">
+              ${getIconSvg('arrow-up-right')}
+              <span style="font-size:12px; opacity:0.75; font-variant-numeric:tabular-nums;">Expense <strong style="color:#fca5a5;">${formatCurrency(m.totalExpense)}</strong></span>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
+          <button class="btn" id="dash-ai-report-btn" style="background:rgba(255,255,255,0.12); color:#fff; border:1px solid rgba(255,255,255,0.18); font-size:12px; backdrop-filter:blur(8px);">${getIconSvg('file-text')} AI Report</button>
+          <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
+            <div style="text-align:center; background:rgba(255,255,255,0.08); border-radius:10px; padding:10px 16px;">
+              <div style="font-size:20px; font-weight:800;">${m.employees}</div>
+              <div style="font-size:10px; opacity:0.6; font-weight:600;">Staff</div>
+            </div>
+            <div style="text-align:center; background:rgba(255,255,255,0.08); border-radius:10px; padding:10px 16px;">
+              <div style="font-size:20px; font-weight:800;">${m.activeProjects}</div>
+              <div style="font-size:10px; opacity:0.6; font-weight:600;">Projects</div>
+            </div>
+            <div style="text-align:center; background:rgba(255,255,255,0.08); border-radius:10px; padding:10px 16px;">
+              <div style="font-size:20px; font-weight:800;">${m.clients}</div>
+              <div style="font-size:10px; opacity:0.6; font-weight:600;">Clients</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Actions Row (mirrors mobile app Quick Actions) -->
+    <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:24px;">
+      <button class="btn btn-outline" id="dash-qa-employee" style="flex-direction:column; padding:16px 12px; gap:8px; height:auto;">
+        <div style="width:36px; height:36px; border-radius:10px; background:rgba(37,99,235,0.1); color:var(--foreground); display:flex; align-items:center; justify-content:center;">${getIconSvg('user-plus')}</div>
+        <span style="font-size:12px; font-weight:600; white-space:normal; text-align:center; line-height:1.3;">Add Employee</span>
+      </button>
+      <button class="btn btn-outline" id="dash-qa-income" style="flex-direction:column; padding:16px 12px; gap:8px; height:auto;">
+        <div style="width:36px; height:36px; border-radius:10px; background:rgba(22,163,74,0.1); color:var(--success); display:flex; align-items:center; justify-content:center;">${getIconSvg('dollar-sign')}</div>
+        <span style="font-size:12px; font-weight:600; white-space:normal; text-align:center; line-height:1.3;">Log Income</span>
+      </button>
+      <button class="btn btn-outline" id="dash-qa-client" style="flex-direction:column; padding:16px 12px; gap:8px; height:auto;">
+        <div style="width:36px; height:36px; border-radius:10px; background:rgba(6,182,212,0.1); color:#0ea5e9; display:flex; align-items:center; justify-content:center;">${getIconSvg('briefcase')}</div>
+        <span style="font-size:12px; font-weight:600; white-space:normal; text-align:center; line-height:1.3;">New Client</span>
+      </button>
+      <button class="btn btn-outline" id="dash-qa-chat" style="flex-direction:column; padding:16px 12px; gap:8px; height:auto;">
+        <div style="width:36px; height:36px; border-radius:10px; background:rgba(139,92,246,0.1); color:#8b5cf6; display:flex; align-items:center; justify-content:center;">${getIconSvg('message-circle')}</div>
+        <span style="font-size:12px; font-weight:600; white-space:normal; text-align:center; line-height:1.3;">Team Chat</span>
+      </button>
     </div>
 
     <!-- Row 1: 4 Stat Cards -->
@@ -4618,6 +4657,18 @@ function drawDashboardSvgChart(): string {
   `;
 }
 
+// ---- Full Admin/CEO/Branch Admin Dashboard ----
+let trackerSeconds = 0; // starts at 00:00:00
+let trackerInterval: any = null;
+let trackerRunning = false;
+
+function formatTimeTracker(sec: number): string {
+  const h = Math.floor(sec / 3600).toString().padStart(2, '0');
+  const m = Math.floor((sec % 3600) / 60).toString().padStart(2, '0');
+  const s = (sec % 60).toString().padStart(2, '0');
+  return `${h}:${m}:${s}`;
+}
+
 function bindDashboardEvents() {
   // Time Tracker code
   const displayEl = document.getElementById('tracker-display');
@@ -4686,6 +4737,28 @@ function bindDashboardEvents() {
 
   document.getElementById('new-project-list-btn')?.addEventListener('click', () => {
     openAddProjectModal();
+  });
+
+  // Hero card quick actions
+  document.getElementById('dash-ai-report-btn')?.addEventListener('click', () => {
+    showToast('AI Report generation is available in the mobile app.', 'info');
+  });
+  document.getElementById('dash-qa-employee')?.addEventListener('click', () => {
+    navigateToTab('employees');
+    setTimeout(() => openAddEmployeeModal(), 120);
+  });
+  document.getElementById('dash-qa-income')?.addEventListener('click', () => {
+    navigateToTab('finance');
+    setTimeout(() => {
+      document.getElementById('log-transaction-btn')?.click();
+    }, 200);
+  });
+  document.getElementById('dash-qa-client')?.addEventListener('click', () => {
+    navigateToTab('clients');
+    setTimeout(() => document.getElementById('add-client-btn')?.click(), 120);
+  });
+  document.getElementById('dash-qa-chat')?.addEventListener('click', () => {
+    navigateToTab('chat');
   });
 
   document.getElementById('start-meeting-btn')?.addEventListener('click', () => {

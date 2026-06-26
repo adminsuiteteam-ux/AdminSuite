@@ -455,6 +455,31 @@ input, select, textarea { font-family: inherit; }
   padding: 20px;
   box-shadow: var(--shadow-sm);
   transition: all var(--transition);
+  position: relative;
+  overflow: hidden;
+}
+
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: -40px;
+  right: -40px;
+  width: 120px;
+  height: 120px;
+  border-radius: 60px;
+  background: rgba(37, 99, 235, 0.07);
+  pointer-events: none;
+  transition: opacity var(--transition);
+}
+
+.stat-card:hover::before {
+  opacity: 1.5;
+}
+
+.stat-card:hover {
+  box-shadow: var(--shadow);
+  transform: translateY(-2px);
+  border-color: var(--accent);
 }
 
 .stat-card-header {
@@ -1822,16 +1847,46 @@ input, select, textarea { font-family: inherit; }
   padding: 16px 18px;
   box-shadow: var(--shadow-sm);
   transition: all var(--transition);
+  position: relative;
+  overflow: hidden;
+}
+
+.fin-pulse-card::after {
+  content: '';
+  position: absolute;
+  bottom: -50px;
+  left: -30px;
+  width: 130px;
+  height: 130px;
+  border-radius: 65px;
+  background: rgba(249, 115, 22, 0.07);
+  pointer-events: none;
 }
 
 .fin-pulse-card:hover {
-  box-shadow: var(--shadow);
-  transform: translateY(-1px);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+  transform: translateY(-2px);
+  border-color: var(--accent);
 }
 
 .fin-pulse-card svg {
   width: 16px;
   height: 16px;
+}
+
+/* Glow accent blobs on card containers */
+.card {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Dashboard card glow blob */
+[data-theme="dark"] .stat-card::before {
+  background: rgba(37, 99, 235, 0.12);
+}
+
+[data-theme="dark"] .fin-pulse-card::after {
+  background: rgba(249, 115, 22, 0.10);
 }
 
 /* ---------- Responsive Breakpoints ---------- */
@@ -1888,13 +1943,16 @@ input, select, textarea { font-family: inherit; }
   .modal {
     max-width: 90%;
   }
+  /* Financial Pulse: 2x2 grid on tablet/mobile — matches mobile app card layout */
   .dash-financial-pulse {
     grid-template-columns: 1fr 1fr;
+    gap: 12px;
   }
   /* Force 1-col on 3-col dashboard grids on mobile */
   div[style*="grid-template-columns:1fr 1fr 1.2fr"],
   div[style*="grid-template-columns:1.2fr 2fr 1.2fr"],
-  div[style*="grid-template-columns:1.2fr 1fr 1fr"] {
+  div[style*="grid-template-columns:1.2fr 1fr 1fr"],
+  div[style*="grid-template-columns:2fr 1.2fr"] {
     grid-template-columns: 1fr !important;
     gap: 16px !important;
   }
@@ -1966,6 +2024,28 @@ input, select, textarea { font-family: inherit; }
     width: 100%;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* ---------- Dashboard Quick Actions Responsive ---------- */
+/* Quick Actions responsive: 2-col on tablet, 2-col on mobile (stacks last two) */
+@media (max-width: 768px) {
+  div[style*="grid-template-columns:repeat(4,1fr)"] {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 12px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  div[style*="grid-template-columns:repeat(4,1fr)"] {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+/* Dashboard hero card responsive */
+@media (max-width: 600px) {
+  div[style*="linear-gradient(135deg,#000000"] {
+    padding: 20px 18px !important;
   }
 }
 
