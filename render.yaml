@@ -40,7 +40,7 @@ services:
       - key: EMAIL_HOST_PASSWORD
         value: re_VSc7oeA2_L8BuaoQ9EhhDDcKniBrQEzn4
       - key: DEFAULT_FROM_EMAIL
-        value: AdminSuite <no-reply@adminsuite.com>
+        value: AdminSuite <onboarding@resend.dev>
       # ── Other services ───────────────────────────────────────────────────────
       - key: CLOUDINARY_URL
         sync: false
