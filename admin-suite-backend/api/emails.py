@@ -10,15 +10,16 @@ def _send_via_courier(to_email: str, subject: str, html_body: str, text_body: st
     """
     Internal helper — dispatches a transactional email via the Courier API.
     Django owns all auth/OTP logic; Courier is purely the email transport.
+    Courier auto-reads COURIER_API_KEY from the environment.
     """
-    from courier import Courier  # lazy import keeps startup fast
+    from courier import Courier
     api_key = os.environ.get('COURIER_API_KEY') or getattr(settings, 'COURIER_API_KEY', '')
     if not api_key:
         raise RuntimeError(
             'COURIER_API_KEY is not set. Add it to your .env file or Render environment variables.'
         )
     from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'AdminSuite <no-reply@adminsuite.app>')
-    client = Courier(authorization_token=api_key)
+    client = Courier(api_key=api_key)
     client.send.message(
         message={
             "to": {"email": to_email},

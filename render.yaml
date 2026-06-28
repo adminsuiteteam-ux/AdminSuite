@@ -26,7 +26,7 @@ services:
       # Django handles OTP generation & verification. Courier delivers the email.
       # Get your API key at: https://app.courier.com/settings/api-keys
       - key: COURIER_API_KEY
-        sync: false
+        value: pk_ERQQFVEZ624RDVJ256FPHYPGQ5KE
       - key: DEFAULT_FROM_EMAIL
         value: AdminSuite <no-reply@adminsuite.app>
       # ── Other services ───────────────────────────────────────────────────────
