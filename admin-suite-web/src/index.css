@@ -2997,3 +2997,221 @@ input, select, textarea { font-family: inherit; }
   letter-spacing: 0.5px;
 }
 
+/* Wizard progress and wizard buttons */
+.wizard-progress {
+  height: 4px;
+  background: var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  margin-bottom: 20px;
+  width: 100%;
+}
+.wizard-progress-bar {
+  height: 100%;
+  background: var(--primary);
+  width: 0%;
+  transition: width 0.2s ease;
+}
+.wizard-step-indicator {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: center;
+  margin-top: -10px;
+  margin-bottom: 16px;
+}
+
+/* Role cards (Employee form) */
+.role-card-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+  max-height: 50vh;
+  overflow-y: auto;
+  padding: 4px;
+}
+.role-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  border-radius: var(--radius-lg);
+  border: 1.5px solid var(--border);
+  background: var(--card);
+  cursor: pointer;
+  transition: all var(--transition);
+  position: relative;
+}
+.role-card:hover {
+  border-color: var(--primary);
+  background: var(--secondary);
+}
+.role-card.selected {
+  border-color: var(--primary);
+  background: var(--secondary);
+}
+.role-icon-wrap {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--border);
+  font-size: 18px;
+  flex-shrink: 0;
+}
+.role-check-circle {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  background: var(--primary);
+  color: var(--primary-foreground);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+
+/* Chip grids & selectable elements */
+.chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.chip-select {
+  padding: 8px 16px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+  background: var(--card);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--foreground);
+  transition: all var(--transition);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.chip-select:hover {
+  border-color: var(--primary);
+}
+.chip-select.selected {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+}
+.chip-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+}
+
+/* Stars rating widget */
+.star-rating {
+  display: flex;
+  gap: 8px;
+}
+.star-rating-star {
+  font-size: 26px;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+.star-rating-star:hover {
+  transform: scale(1.15);
+}
+
+/* Password Copy Screen */
+.password-box-container {
+  width: 100%;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  padding: 16px;
+  margin-bottom: 16px;
+  background: var(--secondary);
+}
+.password-box-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+.password-box-value {
+  font-family: monospace;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--foreground);
+  word-break: break-all;
+}
+.copy-btn-action {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--card);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all var(--transition);
+}
+.copy-btn-action:hover {
+  background: var(--secondary);
+}
+
+/* Social input row styling */
+.social-input-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding-left: 12px;
+  background: var(--input);
+  height: 44px;
+}
+.social-input-row input {
+  border: none;
+  background: transparent;
+  outline: none;
+  flex: 1;
+  height: 100%;
+  color: var(--foreground);
+  font-size: 14px;
+}
+.social-icon-box {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+/* Budget field list */
+.budget-field-list-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.budget-field-color-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-full);
+  margin-bottom: 14px;
+  flex-shrink: 0;
+}
+
+

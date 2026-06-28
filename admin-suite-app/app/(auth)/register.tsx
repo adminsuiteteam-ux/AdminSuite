@@ -168,10 +168,9 @@ export default function RegisterScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const { signUpWithSupabase, resendSupabaseOTP, verifySupabaseOTP, loginWithSocial } = useAuth();
+  const { requestEmailOTP, resendEmailOTP, verifyEmailOTP, loginWithSocial } = useAuth();
 
-  const rawKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
-  const isDemoKey = !rawKey || rawKey.includes("placeholder");
+  const isDemoKey = false;
 
   const [step, setStep] = useState<"credentials" | "code">("credentials");
   const [email, setEmail] = useState("");
@@ -266,7 +265,7 @@ export default function RegisterScreen() {
 
     setLoading(true);
     try {
-      await signUpWithSupabase(email.trim().toLowerCase(), password);
+      await requestEmailOTP(email.trim().toLowerCase(), password);
 
       // Determine OTP length: always 6 digits
       const digits: 6 = 6;
@@ -302,7 +301,7 @@ export default function RegisterScreen() {
     setCanResend(false);
     setHasOtpError(false);
     try {
-      await resendSupabaseOTP(email.trim().toLowerCase());
+      await resendEmailOTP(email.trim().toLowerCase());
       
       const debugCode = await AsyncStorage.getItem("auth.debug_otp_code");
       if (debugCode) {
@@ -334,7 +333,7 @@ export default function RegisterScreen() {
 
     setLoading(true);
     try {
-      await verifySupabaseOTP(email.trim().toLowerCase(), codeString, password);
+      await verifyEmailOTP(email.trim().toLowerCase(), codeString, password);
       
       // Success triggers green glow and tick animation
       setIsVerified(true);

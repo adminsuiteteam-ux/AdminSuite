@@ -10,8 +10,11 @@ services:
         value: "False"
       - key: DJANGO_SECRET_KEY
         generateValue: true
+      # ── Database ─────────────────────────────────────────────────────────────
+      # Xata PostgreSQL — adminsuite (eu-central-1, PostgreSQL 18.4)
+      # Branch: main | Free tier: 15GB included
       - key: DATABASE_URL
-        value: postgresql://postgres.whjxjqsxrnjpkoknfixo:AdminSuite2210@aws-0-eu-west-1.pooler.supabase.com:6543/postgres
+        value: postgresql://xata:MnNYdUe0PnmFbSMsXlAUJBCf0b53abOx9dboV3ORRrkqSCM5ItYK7edV8EYbl1jp@vupe99lt7d4336l6fuh6845ep8.eu-central-1.xata.tech/xata?sslmode=require
       - key: DJANGO_ALLOWED_HOSTS
         fromService:
           type: web
@@ -19,6 +22,26 @@ services:
           property: host
       - key: CORS_ALLOWED_ORIGINS
         value: https://adminsuite.onrender.com,https://adminsuite-web.onrender.com
+      # ── Email (Resend SMTP relay) ─────────────────────────────────────────────
+      # Create a free account at resend.com, generate an API key, and paste it below.
+      # From address must be from a verified domain in your Resend account.
+      - key: DJANGO_EMAIL_BACKEND
+        value: django.core.mail.backends.smtp.EmailBackend
+      - key: EMAIL_HOST
+        value: smtp.resend.com
+      - key: EMAIL_PORT
+        value: "465"
+      - key: EMAIL_USE_TLS
+        value: "False"
+      - key: EMAIL_USE_SSL
+        value: "True"
+      - key: EMAIL_HOST_USER
+        value: resend
+      - key: EMAIL_HOST_PASSWORD
+        value: re_VSc7oeA2_L8BuaoQ9EhhDDcKniBrQEzn4
+      - key: DEFAULT_FROM_EMAIL
+        value: AdminSuite <no-reply@adminsuite.com>
+      # ── Other services ───────────────────────────────────────────────────────
       - key: CLOUDINARY_URL
         sync: false
       - key: ADMIN_USERNAME

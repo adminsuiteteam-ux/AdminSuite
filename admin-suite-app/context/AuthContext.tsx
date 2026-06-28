@@ -1,7 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "@/services/storage";
 import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { supabase } from "@/services/supabase";
 import { apiService, resolveBackendUrl } from "@/services/api";
 import { registerForPushNotificationsAsync, unregisterFromPushNotificationsAsync } from "@/services/notifications";
 
@@ -43,9 +42,12 @@ type AuthContextType = {
   suspendedUntil: string | null;
   setSuspendedUntil: (val: string | null) => Promise<void>;
   login: (credentials: { username: string; password: string }) => Promise<void>;
-  signUpWithSupabase: (email: string, password: string) => Promise<void>;
-  resendSupabaseOTP: (email: string) => Promise<void>;
-  verifySupabaseOTP: (email: string, code: string, password: string) => Promise<void>;
+  /** Step 1 of registration: sends OTP email via Django */
+  requestEmailOTP: (email: string, password: string) => Promise<void>;
+  /** Resend OTP email via Django */
+  resendEmailOTP: (email: string) => Promise<void>;
+  /** Step 2: verify OTP then register on Django backend */
+  verifyEmailOTP: (email: string, code: string, password: string) => Promise<void>;
   loginWithSocial: (email: string, name: string, provider: 'google' | 'apple') => Promise<void>;
   logout: () => Promise<void>;
   tourComplete: boolean;
@@ -124,32 +126,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (credentials: { username: string; password: string }) => {
-    // 1. Attempt Supabase signIn (non-blocking; session is not persisted)
-    try {
-      await supabase.auth.signInWithPassword({
-        email: credentials.username,
-        password: credentials.password,
-      });
-    } catch (e: any) {
-      // Supabase auth is supplementary — Django is the primary auth provider
-      console.warn("Supabase signIn skipped:", e?.message);
-    }
-
-    // 2. Log in with Django backend (primary auth)
     try {
       const res = await apiService.login({
         username: credentials.username,
         password: credentials.password,
       });
       const token = res.data.token;
-      
+
       await SecureStore.setItemAsync(TOKEN_KEY, token);
       apiService.setToken(token);
-      
+
       const userRes = await apiService.getMe();
       const u = userRes.data;
       u.initials = ((u.name || u.username || u.email || "US")).slice(0, 2).toUpperCase();
-      
+
       // Store username for autocomplete/prefilling (no raw password stored)
       await SecureStore.setItemAsync("admin-suite.username", credentials.username);
 
@@ -166,123 +156,77 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signUpWithSupabase = async (email: string, password: string) => {
+  /**
+   * Step 1 of registration: sends a 6-digit OTP to the user's email via Django.
+   */
+  const requestEmailOTP = async (email: string, _password: string) => {
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-      });
-      
-      if (error) {
-        throw new Error(error.message);
+      const res = await apiService.sendEmailCode({ email });
+      // In DEBUG mode the backend returns the code directly for easy testing
+      if (res.data?.code) {
+        await AsyncStorage.setItem("auth.debug_otp_code", res.data.code);
       }
-      
-      // Supabase returns an empty identities array when user already exists
-      if (data?.user?.identities?.length === 0) {
-        throw new Error("An account with this email already exists. Please sign in instead.");
-      }
-
-      if (!data?.user) {
-        throw new Error("Sign up failed. Please check your email and try again.");
-      }
-
-      await AsyncStorage.setItem("auth.use_supabase_signup", "true");
     } catch (err: any) {
-      if (err.message && err.message.includes("already exists")) {
-        throw err;
-      }
-      console.warn("Supabase signUp failed, falling back to Django local verification:", err?.message);
-      await AsyncStorage.setItem("auth.use_supabase_signup", "false");
-      try {
-        const res = await apiService.sendEmailCode({ email });
-        if (res.data && res.data.code) {
-          await AsyncStorage.setItem("auth.debug_otp_code", res.data.code);
-        }
-      } catch (djangoErr: any) {
-        throw new Error(djangoErr.response?.data?.error || djangoErr.message || "Failed to send verification code via Django.");
-      }
+      throw new Error(err.response?.data?.error || err.message || "Failed to send verification email.");
     }
   };
 
-  const resendSupabaseOTP = async (email: string) => {
-    const useSupabase = await AsyncStorage.getItem("auth.use_supabase_signup");
-    if (useSupabase !== "false") {
-      const { data, error } = await supabase.auth.resend({
-        type: 'signup',
-        email: email.trim().toLowerCase(),
-      });
-      
-      if (error) {
-        throw new Error(error.message);
-      }
-    } else {
-      try {
-        const res = await apiService.sendEmailCode({ email });
-        if (res.data && res.data.code) {
-          await AsyncStorage.setItem("auth.debug_otp_code", res.data.code);
-        }
-      } catch (djangoErr: any) {
-        throw new Error(djangoErr.response?.data?.error || djangoErr.message || "Failed to resend verification code.");
-      }
-    }
-  };
-
-  const verifySupabaseOTP = async (email: string, code: string, password: string) => {
-    const useSupabase = await AsyncStorage.getItem("auth.use_supabase_signup");
-    
-    if (useSupabase !== "false") {
-      const { data, error } = await supabase.auth.verifyOtp({
-        email,
-        token: code.trim(),
-        type: 'signup',
-      });
-      
-      if (error) {
-        throw new Error(error.message);
-      }
-    } else {
-      try {
-        await apiService.verifyEmailCode({ email, code: code.trim() });
-      } catch (djangoErr: any) {
-        throw new Error(djangoErr.response?.data?.error || djangoErr.message || "Invalid or expired verification code.");
-      }
-    }
-    
+  /**
+   * Resend OTP email via Django (same endpoint, generates a fresh code).
+   */
+  const resendEmailOTP = async (email: string) => {
     try {
-      // Register the user on the Django backend
+      const res = await apiService.sendEmailCode({ email });
+      if (res.data?.code) {
+        await AsyncStorage.setItem("auth.debug_otp_code", res.data.code);
+      }
+    } catch (err: any) {
+      throw new Error(err.response?.data?.error || err.message || "Failed to resend verification code.");
+    }
+  };
+
+  /**
+   * Step 2: verifies the OTP then registers the user on the Django backend.
+   */
+  const verifyEmailOTP = async (email: string, code: string, password: string) => {
+    // 1. Verify the code
+    try {
+      await apiService.verifyEmailCode({ email, code: code.trim() });
+    } catch (err: any) {
+      throw new Error(err.response?.data?.error || err.message || "Invalid or expired verification code.");
+    }
+
+    // 2. Register on Django backend
+    try {
       const signupRes = await apiService.signup({
         email,
         password,
         confirm_password: password,
-        supabase_verified: useSupabase !== "false",
       });
-      
+
       const token = signupRes.data.token;
       const u = signupRes.data.user;
       u.initials = ((u.name || u.username || u.email || "US")).slice(0, 2).toUpperCase();
-      
+
       await SecureStore.setItemAsync(TOKEN_KEY, token);
       apiService.setToken(token);
-      
-      // Store email for autocomplete/prefilling (no raw password stored)
       await SecureStore.setItemAsync("admin-suite.username", email);
-      
+
       setUser(u);
-      registerForPushNotificationsAsync().catch(err => console.error("Error registering push token on signup verification:", err));
+      registerForPushNotificationsAsync().catch(err => console.error("Error registering push token on signup:", err));
       return;
     } catch (signupErr: any) {
-      console.warn("Django signup warning:", signupErr);
       const errorData = signupErr.response?.data;
-      const isAlreadyExists = 
-        errorData?.email?.[0]?.includes("already exists") || 
+      const isAlreadyExists =
+        errorData?.email?.[0]?.includes("already exists") ||
         (errorData && JSON.stringify(errorData).includes("already exists"));
-      
+
       if (!isAlreadyExists) {
-        throw new Error(signupErr.response?.data?.email?.[0] || signupErr.message || "Failed to register on backend.");
+        throw new Error(signupErr.response?.data?.email?.[0] || signupErr.message || "Failed to register account.");
       }
     }
-    
-    // Fallback: If user already exists on Django, log in to get Django token
+
+    // Fallback: email already registered → just log in
     await login({ username: email, password });
   };
 
@@ -329,19 +273,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.warn("Unregister push notifications error:", e);
     }
 
-    try {
-      await supabase.auth.signOut();
-    } catch (e) {
-      console.warn("Supabase sign out error:", e);
-    }
     // Note: We DO NOT clear the TOUR_KEY here because the onboarding tour should only be seen by new users.
-    
     // Clear active auth token (username kept for login email prefill)
     await Promise.all([
       SecureStore.deleteItemAsync(TOKEN_KEY),
       SecureStore.deleteItemAsync("admin-suite.username"),
     ]);
-    
+
     apiService.setToken(null);
     setUser(null);
   };
@@ -359,9 +297,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         suspendedUntil,
         setSuspendedUntil,
         login,
-        signUpWithSupabase,
-        resendSupabaseOTP,
-        verifySupabaseOTP,
+        requestEmailOTP,
+        resendEmailOTP,
+        verifyEmailOTP,
         loginWithSocial,
         logout,
         tourComplete,

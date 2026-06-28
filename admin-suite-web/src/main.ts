@@ -701,65 +701,6 @@ const state: AppState = {
 document.documentElement.setAttribute('data-theme', state.theme);
 
 // ============================================================
-// SUPABASE AUTH CONFIGURATION (REST VIA FETCH)
-// ============================================================
-
-const SUPABASE_URL = 'https://whjxjqsxrnjpkoknfixo.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndoanhqcXN4cm5qcGtva25maXhvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzMjIxMTMsImV4cCI6MjA5NDg5ODExM30.sw6ac1XgIGZbXs9PJVhyliUSDGrkI1Cv6k4x02BcsE4';
-
-async function supabaseSignUp(email: string, password: string) {
-  const response = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
-    method: 'POST',
-    headers: {
-      'apikey': SUPABASE_KEY,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ email, password })
-  });
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(err.msg || err.message || 'Supabase account creation failed.');
-  }
-  const data = await response.json();
-  if (data?.user?.identities?.length === 0) {
-    throw new Error('An account with this email already exists.');
-  }
-  return data;
-}
-
-async function supabaseVerifyOTP(email: string, code: string) {
-  const response = await fetch(`${SUPABASE_URL}/auth/v1/verify`, {
-    method: 'POST',
-    headers: {
-      'apikey': SUPABASE_KEY,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ email, token: code, type: 'signup' })
-  });
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(err.msg || err.message || 'Verification code is invalid or expired.');
-  }
-  return response.json();
-}
-
-async function supabaseResendOTP(email: string) {
-  const response = await fetch(`${SUPABASE_URL}/auth/v1/resend`, {
-    method: 'POST',
-    headers: {
-      'apikey': SUPABASE_KEY,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ email, type: 'signup' })
-  });
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(err.msg || err.message || 'Failed to resend code.');
-  }
-}
-
-
-
 // ============================================================
 // DJANGO REST CLIENT
 // ============================================================
@@ -1868,15 +1809,18 @@ function bindRegisterEvents() {
         submitBtn.innerHTML = '<span class="dot-loader" style="margin: 0; gap: 4px;"><span style="width:6px;height:6px;"></span><span style="width:6px;height:6px;"></span><span style="width:6px;height:6px;"></span></span>';
 
         try {
-          // 1. SignUp with Supabase to trigger OTP verification email
-          await supabaseSignUp(email, pwd);
+          // Send OTP via Django — no Supabase
+          await apiRequest('auth/email/send-code/', {
+            method: 'POST',
+            body: JSON.stringify({ email })
+          });
 
           state.otpEmail = email;
           state.otpPassword = pwd;
           state.registerStep = 'otp';
           state.otpCountdown = 30;
           state.otpValues = Array(6).fill('');
-          
+
           startOTPTimer();
           renderApp();
           showToast('Verification code dispatched to your email!', 'success');
@@ -1939,7 +1883,11 @@ function bindRegisterEvents() {
     if (resendBtn) {
       resendBtn.addEventListener('click', async () => {
         try {
-          await supabaseResendOTP(state.otpEmail);
+          // Resend OTP via Django
+          await apiRequest('auth/email/send-code/', {
+            method: 'POST',
+            body: JSON.stringify({ email: state.otpEmail })
+          });
           state.otpCountdown = 30;
           startOTPTimer();
           renderApp();
@@ -1962,17 +1910,19 @@ function bindRegisterEvents() {
         verifyBtn.innerText = 'Verifying...';
 
         try {
-          // 2. Verify code on Supabase
-          await supabaseVerifyOTP(state.otpEmail, code);
+          // 1. Verify OTP via Django
+          await apiRequest('auth/email/verify/', {
+            method: 'POST',
+            body: JSON.stringify({ email: state.otpEmail, code })
+          });
 
-          // 3. Register user on Django backend
+          // 2. Register user on Django backend
           const signupRes = await apiRequest('register/', {
             method: 'POST',
             body: JSON.stringify({
               email: state.otpEmail,
               password: state.otpPassword,
-              confirm_password: state.otpPassword,
-              supabase_verified: true
+              confirm_password: state.otpPassword
             })
           });
 
@@ -5070,204 +5020,751 @@ function openAddEmployeeModal() {
   const modalContainer = document.getElementById('modal-container');
   if (!modalContainer) return;
 
-  modalContainer.innerHTML = DOMPurify.sanitize(`
-    <div class="modal-overlay">
-      <div class="modal">
-        <div class="modal-header">
-          <h2 class="modal-title">Onboard New Team Member</h2>
-          <button class="modal-close" id="modal-close-btn">${getIconSvg('x')}</button>
-        </div>
-        
-        <form id="add-employee-form">
-          <div class="modal-body">
-            <div class="form-group">
-              <label class="form-label" for="emp-name">Full Name</label>
-              <input type="text" class="form-input" id="emp-name" required placeholder="Alexander Mercer">
-            </div>
-            
-            <div class="form-group">
-              <label class="form-label" for="emp-email">Email Address</label>
-              <input type="email" class="form-input" id="emp-email" required placeholder="alex@company.com">
-            </div>
-            
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label" for="emp-role">Designation</label>
-                <select class="form-input" id="emp-role" style="background-color: var(--background);">
-                  <option value="Employee">Employee</option>
-                  <option value="New Admin">New Admin</option>
-                  <option value="HR Manager">HR Manager</option>
-                  <option value="Secretary">Secretary</option>
-                  <option value="Finance Officer">Finance Officer</option>
-                  <option value="Operational Officer">Operational Officer</option>
-                  <option value="Department Manager">Department Manager</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label class="form-label" for="emp-dept">Department</label>
-                <select class="form-input" id="emp-dept" style="background-color: var(--background);">
-                  <option>Engineering</option>
-                  <option>Product</option>
-                  <option>HR</option>
-                  <option>Support</option>
-                  <option>Finance</option>
-                  <option>Operations</option>
-                </select>
-              </div>
-            </div>
+  let step = 0;
+  
+  // State
+  let selectedRole = ''; // 'Admin', 'HR Manager', 'Secretary', 'Finance Officer', 'Operations Manager', 'Department Manager', 'Employee'
+  
+  // Admin fields
+  let adminScope = 'current'; // 'current' or 'new'
+  let branchName = '';
+  let branchLocation = '';
+  
+  // Standard fields
+  let name = '';
+  let role = '';
+  let department = '';
+  let customDepartment = '';
+  let office = '';
+  let status = 'active';
+  let email = '';
+  let phone = '';
+  let location = '';
+  let bio = '';
+  let salary = '';
+  let performance = 3;
+  
+  // Socials
+  let whatsapp = '';
+  let facebook = '';
+  let instagram = '';
+  let phoneHandle = '';
+  let linkedin = '';
+  let discord = '';
+  let twitter = '';
+  
+  // Financial
+  let employeeOwes = '';
+  let companyOwes = '';
+  let shares = '';
+  
+  // Photo
+  let avatarFile: File | null = null;
+  let avatarPreviewUrl = '';
 
-            <!-- New Admin Branch Configuration (Hidden by default) -->
-            <div id="admin-branch-section" style="display: none; border: 1px dashed var(--border); border-radius: var(--radius-md); padding: 12px; margin-bottom: 16px; background: rgba(0,0,0,0.1);">
-              <div class="form-group" style="margin-bottom: 10px;">
-                <label class="form-label">Admin Scope Type</label>
-                <div style="display: flex; gap: 16px; margin-top: 4px;">
-                  <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer;">
-                    <input type="radio" name="admin-type" value="current" checked> Add to Current Admin Space
-                  </label>
-                  <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer;">
-                    <input type="radio" name="admin-type" value="new"> Admin to a New Branch Space
-                  </label>
-                </div>
-              </div>
-              
-              <div id="new-branch-fields" style="display: none; margin-top: 10px;">
-                <div class="form-row">
-                  <div class="form-group" style="margin-bottom: 0;">
-                    <label class="form-label" for="branch-name">New Branch Name</label>
-                    <input type="text" class="form-input" id="branch-name" placeholder="e.g. West Coast Branch">
-                  </div>
-                  <div class="form-group" style="margin-bottom: 0;">
-                    <label class="form-label" for="branch-location">Branch Location</label>
-                    <input type="text" class="form-input" id="branch-location" placeholder="e.g. Los Angeles, CA">
-                  </div>
-                </div>
-              </div>
+  const getStepsList = () => {
+    if (selectedRole === 'Admin') {
+      return [
+        { title: "Select Role", subtitle: "Choose account type" },
+        { title: "Admin Setup", subtitle: "Branch & basic details" }
+      ];
+    }
+    return [
+      { title: "Select Role", subtitle: "Choose account type" },
+      { title: "Basic Info", subtitle: "Name & department" },
+      { title: "Contact", subtitle: "Email, phone & location" },
+      { title: "Profile", subtitle: "Bio, salary & performance" },
+      { title: "Social Media", subtitle: "Add social handles" },
+      { title: "Financial", subtitle: "Debts, shares & compensation" },
+      { title: "Photo", subtitle: "Upload a profile photo (optional)" }
+    ];
+  };
+
+  const render = () => {
+    const steps = getStepsList();
+    const currentStep = steps[step] || { title: '', subtitle: '' };
+    let bodyHtml = '';
+    
+    if (step === 0) {
+      // Step 0: Role Selection
+      const rolesList = [
+        { id: "Admin", label: "New Admin", desc: "Full executive dashboard access (CEO / Branch Admin)", icon: "shield", color: "#f59e0b" },
+        { id: "HR Manager", label: "HR Manager", desc: "Manages hiring, employee welfare, KPIs, relations", icon: "users", color: "#6366f1" },
+        { id: "Secretary", label: "Secretary", desc: "Manages calendars, company docs, schedules meetings", icon: "calendar", color: "#0ea5e9" },
+        { id: "Finance Officer", label: "Finance Officer", desc: "Oversees revenue, spending, reserve funds, budgets", icon: "trending-up", color: "#10b981" },
+        { id: "Operations Manager", label: "Operations Manager", desc: "Coordinates projects, tasks, workflows, milestones", icon: "activity", color: "#ef4444" },
+        { id: "Department Manager", label: "Department Manager", desc: "Supervises specific department teams and metrics", icon: "briefcase", color: "#8b5cf6" },
+        { id: "Employee", label: "Employee", desc: "Execution member, task completions, collaboration", icon: "user", color: "#64748b" }
+      ];
+
+      const cards = rolesList.map(r => {
+        const isSelected = selectedRole === r.id;
+        return `
+          <div class="role-card ${isSelected ? 'selected' : ''}" data-role-id="${r.id}" style="border-left: 4px solid ${r.color}">
+            <div class="role-icon-wrap" style="color: ${r.color}; background: ${r.color}15;">
+              ${getIconSvg(r.icon as any)}
             </div>
-            
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label" for="emp-salary">Base Salary (Monthly)</label>
-                <input type="number" class="form-input" id="emp-salary" required placeholder="6500">
-              </div>
-              <div class="form-group">
-                <label class="form-label" for="emp-phone">Phone Number</label>
-                ${drawPhoneInput('emp-phone', '', 'e.g. 555-0199')}
-              </div>
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 2px;">
+              <span style="font-weight: 700; font-size: 14px; color: ${isSelected ? r.color : 'var(--foreground)'};">${r.label}</span>
+              <span style="font-size: 11px; color: var(--muted-foreground); line-height: 1.4;">${r.desc}</span>
             </div>
+            ${isSelected ? `
+              <div class="role-check-circle" style="background: ${r.color};">
+                ${getIconSvg('check')}
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).join('');
+
+      bodyHtml = `
+        <div style="margin-bottom: 16px;">
+          <h3 style="font-size: 16px; font-weight: 800; margin-bottom: 4px;">Who are you creating this account for?</h3>
+          <p style="font-size: 12px; color: var(--muted-foreground);">Select the role that best matches the new team member's responsibilities.</p>
+        </div>
+        <div class="role-card-grid">
+          ${cards}
+        </div>
+      `;
+    } else if (selectedRole === 'Admin') {
+      // Admin Setup
+      bodyHtml = `
+        <div class="form-group" style="margin-bottom: 14px;">
+          <label class="form-label">Branch Scope</label>
+          <div style="display: flex; gap: 16px; margin-top: 4px;">
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer;">
+              <input type="radio" name="admin-scope" value="current" ${adminScope === 'current' ? 'checked' : ''}> Current Space
+            </label>
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer;">
+              <input type="radio" name="admin-scope" value="new" ${adminScope === 'new' ? 'checked' : ''}> New Branch Space
+            </label>
+          </div>
+        </div>
+
+        <div id="admin-new-branch-fields" style="display: ${adminScope === 'new' ? 'block' : 'none'}; border: 1px dashed var(--border); border-radius: var(--radius-lg); padding: 12px; margin-bottom: 14px;">
+          <div class="form-group" style="margin-bottom: 10px;">
+            <label class="form-label" for="adm-branch-name">New Branch Name *</label>
+            <input type="text" class="form-input" id="adm-branch-name" value="${sanitizeHtml(branchName)}" placeholder="e.g. West Coast Branch">
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label" for="adm-branch-location">Branch Location *</label>
+            <input type="text" class="form-input" id="adm-branch-location" value="${sanitizeHtml(branchLocation)}" placeholder="e.g. Los Angeles, CA">
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 14px;">
+          <label class="form-label" for="adm-name">Full Name *</label>
+          <input type="text" class="form-input" id="adm-name" value="${sanitizeHtml(name)}" required placeholder="e.g. Chukwuemeka Obi">
+        </div>
+        <div class="form-group" style="margin-bottom: 14px;">
+          <label class="form-label" for="adm-email">Email Address *</label>
+          <input type="email" class="form-input" id="adm-email" value="${sanitizeHtml(email)}" required placeholder="admin@company.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="adm-phone">Phone Number *</label>
+          ${drawPhoneInput('adm-phone', phone, 'e.g. 555-0118')}
+        </div>
+      `;
+    } else {
+      // Standard Flow
+      if (step === 1) {
+        // Basic Info
+        const departmentsList = [
+          "Human Resources", "Finance", "Customer Service", "Legal", "Marketing",
+          "Sales", "Operations", "Product Development", "Procurement", "IT Support", "Other"
+        ];
+
+        const deptChips = departmentsList.map(d => {
+          const isSelected = department === d;
+          return `<button type="button" class="chip-select ${isSelected ? 'selected' : ''}" data-dept="${d}">${d}</button>`;
+        }).join('');
+
+        bodyHtml = `
+          <div class="form-group" style="margin-bottom: 14px;">
+            <label class="form-label" for="emp-name">Full Name *</label>
+            <input type="text" class="form-input" id="emp-name" value="${sanitizeHtml(name)}" required placeholder="e.g. Amara Okonkwo">
+          </div>
+          <div class="form-group" style="margin-bottom: 14px;">
+            <label class="form-label" for="emp-role">Role / Job Title *</label>
+            <input type="text" class="form-input" id="emp-role" value="${sanitizeHtml(role)}" required placeholder="e.g. Senior Engineer">
           </div>
           
-          <div class="modal-footer">
-            <button type="button" class="btn btn-outline" id="modal-cancel-btn">Cancel</button>
-            <button type="submit" class="btn btn-primary" id="emp-submit-btn">Save Member</button>
+          <div class="form-group" style="margin-bottom: 14px;">
+            <label class="form-label">Department *</label>
+            <div class="chip-grid" style="margin-bottom: 8px;">
+              ${deptChips}
+            </div>
+            <div id="custom-dept-container" style="display: ${department === 'Other' ? 'block' : 'none'};">
+              <input type="text" class="form-input" id="emp-custom-dept" value="${sanitizeHtml(customDepartment)}" placeholder="Specify Department Name">
+            </div>
           </div>
-        </form>
+
+          <div class="form-group" style="margin-bottom: 14px;">
+            <label class="form-label" for="emp-office">Office</label>
+            <input type="text" class="form-input" id="emp-office" value="${sanitizeHtml(office)}" placeholder="e.g. Lagos HQ">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Status</label>
+            <div class="chip-grid">
+              <button type="button" class="chip-select ${status === 'active' ? 'selected' : ''}" data-status="active">
+                <span class="chip-status-dot" style="background-color: #22c55e;"></span> Active
+              </button>
+              <button type="button" class="chip-select ${status === 'on_leave' ? 'selected' : ''}" data-status="on_leave">
+                <span class="chip-status-dot" style="background-color: #f97316;"></span> On Leave
+              </button>
+            </div>
+          </div>
+        `;
+      } else if (step === 2) {
+        // Contact
+        bodyHtml = `
+          <div class="form-group" style="margin-bottom: 14px;">
+            <label class="form-label" for="emp-email">Email Address *</label>
+            <input type="email" class="form-input" id="emp-email" value="${sanitizeHtml(email)}" required placeholder="amara@company.com">
+          </div>
+          <div class="form-group" style="margin-bottom: 14px;">
+            <label class="form-label" for="emp-phone">Phone Number *</label>
+            ${drawPhoneInput('emp-phone', phone, 'e.g. 555-0118')}
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="emp-location">Location</label>
+            <input type="text" class="form-input" id="emp-location" value="${sanitizeHtml(location)}" placeholder="Lagos, NG">
+          </div>
+        `;
+      } else if (step === 3) {
+        // Profile
+        const starsHtml = [1,2,3,4,5].map(i => `
+          <span class="star-rating-star ${i <= performance ? 'filled' : ''}" data-star-idx="${i}" style="color: ${i <= performance ? '#f59e0b' : 'var(--border)'}; font-size: 26px; cursor: pointer;">★</span>
+        `).join('');
+
+        bodyHtml = `
+          <div class="form-group" style="margin-bottom: 14px;">
+            <label class="form-label" for="emp-bio">Biography / Bio</label>
+            <textarea class="form-input" id="emp-bio" rows="4" placeholder="A short description about this employee...">${sanitizeHtml(bio)}</textarea>
+          </div>
+          <div class="form-group" style="margin-bottom: 14px;">
+            <label class="form-label" for="emp-salary">Monthly Salary (USD) *</label>
+            <input type="number" class="form-input" id="emp-salary" value="${salary}" placeholder="8500">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Performance Rating</label>
+            <div class="star-rating">
+              ${starsHtml}
+            </div>
+          </div>
+        `;
+      } else if (step === 4) {
+        // Social Media
+        bodyHtml = `
+          <p style="font-size: 11px; color: var(--muted-foreground); margin-bottom: 14px;">Add social media handles. Only filled handles will appear on the profile.</p>
+          
+          <div class="form-group" style="margin-bottom: 10px;">
+            <div class="social-input-row">
+              <div class="social-icon-box" style="background: #25D36615; color: #25D366;">${getIconSvg('phone')}</div>
+              <input type="text" id="soc-whatsapp" value="${sanitizeHtml(whatsapp)}" placeholder="WhatsApp — +234...">
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom: 10px;">
+            <div class="social-input-row">
+              <div class="social-icon-box" style="background: #1877F215; color: #1877F2;">${getIconSvg('users')}</div>
+              <input type="text" id="soc-facebook" value="${sanitizeHtml(facebook)}" placeholder="Facebook — username">
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom: 10px;">
+            <div class="social-input-row">
+              <div class="social-icon-box" style="background: #E4405F15; color: #E4405F;">${getIconSvg('activity')}</div>
+              <input type="text" id="soc-instagram" value="${sanitizeHtml(instagram)}" placeholder="Instagram — @handle">
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom: 10px;">
+            <div class="social-input-row">
+              <div class="social-icon-box" style="background: #0ea5e915; color: #0ea5e9;">${getIconSvg('phone')}</div>
+              <input type="text" id="soc-phone" value="${sanitizeHtml(phoneHandle)}" placeholder="Phone — +234...">
+            </div>
+          </div>
+
+          <div style="height: 1px; background: var(--border); margin: 16px 0 12px 0;"></div>
+          <span style="font-size: 10px; font-weight: 700; display: block; margin-bottom: 8px; color: var(--muted-foreground); text-transform: uppercase;">Additional (Optional)</span>
+
+          <div class="form-group" style="margin-bottom: 10px;">
+            <div class="social-input-row">
+              <div class="social-icon-box" style="background: #0A66C215; color: #0A66C2;">${getIconSvg('briefcase')}</div>
+              <input type="text" id="soc-linkedin" value="${sanitizeHtml(linkedin)}" placeholder="LinkedIn — profile URL">
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom: 10px;">
+            <div class="social-input-row">
+              <div class="social-icon-box" style="background: #5865F215; color: #5865F2;">${getIconSvg('users')}</div>
+              <input type="text" id="soc-discord" value="${sanitizeHtml(discord)}" placeholder="Discord — username">
+            </div>
+          </div>
+          <div class="form-group">
+            <div class="social-input-row">
+              <div class="social-icon-box" style="background: #1DA1F215; color: #1DA1F2;">${getIconSvg('trending-up')}</div>
+              <input type="text" id="soc-twitter" value="${sanitizeHtml(twitter)}" placeholder="X / Twitter — @handle">
+            </div>
+          </div>
+        `;
+      } else if (step === 5) {
+        // Financial
+        bodyHtml = `
+          <p style="font-size: 11px; color: var(--muted-foreground); margin-bottom: 14px;">Set financial details. Leave amounts as 0 if not applicable.</p>
+          
+          <div class="form-group" style="margin-bottom: 14px;">
+            <label class="form-label" for="fin-owes-company">Employee Owes Company (USD)</label>
+            <input type="number" class="form-input" id="fin-owes-company" value="${employeeOwes}" placeholder="0">
+          </div>
+          <div class="form-group" style="margin-bottom: 14px;">
+            <label class="form-label" for="fin-owes-employee">Company Owes Employee (USD)</label>
+            <input type="number" class="form-input" id="fin-owes-employee" value="${companyOwes}" placeholder="0">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="fin-shares">Company Shares (%)</label>
+            <input type="number" class="form-input" id="fin-shares" value="${shares}" placeholder="0">
+          </div>
+        `;
+      } else if (step === 6) {
+        // Photo
+        const hasPreview = !!avatarPreviewUrl;
+        bodyHtml = `
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 20px 0;">
+            <div class="avatar-upload-preview" id="emp-avatar-upload-trigger" style="width: 140px; height: 140px; border-radius: 70px; overflow: hidden; position: relative;">
+              ${hasPreview ? `<img src="${avatarPreviewUrl}" alt="Preview">` : `
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--muted-foreground);">
+                  ${getIconSvg('video')}
+                  <span style="font-size: 10px; font-weight: 700; text-transform: uppercase;">Upload</span>
+                </div>
+              `}
+              <div class="avatar-upload-overlay" style="border-radius: 70px;">
+                ${getIconSvg('video')}
+                <span>Change</span>
+              </div>
+            </div>
+            <input type="file" id="emp-avatar-file-input" accept="image/*" style="display: none;">
+            
+            ${hasPreview ? `
+              <button type="button" class="btn btn-ghost" id="emp-avatar-remove-btn" style="color: var(--danger); font-size: 13px; font-weight: 600; padding: 4px 12px;">Remove Photo</button>
+            ` : ''}
+            
+            <p style="font-size: 12px; color: var(--muted-foreground); text-align: center; max-width: 280px; margin-top: 10px; line-height: 1.5;">
+              This step is optional. You can always add or change the photo later from the employee profile.
+            </p>
+          </div>
+        `;
+      }
+    }
+
+    const progressPercent = ((step + 1) / steps.length) * 100;
+
+    modalContainer.innerHTML = DOMPurify.sanitize(`
+      <div class="modal-overlay">
+        <div class="modal" style="max-width: 480px;">
+          <div class="modal-header">
+            <div>
+              <h2 class="modal-title" style="font-size: 16px; font-weight: 800;">${currentStep.title}</h2>
+              <p style="font-size: 11px; color: var(--muted-foreground); margin-top: 2px;">${currentStep.subtitle}</p>
+            </div>
+            <button class="modal-close" id="modal-close-btn">${getIconSvg('x')}</button>
+          </div>
+          
+          <div class="wizard-progress">
+            <div class="wizard-progress-bar" style="width: ${progressPercent}%;"></div>
+          </div>
+          <div class="wizard-step-indicator">Step ${step + 1} of ${steps.length}</div>
+
+          <form id="add-employee-form">
+            <div class="modal-body" style="padding-top: 0; max-height: 55vh; overflow-y: auto;">
+              ${bodyHtml}
+            </div>
+            
+            <div class="modal-footer">
+              <button type="button" class="btn btn-outline" id="modal-back-btn">${step === 0 ? 'Cancel' : 'Back'}</button>
+              <button type="submit" class="btn btn-primary" id="emp-submit-btn">${step === steps.length - 1 ? 'Create Account' : 'Continue'}</button>
+            </div>
+          </form>
+        </div>
       </div>
-    </div>
-  `);
+    `);
 
-  const close = () => modalContainer.innerHTML = DOMPurify.sanitize('');
-  document.getElementById('modal-close-btn')?.addEventListener('click', close);
-  document.getElementById('modal-cancel-btn')?.addEventListener('click', close);
-
-  // Dynamic show/hide of Admin Scope configurations
-  const empRoleSelect = document.getElementById('emp-role') as HTMLSelectElement;
-  const adminBranchSection = document.getElementById('admin-branch-section') as HTMLElement;
-  const newBranchFields = document.getElementById('new-branch-fields') as HTMLElement;
-
-  if (empRoleSelect && adminBranchSection) {
-    empRoleSelect.addEventListener('change', () => {
-      if (empRoleSelect.value === 'New Admin') {
-        adminBranchSection.style.display = 'block';
-      } else {
-        adminBranchSection.style.display = 'none';
-      }
-    });
-  }
-
-  const adminTypeRadios = document.getElementsByName('admin-type');
-  adminTypeRadios.forEach(radio => {
-    radio.addEventListener('change', (e) => {
-      const val = (e.target as HTMLInputElement).value;
-      if (val === 'new') {
-        newBranchFields.style.display = 'block';
-        (document.getElementById('branch-name') as HTMLInputElement).required = true;
-        (document.getElementById('branch-location') as HTMLInputElement).required = true;
-      } else {
-        newBranchFields.style.display = 'none';
-        (document.getElementById('branch-name') as HTMLInputElement).required = false;
-        (document.getElementById('branch-location') as HTMLInputElement).required = false;
-      }
-    });
-  });
-
-  // Bind phone input events
-  const empPhoneInput = document.getElementById('emp-phone') as HTMLInputElement;
-  const initialCountry = getSelectedCountry('emp-phone');
-  let empPhoneVal = initialCountry.dial + (empPhoneInput?.value || '');
-  bindPhoneInputEvents('emp-phone', (fullVal) => {
-    empPhoneVal = fullVal;
-  });
-
-  const form = document.getElementById('add-employee-form') as HTMLFormElement;
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const submitBtn = document.getElementById('emp-submit-btn') as HTMLButtonElement;
-
-    const name = (document.getElementById('emp-name') as HTMLInputElement).value;
-    const email = (document.getElementById('emp-email') as HTMLInputElement).value;
-    const role = (document.getElementById('emp-role') as HTMLSelectElement).value;
-    const department = (document.getElementById('emp-dept') as HTMLSelectElement).value;
-    const salary = parseFloat((document.getElementById('emp-salary') as HTMLInputElement).value);
-
-    let branch_name = '';
-    let branch_location = '';
+    // Bind event listeners
+    document.getElementById('modal-close-btn')?.addEventListener('click', close);
     
-    if (role === 'New Admin') {
-      const selectedType = (document.querySelector('input[name="admin-type"]:checked') as HTMLInputElement)?.value;
-      if (selectedType === 'new') {
-        branch_name = (document.getElementById('branch-name') as HTMLInputElement).value.trim();
-        branch_location = (document.getElementById('branch-location') as HTMLInputElement).value.trim();
+    const backBtn = document.getElementById('modal-back-btn');
+    backBtn?.addEventListener('click', () => {
+      saveStepState();
+      if (step > 0) {
+        step--;
+        render();
+      } else {
+        close();
       }
-    }
+    });
 
-    submitBtn.disabled = true;
-    submitBtn.innerText = 'Saving...';
-
-    const selectedCountry = _phoneCountryState.get('emp-phone') || 'US';
-    const phoneCheck = validateAndFormatPhone(empPhoneVal, selectedCountry);
-    if (!phoneCheck.isValid) {
-      showToast('Please enter a valid phone number', 'error');
-      submitBtn.disabled = false;
-      submitBtn.innerText = 'Save Member';
-      return;
-    }
-
-    try {
-      await apiRequest('employees/', {
-        method: 'POST',
-        body: JSON.stringify({
-          name,
-          email,
-          role,
-          department,
-          salary,
-          phone: phoneCheck.formatted,
-          status: 'active',
-          branch_name,
-          branch_location
-        })
+    // Step-specific bindings
+    if (step === 0) {
+      document.querySelectorAll('.role-card-grid .role-card').forEach(card => {
+        card.addEventListener('click', (e) => {
+          document.querySelectorAll('.role-card-grid .role-card').forEach(c => c.classList.remove('selected'));
+          const target = e.currentTarget as HTMLElement;
+          target.classList.add('selected');
+          selectedRole = target.dataset.roleId || '';
+          
+          // Auto-continue to next step after selecting role
+          setTimeout(() => {
+            step = 1;
+            render();
+          }, 150);
+        });
+      });
+    } else if (selectedRole === 'Admin') {
+      // Admin phone validation and scope binding
+      const scopeRadios = document.getElementsByName('admin-scope');
+      scopeRadios.forEach(r => {
+        r.addEventListener('change', (e) => {
+          adminScope = (e.target as HTMLInputElement).value;
+          const section = document.getElementById('admin-new-branch-fields');
+          if (section) section.style.display = adminScope === 'new' ? 'block' : 'none';
+        });
       });
 
-      showToast(`${name} onboarded successfully!`, 'success');
+      const admPhoneInput = document.getElementById('adm-phone') as HTMLInputElement;
+      const initialCountry = getSelectedCountry('adm-phone');
+      void (initialCountry.dial + (admPhoneInput?.value || ''));
+      bindPhoneInputEvents('adm-phone', (fullVal) => {
+        phone = fullVal;
+      });
+    } else {
+      if (step === 1) {
+        // Department Chips & specify container
+        document.querySelectorAll('.chip-grid .chip-select').forEach(chip => {
+          chip.addEventListener('click', (e) => {
+            document.querySelectorAll('.chip-grid .chip-select').forEach(c => c.classList.remove('selected'));
+            const btn = e.currentTarget as HTMLButtonElement;
+            btn.classList.add('selected');
+            department = btn.dataset.dept || '';
+            
+            const customInput = document.getElementById('custom-dept-container');
+            if (customInput) customInput.style.display = department === 'Other' ? 'block' : 'none';
+          });
+        });
+
+        // Status select
+        document.querySelectorAll('.modal-body .chip-grid .chip-select').forEach(chip => {
+          if ((chip as HTMLElement).dataset.status) {
+            chip.addEventListener('click', (e) => {
+              const btn = e.currentTarget as HTMLButtonElement;
+              status = btn.dataset.status || 'active';
+              // Update selected classes in the status chips
+              btn.parentElement?.querySelectorAll('.chip-select').forEach(c => c.classList.remove('selected'));
+              btn.classList.add('selected');
+            });
+          }
+        });
+      } else if (step === 2) {
+        const empPhoneInput = document.getElementById('emp-phone') as HTMLInputElement;
+        const initialCountry = getSelectedCountry('emp-phone');
+        void (initialCountry.dial + (empPhoneInput?.value || ''));
+        bindPhoneInputEvents('emp-phone', (fullVal) => {
+          phone = fullVal;
+        });
+      } else if (step === 3) {
+        // Star ratings
+        document.querySelectorAll('.star-rating .star-rating-star').forEach(star => {
+          star.addEventListener('click', (e) => {
+            const idx = parseInt((e.currentTarget as HTMLElement).dataset.starIdx || '3');
+            performance = idx;
+            render();
+          });
+        });
+      } else if (step === 6) {
+        const trigger = document.getElementById('emp-avatar-upload-trigger');
+        const input = document.getElementById('emp-avatar-file-input') as HTMLInputElement;
+        
+        trigger?.addEventListener('click', () => input?.click());
+        input?.addEventListener('change', (e) => {
+          const files = (e.target as HTMLInputElement).files;
+          if (files && files[0]) {
+            avatarFile = files[0];
+            avatarPreviewUrl = URL.createObjectURL(avatarFile);
+            render();
+          }
+        });
+
+        document.getElementById('emp-avatar-remove-btn')?.addEventListener('click', () => {
+          avatarFile = null;
+          avatarPreviewUrl = '';
+          render();
+        });
+      }
+    }
+
+    const form = document.getElementById('add-employee-form') as HTMLFormElement;
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      saveStepState();
+
+      // Validation
+      if (step === 0 && !selectedRole) {
+        showToast('Please select a role to continue.', 'error');
+        return;
+      }
+      
+      const steps = getStepsList();
+      if (step < steps.length - 1) {
+        // Validation per step
+        if (selectedRole === 'Admin') {
+          if (adminScope === 'new' && (!branchName.trim() || !branchLocation.trim())) {
+            showToast('Please enter new branch name and location.', 'error');
+            return;
+          }
+          if (!name.trim()) {
+            showToast('Please enter admin full name.', 'error');
+            return;
+          }
+          if (!email.trim() || !email.includes('@')) {
+            showToast('Please enter a valid email address.', 'error');
+            return;
+          }
+          if (!phone.trim()) {
+            showToast('Please enter a valid phone number.', 'error');
+            return;
+          }
+        } else {
+          if (step === 1) {
+            if (!name.trim() || !role.trim()) {
+              showToast('Please enter name and job title.', 'error');
+              return;
+            }
+            if (!department) {
+              showToast('Please select a department.', 'error');
+              return;
+            }
+            if (department === 'Other' && !customDepartment.trim()) {
+              showToast('Please specify the custom department.', 'error');
+              return;
+            }
+          }
+          if (step === 2) {
+            if (!email.trim() || !email.includes('@')) {
+              showToast('Please enter a valid email address.', 'error');
+              return;
+            }
+            if (!phone.trim()) {
+              showToast('Please enter a valid phone number.', 'error');
+              return;
+            }
+          }
+          if (step === 3 && !salary.trim()) {
+            showToast('Please enter the monthly salary.', 'error');
+            return;
+          }
+        }
+
+        step++;
+        render();
+      } else {
+        // Final Save
+        const submitBtn = document.getElementById('emp-submit-btn') as HTMLButtonElement;
+        submitBtn.disabled = true;
+        submitBtn.innerText = 'Onboarding...';
+
+        const formData = new FormData();
+        formData.append('name', name.trim());
+        formData.append('email', email.trim().toLowerCase());
+        formData.append('phone', phone.trim());
+        formData.append('initials', name.trim().slice(0, 2).toUpperCase());
+
+        const ROLE_KEY_MAP: Record<string, string> = {
+          Admin: "BRANCH_ADMIN",
+          "HR Manager": "HR",
+          Secretary: "SECRETARY",
+          "Finance Officer": "FINANCE",
+          "Operations Manager": "OPERATIONS",
+          "Department Manager": "DEPT_MANAGER",
+          Employee: "EMPLOYEE",
+        };
+
+        if (selectedRole === 'Admin') {
+          formData.append('role', 'BRANCH_ADMIN');
+          formData.append('department', 'Administration');
+          formData.append('status', 'active');
+          formData.append('salary', '0');
+          formData.append('performance', '0');
+
+          if (adminScope === 'new') {
+            formData.append('office', branchName.trim());
+            formData.append('branch_name', branchName.trim());
+            formData.append('branch_location', branchLocation.trim());
+            formData.append('location', branchLocation.trim());
+          } else {
+            formData.append('office', 'Main Office');
+            formData.append('location', 'Main Headquarters');
+          }
+        } else {
+          formData.append('role', ROLE_KEY_MAP[selectedRole] || selectedRole);
+          const finalDept = department === 'Other' ? customDepartment.trim() : department;
+          formData.append('department', finalDept);
+          formData.append('office', office.trim());
+          formData.append('status', status);
+          formData.append('location', location.trim());
+          formData.append('bio', bio.trim());
+          formData.append('salary', salary.trim() || '0');
+          formData.append('performance', performance.toString());
+
+          const socials = {
+            whatsapp: whatsapp.trim(),
+            facebook: facebook.trim(),
+            instagram: instagram.trim(),
+            phone: phoneHandle.trim(),
+            linkedin: linkedin.trim(),
+            discord: discord.trim(),
+            twitter: twitter.trim()
+          };
+          formData.append('socials', JSON.stringify(socials));
+
+          const finance_data = {
+            employee_owes_company: parseFloat(employeeOwes) || 0,
+            company_owes_employee: parseFloat(companyOwes) || 0,
+            shares: parseFloat(shares) || 0,
+            current_pay: parseFloat(salary) || 0
+          };
+          formData.append('finance_data', JSON.stringify(finance_data));
+
+          if (avatarFile) {
+            formData.append('avatar', avatarFile);
+          }
+        }
+
+        try {
+          const res = await apiRequest('employees/', {
+            method: 'POST',
+            body: formData
+          });
+
+          // Successful Onboarding -> Show Credentials Modal
+          const tempPassword = res.temp_password || res.data?.temp_password;
+          if (tempPassword) {
+            renderSuccessModal(name, email, tempPassword);
+          } else {
+            showToast(`${name} onboarded successfully!`, 'success');
+            close();
+            await syncAppData();
+            renderApp();
+          }
+        } catch (err: any) {
+          showToast(err.message || 'Failed to onboarding team member', 'error');
+          submitBtn.disabled = false;
+          submitBtn.innerText = 'Create Account';
+        }
+      }
+    });
+  };
+
+  const saveStepState = () => {
+    if (selectedRole === 'Admin') {
+      name = (document.getElementById('adm-name') as HTMLInputElement)?.value || name;
+      email = (document.getElementById('adm-email') as HTMLInputElement)?.value || email;
+      branchName = (document.getElementById('adm-branch-name') as HTMLInputElement)?.value || branchName;
+      branchLocation = (document.getElementById('adm-branch-location') as HTMLInputElement)?.value || branchLocation;
+    } else {
+      if (step === 1) {
+        name = (document.getElementById('emp-name') as HTMLInputElement)?.value || name;
+        role = (document.getElementById('emp-role') as HTMLInputElement)?.value || role;
+        customDepartment = (document.getElementById('emp-custom-dept') as HTMLInputElement)?.value || customDepartment;
+        office = (document.getElementById('emp-office') as HTMLInputElement)?.value || office;
+      } else if (step === 2) {
+        email = (document.getElementById('emp-email') as HTMLInputElement)?.value || email;
+        location = (document.getElementById('emp-location') as HTMLInputElement)?.value || location;
+      } else if (step === 3) {
+        bio = (document.getElementById('emp-bio') as HTMLTextAreaElement)?.value || bio;
+        salary = (document.getElementById('emp-salary') as HTMLInputElement)?.value || salary;
+      } else if (step === 4) {
+        whatsapp = (document.getElementById('soc-whatsapp') as HTMLInputElement)?.value || whatsapp;
+        facebook = (document.getElementById('soc-facebook') as HTMLInputElement)?.value || facebook;
+        instagram = (document.getElementById('soc-instagram') as HTMLInputElement)?.value || instagram;
+        phoneHandle = (document.getElementById('soc-phone') as HTMLInputElement)?.value || phoneHandle;
+        linkedin = (document.getElementById('soc-linkedin') as HTMLInputElement)?.value || linkedin;
+        discord = (document.getElementById('soc-discord') as HTMLInputElement)?.value || discord;
+        twitter = (document.getElementById('soc-twitter') as HTMLInputElement)?.value || twitter;
+      } else if (step === 5) {
+        employeeOwes = (document.getElementById('fin-owes-company') as HTMLInputElement)?.value || employeeOwes;
+        companyOwes = (document.getElementById('fin-owes-employee') as HTMLInputElement)?.value || companyOwes;
+        shares = (document.getElementById('fin-shares') as HTMLInputElement)?.value || shares;
+      }
+    }
+  };
+
+  const renderSuccessModal = (_empName: string, empEmail: string, tempPass: string) => {
+    modalContainer.innerHTML = DOMPurify.sanitize(`
+      <div class="modal-overlay">
+        <div class="modal" style="max-width: 420px; text-align: center; padding: 24px;">
+          <div style="width: 72px; height: 72px; border-radius: 50%; background: var(--success)15; color: var(--success); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto; font-size: 32px;">
+            ✓
+          </div>
+          <h2 style="font-size: 20px; font-weight: 800; margin-bottom: 8px; font-family: 'Outfit';">Account Created! 🎉</h2>
+          <p style="font-size: 13px; color: var(--muted-foreground); line-height: 1.5; margin-bottom: 20px;">
+            A welcome email with login details has been sent to the employee. You can also share the temporary password below:
+          </p>
+
+          <div class="password-box-container" style="text-align: left;">
+            <div style="margin-bottom: 12px;">
+              <span style="font-size: 10px; font-weight: 700; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 4px;">EMAIL</span>
+              <span style="font-size: 14px; font-weight: 600; color: var(--foreground);">${sanitizeHtml(empEmail)}</span>
+            </div>
+            <div style="height: 1px; background: var(--border); margin-bottom: 12px;"></div>
+            <div>
+              <span style="font-size: 10px; font-weight: 700; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 4px;">TEMPORARY PASSWORD</span>
+              <div class="password-box-row">
+                <span class="password-box-value" id="success-temp-password">${sanitizeHtml(tempPass)}</span>
+                <button type="button" class="copy-btn-action" id="success-copy-btn">
+                  ${getIconSvg('copy')}
+                  <span id="copy-btn-text">Copy</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <p style="font-size: 11px; color: var(--muted-foreground); margin-bottom: 24px; line-height: 1.4;">
+            The employee will be required to change this password on their first login.
+          </p>
+
+          <button type="button" class="btn btn-primary" id="success-done-btn" style="width: 100%; height: 48px; border-radius: var(--radius-lg); font-weight: 700; justify-content: center;">Done</button>
+        </div>
+      </div>
+    `);
+
+    // Copy to clipboard binding
+    const copyBtn = document.getElementById('success-copy-btn');
+    copyBtn?.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(tempPass);
+        const textSpan = document.getElementById('copy-btn-text');
+        if (textSpan) textSpan.innerText = 'Copied';
+        copyBtn.style.borderColor = 'var(--success)';
+        copyBtn.style.color = 'var(--success)';
+        setTimeout(() => {
+          if (textSpan) textSpan.innerText = 'Copy';
+          copyBtn.style.borderColor = 'var(--border)';
+          copyBtn.style.color = 'var(--foreground)';
+        }, 2000);
+      } catch (err) {
+        console.error('Failed to copy', err);
+      }
+    });
+
+    document.getElementById('success-done-btn')?.addEventListener('click', async () => {
       close();
       await syncAppData();
       renderApp();
-    } catch (err: any) {
-      showToast(err.message || 'Failed to onboard member', 'error');
-      submitBtn.disabled = false;
-      submitBtn.innerText = 'Save Member';
-    }
-  });
+    });
+  };
+
+  const close = () => {
+    modalContainer.innerHTML = DOMPurify.sanitize('');
+  };
+
+  render();
 }
 
 // ------------------------------------------------------------
@@ -5374,111 +5871,245 @@ function openAddClientModal() {
   const modalContainer = document.getElementById('modal-container');
   if (!modalContainer) return;
 
-  modalContainer.innerHTML = DOMPurify.sanitize(`
-    <div class="modal-overlay">
-      <div class="modal">
-        <div class="modal-header">
-          <h2 class="modal-title">Onboard New Enterprise Client</h2>
-          <button class="modal-close" id="modal-close-btn">${getIconSvg('x')}</button>
+  let step = 0;
+  const totalSteps = 4;
+
+  // Form State
+  let company = '';
+  let contact = '';
+  let status = 'active';
+  let email = '';
+  let location = '';
+  let website = '';
+  let description = '';
+  let remark = '';
+  let lifetimeValue = '';
+  let pendingPayments = '';
+  let clientOwes = '';
+  let companyOwes = '';
+
+  const render = () => {
+    let bodyHtml = '';
+    let stepTitle = '';
+    let stepSubtitle = '';
+
+    if (step === 0) {
+      stepTitle = "Company Info";
+      stepSubtitle = "Name & contact person";
+      bodyHtml = `
+        <div class="form-group" style="margin-bottom: 14px;">
+          <label class="form-label" for="cli-company">Company Corporate Name *</label>
+          <input type="text" class="form-input" id="cli-company" value="${sanitizeHtml(company)}" required placeholder="e.g. Northwind Retail">
         </div>
-        
-        <form id="add-client-form">
-          <div class="modal-body">
-            <div class="form-group">
-              <label class="form-label" for="cli-company">Company Corporate Name</label>
-              <input type="text" class="form-input" id="cli-company" required placeholder="Oscorp Dynamics">
+        <div class="form-group" style="margin-bottom: 14px;">
+          <label class="form-label" for="cli-name">Key Account Manager / Contact Person *</label>
+          <input type="text" class="form-input" id="cli-name" value="${sanitizeHtml(contact)}" required placeholder="e.g. Sarah Lin">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Status</label>
+          <div class="chip-grid">
+            <button type="button" class="chip-select ${status === 'active' ? 'selected' : ''}" data-status="active">
+              <span class="chip-status-dot" style="background-color: #22c55e;"></span> Active
+            </button>
+            <button type="button" class="chip-select ${status === 'pending' ? 'selected' : ''}" data-status="pending">
+              <span class="chip-status-dot" style="background-color: #f97316;"></span> Pending
+            </button>
+            <button type="button" class="chip-select ${status === 'completed' ? 'selected' : ''}" data-status="completed">
+              <span class="chip-status-dot" style="background-color: #2563eb;"></span> Completed
+            </button>
+          </div>
+        </div>
+      `;
+    } else if (step === 1) {
+      stepTitle = "Contact Details";
+      stepSubtitle = "Email, location & website";
+      bodyHtml = `
+        <div class="form-group" style="margin-bottom: 14px;">
+          <label class="form-label" for="cli-email">Corporate Email *</label>
+          <input type="email" class="form-input" id="cli-email" value="${sanitizeHtml(email)}" required placeholder="client@company.co">
+        </div>
+        <div class="form-group" style="margin-bottom: 14px;">
+          <label class="form-label" for="cli-location">HQ Location</label>
+          <input type="text" class="form-input" id="cli-location" value="${sanitizeHtml(location)}" placeholder="Lagos, NG">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="cli-website">Website</label>
+          <input type="text" class="form-input" id="cli-website" value="${sanitizeHtml(website)}" placeholder="https://company.co">
+        </div>
+      `;
+    } else if (step === 2) {
+      stepTitle = "Description";
+      stepSubtitle = "What they do & remarks";
+      bodyHtml = `
+        <div class="form-group" style="margin-bottom: 14px;">
+          <label class="form-label" for="cli-notes">Account Brief & Project Notes</label>
+          <textarea class="form-input" id="cli-notes" rows="4" placeholder="What does this client do?">${sanitizeHtml(description)}</textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="cli-remark">Internal Remarks</label>
+          <textarea class="form-input" id="cli-remark" rows="3" placeholder="Notes for your team...">${sanitizeHtml(remark)}</textarea>
+        </div>
+      `;
+    } else if (step === 3) {
+      stepTitle = "Financial Details";
+      stepSubtitle = "Revenue, payments & debts";
+      bodyHtml = `
+        <div class="form-group" style="margin-bottom: 14px;">
+          <label class="form-label" for="cli-value">Lifetime Value (LTV / Retainer Value USD)</label>
+          <input type="number" class="form-input" id="cli-value" value="${lifetimeValue}" placeholder="e.g. 5000">
+        </div>
+        <div class="form-group" style="margin-bottom: 14px;">
+          <label class="form-label" for="cli-pending-payments">Pending Payments (USD)</label>
+          <input type="number" class="form-input" id="cli-pending-payments" value="${pendingPayments}" placeholder="e.g. 1200">
+        </div>
+        <div class="form-group" style="margin-bottom: 14px;">
+          <label class="form-label" for="cli-client-owes">Client Owes Company (USD)</label>
+          <input type="number" class="form-input" id="cli-client-owes" value="${clientOwes}" placeholder="e.g. 800">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="cli-company-owes">Company Owes Client (USD)</label>
+          <input type="number" class="form-input" id="cli-company-owes" value="${companyOwes}" placeholder="e.g. 0">
+        </div>
+      `;
+    }
+
+    const progressPercent = ((step + 1) / totalSteps) * 100;
+
+    modalContainer.innerHTML = DOMPurify.sanitize(`
+      <div class="modal-overlay">
+        <div class="modal">
+          <div class="modal-header">
+            <div>
+              <h2 class="modal-title" style="font-size: 16px; font-weight: 800;">${stepTitle}</h2>
+              <p style="font-size: 11px; color: var(--muted-foreground); margin-top: 2px;">${stepSubtitle}</p>
             </div>
-            
-            <div class="form-group">
-              <label class="form-label" for="cli-name">Key Account Manager</label>
-              <input type="text" class="form-input" id="cli-name" required placeholder="Norman Osborn">
-            </div>
-            
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label" for="cp-cli-email">Corporate Email</label>
-                <input type="email" class="form-input" id="cp-cli-email" required placeholder="ceo@oscorp.com">
-              </div>
-              <div class="form-group">
-                <label class="form-label" for="cli-location">HQ Location</label>
-                <input type="text" class="form-input" id="cli-location" required placeholder="New York, NY">
-              </div>
-            </div>
-            
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label" for="cli-value">Retainer Value (USD)</label>
-                <input type="number" class="form-input" id="cli-value" required placeholder="75000">
-              </div>
-              <div class="form-group">
-                <label class="form-label" for="cli-status">Account Stage</label>
-                <select class="form-input" id="cli-status" style="background-color: var(--background);">
-                  <option value="active">Active</option>
-                  <option value="pending">Pending Review</option>
-                  <option value="completed">Completed</option>
-                </select>
-              </div>
-            </div>
-            
-            <div class="form-group">
-              <label class="form-label" for="cli-notes">Account Brief & Project Notes</label>
-              <textarea class="form-input" id="cli-notes" rows="3" placeholder="Identify software constraints and milestones..."></textarea>
-            </div>
+            <button class="modal-close" id="modal-close-btn">${getIconSvg('x')}</button>
           </div>
           
-          <div class="modal-footer">
-            <button type="button" class="btn btn-outline" id="modal-cancel-btn">Cancel</button>
-            <button type="submit" class="btn btn-primary" id="cli-submit-btn">Onboard Account</button>
+          <div class="wizard-progress">
+            <div class="wizard-progress-bar" style="width: ${progressPercent}%;"></div>
           </div>
-        </form>
+          <div class="wizard-step-indicator">Step ${step + 1} of ${totalSteps}</div>
+
+          <form id="add-client-form">
+            <div class="modal-body" style="padding-top: 0;">
+              ${bodyHtml}
+            </div>
+            
+            <div class="modal-footer">
+              <button type="button" class="btn btn-outline" id="modal-back-btn">${step === 0 ? 'Cancel' : 'Back'}</button>
+              <button type="submit" class="btn btn-primary" id="cli-submit-btn">${step === totalSteps - 1 ? 'Save Client' : 'Continue'}</button>
+            </div>
+          </form>
+        </div>
       </div>
-    </div>
-  `);
+    `);
 
-  const close = () => modalContainer.innerHTML = DOMPurify.sanitize('');
-  document.getElementById('modal-close-btn')?.addEventListener('click', close);
-  document.getElementById('modal-cancel-btn')?.addEventListener('click', close);
+    // Bind event listeners
+    document.getElementById('modal-close-btn')?.addEventListener('click', close);
+    
+    const backBtn = document.getElementById('modal-back-btn');
+    backBtn?.addEventListener('click', () => {
+      saveStepState();
+      if (step > 0) {
+        step--;
+        render();
+      } else {
+        close();
+      }
+    });
 
-  const form = document.getElementById('add-client-form') as HTMLFormElement;
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const submitBtn = document.getElementById('cli-submit-btn') as HTMLButtonElement;
-
-    const company = (document.getElementById('cli-company') as HTMLInputElement).value;
-    const contact = (document.getElementById('cli-name') as HTMLInputElement).value;
-    const email = (document.getElementById('cp-cli-email') as HTMLInputElement).value;
-    const location = (document.getElementById('cli-location') as HTMLInputElement).value;
-    const lifetime_value = parseFloat((document.getElementById('cli-value') as HTMLInputElement).value);
-    const status = (document.getElementById('cli-status') as HTMLSelectElement).value;
-    const description = (document.getElementById('cli-notes') as HTMLTextAreaElement).value;
-
-    submitBtn.disabled = true;
-    submitBtn.innerText = 'Saving...';
-
-    try {
-      await apiRequest('clients/', {
-        method: 'POST',
-        body: JSON.stringify({
-          company,
-          contact,
-          email,
-          location,
-          lifetime_value,
-          status,
-          description
-        })
+    // Handle status chips if step 0
+    if (step === 0) {
+      document.querySelectorAll('.chip-grid .chip-select').forEach(chip => {
+        chip.addEventListener('click', (e) => {
+          document.querySelectorAll('.chip-grid .chip-select').forEach(c => c.classList.remove('selected'));
+          const btn = e.currentTarget as HTMLButtonElement;
+          btn.classList.add('selected');
+          status = btn.dataset.status || 'active';
+        });
       });
-
-      showToast(`${company} signed successfully!`, 'success');
-      close();
-      await syncAppData();
-      renderApp();
-    } catch (err: any) {
-      showToast(err.message || 'Failed to onboard client', 'error');
-      submitBtn.disabled = false;
-      submitBtn.innerText = 'Onboard Account';
     }
-  });
+
+    const form = document.getElementById('add-client-form') as HTMLFormElement;
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      saveStepState();
+
+      if (step < totalSteps - 1) {
+        // Validation for step 1 email
+        if (step === 1) {
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailRegex.test(email.trim())) {
+            showToast('Please enter a valid email address', 'error');
+            return;
+          }
+        }
+        step++;
+        render();
+      } else {
+        // Final Save
+        const submitBtn = document.getElementById('cli-submit-btn') as HTMLButtonElement;
+        submitBtn.disabled = true;
+        submitBtn.innerText = 'Saving...';
+
+        try {
+          await apiRequest('clients/', {
+            method: 'POST',
+            body: JSON.stringify({
+              company: company.trim(),
+              contact: contact.trim(),
+              status,
+              email: email.trim(),
+              location: location.trim(),
+              website: website.trim(),
+              description: description.trim(),
+              remark: remark.trim(),
+              lifetime_value: parseFloat(lifetimeValue) || 0,
+              pending_payments: parseFloat(pendingPayments) || 0,
+              client_owes_company: parseFloat(clientOwes) || 0,
+              company_owes_client: parseFloat(companyOwes) || 0,
+              coords: { lat: 0, lng: 0 }
+            })
+          });
+
+          showToast(`${company} signed successfully!`, 'success');
+          close();
+          await syncAppData();
+          renderApp();
+        } catch (err: any) {
+          showToast(err.message || 'Failed to onboard client', 'error');
+          submitBtn.disabled = false;
+          submitBtn.innerText = 'Save Client';
+        }
+      }
+    });
+  };
+
+  const saveStepState = () => {
+    if (step === 0) {
+      company = (document.getElementById('cli-company') as HTMLInputElement)?.value || '';
+      contact = (document.getElementById('cli-name') as HTMLInputElement)?.value || '';
+    } else if (step === 1) {
+      email = (document.getElementById('cli-email') as HTMLInputElement)?.value || '';
+      location = (document.getElementById('cli-location') as HTMLInputElement)?.value || '';
+      website = (document.getElementById('cli-website') as HTMLInputElement)?.value || '';
+    } else if (step === 2) {
+      description = (document.getElementById('cli-notes') as HTMLTextAreaElement)?.value || '';
+      remark = (document.getElementById('cli-remark') as HTMLTextAreaElement)?.value || '';
+    } else if (step === 3) {
+      lifetimeValue = (document.getElementById('cli-value') as HTMLInputElement)?.value || '';
+      pendingPayments = (document.getElementById('cli-pending-payments') as HTMLInputElement)?.value || '';
+      clientOwes = (document.getElementById('cli-client-owes') as HTMLInputElement)?.value || '';
+      companyOwes = (document.getElementById('cli-company-owes') as HTMLInputElement)?.value || '';
+    }
+  };
+
+  const close = () => {
+    modalContainer.innerHTML = DOMPurify.sanitize('');
+  };
+
+  render();
 }
 
 // ------------------------------------------------------------
@@ -5604,89 +6235,491 @@ function openAddTransactionModal() {
   const modalContainer = document.getElementById('modal-container');
   if (!modalContainer) return;
 
-  modalContainer.innerHTML = DOMPurify.sanitize(`
-    <div class="modal-overlay">
-      <div class="modal">
-        <div class="modal-header">
-          <h2 class="modal-title">Log Financial Ledger Event</h2>
-          <button class="modal-close" id="modal-close-btn">${getIconSvg('x')}</button>
+  let step = 0;
+  let selectedType = ''; // 'income', 'expense', 'savings', 'budget'
+
+  // Common/Transaction Form State
+  let amount = '';
+  let description = '';
+  let category = '';
+
+  // Savings Form State
+  let savingsName = '';
+  let savingsPurpose = '';
+  let savingsTarget = '';
+  let savingsSaved = '0';
+
+  // Budget Form State
+  const BUDGET_COLORS = [
+    "#2563eb", "#16a34a", "#dc2626", "#d97706", "#7c3aed",
+    "#0891b2", "#db2777", "#65a30d", "#ea580c", "#0d9488",
+  ];
+  let budgetFields = [{ id: Math.random().toString(), name: '', amount: '', color: BUDGET_COLORS[0] }];
+  let budgetDuration = '1M';
+
+  const getStepsCount = () => {
+    if (!selectedType) return 1;
+    return 3; // Step 0 (Select Type), Step 1, Step 2
+  };
+
+  const getStepInfo = () => {
+    if (step === 0) {
+      return { title: "Financial Record Type", subtitle: "Select entry type to proceed" };
+    }
+    if (selectedType === 'income') {
+      return step === 1 
+        ? { title: "Log Income", subtitle: "Amount & description" }
+        : { title: "Log Income", subtitle: "Select category" };
+    }
+    if (selectedType === 'expense') {
+      return step === 1
+        ? { title: "Log Expense", subtitle: "Amount & description" }
+        : { title: "Log Expense", subtitle: "Select category" };
+    }
+    if (selectedType === 'savings') {
+      return step === 1
+        ? { title: "Add Savings Goal", subtitle: "Goal name & purpose" }
+        : { title: "Add Savings Goal", subtitle: "Target & saved amount" };
+    }
+    if (selectedType === 'budget') {
+      return step === 1
+        ? { title: "Create Budget", subtitle: "Define purposes" }
+        : { title: "Create Budget", subtitle: "Set duration & preview" };
+    }
+    return { title: "", subtitle: "" };
+  };
+
+  const render = () => {
+    const stepsCount = getStepsCount();
+    const info = getStepInfo();
+    let bodyHtml = '';
+
+    if (step === 0) {
+      const types = [
+        { id: "income", label: "Add Income", desc: "Record company cash inflow/revenue", icon: "trending-up", color: "#10b981" },
+        { id: "expense", label: "Add Expense", desc: "Record outflow or operational spend", icon: "activity", color: "#ef4444" },
+        { id: "savings", label: "Add Savings Goal", desc: "Establish project or expansion fund", icon: "briefcase", color: "#6366f1" },
+        { id: "budget", label: "Add Budget Limit", desc: "Configure departmental monthly caps", icon: "shield", color: "#f59e0b" }
+      ];
+
+      const cards = types.map(t => {
+        const isSelected = selectedType === t.id;
+        return `
+          <div class="role-card ${isSelected ? 'selected' : ''}" data-type-id="${t.id}" style="border-left: 4px solid ${t.color}">
+            <div class="role-icon-wrap" style="color: ${t.color}; background: ${t.color}15;">
+              ${getIconSvg(t.icon as any)}
+            </div>
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 2px;">
+              <span style="font-weight: 700; font-size: 14px; color: ${isSelected ? t.color : 'var(--foreground)'};">${t.label}</span>
+              <span style="font-size: 11px; color: var(--muted-foreground); line-height: 1.4;">${t.desc}</span>
+            </div>
+            ${isSelected ? `
+              <div class="role-check-circle" style="background: ${t.color};">
+                ${getIconSvg('check')}
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).join('');
+
+      bodyHtml = `
+        <div style="margin-bottom: 16px;">
+          <h3 style="font-size: 16px; font-weight: 800; margin-bottom: 4px;">Choose financial event type</h3>
+          <p style="font-size: 12px; color: var(--muted-foreground);">Select a category to structure your transaction or goal.</p>
         </div>
+        <div class="role-card-grid">
+          ${cards}
+        </div>
+      `;
+    } else if (selectedType === 'income' || selectedType === 'expense') {
+      if (step === 1) {
+        bodyHtml = `
+          <div class="form-group" style="margin-bottom: 14px;">
+            <label class="form-label" for="tx-amount">Amount (USD) *</label>
+            <input type="number" step="0.01" class="form-input" id="tx-amount" value="${amount}" required placeholder="0.00" style="font-size: 20px; font-weight: 700; height: 50px;">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="tx-desc">Description *</label>
+            <input type="text" class="form-input" id="tx-desc" value="${sanitizeHtml(description)}" required placeholder="e.g. Server hosting renewal">
+          </div>
+        `;
+      } else {
+        const categories = selectedType === 'income'
+          ? ["Sales", "Investment", "Service", "Direct Deposit", "Other"]
+          : ["Salaries", "Rent", "Marketing", "Utility", "Office", "Travel", "Taxes", "Other"];
+
+        const chips = categories.map(c => {
+          const isSelected = category === c;
+          const activeColor = selectedType === 'income' ? '#10b981' : '#ef4444';
+          return `
+            <button type="button" class="chip-select ${isSelected ? 'selected' : ''}" data-cat="${c}" style="${isSelected ? `background: ${activeColor}; border-color: ${activeColor}; color: white;` : ''}">
+              ${c}
+            </button>
+          `;
+        }).join('');
+
+        bodyHtml = `
+          <div class="form-group">
+            <label class="form-label">Category *</label>
+            <div class="chip-grid">
+              ${chips}
+            </div>
+          </div>
+        `;
+      }
+    } else if (selectedType === 'savings') {
+      if (step === 1) {
+        bodyHtml = `
+          <div class="form-group" style="margin-bottom: 14px;">
+            <label class="form-label" for="sav-name">Goal Name *</label>
+            <input type="text" class="form-input" id="sav-name" value="${sanitizeHtml(savingsName)}" required placeholder="e.g. Office Expansion Fund">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="sav-purpose">Purpose *</label>
+            <input type="text" class="form-input" id="sav-purpose" value="${sanitizeHtml(savingsPurpose)}" required placeholder="e.g. Setup a branch in Abuja">
+          </div>
+        `;
+      } else {
+        const targetVal = parseFloat(savingsTarget) || 0;
+        const savedVal = parseFloat(savingsSaved) || 0;
+        const percent = targetVal > 0 ? Math.min(100, Math.round((savedVal / targetVal) * 100)) : 0;
+
+        bodyHtml = `
+          <div class="form-group" style="margin-bottom: 14px;">
+            <label class="form-label" for="sav-target">Target Amount (USD) *</label>
+            <input type="number" step="0.01" class="form-input" id="sav-target" value="${savingsTarget}" required placeholder="0.00">
+          </div>
+          <div class="form-group" style="margin-bottom: 14px;">
+            <label class="form-label" for="sav-saved">Already Saved (USD)</label>
+            <input type="number" step="0.01" class="form-input" id="sav-saved" value="${savingsSaved}" placeholder="0.00">
+          </div>
+
+          ${targetVal > 0 ? `
+            <div style="border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 14px; background: var(--secondary); margin-top: 16px;">
+              <span style="font-size: 10px; font-weight: 700; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 8px;">Goal Preview</span>
+              <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; margin-bottom: 6px;">
+                <span>${sanitizeHtml(savingsName || 'Goal')}</span>
+                <span>$${savedVal.toFixed(2)} / $${targetVal.toFixed(2)}</span>
+              </div>
+              <div class="progress-bar" style="height: 8px; border-radius: 999px;">
+                <div class="progress-fill blue" style="width: ${percent}%; border-radius: 999px; background-color: var(--primary);"></div>
+              </div>
+              <p style="font-size: 11px; text-align: right; margin-top: 6px; color: var(--muted-foreground); font-weight: 600;">${percent}% of target</p>
+            </div>
+          ` : ''}
+        `;
+      }
+    } else if (selectedType === 'budget') {
+      if (step === 1) {
+        const rows = budgetFields.map((f, _idx) => `
+          <div class="budget-field-list-row" data-field-id="${f.id}">
+            <div class="budget-field-color-indicator" style="background-color: ${f.color};"></div>
+            <div style="flex: 2;">
+              <label class="form-label" style="font-size: 10px;">Purpose Name</label>
+              <input type="text" class="form-input budget-f-name" value="${sanitizeHtml(f.name)}" placeholder="e.g. Software" required style="height: 38px;">
+            </div>
+            <div style="flex: 1.2;">
+              <label class="form-label" style="font-size: 10px;">Amount (USD)</label>
+              <input type="number" class="form-input budget-f-amount" value="${f.amount}" placeholder="0.00" required style="height: 38px;">
+            </div>
+            ${budgetFields.length > 1 ? `
+              <button type="button" class="btn btn-ghost budget-f-remove" style="color: var(--danger); padding: 8px; height: 38px; margin-bottom: 2px;">
+                ${getIconSvg('trash')}
+              </button>
+            ` : ''}
+          </div>
+        `).join('');
+
+        bodyHtml = `
+          <div style="margin-bottom: 14px;">
+            <span class="form-label" style="display: block; margin-bottom: 4px;">Define Purposes</span>
+            <p style="font-size: 11px; color: var(--muted-foreground); line-height: 1.4;">Create fields for your budget, name them, and set the allocated amount.</p>
+          </div>
+          <div style="max-height: 40vh; overflow-y: auto; padding-right: 4px;">
+            ${rows}
+          </div>
+          <button type="button" class="btn btn-outline" id="budget-add-field-btn" style="width: 100%; border-style: dashed; justify-content: center; gap: 6px; margin-top: 10px;">
+            ${getIconSvg('plus')} Add Field
+          </button>
+        `;
+      } else {
+        const total = budgetFields.reduce((s, f) => s + (parseFloat(f.amount) || 0), 0);
         
-        <form id="add-transaction-form">
-          <div class="modal-body">
-            <div class="form-group">
-              <label class="form-label" for="tx-desc">Description</label>
-              <input type="text" class="form-input" id="tx-desc" required placeholder="AWS Hosting Renewal Fee">
+        const summaryRows = budgetFields.map(f => `
+          <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 6px;">
+            <div style="width: 8px; height: 8px; border-radius: 50%; background-color: ${f.color};"></div>
+            <span style="flex: 1; font-weight: 500;">${sanitizeHtml(f.name || 'Unspecified')}</span>
+            <span style="font-weight: 700; color: var(--primary);">$${(parseFloat(f.amount) || 0).toFixed(2)}</span>
+          </div>
+        `).join('');
+
+        const timelines = ["1W", "1M", "3M", "6M", "9M", "12M", "24M"];
+        const durationCards = timelines.map(t => {
+          const isSel = budgetDuration === t;
+          return `
+            <button type="button" class="chip-select ${isSel ? 'selected' : ''}" data-duration="${t}" style="flex: 1; justify-content: center; padding: 8px 0; font-size: 13px;">
+              ${t}
+            </button>
+          `;
+        }).join('');
+
+        bodyHtml = `
+          <div style="border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 14px; background: var(--secondary); margin-bottom: 20px;">
+            <span style="font-size: 10px; font-weight: 700; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 10px;">Budget Summary</span>
+            ${summaryRows}
+            <div style="height: 1px; background: var(--border); margin: 10px 0;"></div>
+            <div style="display: flex; justify-content: space-between; font-weight: 700; font-size: 14px;">
+              <span>Total Budget</span>
+              <span>$${total.toFixed(2)}</span>
             </div>
-            
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label" for="tx-amount">Amount (USD)</label>
-                <input type="number" class="form-input" id="tx-amount" required placeholder="450">
-              </div>
-              <div class="form-group">
-                <label class="form-label" for="tx-type">Flow Direction</label>
-                <select class="form-input" id="tx-type" style="background-color: var(--background);">
-                  <option value="expense">Outflow (Expense)</option>
-                  <option value="income">Inflow (Income)</option>
-                </select>
-              </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Set Duration</label>
+            <p style="font-size: 11px; color: var(--muted-foreground); line-height: 1.4; margin-bottom: 10px;">Choose the timeline for this budget plan.</p>
+            <div class="chip-grid" style="display: flex; gap: 8px;">
+              ${durationCards}
             </div>
-            
-            <div class="form-group">
-              <label class="form-label" for="tx-cat">Category</label>
-              <input type="text" class="form-input" id="tx-cat" required placeholder="Tech Infrastructure">
+          </div>
+        `;
+      }
+    }
+
+    const progressPercent = ((step + 1) / stepsCount) * 100;
+
+    modalContainer.innerHTML = DOMPurify.sanitize(`
+      <div class="modal-overlay">
+        <div class="modal" style="max-width: 460px;">
+          <div class="modal-header">
+            <div>
+              <h2 class="modal-title" style="font-size: 16px; font-weight: 800;">${info.title || "Log Finance"}</h2>
+              <p style="font-size: 11px; color: var(--muted-foreground); margin-top: 2px;">${info.subtitle || "Select transaction type"}</p>
             </div>
+            <button class="modal-close" id="modal-close-btn">${getIconSvg('x')}</button>
           </div>
           
-          <div class="modal-footer">
-            <button type="button" class="btn btn-outline" id="modal-cancel-btn">Cancel</button>
-            <button type="submit" class="btn btn-primary" id="tx-submit-btn">Commit Ledger</button>
+          <div class="wizard-progress">
+            <div class="wizard-progress-bar" style="width: ${progressPercent}%;"></div>
           </div>
-        </form>
+          <div class="wizard-step-indicator">Step ${step + 1} of ${stepsCount}</div>
+
+          <form id="add-finance-form">
+            <div class="modal-body" style="padding-top: 0; max-height: 55vh; overflow-y: auto;">
+              ${bodyHtml}
+            </div>
+            
+            <div class="modal-footer">
+              <button type="button" class="btn btn-outline" id="modal-back-btn">${step === 0 ? 'Cancel' : 'Back'}</button>
+              <button type="submit" class="btn btn-primary" id="fin-submit-btn">${step === stepsCount - 1 ? 'Save Record' : 'Continue'}</button>
+            </div>
+          </form>
+        </div>
       </div>
-    </div>
-  `);
+    `);
 
-  const close = () => modalContainer.innerHTML = DOMPurify.sanitize('');
-  document.getElementById('modal-close-btn')?.addEventListener('click', close);
-  document.getElementById('modal-cancel-btn')?.addEventListener('click', close);
+    // Common bindings
+    document.getElementById('modal-close-btn')?.addEventListener('click', close);
+    
+    const backBtn = document.getElementById('modal-back-btn');
+    backBtn?.addEventListener('click', () => {
+      saveStepState();
+      if (step > 0) {
+        step--;
+        render();
+      } else {
+        close();
+      }
+    });
 
-  const form = document.getElementById('add-transaction-form') as HTMLFormElement;
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const submitBtn = document.getElementById('tx-submit-btn') as HTMLButtonElement;
-
-    const description = (document.getElementById('tx-desc') as HTMLInputElement).value;
-    const amount = parseFloat((document.getElementById('tx-amount') as HTMLInputElement).value);
-    const type = (document.getElementById('tx-type') as HTMLSelectElement).value;
-    const category = (document.getElementById('tx-cat') as HTMLInputElement).value;
-
-    submitBtn.disabled = true;
-    submitBtn.innerText = 'Committing...';
-
-    try {
-      await apiRequest('transactions/', {
-        method: 'POST',
-        body: JSON.stringify({
-          description,
-          amount,
-          type,
-          category,
-          date: new Date().toISOString()
-        })
+    if (step === 0) {
+      document.querySelectorAll('.role-card-grid .role-card').forEach(card => {
+        card.addEventListener('click', (e) => {
+          document.querySelectorAll('.role-card-grid .role-card').forEach(c => c.classList.remove('selected'));
+          const target = e.currentTarget as HTMLElement;
+          target.classList.add('selected');
+          selectedType = target.dataset.typeId || '';
+          
+          // Auto-continue
+          setTimeout(() => {
+            step = 1;
+            render();
+          }, 150);
+        });
       });
+    } else if (selectedType === 'income' || selectedType === 'expense') {
+      if (step === 2) {
+        document.querySelectorAll('.chip-grid .chip-select').forEach(chip => {
+          chip.addEventListener('click', (e) => {
+            document.querySelectorAll('.chip-grid .chip-select').forEach(c => c.classList.remove('selected'));
+            const btn = e.currentTarget as HTMLButtonElement;
+            btn.classList.add('selected');
+            category = btn.dataset.cat || '';
+          });
+        });
+      }
+    } else if (selectedType === 'budget') {
+      if (step === 1) {
+        document.getElementById('budget-add-field-btn')?.addEventListener('click', () => {
+          saveStepState();
+          const nextColor = BUDGET_COLORS[budgetFields.length % BUDGET_COLORS.length];
+          budgetFields.push({ id: Math.random().toString(), name: '', amount: '', color: nextColor });
+          render();
+        });
 
-      showToast('Ledger event committed successfully!', 'success');
-      close();
-      await syncAppData();
-      renderApp();
-    } catch (err: any) {
-      showToast(err.message || 'Failed to record transaction', 'error');
-      submitBtn.disabled = false;
-      submitBtn.innerText = 'Commit Ledger';
+        document.querySelectorAll('.budget-field-list-row .budget-f-remove').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            saveStepState();
+            const row = (e.currentTarget as HTMLElement).closest('.budget-field-list-row') as HTMLElement;
+            const fid = row.dataset.fieldId;
+            budgetFields = budgetFields.filter(f => f.id !== fid);
+            render();
+          });
+        });
+      } else {
+        // Duration cards selection
+        document.querySelectorAll('.chip-grid .chip-select').forEach(card => {
+          card.addEventListener('click', (e) => {
+            document.querySelectorAll('.chip-grid .chip-select').forEach(c => c.classList.remove('selected'));
+            const btn = e.currentTarget as HTMLButtonElement;
+            btn.classList.add('selected');
+            budgetDuration = btn.dataset.duration || '1M';
+          });
+        });
+      }
     }
-  });
+
+    const form = document.getElementById('add-finance-form') as HTMLFormElement;
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      saveStepState();
+
+      if (step < stepsCount - 1) {
+        // Validate step 1 fields
+        if (selectedType === 'income' || selectedType === 'expense') {
+          if (!amount || parseFloat(amount) <= 0 || !description.trim()) {
+            showToast('Please enter a valid positive amount and description.', 'error');
+            return;
+          }
+        } else if (selectedType === 'savings') {
+          if (!savingsName.trim() || !savingsPurpose.trim()) {
+            showToast('Please fill in goal name and purpose.', 'error');
+            return;
+          }
+        } else if (selectedType === 'budget') {
+          const valid = budgetFields.every(f => f.name.trim() && f.amount && parseFloat(f.amount) > 0);
+          if (!valid) {
+            showToast('Please fill in all purpose names and positive amounts.', 'error');
+            return;
+          }
+        }
+        step++;
+        render();
+      } else {
+        // Final Save
+        const submitBtn = document.getElementById('fin-submit-btn') as HTMLButtonElement;
+        submitBtn.disabled = true;
+        submitBtn.innerText = 'Saving...';
+
+        try {
+          if (selectedType === 'income' || selectedType === 'expense') {
+            if (!category) {
+              showToast('Please select a category.', 'error');
+              submitBtn.disabled = false;
+              submitBtn.innerText = 'Save Record';
+              return;
+            }
+            await apiRequest('transactions/', {
+              method: 'POST',
+              body: JSON.stringify({
+                description: description.trim(),
+                amount: parseFloat(amount) || 0,
+                type: selectedType,
+                category: category,
+                date: new Date().toISOString()
+              })
+            });
+            showToast('Ledger event committed successfully!', 'success');
+          } else if (selectedType === 'savings') {
+            if (!savingsTarget || parseFloat(savingsTarget) <= 0) {
+              showToast('Please enter a valid target amount.', 'error');
+              submitBtn.disabled = false;
+              submitBtn.innerText = 'Save Record';
+              return;
+            }
+            await apiRequest('savings/', {
+              method: 'POST',
+              body: JSON.stringify({
+                name: savingsName.trim(),
+                purpose: savingsPurpose.trim(),
+                target: parseFloat(savingsTarget) || 0,
+                saved: parseFloat(savingsSaved) || 0
+              })
+            });
+            showToast('Savings goal saved successfully!', 'success');
+          } else if (selectedType === 'budget') {
+            // Post each budget item
+            const promises = budgetFields.map(f => 
+              apiRequest('budgets/', {
+                method: 'POST',
+                body: JSON.stringify({
+                  name: f.name.trim(),
+                  allocated: parseFloat(f.amount) || 0,
+                  spent: 0,
+                  color: f.color
+                })
+              })
+            );
+            await Promise.all(promises);
+            showToast('Budget plan created successfully!', 'success');
+          }
+
+          close();
+          await syncAppData();
+          renderApp();
+        } catch (err: any) {
+          showToast(err.message || 'Failed to save financial data', 'error');
+          submitBtn.disabled = false;
+          submitBtn.innerText = 'Save Record';
+        }
+      }
+    });
+  };
+
+  const saveStepState = () => {
+    if (selectedType === 'income' || selectedType === 'expense') {
+      if (step === 1) {
+        amount = (document.getElementById('tx-amount') as HTMLInputElement)?.value || amount;
+        description = (document.getElementById('tx-desc') as HTMLInputElement)?.value || description;
+      }
+    } else if (selectedType === 'savings') {
+      if (step === 1) {
+        savingsName = (document.getElementById('sav-name') as HTMLInputElement)?.value || savingsName;
+        savingsPurpose = (document.getElementById('sav-purpose') as HTMLInputElement)?.value || savingsPurpose;
+      } else if (step === 2) {
+        savingsTarget = (document.getElementById('sav-target') as HTMLInputElement)?.value || savingsTarget;
+        savingsSaved = (document.getElementById('sav-saved') as HTMLInputElement)?.value || savingsSaved;
+      }
+    } else if (selectedType === 'budget') {
+      if (step === 1) {
+        document.querySelectorAll('.budget-field-list-row').forEach(row => {
+          const fid = (row as HTMLElement).dataset.fieldId;
+          const nameVal = (row.querySelector('.budget-f-name') as HTMLInputElement)?.value || '';
+          const amtVal = (row.querySelector('.budget-f-amount') as HTMLInputElement)?.value || '';
+          const field = budgetFields.find(f => f.id === fid);
+          if (field) {
+            field.name = nameVal;
+            field.amount = amtVal;
+          }
+        });
+      }
+    }
+  };
+
+  const close = () => {
+    modalContainer.innerHTML = DOMPurify.sanitize('');
+  };
+
+  render();
 }
 
 // ------------------------------------------------------------
@@ -9395,102 +10428,301 @@ function openAddProjectModal() {
   const modalContainer = document.getElementById('modal-container');
   if (!modalContainer) return;
 
-  const clientOptions = state.clients.map(c => `
-    <option value="${c.id}">${sanitizeHtml(c.company)}</option>
-  `).join('');
+  let currentStep = 1;
+  const totalSteps = 4;
 
-  modalContainer.innerHTML = DOMPurify.sanitize(`
-    <div class="modal-overlay">
-      <div class="modal">
-        <div class="modal-header">
-          <h2 class="modal-title">New Project</h2>
-          <button class="modal-close" id="modal-close-btn">${getIconSvg('x')}</button>
+  const data: {
+    name: string; description: string; category: string; priority: string;
+    clientId: string; startDate: string; endDate: string;
+    budget: string; currency: string; status: string;
+    tags: string[];
+  } = {
+    name: '', description: '', category: 'development', priority: 'medium',
+    clientId: '', startDate: '', endDate: '',
+    budget: '5000', currency: 'USD', status: 'active',
+    tags: []
+  };
+
+  const clientOptions = state.clients.map(c =>
+    `<option value="${c.id}">${sanitizeHtml(c.company)}</option>`
+  ).join('');
+
+  function getStepsHtml() {
+    return `
+      <div class="wizard-steps">
+        ${['Project Info','Client & Timeline','Budget & Status','Review'].map((label, i) => `
+          <div class="wizard-step ${i + 1 === currentStep ? 'active' : i + 1 < currentStep ? 'completed' : ''}">
+            <div class="wizard-step-circle">${i + 1 < currentStep ? '✓' : i + 1}</div>
+            <span class="wizard-step-label">${label}</span>
+          </div>
+          ${i < 3 ? '<div class="wizard-step-line"></div>' : ''}
+        `).join('')}
+      </div>`;
+  }
+
+  function renderStep1() {
+    return `
+      <div class="wizard-card">
+        <h3 class="wizard-card-title">📋 Project Details</h3>
+        <p class="wizard-card-subtitle">Give your project a clear identity</p>
+        <div class="form-group">
+          <label class="form-label">Project Name *</label>
+          <input type="text" class="form-input" id="pw-name" placeholder="e.g. Website Redesign 2025" value="${sanitizeHtml(data.name)}" required>
         </div>
-        <form id="add-project-form">
-          <div class="modal-body" style="display:flex; flex-direction:column; gap:14px;">
-            <div class="form-group">
-              <label class="form-label" for="proj-name">Project Name</label>
-              <input type="text" class="form-input" id="proj-name" required placeholder="Project Name">
-            </div>
-            
-            <div class="form-group">
-              <label class="form-label" for="proj-client">Client</label>
-              <select class="form-input" id="proj-client" required>
-                <option value="">Select Client</option>
-                ${clientOptions}
-              </select>
-            </div>
-            
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label" for="proj-value">Value (USD)</label>
-                <input type="number" class="form-input" id="proj-value" required value="5000">
+        <div class="form-group">
+          <label class="form-label">Description</label>
+          <textarea class="form-input" id="pw-desc" rows="3" placeholder="Brief overview of the project scope...">${sanitizeHtml(data.description)}</textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Project Category</label>
+          <div class="role-cards">
+            ${[
+              { val: 'development', icon: '💻', label: 'Development' },
+              { val: 'design', icon: '🎨', label: 'Design' },
+              { val: 'marketing', icon: '📣', label: 'Marketing' },
+              { val: 'consulting', icon: '🤝', label: 'Consulting' },
+              { val: 'research', icon: '🔬', label: 'Research' },
+              { val: 'other', icon: '📁', label: 'Other' }
+            ].map(opt => `
+              <div class="role-card ${data.category === opt.val ? 'selected' : ''}" data-cat="${opt.val}">
+                <span class="role-card-icon">${opt.icon}</span>
+                <span class="role-card-label">${opt.label}</span>
               </div>
-              <div class="form-group">
-                <label class="form-label" for="proj-progress">Initial Progress (%)</label>
-                <input type="number" min="0" max="100" class="form-input" id="proj-progress" required value="0">
-              </div>
-            </div>
-            
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label" for="proj-start">Start Date</label>
-                <input type="date" class="form-input" id="proj-start">
-              </div>
-              <div class="form-group">
-                <label class="form-label" for="proj-end">Due Date</label>
-                <input type="date" class="form-input" id="proj-end">
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label" for="proj-status">Status</label>
-              <select class="form-input" id="proj-status" required>
-                <option value="planned">Planned</option>
-                <option value="active" selected>Active</option>
-                <option value="on_hold">On Hold</option>
-                <option value="completed">Completed</option>
-              </select>
-            </div>
+            `).join('')}
           </div>
-          
-          <div class="modal-footer">
-            <button type="button" class="btn btn-outline" id="modal-cancel-btn">Cancel</button>
-            <button type="submit" class="btn btn-primary">Create Project</button>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Priority Level</label>
+          <div class="chip-selector">
+            ${[
+              { val: 'low', label: '🟢 Low' },
+              { val: 'medium', label: '🟡 Medium' },
+              { val: 'high', label: '🔴 High' },
+              { val: 'critical', label: '🚨 Critical' }
+            ].map(p => `
+              <div class="chip ${data.priority === p.val ? 'selected' : ''}" data-priority="${p.val}">${p.label}</div>
+            `).join('')}
           </div>
-        </form>
-      </div>
-    </div>
-  `);
+        </div>
+      </div>`;
+  }
 
-  const close = () => { if (modalContainer) modalContainer.innerHTML = DOMPurify.sanitize(''); };
-  document.getElementById('modal-close-btn')?.addEventListener('click', close);
-  document.getElementById('modal-cancel-btn')?.addEventListener('click', close);
+  function renderStep2() {
+    return `
+      <div class="wizard-card">
+        <h3 class="wizard-card-title">🤝 Client & Timeline</h3>
+        <p class="wizard-card-subtitle">Link a client and set the schedule</p>
+        <div class="form-group">
+          <label class="form-label">Client *</label>
+          <select class="form-input" id="pw-client">
+            <option value="">— Select Client —</option>
+            ${clientOptions}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Start Date</label>
+          <input type="date" class="form-input" id="pw-start" value="${data.startDate}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Due Date</label>
+          <input type="date" class="form-input" id="pw-end" value="${data.endDate}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tags (comma separated)</label>
+          <input type="text" class="form-input" id="pw-tags" placeholder="e.g. urgent, frontend, Q3" value="${data.tags.join(', ')}">
+        </div>
+      </div>`;
+  }
 
-  const form = document.getElementById('add-project-form') as HTMLFormElement;
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const name = (document.getElementById('proj-name') as HTMLInputElement).value.trim();
-    const client = parseInt((document.getElementById('proj-client') as HTMLSelectElement).value);
-    const value = parseFloat((document.getElementById('proj-value') as HTMLInputElement).value);
-    const progress = parseInt((document.getElementById('proj-progress') as HTMLInputElement).value);
-    const start_date = (document.getElementById('proj-start') as HTMLInputElement).value;
-    const end_date = (document.getElementById('proj-end') as HTMLInputElement).value;
-    const status = (document.getElementById('proj-status') as HTMLSelectElement).value;
+  function renderStep3() {
+    return `
+      <div class="wizard-card">
+        <h3 class="wizard-card-title">💰 Budget & Status</h3>
+        <p class="wizard-card-subtitle">Set project financials and current state</p>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Budget Amount *</label>
+            <input type="number" class="form-input" id="pw-budget" min="0" placeholder="0.00" value="${data.budget}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Currency</label>
+            <select class="form-input" id="pw-currency">
+              ${['USD','EUR','GBP','NGN','CAD','AUD'].map(c =>
+                `<option value="${c}" ${data.currency === c ? 'selected' : ''}>${c}</option>`
+              ).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Project Status</label>
+          <div class="role-cards">
+            ${[
+              { val: 'planned', icon: '📅', label: 'Planned' },
+              { val: 'active', icon: '🚀', label: 'Active' },
+              { val: 'on_hold', icon: '⏸️', label: 'On Hold' },
+              { val: 'completed', icon: '✅', label: 'Completed' }
+            ].map(s => `
+              <div class="role-card ${data.status === s.val ? 'selected' : ''}" data-status="${s.val}">
+                <span class="role-card-icon">${s.icon}</span>
+                <span class="role-card-label">${s.label}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>`;
+  }
 
-    try {
-      await apiRequest('projects/', {
-        method: 'POST',
-        body: JSON.stringify({ name, client, value, progress, start_date: start_date || null, end_date: end_date || null, status })
-      });
-      showToast('Project created successfully!', 'success');
-      close();
-      await syncAppData();
-      renderApp();
-    } catch (err: any) {
-      showToast(err.message || 'Failed to create project', 'error');
+  function renderStep4() {
+    const clientName = state.clients.find(c => String(c.id) === data.clientId)?.company || '—';
+    return `
+      <div class="wizard-card">
+        <h3 class="wizard-card-title">✅ Review & Confirm</h3>
+        <p class="wizard-card-subtitle">Double-check before creating your project</p>
+        <div class="review-summary">
+          <div class="review-row"><span>Name</span><strong>${sanitizeHtml(data.name) || '—'}</strong></div>
+          <div class="review-row"><span>Category</span><strong>${data.category}</strong></div>
+          <div class="review-row"><span>Priority</span><strong>${data.priority}</strong></div>
+          <div class="review-row"><span>Client</span><strong>${sanitizeHtml(clientName)}</strong></div>
+          <div class="review-row"><span>Start Date</span><strong>${data.startDate || '—'}</strong></div>
+          <div class="review-row"><span>Due Date</span><strong>${data.endDate || '—'}</strong></div>
+          <div class="review-row"><span>Budget</span><strong>${data.currency} ${parseFloat(data.budget || '0').toLocaleString()}</strong></div>
+          <div class="review-row"><span>Status</span><strong>${data.status}</strong></div>
+          ${data.description ? `<div class="review-row"><span>Description</span><strong>${sanitizeHtml(data.description)}</strong></div>` : ''}
+          ${data.tags.length ? `<div class="review-row"><span>Tags</span><strong>${data.tags.map(t => sanitizeHtml(t)).join(', ')}</strong></div>` : ''}
+        </div>
+      </div>`;
+  }
+
+  function saveCurrentStep() {
+    if (currentStep === 1) {
+      data.name = (document.getElementById('pw-name') as HTMLInputElement)?.value.trim() || '';
+      data.description = (document.getElementById('pw-desc') as HTMLTextAreaElement)?.value.trim() || '';
+    } else if (currentStep === 2) {
+      data.clientId = (document.getElementById('pw-client') as HTMLSelectElement)?.value || '';
+      data.startDate = (document.getElementById('pw-start') as HTMLInputElement)?.value || '';
+      data.endDate = (document.getElementById('pw-end') as HTMLInputElement)?.value || '';
+      const tagsRaw = (document.getElementById('pw-tags') as HTMLInputElement)?.value || '';
+      data.tags = tagsRaw.split(',').map(t => t.trim()).filter(Boolean);
+    } else if (currentStep === 3) {
+      data.budget = (document.getElementById('pw-budget') as HTMLInputElement)?.value || '0';
+      data.currency = (document.getElementById('pw-currency') as HTMLSelectElement)?.value || 'USD';
     }
-  });
+  }
+
+  function renderModal() {
+    let stepContent = '';
+    if (currentStep === 1) stepContent = renderStep1();
+    else if (currentStep === 2) stepContent = renderStep2();
+    else if (currentStep === 3) stepContent = renderStep3();
+    else stepContent = renderStep4();
+
+    const isLast = currentStep === totalSteps;
+    const isFirst = currentStep === 1;
+
+    modalContainer!.innerHTML = DOMPurify.sanitize(`
+      <div class="modal-overlay">
+        <div class="modal modal-wide">
+          <div class="modal-header">
+            <h2 class="modal-title">New Project</h2>
+            <button class="modal-close" id="modal-close-btn">${getIconSvg('x')}</button>
+          </div>
+          <div class="modal-body">
+            ${getStepsHtml()}
+            ${stepContent}
+          </div>
+          <div class="modal-footer" style="justify-content:space-between;">
+            <button type="button" class="btn btn-outline" id="pw-back-btn" ${isFirst ? 'style="visibility:hidden"' : ''}>← Back</button>
+            <button type="button" class="btn btn-primary" id="pw-next-btn">${isLast ? '🚀 Create Project' : 'Continue →'}</button>
+          </div>
+        </div>
+      </div>
+    `);
+
+    // Re-attach close
+    document.getElementById('modal-close-btn')?.addEventListener('click', () => {
+      modalContainer!.innerHTML = DOMPurify.sanitize('');
+    });
+
+    // Category cards
+    document.querySelectorAll('[data-cat]').forEach(el => {
+      el.addEventListener('click', () => {
+        document.querySelectorAll('[data-cat]').forEach(e => e.classList.remove('selected'));
+        el.classList.add('selected');
+        data.category = (el as HTMLElement).dataset.cat || 'other';
+      });
+    });
+
+    // Priority chips
+    document.querySelectorAll('[data-priority]').forEach(el => {
+      el.addEventListener('click', () => {
+        document.querySelectorAll('[data-priority]').forEach(e => e.classList.remove('selected'));
+        el.classList.add('selected');
+        data.priority = (el as HTMLElement).dataset.priority || 'medium';
+      });
+    });
+
+    // Status cards
+    document.querySelectorAll('[data-status]').forEach(el => {
+      el.addEventListener('click', () => {
+        document.querySelectorAll('[data-status]').forEach(e => e.classList.remove('selected'));
+        el.classList.add('selected');
+        data.status = (el as HTMLElement).dataset.status || 'active';
+      });
+    });
+
+    // Back button
+    document.getElementById('pw-back-btn')?.addEventListener('click', () => {
+      saveCurrentStep();
+      if (currentStep > 1) { currentStep--; renderModal(); }
+    });
+
+    // Next / Submit
+    document.getElementById('pw-next-btn')?.addEventListener('click', async () => {
+      // Validate step 1
+      if (currentStep === 1) {
+        const nameVal = (document.getElementById('pw-name') as HTMLInputElement)?.value.trim();
+        if (!nameVal) { showToast('Please enter a project name.', 'error'); return; }
+      }
+      // Validate step 2
+      if (currentStep === 2) {
+        const clientVal = (document.getElementById('pw-client') as HTMLSelectElement)?.value;
+        if (!clientVal) { showToast('Please select a client.', 'error'); return; }
+      }
+      saveCurrentStep();
+      if (currentStep < totalSteps) {
+        currentStep++;
+        renderModal();
+      } else {
+        // Submit
+        try {
+          await apiRequest('projects/', {
+            method: 'POST',
+            body: JSON.stringify({
+              name: data.name,
+              description: data.description,
+              category: data.category,
+              priority: data.priority,
+              client: data.clientId ? parseInt(data.clientId) : null,
+              start_date: data.startDate || null,
+              end_date: data.endDate || null,
+              value: parseFloat(data.budget) || 0,
+              currency: data.currency,
+              status: data.status,
+              tags: data.tags
+            })
+          });
+          showToast('🎉 Project created successfully!', 'success');
+          modalContainer!.innerHTML = DOMPurify.sanitize('');
+          await syncAppData();
+          renderApp();
+        } catch (err: any) {
+          showToast(err.message || 'Failed to create project', 'error');
+        }
+      }
+    });
+  }
+
+  renderModal();
 }
 
 

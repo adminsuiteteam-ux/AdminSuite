@@ -572,13 +572,13 @@ def me(request):
 @api_view(['POST'])
 @throttle_classes([AuthRateThrottle])
 def register(request):
-    """Simplified user registration: email + password + confirm_password.
+    """User registration: email + password + confirm_password.
+    Requires a prior email verification via /api/auth/email/send-code/ + /api/auth/email/verify/.
     Returns an auth token immediately on success."""
     from rest_framework.authtoken.models import Token
     from .models import UserProfile, EmailVerificationCode
 
     email = request.data.get('email', '').strip().lower()
-    supabase_verified = request.data.get('supabase_verified')
 
     # Block registration if the email is associated with a suspended account
     try:
@@ -596,26 +596,29 @@ def register(request):
     except User.DoesNotExist:
         pass
 
-    # Enforce that email verification has been completed (optional for external Supabase validation)
-    verification = None
-    if not supabase_verified:
-        try:
-            verification = EmailVerificationCode.objects.get(email=email)
-            if verification.code != 'VERIFIED':
-                return Response({'error': 'Email verification has not been completed.'}, status=status.HTTP_400_BAD_REQUEST)
-        except EmailVerificationCode.DoesNotExist:
-            return Response({'error': 'Email verification has not been completed.'}, status=status.HTTP_400_BAD_REQUEST)
+    # Enforce that email verification has been completed via Django OTP
+    try:
+        verification = EmailVerificationCode.objects.get(email=email)
+        if verification.code != 'VERIFIED':
+            return Response(
+                {'error': 'Email verification has not been completed. Please verify your email first.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    except EmailVerificationCode.DoesNotExist:
+        return Response(
+            {'error': 'Email verification has not been completed. Please verify your email first.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
     serializer = RegisterSerializer(data=request.data)
     if not serializer.is_valid():
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     user = serializer.save()
-    
-    # Delete the verification record after successful registration if it exists
-    if verification:
-        verification.delete()
-    
+
+    # Delete the verification record after successful registration
+    verification.delete()
+
     # Create a blank profile for the new user
     UserProfile.objects.get_or_create(user=user)
     token, _ = Token.objects.get_or_create(user=user)
@@ -1253,15 +1256,23 @@ def send_email_verification(request):
         defaults={'code': code},
     )
 
-    # TODO(security): In production, integrate an email service (e.g. SendGrid, Amazon SES)
-    # to deliver the verification code instead of returning it in the response.
-    # For local dev/debugging we print it to console and return in response if settings.DEBUG is True.
+    # Send the OTP via email (Django SMTP — Supabase-free)
     from core.safe_logger import safe_log, mask_email
-    safe_log("info", "Verification code generated", extra={"email": mask_email(email), "code": "***"})
+    from .emails import send_signup_otp_email
+    try:
+        send_signup_otp_email(email, code)
+    except Exception as e:
+        safe_log("error", f"Failed to send OTP email to {mask_email(email)}: {str(e)}")
+        return Response(
+            {'error': 'Failed to send verification email. Please try again.'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+    safe_log("info", "Verification code dispatched", extra={"email": mask_email(email)})
 
     response_data = {'message': 'Verification code sent successfully.', 'email': email}
     if settings.DEBUG:
-        response_data['code'] = code  # Dev convenience only
+        response_data['code'] = code  # Dev convenience only — never exposed in production
 
     return Response(response_data)
 

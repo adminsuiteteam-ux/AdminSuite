@@ -1,13 +1,17 @@
-import 'react-native-url-polyfill/auto';
-import { createClient } from '@supabase/supabase-js';
+/**
+ * Supabase has been removed from AdminSuite.
+ * Authentication and email verification are now handled entirely by the Django backend.
+ *
+ * This file is kept as a stub to prevent import errors during the transition.
+ * You can safely delete this file once confirmed no other imports remain.
+ */
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://whjxjqsxrnjpkoknfixo.supabase.co';
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndoanhqcXN4cm5qcGtva25maXhvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzMjIxMTMsImV4cCI6MjA5NDg5ODExM30.sw6ac1XgIGZbXs9PJVhyliUSDGrkI1Cv6k4x02BcsE4';
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+export const supabase = {
   auth: {
-    persistSession: false,
-    autoRefreshToken: false,
-    detectSessionInUrl: false,
+    signInWithPassword: () => { console.warn('[Supabase stub] Supabase removed. Use Django auth.'); return Promise.resolve({ data: null, error: null }); },
+    signUp: () => { console.warn('[Supabase stub] Supabase removed. Use requestEmailOTP.'); return Promise.resolve({ data: null, error: null }); },
+    signOut: () => { console.warn('[Supabase stub] Supabase removed.'); return Promise.resolve({ error: null }); },
+    resend: () => { console.warn('[Supabase stub] Supabase removed. Use resendEmailOTP.'); return Promise.resolve({ data: null, error: null }); },
+    verifyOtp: () => { console.warn('[Supabase stub] Supabase removed. Use verifyEmailOTP.'); return Promise.resolve({ data: null, error: null }); },
   },
-});
+};
