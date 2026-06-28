@@ -1051,6 +1051,37 @@ input, select, textarea { font-family: inherit; }
 }
 .login-btn:hover { background: var(--accent-hover); }
 
+/* ---------- OTP Verification Inputs ---------- */
+.otp-container {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin: 24px 0;
+}
+
+.otp-box {
+  width: 44px;
+  height: 48px;
+  text-align: center;
+  font-size: 20px;
+  font-weight: 700;
+  border-radius: var(--radius-sm);
+  background: var(--input);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  outline: none;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.otp-box:focus {
+  border-color: var(--foreground);
+  box-shadow: 0 0 0 2px rgba(17, 17, 17, 0.1);
+}
+
+[data-theme="dark"] .otp-box:focus {
+  box-shadow: 0 0 0 2px rgba(245, 245, 245, 0.15);
+}
+
 .divider {
   display: flex;
   align-items: center;
