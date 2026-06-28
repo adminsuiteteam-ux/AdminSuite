@@ -1,11 +1,42 @@
 import logging
-from django.core.mail import send_mail
+import os
 from django.conf import settings
-from django.template.loader import render_to_string
-from django.utils.html import strip_tags
 from core.safe_logger import safe_log
 
 logger = logging.getLogger(__name__)
+
+
+def _send_via_courier(to_email: str, subject: str, html_body: str, text_body: str) -> None:
+    """
+    Internal helper — dispatches a transactional email via the Courier API.
+    Django owns all auth/OTP logic; Courier is purely the email transport.
+    """
+    from courier import Courier  # lazy import keeps startup fast
+    api_key = os.environ.get('COURIER_API_KEY') or getattr(settings, 'COURIER_API_KEY', '')
+    if not api_key:
+        raise RuntimeError(
+            'COURIER_API_KEY is not set. Add it to your .env file or Render environment variables.'
+        )
+    from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'AdminSuite <no-reply@adminsuite.app>')
+    client = Courier(authorization_token=api_key)
+    client.send.message(
+        message={
+            "to": {"email": to_email},
+            "content": {
+                "title": subject,
+                "body": html_body,
+            },
+            "routing": {"method": "single", "channels": ["email"]},
+            "channels": {
+                "email": {
+                    "override": {
+                        "subject": subject,
+                        "from": from_email,
+                    }
+                }
+            },
+        }
+    )
 
 def send_onboarding_email(email, name, temp_password, company_name, role_display):
     """
@@ -146,16 +177,7 @@ def send_onboarding_email(email, name, temp_password, company_name, role_display
     )
     
     try:
-        # Check settings.DEFAULT_FROM_EMAIL or fallback
-        from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'no-reply@adminsuite.com')
-        send_mail(
-            subject=subject,
-            message=text_content,
-            from_email=from_email,
-            recipient_list=[email],
-            html_message=html_content,
-            fail_silently=False,
-        )
+        _send_via_courier(email, subject, html_content, text_content)
         safe_log("info", f"Successfully dispatched onboarding email to {email}")
     except Exception as e:
         safe_log("error", f"Failed to send onboarding email to {email}: {str(e)}")
@@ -271,15 +293,7 @@ def send_password_reset_email(email, code):
     )
     
     try:
-        from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'no-reply@adminsuite.com')
-        send_mail(
-            subject=subject,
-            message=text_content,
-            from_email=from_email,
-            recipient_list=[email],
-            html_message=html_content,
-            fail_silently=False,
-        )
+        _send_via_courier(email, subject, html_content, text_content)
         safe_log("info", f"Successfully dispatched password reset email to {email}")
     except Exception as e:
         safe_log("error", f"Failed to send password reset email to {email}: {str(e)}")
@@ -409,15 +423,7 @@ def send_signup_otp_email(email, code):
     )
 
     try:
-        from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'no-reply@adminsuite.com')
-        send_mail(
-            subject=subject,
-            message=text_content,
-            from_email=from_email,
-            recipient_list=[email],
-            html_message=html_content,
-            fail_silently=False,
-        )
+        _send_via_courier(email, subject, html_content, text_content)
         safe_log("info", f"Successfully dispatched signup OTP email to {email}")
     except Exception as e:
         safe_log("error", f"Failed to send signup OTP email to {email}: {str(e)}")

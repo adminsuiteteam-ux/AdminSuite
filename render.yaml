@@ -22,25 +22,13 @@ services:
           property: host
       - key: CORS_ALLOWED_ORIGINS
         value: https://adminsuite.onrender.com,https://adminsuite-web.onrender.com
-      # ── Email (Resend SMTP relay) ─────────────────────────────────────────────
-      # Create a free account at resend.com, generate an API key, and paste it below.
-      # From address must be from a verified domain in your Resend account.
-      - key: DJANGO_EMAIL_BACKEND
-        value: django.core.mail.backends.smtp.EmailBackend
-      - key: EMAIL_HOST
-        value: smtp.resend.com
-      - key: EMAIL_PORT
-        value: "465"
-      - key: EMAIL_USE_TLS
-        value: "False"
-      - key: EMAIL_USE_SSL
-        value: "True"
-      - key: EMAIL_HOST_USER
-        value: resend
-      - key: EMAIL_HOST_PASSWORD
-        value: re_VSc7oeA2_L8BuaoQ9EhhDDcKniBrQEzn4
+      # ── Email (Courier) ───────────────────────────────────────────────────────
+      # Django handles OTP generation & verification. Courier delivers the email.
+      # Get your API key at: https://app.courier.com/settings/api-keys
+      - key: COURIER_API_KEY
+        sync: false
       - key: DEFAULT_FROM_EMAIL
-        value: AdminSuite <onboarding@resend.dev>
+        value: AdminSuite <no-reply@adminsuite.app>
       # ── Other services ───────────────────────────────────────────────────────
       - key: CLOUDINARY_URL
         sync: false
