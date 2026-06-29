@@ -1,0 +1,446 @@
+/* ==============================================================================
+   AdminSuite Premium Django Admin Style Sheet
+   ============================================================================== */
+
+/* ── Fonts & Global Resets ── */
+body, input, select, textarea, button {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+}
+
+:root {
+    --primary: #5e6ad2;
+    --primary-fg: #ffffff;
+    --accent: #818cf8;
+    --breadcrumbs-bg: #f8fafc;
+    --breadcrumbs-link-fg: #475569;
+    --font-family: 'Inter', sans-serif !important;
+}
+
+/* Light Theme Variables */
+html[data-theme="light"] {
+    --body-bg: #f8fafc;
+    --body-fg: #0f172a;
+    --header-bg: #0b0c16;
+    --header-color: #f8fafc;
+    --header-link-color: #cbd5e1;
+    --breadcrumbs-bg: #ffffff;
+    --border-color: #e2e8f0;
+    --darkened-bg: #f1f5f9;
+    --card-bg: #ffffff;
+    --card-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+}
+
+/* Dark Theme Variables */
+html[data-theme="dark"] {
+    --body-bg: #07080f;
+    --body-fg: #f1f5f9;
+    --header-bg: #0c0d16;
+    --header-color: #f8fafc;
+    --header-link-color: #94a3b8;
+    --breadcrumbs-bg: #0a0b12;
+    --border-color: #1e293b;
+    --darkened-bg: #111322;
+    --card-bg: #0c0e17;
+    --card-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.3), 0 4px 6px -4px rgb(0 0 0 / 0.3);
+}
+
+/* ── Document / Body styling ── */
+body {
+    background-color: var(--body-bg);
+    color: var(--body-fg);
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* ── Brand Header styling ── */
+#header {
+    background: var(--header-bg);
+    color: var(--header-color);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border-color);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+#header a:link, #header a:visited {
+    color: var(--header-link-color);
+    transition: color 0.2s ease;
+}
+
+#header a:hover {
+    color: #ffffff;
+}
+
+#branding h1 {
+    font-size: 20px;
+    font-weight: 800;
+    margin: 0;
+}
+
+#user-tools {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--header-link-color);
+}
+
+#user-tools a {
+    border-bottom: none !important;
+    font-weight: 600;
+    color: #ffffff !important;
+    background: rgba(255, 255, 255, 0.08);
+    padding: 6px 12px;
+    border-radius: 8px;
+    margin-left: 6px;
+    transition: background 0.2s ease;
+}
+
+#user-tools a:hover {
+    background: rgba(255, 255, 255, 0.16);
+}
+
+/* Theme Toggle button inside header */
+.theme-toggle {
+    margin-left: 12px;
+}
+
+.theme-toggle button {
+    background: rgba(255, 255, 255, 0.08) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 8px !important;
+    color: #ffffff !important;
+    padding: 6px 12px !important;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.theme-toggle button:hover {
+    background: rgba(255, 255, 255, 0.16) !important;
+}
+
+/* ── Breadcrumbs ── */
+.breadcrumbs {
+    background: var(--breadcrumbs-bg);
+    border-bottom: 1px solid var(--border-color);
+    padding: 12px 24px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--breadcrumbs-link-fg);
+}
+
+.breadcrumbs a {
+    color: var(--primary) !important;
+    font-weight: 600;
+}
+
+/* ── Content Containers ── */
+#content {
+    padding: 28px 24px;
+}
+
+h1 {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    margin-bottom: 24px;
+    color: var(--body-fg);
+}
+
+/* ── Sidebar Navigation ── */
+#nav-sidebar {
+    background: var(--card-bg);
+    border-right: 1px solid var(--border-color);
+    box-shadow: var(--card-shadow);
+}
+
+#nav-sidebar th, #nav-sidebar td {
+    padding: 8px 12px;
+}
+
+#nav-sidebar .section {
+    margin-bottom: 16px;
+}
+
+#nav-sidebar .section th {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 700;
+    color: var(--primary);
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+#nav-sidebar a {
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--body-fg);
+    border-radius: 6px;
+    padding: 6px 8px;
+    display: block;
+    transition: all 0.2s ease;
+}
+
+#nav-sidebar a:hover {
+    background: var(--darkened-bg);
+    color: var(--primary);
+}
+
+#nav-sidebar tr.model-UserProfile a, 
+#nav-sidebar tr.model-Employee a {
+    font-weight: 600;
+}
+
+/* ── Dashboard (Index Page) Cards ── */
+.dashboard .module {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: var(--card-shadow);
+    margin-bottom: 24px;
+    overflow: hidden;
+}
+
+.dashboard .module table {
+    width: 100%;
+}
+
+.dashboard .module caption {
+    background: var(--darkened-bg);
+    color: var(--body-fg);
+    font-weight: 700;
+    font-size: 14px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border-color);
+    text-align: left;
+}
+
+.dashboard .module th, .dashboard .module td {
+    padding: 12px 18px;
+    font-size: 13.5px;
+}
+
+.dashboard .module tr {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.dashboard .module tr:last-child {
+    border-bottom: none;
+}
+
+.dashboard .module a.section {
+    color: var(--primary);
+    font-weight: 700;
+}
+
+/* ── Tables & Changelists ── */
+#changelist {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: var(--card-shadow);
+    overflow: hidden;
+}
+
+#changelist-form table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+#changelist-form th {
+    background: var(--darkened-bg);
+    color: var(--body-fg);
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+#changelist-form td {
+    padding: 14px 18px;
+    font-size: 13.5px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+#changelist-form tr:hover td {
+    background-color: var(--darkened-bg);
+}
+
+/* ── Search Bar & Filters ── */
+#toolbar {
+    background: var(--card-bg);
+    border-bottom: 1px solid var(--border-color);
+    padding: 16px 18px;
+}
+
+#changelist-search input[type="text"] {
+    border: 1px solid var(--border-color);
+    background: var(--body-bg);
+    color: var(--body-fg);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 13.5px;
+    width: 280px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+#changelist-search input[type="text"]:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(94, 106, 210, 0.2);
+}
+
+#changelist-search input[type="submit"] {
+    background: var(--primary);
+    color: var(--primary-fg);
+    border: none;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-weight: 650;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+#changelist-search input[type="submit"]:hover {
+    background: var(--accent);
+}
+
+#changelist-filter {
+    background: var(--card-bg);
+    border-left: 1px solid var(--border-color);
+}
+
+#changelist-filter h2 {
+    background: var(--darkened-bg);
+    color: var(--body-fg);
+    font-weight: 700;
+    font-size: 13px;
+    text-transform: uppercase;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+#changelist-filter h3 {
+    font-size: 12px;
+    text-transform: uppercase;
+    color: var(--primary);
+    margin-top: 14px;
+    padding: 0 18px;
+}
+
+#changelist-filter ul {
+    padding: 0 18px 14px 18px;
+}
+
+#changelist-filter li a {
+    font-size: 13px;
+    color: var(--body-fg);
+    transition: color 0.2s;
+}
+
+#changelist-filter li.selected a {
+    color: var(--primary);
+    font-weight: 700;
+}
+
+/* ── Buttons & Forms ── */
+.button, input[type="submit"], input[type="button"], .submit-row a.deletelink {
+    border-radius: 8px !important;
+    font-size: 13px !important;
+    font-weight: 650 !important;
+    padding: 10px 16px !important;
+    cursor: pointer;
+    transition: all 0.2s ease !important;
+    border: none !important;
+}
+
+.button, input[type="submit"] {
+    background: var(--primary) !important;
+    color: var(--primary-fg) !important;
+}
+
+.button:hover, input[type="submit"]:hover {
+    background: var(--accent) !important;
+    box-shadow: 0 4px 12px rgba(94, 106, 210, 0.25) !important;
+}
+
+.button.default, input[type="submit"].default {
+    background: linear-gradient(135deg, var(--primary) 0%, #4f46e5 100%) !important;
+    color: #ffffff !important;
+}
+
+.button.default:hover, input[type="submit"].default:hover {
+    background: linear-gradient(135deg, var(--accent) 0%, var(--primary) 100%) !important;
+    box-shadow: 0 4px 12px rgba(129, 140, 248, 0.3) !important;
+}
+
+.submit-row a.deletelink {
+    background: #ef4444 !important;
+    color: #ffffff !important;
+}
+
+.submit-row a.deletelink:hover {
+    background: #dc2626 !important;
+}
+
+/* Form input fields */
+form input[type="text"], form input[type="password"], form input[type="email"], form select, form textarea {
+    border: 1px solid var(--border-color) !important;
+    background: var(--body-bg) !important;
+    color: var(--body-fg) !important;
+    border-radius: 8px !important;
+    padding: 8px 12px !important;
+    font-size: 13.5px !important;
+    outline: none !important;
+    transition: border-color 0.2s, box-shadow 0.2s !important;
+}
+
+form input[type="text"]:focus, form input[type="password"]:focus, form input[type="email"]:focus, form select:focus, form textarea:focus {
+    border-color: var(--primary) !important;
+    box-shadow: 0 0 0 2px rgba(94, 106, 210, 0.2) !important;
+}
+
+/* ── Inline Cards / Fieldsets ── */
+fieldset.module {
+    background: var(--card-bg) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: 12px !important;
+    box-shadow: var(--card-shadow) !important;
+    padding: 20px !important;
+    margin-bottom: 24px !important;
+}
+
+fieldset.module h2 {
+    background: transparent !important;
+    color: var(--primary) !important;
+    font-size: 16px !important;
+    font-weight: 800 !important;
+    border-bottom: 1px solid var(--border-color) !important;
+    padding-bottom: 10px !important;
+    margin-bottom: 20px !important;
+}
+
+.form-row {
+    border-bottom: 1px solid var(--border-color) !important;
+    padding: 14px 0 !important;
+}
+
+.form-row:last-child {
+    border-bottom: none !important;
+}
+
+.form-row label {
+    font-size: 13.5px !important;
+    font-weight: 600 !important;
+    color: var(--body-fg) !important;
+}
+
+/* ── Footer ── */
+#footer {
+    padding: 24px !important;
+    color: var(--header-link-color) !important;
+    font-size: 12px !important;
+    text-align: center;
+}
