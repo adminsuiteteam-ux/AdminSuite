@@ -1,0 +1,177 @@
+{
+  "alt": {
+    "financialDashboard": "AdminSuite Live Financial Dashboard Pulse metrics",
+    "verificationFlow": "Secure 6-digit Email verification flow",
+    "profilesSetup": "Initial Workspace profiles setup form",
+    "verificationPrefill": "Verification code input keyboard prefill overlay",
+    "rolesSelection": "Tailored dashboard workspace roles selection"
+  },
+  "about": {
+    "section1": {
+      "number": "01 — Who We Are",
+      "builtFor": "Built For",
+      "leaders": "Leaders",
+      "body": "AdminSuite is a full-stack business command centre designed for modern managers. We unify employee oversight, client management, and financial intelligence into one seamless, secure ecosystem — giving decision-makers the clarity they need to lead with confidence."
+    },
+    "section2": {
+      "number": "02 — Our Mission",
+      "title": "Clarity\nIn Every\nDecision",
+      "body": "Our mission is to eliminate the chaos of disconnected spreadsheets, siloed data, and manual reporting. AdminSuite delivers real-time visibility across your entire operation so that every leader — from team lead to CFO — can make faster, smarter decisions.",
+      "peopleFirst": {
+        "title": "People First",
+        "description": "Every feature is built around the humans who use it — intuitive interfaces, zero friction onboarding, and role-based access that makes sense from day one."
+      },
+      "dataIntegrity": {
+        "title": "Data Integrity",
+        "description": "Transactions, payroll, and client records are stored securely with end-to-end encryption and live Supabase synchronisation across all devices."
+      },
+      "operationalFlow": {
+        "title": "Operational Flow",
+        "description": "From task assignment to invoice generation, every workflow is connected — no tab-switching, no manual reconciliation, no blind spots."
+      }
+    },
+    "section3": {
+      "number": "03 — Our Vision",
+      "titleBefore": "The Future\nOf Work\n",
+      "titleHighlight": "Is Unified",
+      "body": "We envision a world where any business — from a boutique agency to a multi-national firm — operates with the same intelligence and efficiency as a Fortune 500 company. AdminSuite is the equaliser.",
+      "workforceIntelligence": {
+        "title": "Workforce Intelligence",
+        "description": "AI-ready employee analytics, attendance patterns, and performance benchmarks — giving managers the foresight to act before problems arise."
+      },
+      "financialForesight": {
+        "title": "Financial Foresight",
+        "description": "Predictive cash-flow modelling, automated profit/loss summaries, and instant financial snapshots accessible from any device, anywhere."
+      },
+      "clientExcellence": {
+        "title": "Client Excellence",
+        "description": "Deep client portfolios with project tracking, retainer management, and transparent communication logs — turning every client relationship into a long-term partnership."
+      },
+      "quote": "Every line of code we write starts with a single question — does this make our users more effective?"
+    },
+    "section4": {
+      "number": "04 — What We Build",
+      "title": "One\nPlatform.\nTotal\nControl.",
+      "employeeManagement": {
+        "title": "Employee Management",
+        "description": "Onboard team members, assign roles, track attendance, manage leave, and view payroll history — all within a secure, permission-based environment."
+      },
+      "clientProjectTracking": {
+        "title": "Client & Project Tracking",
+        "description": "Maintain detailed client portfolios, coordinate project timelines, and organise deliverables from a unified command centre with visual Kanban boards."
+      },
+      "financialCommand": {
+        "title": "Financial Command",
+        "description": "Real-time profit tracking, expense logging, income reporting, and transparent analytics synced directly to your live database with interactive charts."
+      }
+    }
+  },
+  "story": {
+    "badge": "Interactive Storytelling",
+    "title": "How AdminSuite Empowers Your Business",
+    "subtitle": "Take a visual walk through the dynamic workflow of AdminSuite. A unified environment built from the ground up to solve collaboration and transparency.",
+    "step1": {
+      "step": "01 / Security",
+      "title": "Secure, Instant Email Onboarding",
+      "description": "Enter your email and instantly receive a secure, 6-digit verification code. Verify your admin identity in milliseconds using keyboard prefilled overlays and seamless biometric-ready security."
+    },
+    "step2": {
+      "step": "02 / Workspace",
+      "title": "Track Clients & Projects",
+      "description": "Maintain client portfolios, coordinate project timelines, and organize deliverables from a unified command center. Adaptive dashboard layouts ensure your project metrics are front and center."
+    },
+    "step3": {
+      "step": "03 / Finances",
+      "title": "Real-Time Financial Control",
+      "description": "Access a fully transparent financial health dashboard. Track your monthly net profit, log outgoing expenses, monitor active retainer clients, and view visual charts synced directly with your database."
+    }
+  },
+  "reveal": {
+    "text": "AdminSuite gives you absolute control over your workforce, tracking client timelines and financial streams with real-time accuracy."
+  },
+  "carousel": {
+    "titlePrefix": "Manage Your ",
+    "titleHighlight": "Workspace",
+    "titleSuffix": " On the Go",
+    "subtitle": "Access all your administrator settings, client portfolios, transaction records, and staff schedules directly from your mobile device."
+  },
+  "testimonials": {
+    "badge": "Social Proof",
+    "title": "Loved by Administrators Everywhere",
+    "subtitle": "Hear what team leaders and financial controllers say about their experience with AdminSuite.",
+    "items": {
+      "dimaro": {
+        "quote": "AdminSuite has completely transformed how we manage employee workspace roles. The biometric security integration and direct sync give us full confidence.",
+        "name": "Dimaro T. Godsgift",
+        "designation": "CEO of Dimacode (Tech Company)"
+      },
+      "eluan": {
+        "quote": "Tracking client projects and video assets is incredibly simple now. Our cinematography team saves hours of coordination weekly using the unified dashboard.",
+        "name": "Eluan Clever",
+        "designation": "CEO of Eluan Visuals (Cinematography)"
+      },
+      "precious": {
+        "quote": "The real-time database and clean cash flow tracking are absolute lifesavers for managing client deposits and photography project schedules.",
+        "name": "Precious Warekereowei",
+        "designation": "CEO of Precy_Photos (Photography)"
+      }
+    }
+  },
+  "tech": {
+    "badge": "Architecture",
+    "title": "Built on Modern Architecture",
+    "subtitle": "High performance, native capabilities, and secure client-server databases.",
+    "expo": {
+      "title": "Expo Mobile Core",
+      "description": "Powered by React Native, offering standard hardware biometric login, offline secure token stores, and dynamic layouts optimized for both iOS and Android."
+    },
+    "python": {
+      "title": "Python REST Backend",
+      "description": "Robust and scalable Python REST APIs handling transaction metrics calculations, worker roles routing, and token authorization logs."
+    },
+    "supabase": {
+      "title": "Supabase Realtime DB",
+      "description": "Instant synchronization of metrics, live updates, and secure database encryption keys to keep corporate data fully isolated."
+    }
+  },
+  "support": {
+    "badge": "Customer Care",
+    "title": "Dedicated Product Support",
+    "subtitle": "Have questions or need technical assistance with AdminSuite? Our team is here to help you deploy, configure, and scale.",
+    "left": {
+      "title": "Get in Touch",
+      "description": "Have questions about custom integrations, deployment, or enterprise license solutions? Reach out, and our technical support engineers will get back to you.",
+      "directEmail": "Direct Support Email",
+      "responseGuarantee": "Response Guarantee",
+      "responseGuaranteeValue": "We respond to all inquiries within 12-24 hours.",
+      "sendEmail": "Send Email",
+      "copyAddress": "Copy Address",
+      "copiedAlert": "Support email copied to clipboard!"
+    },
+    "form": {
+      "success": "Message Sent Successfully!",
+      "successDesc": "Thank you for contacting AdminSuite. One of our specialists will review your message and reach out shortly.",
+      "sendAnother": "Send Another Message",
+      "nameLabel": "Full Name *",
+      "namePlaceholder": "e.g. John Doe",
+      "emailLabel": "Email Address *",
+      "emailPlaceholder": "john@example.com",
+      "subjectLabel": "Subject",
+      "subjectPlaceholder": "e.g. Integration Support / Licensing",
+      "messageLabel": "Message *",
+      "messagePlaceholder": "Tell us details about your project or support query...",
+      "errorRequired": "Please fill in all required fields.",
+      "submit": "Submit Request"
+    }
+  },
+  "cta": {
+    "badge": "Get Started",
+    "title": "Ready to Elevate Your Workflow?",
+    "description": "Deploy AdminSuite to your organization today. Streamline role allocation, secure transaction ledgers, and manage your workforce with premium UI/UX interfaces.",
+    "downloadApk": "Download Android APK",
+    "useWeb": "Use AdminSuite Web"
+  },
+  "footer": {
+    "tagline": "AdminSuite Workspace — Absolute control over personnel resources and financial pulse metrics."
+  }
+}

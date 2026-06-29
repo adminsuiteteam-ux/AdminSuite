@@ -1089,14 +1089,14 @@ input, select, textarea { font-family: inherit; }
   position: absolute;
   inset: 0;
   opacity: 0;
-  transform: translateY(18px);
-  transition: opacity 0.65s ease, transform 0.65s ease;
+  transform: translateX(32px);
+  transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
   pointer-events: none;
 }
 
 .auth-carousel-slide.active {
   opacity: 1;
-  transform: translateY(0);
+  transform: translateX(0);
   pointer-events: auto;
 }
 

@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import * as Sentry from '@sentry/react'
 import App from './App.tsx'
 import './index.css'
+import './i18n'
 
 // Initialize Sentry when a real DSN is provided via env var
 const _landingDsn = import.meta.env.VITE_SENTRY_DSN;

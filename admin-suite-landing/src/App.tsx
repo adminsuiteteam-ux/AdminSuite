@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 gsap.registerPlugin(ScrollTrigger);
@@ -26,6 +27,7 @@ import {
 } from 'lucide-react';
 
 export default function App() {
+  const { t } = useTranslation();
   const [formData, setFormData] = useState({ name: '', email: '', subject: '', message: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -62,7 +64,7 @@ export default function App() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.email || !formData.message) {
-      setFormError('Please fill in all required fields.');
+      setFormError(t('support.form.errorRequired'));
       return;
     }
     setFormError('');
@@ -80,23 +82,23 @@ export default function App() {
   const appImages = [
     {
       src: '/phone_mockup_financial.png',
-      alt: 'AdminSuite Live Financial Dashboard Pulse metrics'
+      alt: t('alt.financialDashboard')
     },
     {
       src: '/phone_mockup_verified.png',
-      alt: 'Secure 6-digit Email verification flow'
+      alt: t('alt.verificationFlow')
     },
     {
       src: '/phone_mockup_setup.png',
-      alt: 'Initial Workspace profiles setup form'
+      alt: t('alt.profilesSetup')
     },
     {
       src: '/phone_mockup_verification_code.png',
-      alt: 'Verification code input keyboard prefill overlay'
+      alt: t('alt.verificationPrefill')
     },
     {
       src: '/phone_mockup_role.png',
-      alt: 'Tailored dashboard workspace roles selection'
+      alt: t('alt.rolesSelection')
     }
   ];
 
@@ -109,135 +111,137 @@ export default function App() {
       <div id="about-section">
         <FlowArt aria-label="About AdminSuite">
           <FlowSection aria-label="Who We Are" style={{ backgroundColor: '#0a0b14', color: '#fff' }}>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-indigo-300">01 — Who We Are</p>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-indigo-300">{t('about.section1.number')}</p>
             <hr className="my-4 md:my-[2vw] border-none border-t border-white/10" />
             <div>
               <h2 className="text-4xl sm:text-6xl md:text-8xl lg:text-[clamp(4.5rem,10vw,12rem)] font-black leading-[0.85] uppercase tracking-tight">
-                Built For
+                {t('about.section1.builtFor')}
                 <br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-emerald-400">Leaders</span>
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-emerald-400">{t('about.section1.leaders')}</span>
               </h2>
             </div>
             <hr className="my-4 md:my-[2vw] border-none border-t border-white/10" />
             <p className="mt-6 md:mt-auto max-w-[55ch] text-sm sm:text-base md:text-lg lg:text-[clamp(1.1rem,1.8vw,1.6rem)] font-normal leading-relaxed text-white/70">
-              AdminSuite is a full-stack business command centre designed for modern managers. We unify employee oversight, client management, and financial intelligence into one seamless, secure ecosystem — giving decision-makers the clarity they need to lead with confidence.
+              {t('about.section1.body')}
             </p>
           </FlowSection>
 
           <FlowSection aria-label="Our Mission" style={{ backgroundColor: '#5e6ad2', color: '#fff' }}>
-            <p className="text-xs font-bold uppercase tracking-[0.2em]">02 — Our Mission</p>
+            <p className="text-xs font-bold uppercase tracking-[0.2em]">{t('about.section2.number')}</p>
             <hr className="my-4 md:my-[2vw] border-none border-t border-white/30" />
             <div>
               <h2 className="text-4xl sm:text-6xl md:text-8xl lg:text-[clamp(4.5rem,10vw,12rem)] font-black leading-[0.85] uppercase tracking-tight">
-                Clarity
-                <br />
-                In Every
-                <br />
-                Decision
+                {t('about.section2.title').split('\n').map((line, idx) => (
+                  <span key={idx}>
+                    {line}
+                    <br />
+                  </span>
+                ))}
               </h2>
             </div>
             <hr className="my-4 md:my-[2vw] border-none border-t border-white/30" />
             <p className="max-w-[55ch] text-sm sm:text-base md:text-lg lg:text-[clamp(1.1rem,1.8vw,1.6rem)] font-normal leading-relaxed text-white/80">
-              Our mission is to eliminate the chaos of disconnected spreadsheets, siloed data, and manual reporting. AdminSuite delivers real-time visibility across your entire operation so that every leader — from team lead to CFO — can make faster, smarter decisions.
+              {t('about.section2.body')}
             </p>
             <hr className="my-4 md:my-[2vw] border-none border-t border-white/30" />
             <div className="flex flex-wrap gap-[3vw] gap-y-6">
               <div className="min-w-[180px] flex-1">
-                <p className="mb-2 text-sm font-bold uppercase tracking-wider">People First</p>
+                <p className="mb-2 text-sm font-bold uppercase tracking-wider">{t('about.section2.peopleFirst.title')}</p>
                 <p className="text-sm leading-relaxed opacity-75">
-                  Every feature is built around the humans who use it — intuitive interfaces, zero friction onboarding, and role-based access that makes sense from day one.
+                  {t('about.section2.peopleFirst.description')}
                 </p>
               </div>
               <div className="min-w-[180px] flex-1">
-                <p className="mb-2 text-sm font-bold uppercase tracking-wider">Data Integrity</p>
+                <p className="mb-2 text-sm font-bold uppercase tracking-wider">{t('about.section2.dataIntegrity.title')}</p>
                 <p className="text-sm leading-relaxed opacity-75">
-                  Transactions, payroll, and client records are stored securely with end-to-end encryption and live Supabase synchronisation across all devices.
+                  {t('about.section2.dataIntegrity.description')}
                 </p>
               </div>
               <div className="min-w-[180px] flex-1">
-                <p className="mb-2 text-sm font-bold uppercase tracking-wider">Operational Flow</p>
+                <p className="mb-2 text-sm font-bold uppercase tracking-wider">{t('about.section2.operationalFlow.title')}</p>
                 <p className="text-sm leading-relaxed opacity-75">
-                  From task assignment to invoice generation, every workflow is connected — no tab-switching, no manual reconciliation, no blind spots.
+                  {t('about.section2.operationalFlow.description')}
                 </p>
               </div>
             </div>
           </FlowSection>
 
           <FlowSection aria-label="Our Vision" style={{ backgroundColor: '#0d1117', color: '#fff' }}>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-400">03 — Our Vision</p>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-400">{t('about.section3.number')}</p>
             <hr className="my-4 md:my-[2vw] border-none border-t border-white/10" />
             <div>
               <h2 className="text-4xl sm:text-6xl md:text-8xl lg:text-[clamp(4.5rem,10vw,12rem)] font-black leading-[0.85] uppercase tracking-tight">
-                The Future
-                <br />
-                Of Work
-                <br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">Is Unified</span>
+                {t('about.section3.titleBefore').split('\n').map((line, idx) => (
+                  <span key={idx}>
+                    {line}
+                    <br />
+                  </span>
+                ))}
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">{t('about.section3.titleHighlight')}</span>
               </h2>
             </div>
             <hr className="my-4 md:my-[2vw] border-none border-t border-white/10" />
             <p className="max-w-[55ch] text-sm sm:text-base md:text-lg lg:text-[clamp(1.1rem,1.8vw,1.6rem)] font-normal leading-relaxed text-white/70">
-              We envision a world where any business — from a boutique agency to a multi-national firm — operates with the same intelligence and efficiency as a Fortune 500 company. AdminSuite is the equaliser.
+              {t('about.section3.body')}
             </p>
             <hr className="my-4 md:my-[2vw] border-none border-t border-white/10" />
             <div className="flex flex-wrap gap-[3vw] gap-y-6">
               <div className="min-w-[180px] flex-1">
-                <p className="mb-2 text-sm font-bold uppercase tracking-wider text-emerald-400">Workforce Intelligence</p>
+                <p className="mb-2 text-sm font-bold uppercase tracking-wider text-emerald-400">{t('about.section3.workforceIntelligence.title')}</p>
                 <p className="text-sm leading-relaxed opacity-60">
-                  AI-ready employee analytics, attendance patterns, and performance benchmarks — giving managers the foresight to act before problems arise.
+                  {t('about.section3.workforceIntelligence.description')}
                 </p>
               </div>
               <div className="min-w-[180px] flex-1">
-                <p className="mb-2 text-sm font-bold uppercase tracking-wider text-indigo-400">Financial Foresight</p>
+                <p className="mb-2 text-sm font-bold uppercase tracking-wider text-indigo-400">{t('about.section3.financialForesight.title')}</p>
                 <p className="text-sm leading-relaxed opacity-60">
-                  Predictive cash-flow modelling, automated profit/loss summaries, and instant financial snapshots accessible from any device, anywhere.
+                  {t('about.section3.financialForesight.description')}
                 </p>
               </div>
               <div className="min-w-[180px] flex-1">
-                <p className="mb-2 text-sm font-bold uppercase tracking-wider text-cyan-400">Client Excellence</p>
+                <p className="mb-2 text-sm font-bold uppercase tracking-wider text-cyan-400">{t('about.section3.clientExcellence.title')}</p>
                 <p className="text-sm leading-relaxed opacity-60">
-                  Deep client portfolios with project tracking, retainer management, and transparent communication logs — turning every client relationship into a long-term partnership.
+                  {t('about.section3.clientExcellence.description')}
                 </p>
               </div>
             </div>
             <hr className="my-4 md:my-[2vw] border-none border-t border-white/10" />
             <p className="mt-6 md:mt-auto ml-auto max-w-[50ch] text-left md:text-right text-sm sm:text-base md:text-lg lg:text-[clamp(1.1rem,1.8vw,1.6rem)] font-normal leading-relaxed text-white/50">
-              Every line of code we write starts with a single question — does this make our users more effective?
+              {t('about.section3.quote')}
             </p>
           </FlowSection>
 
           <FlowSection aria-label="What We Build" style={{ backgroundColor: '#111827', color: '#fff' }}>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-indigo-300">04 — What We Build</p>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-indigo-300">{t('about.section4.number')}</p>
             <hr className="my-4 md:my-[2vw] border-none border-t border-white/10" />
             <div>
               <h2 className="text-4xl sm:text-6xl md:text-8xl lg:text-[clamp(4.5rem,10vw,12rem)] font-black leading-[0.85] uppercase tracking-tight">
-                One
-                <br />
-                Platform.
-                <br />
-                Total
-                <br />
-                Control.
+                {t('about.section4.title').split('\n').map((line, idx) => (
+                  <span key={idx}>
+                    {line}
+                    <br />
+                  </span>
+                ))}
               </h2>
             </div>
             <hr className="my-4 md:my-[2vw] border-none border-t border-white/10" />
             <div className="flex flex-wrap gap-[3vw] gap-y-6">
               <div className="min-w-[180px] flex-1">
-                <p className="mb-2 text-sm font-bold uppercase tracking-wider">Employee Management</p>
+                <p className="mb-2 text-sm font-bold uppercase tracking-wider">{t('about.section4.employeeManagement.title')}</p>
                 <p className="text-sm leading-relaxed opacity-60">
-                  Onboard team members, assign roles, track attendance, manage leave, and view payroll history — all within a secure, permission-based environment.
+                  {t('about.section4.employeeManagement.description')}
                 </p>
               </div>
               <div className="min-w-[180px] flex-1">
-                <p className="mb-2 text-sm font-bold uppercase tracking-wider">Client & Project Tracking</p>
+                <p className="mb-2 text-sm font-bold uppercase tracking-wider">{t('about.section4.clientProjectTracking.title')}</p>
                 <p className="text-sm leading-relaxed opacity-60">
-                  Maintain detailed client portfolios, coordinate project timelines, and organise deliverables from a unified command centre with visual Kanban boards.
+                  {t('about.section4.clientProjectTracking.description')}
                 </p>
               </div>
               <div className="min-w-[180px] flex-1">
-                <p className="mb-2 text-sm font-bold uppercase tracking-wider">Financial Command</p>
+                <p className="mb-2 text-sm font-bold uppercase tracking-wider">{t('about.section4.financialCommand.title')}</p>
                 <p className="text-sm leading-relaxed opacity-60">
-                  Real-time profit tracking, expense logging, income reporting, and transparent analytics synced directly to your live database with interactive charts.
+                  {t('about.section4.financialCommand.description')}
                 </p>
               </div>
             </div>
@@ -250,21 +254,21 @@ export default function App() {
         <div className="text-center px-4 space-y-4 max-w-3xl mx-auto pb-16">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent/10 border border-accent/20 text-xs font-semibold tracking-wider text-accent uppercase select-none mb-4">
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Interactive Storytelling</span>
+            <span>{t('story.badge')}</span>
           </div>
           <h2 className="text-4xl md:text-6xl font-black tracking-tight leading-tight text-zinc-900 dark:text-white">
-            How AdminSuite Empowers Your Business
+            {t('story.title')}
           </h2>
           <p className="text-zinc-500 dark:text-white/50 text-sm md:text-base">
-            Take a visual walk through the dynamic workflow of AdminSuite. A unified environment built from the ground up to solve collaboration and transparency.
+            {t('story.subtitle')}
           </p>
         </div>
 
         {/* Step 1: Verification */}
         <StoryCard 
-          step="01 / Security"
-          title="Secure, Instant Email Onboarding"
-          description="Enter your email and instantly receive a secure, 6-digit verification code. Verify your admin identity in milliseconds using keyboard prefilled overlays and seamless biometric-ready security."
+          step={t('story.step1.step')}
+          title={t('story.step1.title')}
+          description={t('story.step1.description')}
           icon={ShieldAlert}
           imageSrc="/phone_mockup_verified.png"
           alignment="left"
@@ -273,9 +277,9 @@ export default function App() {
 
         {/* Step 2: Track Clients & Projects */}
         <StoryCard 
-          step="02 / Workspace"
-          title="Track Clients & Projects"
-          description="Maintain client portfolios, coordinate project timelines, and organize deliverables from a unified command center. Adaptive dashboard layouts ensure your project metrics are front and center."
+          step={t('story.step2.step')}
+          title={t('story.step2.title')}
+          description={t('story.step2.description')}
           icon={UserCheck}
           imageSrc="/phone_mockup_role.png"
           alignment="right"
@@ -285,9 +289,9 @@ export default function App() {
         {/* Step 3: Financial Control */}
         <div id="financial-control-card">
           <StoryCard 
-            step="03 / Finances"
-            title="Real-Time Financial Control"
-            description="Access a fully transparent financial health dashboard. Track your monthly net profit, log outgoing expenses, monitor active retainer clients, and view visual charts synced directly with your database."
+            step={t('story.step3.step')}
+            title={t('story.step3.title')}
+            description={t('story.step3.description')}
             icon={TrendingUp}
             imageSrc="/phone_mockup_financial.png"
             alignment="left"
@@ -299,7 +303,7 @@ export default function App() {
       {/* Scroll-linked text reveal section */}
       <section className="relative z-10 w-full min-h-[150vh] flex items-center justify-center py-24 bg-white dark:bg-black transition-colors duration-300">
         <div className="w-full max-w-6xl mx-auto px-4">
-          <TextRevealByWord text="AdminSuite gives you absolute control over your workforce, tracking client timelines and financial streams with real-time accuracy." />
+          <TextRevealByWord text={t('reveal.text')} />
         </div>
       </section>
 
@@ -307,10 +311,10 @@ export default function App() {
       <FeatureCarousel 
         title={
           <>
-            Manage Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent to-emerald-400">Workspace</span> On the Go
+            {t('carousel.titlePrefix')}<span className="text-transparent bg-clip-text bg-gradient-to-r from-accent to-emerald-400">{t('carousel.titleHighlight')}</span>{t('carousel.titleSuffix')}
           </>
         }
-        subtitle="Access all your administrator settings, client portfolios, transaction records, and staff schedules directly from your mobile device."
+        subtitle={t('carousel.subtitle')}
         images={appImages}
       />
 
@@ -321,14 +325,14 @@ export default function App() {
             <div className="flex justify-center mb-2">
               <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs font-semibold tracking-wider text-emerald-600 dark:text-emerald-400 uppercase select-none">
                 <UserCheck className="w-3.5 h-3.5" />
-                <span>Social Proof</span>
+                <span>{t('testimonials.badge')}</span>
               </div>
             </div>
             <h2 className="text-4xl md:text-6xl font-black tracking-tight leading-tight text-zinc-900 dark:text-white">
-              Loved by Administrators Everywhere
+              {t('testimonials.title')}
             </h2>
             <p className="text-zinc-500 dark:text-white/40 text-sm md:text-base max-w-lg mx-auto">
-              Hear what team leaders and financial controllers say about their experience with AdminSuite.
+              {t('testimonials.subtitle')}
             </p>
           </div>
           
@@ -336,21 +340,21 @@ export default function App() {
             <CircularTestimonials 
               testimonials={[
                 {
-                  quote: "AdminSuite has completely transformed how we manage employee workspace roles. The biometric security integration and direct sync give us full confidence.",
-                  name: "Dimaro T. Godsgift",
-                  designation: "CEO of Dimacode (Tech Company)",
+                  quote: t('testimonials.items.dimaro.quote'),
+                  name: t('testimonials.items.dimaro.name'),
+                  designation: t('testimonials.items.dimaro.designation'),
                   src: "/dimaro.jpg"
                 },
                 {
-                  quote: "Tracking client projects and video assets is incredibly simple now. Our cinematography team saves hours of coordination weekly using the unified dashboard.",
-                  name: "Eluan Clever",
-                  designation: "CEO of Eluan Visuals (Cinematography)",
+                  quote: t('testimonials.items.eluan.quote'),
+                  name: t('testimonials.items.eluan.name'),
+                  designation: t('testimonials.items.eluan.designation'),
                   src: "/eluan.jpg"
                 },
                 {
-                  quote: "The real-time database and clean cash flow tracking are absolute lifesavers for managing client deposits and photography project schedules.",
-                  name: "Precious Warekereowei",
-                  designation: "CEO of Precy_Photos (Photography)",
+                  quote: t('testimonials.items.precious.quote'),
+                  name: t('testimonials.items.precious.name'),
+                  designation: t('testimonials.items.precious.designation'),
                   src: "/precious.jpg"
                 }
               ]}
@@ -380,11 +384,11 @@ export default function App() {
             <div className="flex justify-center mb-2">
               <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#5e6ad2]/10 border border-[#5e6ad2]/20 text-xs font-semibold tracking-wider text-[#5e6ad2] dark:text-[#a5b4fc] uppercase select-none">
                 <Cpu className="w-3.5 h-3.5" />
-                <span>Architecture</span>
+                <span>{t('tech.badge')}</span>
               </div>
             </div>
-            <h2 className="text-3xl md:text-5xl font-extrabold tracking-tight text-zinc-900 dark:text-white">Built on Modern Architecture</h2>
-            <p className="text-zinc-500 dark:text-white/40 text-xs md:text-sm">High performance, native capabilities, and secure client-server databases.</p>
+            <h2 className="text-3xl md:text-5xl font-extrabold tracking-tight text-zinc-900 dark:text-white">{t('tech.title')}</h2>
+            <p className="text-zinc-500 dark:text-white/40 text-xs md:text-sm">{t('tech.subtitle')}</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -393,9 +397,9 @@ export default function App() {
               <div className="w-12 h-12 rounded-2xl bg-accent/10 border border-accent/20 flex items-center justify-center text-accent">
                 <Smartphone className="w-6 h-6" />
               </div>
-              <h3 className="text-lg font-bold text-zinc-900 dark:text-white">Expo Mobile Core</h3>
+              <h3 className="text-lg font-bold text-zinc-900 dark:text-white">{t('tech.expo.title')}</h3>
               <p className="text-sm text-zinc-500 dark:text-white/50 leading-relaxed">
-                Powered by React Native, offering standard hardware biometric login, offline secure token stores, and dynamic layouts optimized for both iOS and Android.
+                {t('tech.expo.description')}
               </p>
             </GlowCard>
 
@@ -404,9 +408,9 @@ export default function App() {
               <div className="w-12 h-12 rounded-2xl bg-emerald-400/10 border border-emerald-400/20 flex items-center justify-center text-emerald-400">
                 <Cpu className="w-6 h-6" />
               </div>
-              <h3 className="text-lg font-bold text-zinc-900 dark:text-white">Python REST Backend</h3>
+              <h3 className="text-lg font-bold text-zinc-900 dark:text-white">{t('tech.python.title')}</h3>
               <p className="text-sm text-zinc-500 dark:text-white/50 leading-relaxed">
-                Robust and scalable Python REST APIs handling transaction metrics calculations, worker roles routing, and token authorization logs.
+                {t('tech.python.description')}
               </p>
             </GlowCard>
 
@@ -415,9 +419,9 @@ export default function App() {
               <div className="w-12 h-12 rounded-2xl bg-blue-400/10 border border-blue-400/20 flex items-center justify-center text-blue-400">
                 <Database className="w-6 h-6" />
               </div>
-              <h3 className="text-lg font-bold text-zinc-900 dark:text-white">Supabase Realtime DB</h3>
+              <h3 className="text-lg font-bold text-zinc-900 dark:text-white">{t('tech.supabase.title')}</h3>
               <p className="text-sm text-zinc-500 dark:text-white/50 leading-relaxed">
-                Instant synchronization of metrics, live updates, and secure database encryption keys to keep corporate data fully isolated.
+                {t('tech.supabase.description')}
               </p>
             </GlowCard>
           </div>
@@ -431,10 +435,10 @@ export default function App() {
           <div className="text-center space-y-4 max-w-xl mx-auto">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-xs font-semibold tracking-wider text-indigo-600 dark:text-indigo-300 uppercase">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Customer Care</span>
+              <span>{t('support.badge')}</span>
             </div>
-            <h2 className="text-3xl md:text-5xl font-extrabold tracking-tight text-zinc-900 dark:text-white">Dedicated Product Support</h2>
-            <p className="text-zinc-500 dark:text-white/40 text-xs md:text-sm">Have questions or need technical assistance with AdminSuite? Our team is here to help you deploy, configure, and scale.</p>
+            <h2 className="text-3xl md:text-5xl font-extrabold tracking-tight text-zinc-900 dark:text-white">{t('support.title')}</h2>
+            <p className="text-zinc-500 dark:text-white/40 text-xs md:text-sm">{t('support.subtitle')}</p>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start text-left">
@@ -444,23 +448,23 @@ export default function App() {
                 <Mail className="w-6 h-6" />
               </div>
               <div className="space-y-2">
-                <h3 className="text-xl font-bold text-zinc-900 dark:text-white">Get in Touch</h3>
+                <h3 className="text-xl font-bold text-zinc-900 dark:text-white">{t('support.left.title')}</h3>
                 <p className="text-sm text-zinc-500 dark:text-white/60 leading-relaxed">
-                  Have questions about custom integrations, deployment, or enterprise license solutions? Reach out, and our technical support engineers will get back to you.
+                  {t('support.left.description')}
                 </p>
               </div>
 
               <div className="space-y-4 pt-4 border-t border-zinc-200 dark:border-white/5">
                 <div>
-                  <p className="text-xs uppercase tracking-wider text-zinc-400 dark:text-white/40 font-bold mb-1">Direct Support Email</p>
+                  <p className="text-xs uppercase tracking-wider text-zinc-400 dark:text-white/40 font-bold mb-1">{t('support.left.directEmail')}</p>
                   <p className="text-sm sm:text-base font-semibold text-zinc-900 dark:text-white selection:bg-accent selection:text-white break-all">
                     adminsuiteteam@gmail.com
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-wider text-zinc-400 dark:text-white/40 font-bold mb-1">Response Guarantee</p>
+                  <p className="text-xs uppercase tracking-wider text-zinc-400 dark:text-white/40 font-bold mb-1">{t('support.left.responseGuarantee')}</p>
                   <p className="text-sm text-zinc-500 dark:text-white/60">
-                    We respond to all inquiries within 12-24 hours.
+                    {t('support.left.responseGuaranteeValue')}
                   </p>
                 </div>
               </div>
@@ -471,16 +475,16 @@ export default function App() {
                   className="px-5 py-2.5 rounded-full bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-white/90 font-semibold text-xs transition-all flex items-center justify-center gap-1.5"
                 >
                   <Mail className="w-3.5 h-3.5" />
-                  <span>Send Email</span>
+                  <span>{t('support.left.sendEmail')}</span>
                 </a>
                 <button 
                   onClick={() => {
                     navigator.clipboard.writeText('adminsuiteteam@gmail.com');
-                    alert('Support email copied to clipboard!');
+                    alert(t('support.left.copiedAlert'));
                   }}
                   className="px-5 py-2.5 rounded-full bg-zinc-100 hover:bg-zinc-200 dark:bg-white/5 dark:hover:bg-white/10 text-zinc-700 dark:text-white border border-zinc-200 dark:border-white/10 text-xs font-semibold transition-all"
                 >
-                  Copy Address
+                  {t('support.left.copyAddress')}
                 </button>
               </div>
             </div>
@@ -492,22 +496,22 @@ export default function App() {
                   <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500 animate-[pulse_2s_infinite]">
                     <Sparkles className="w-8 h-8" />
                   </div>
-                  <h3 className="text-2xl font-bold text-zinc-900 dark:text-white">Message Sent Successfully!</h3>
+                  <h3 className="text-2xl font-bold text-zinc-900 dark:text-white">{t('support.form.success')}</h3>
                   <p className="text-sm text-zinc-500 dark:text-white/60 max-w-sm leading-relaxed">
-                    Thank you for contacting AdminSuite. One of our specialists will review your message and reach out shortly.
+                    {t('support.form.successDesc')}
                   </p>
                   <button
                     onClick={() => setSubmitted(false)}
                     className="mt-6 px-6 py-2.5 rounded-full bg-zinc-100 hover:bg-zinc-200 dark:bg-white/5 dark:hover:bg-white/10 text-zinc-700 dark:text-white border border-zinc-200 dark:border-white/10 text-xs font-semibold transition-all"
                   >
-                    Send Another Message
+                    {t('support.form.sendAnother')}
                   </button>
                 </div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-5">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <label htmlFor="name" className="text-xs font-bold uppercase tracking-wider text-zinc-400 dark:text-white/40">Full Name *</label>
+                      <label htmlFor="name" className="text-xs font-bold uppercase tracking-wider text-zinc-400 dark:text-white/40">{t('support.form.nameLabel')}</label>
                       <input
                         type="text"
                         id="name"
@@ -516,11 +520,11 @@ export default function App() {
                         onChange={handleInputChange}
                         required
                         className="w-full px-4 py-3 rounded-xl bg-white/50 dark:bg-white/[0.03] border border-zinc-200 dark:border-white/[0.08] text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 dark:focus:ring-indigo-500/30 transition-all text-sm"
-                        placeholder="e.g. John Doe"
+                        placeholder={t('support.form.namePlaceholder')}
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <label htmlFor="email" className="text-xs font-bold uppercase tracking-wider text-zinc-400 dark:text-white/40">Email Address *</label>
+                      <label htmlFor="email" className="text-xs font-bold uppercase tracking-wider text-zinc-400 dark:text-white/40">{t('support.form.emailLabel')}</label>
                       <input
                         type="email"
                         id="email"
@@ -529,13 +533,13 @@ export default function App() {
                         onChange={handleInputChange}
                         required
                         className="w-full px-4 py-3 rounded-xl bg-white/50 dark:bg-white/[0.03] border border-zinc-200 dark:border-white/[0.08] text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 dark:focus:ring-indigo-500/30 transition-all text-sm"
-                        placeholder="john@example.com"
+                        placeholder={t('support.form.emailPlaceholder')}
                       />
                     </div>
                   </div>
 
                   <div className="space-y-1.5">
-                    <label htmlFor="subject" className="text-xs font-bold uppercase tracking-wider text-zinc-400 dark:text-white/40">Subject</label>
+                    <label htmlFor="subject" className="text-xs font-bold uppercase tracking-wider text-zinc-400 dark:text-white/40">{t('support.form.subjectLabel')}</label>
                     <input
                       type="text"
                       id="subject"
@@ -543,12 +547,12 @@ export default function App() {
                       value={formData.subject}
                       onChange={handleInputChange}
                       className="w-full px-4 py-3 rounded-xl bg-white/50 dark:bg-white/[0.03] border border-zinc-200 dark:border-white/[0.08] text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 dark:focus:ring-indigo-500/30 transition-all text-sm"
-                      placeholder="e.g. Integration Support / Licensing"
+                      placeholder={t('support.form.subjectPlaceholder')}
                     />
                   </div>
 
                   <div className="space-y-1.5">
-                    <label htmlFor="message" className="text-xs font-bold uppercase tracking-wider text-zinc-400 dark:text-white/40">Message *</label>
+                    <label htmlFor="message" className="text-xs font-bold uppercase tracking-wider text-zinc-400 dark:text-white/40">{t('support.form.messageLabel')}</label>
                     <textarea
                       id="message"
                       name="message"
@@ -557,7 +561,7 @@ export default function App() {
                       required
                       rows={4}
                       className="w-full px-4 py-3 rounded-xl bg-white/50 dark:bg-white/[0.03] border border-zinc-200 dark:border-white/[0.08] text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 dark:focus:ring-indigo-500/30 transition-all text-sm resize-none"
-                      placeholder="Tell us details about your project or support query..."
+                      placeholder={t('support.form.messagePlaceholder')}
                     />
                   </div>
 
@@ -574,7 +578,7 @@ export default function App() {
                       <span className="inline-block w-4 h-4 border-2 border-white dark:border-black border-t-transparent rounded-full animate-spin" />
                     ) : (
                       <>
-                        <span>Submit Request</span>
+                        <span>{t('support.form.submit')}</span>
                       </>
                     )}
                   </button>
@@ -592,12 +596,12 @@ export default function App() {
           <div className="flex justify-center mb-2">
             <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-xs font-semibold tracking-wider text-indigo-600 dark:text-indigo-400 uppercase select-none">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Get Started</span>
+              <span>{t('cta.badge')}</span>
             </div>
           </div>
-          <h2 className="text-4xl md:text-6xl font-extrabold tracking-tight text-zinc-900 dark:text-white">Ready to Elevate Your Workflow?</h2>
+          <h2 className="text-4xl md:text-6xl font-extrabold tracking-tight text-zinc-900 dark:text-white">{t('cta.title')}</h2>
           <p className="text-zinc-500 dark:text-white/60 text-sm md:text-base leading-relaxed">
-            Deploy AdminSuite to your organization today. Streamline role allocation, secure transaction ledgers, and manage your workforce with premium UI/UX interfaces.
+            {t('cta.description')}
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <ParticleButton
@@ -607,11 +611,11 @@ export default function App() {
               className="rounded-full px-8 bg-zinc-900 text-white dark:bg-white dark:text-black hover:opacity-95 font-semibold flex items-center gap-2"
             >
               <Download className="w-4 h-4" />
-              <span>Download Android APK</span>
+              <span>{t('cta.downloadApk')}</span>
             </ParticleButton>
             <a href="https://adminsuite-web.onrender.com" target="_blank" rel="noreferrer" className="pointer-events-auto">
               <Button size="lg" variant="outline" className="rounded-full px-8 border-zinc-300 dark:border-white/10 text-zinc-700 dark:text-white hover:bg-zinc-100 dark:hover:bg-white/5">
-                Use AdminSuite Web
+                {t('cta.useWeb')}
               </Button>
             </a>
           </div>
@@ -620,7 +624,7 @@ export default function App() {
 
       {/* Footer */}
       <div id="footer-section">
-        <Footer tagline="AdminSuite Workspace — Absolute control over personnel resources and financial pulse metrics." />
+        <Footer tagline={t('footer.tagline')} />
       </div>
     </div>
   );
