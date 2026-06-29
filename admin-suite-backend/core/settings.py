@@ -97,13 +97,13 @@ else:
 
 INSTALLED_APPS = [
     'daphne',                          # ASGI server — must be first
-    'cloudinary_storage',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'cloudinary_storage',              # After staticfiles so admin CSS loads correctly
     'cloudinary',
     'rest_framework',
     'rest_framework.authtoken',
@@ -168,21 +168,29 @@ else:
 
 import dj_database_url
 
-DATABASES = {
-    'default': dj_database_url.config(
-        default=f'sqlite:///{BASE_DIR}/db.sqlite3',
-        conn_max_age=600
-    ),
-    'backup': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': str(BASE_DIR / 'db.sqlite3'),
-    }
-}
+_database_url = os.environ.get('DATABASE_URL')
 
-# NOTE: We do NOT fall back to SQLite when Supabase is unreachable.
-# A silent fallback causes data to be written to Render's ephemeral disk
-# and then permanently lost on the next deploy. If the DB is unreachable,
-# Django will raise a connection error which is the correct, safe behaviour.
+if _database_url:
+    # Production / staging: use the DATABASE_URL (e.g. Xata PostgreSQL)
+    DATABASES = {
+        'default': dj_database_url.parse(_database_url, conn_max_age=600),
+        'backup': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': str(BASE_DIR / 'db.sqlite3'),
+        }
+    }
+else:
+    # Local development without DATABASE_URL → use SQLite so the admin panel
+    # works fully offline without needing a cloud DB connection.
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': str(BASE_DIR / 'db.sqlite3'),
+        }
+    }
+
+# NOTE: In production always set DATABASE_URL. A silent fallback to SQLite
+# would cause data to be written to ephemeral disk and lost on redeploy.
 
 import sys
 if 'test' in sys.argv:

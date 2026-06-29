@@ -1428,7 +1428,48 @@ function bindTourEvents() {
 // 3. LOGIN SCREEN
 // ------------------------------------------------------------
 
+
+const AUTH_CAROUSEL_SLIDES = [
+  {
+    tag: 'Employee Management',
+    title: 'Manage Smarter.\nGrow Faster.\nScale Anywhere.',
+    desc: 'Onboard team members, assign roles, track attendance, and manage payroll — all in one intelligent dashboard.',
+  },
+  {
+    tag: 'Client & Projects',
+    title: 'Track Clients\n& Deadlines\nWith Ease.',
+    desc: 'Maintain detailed client portfolios, coordinate project timelines, and organize deliverables from a unified command center.',
+  },
+  {
+    tag: 'Financial Control',
+    title: 'Full Financial\nTransparency\nIn Real Time.',
+    desc: 'Track profit, log expenses, generate invoices, and visualize your cash flow with live interactive charts.',
+  },
+  {
+    tag: 'Team Communication',
+    title: 'Chat, Collaborate,\nDecide Faster\nTogether.',
+    desc: 'Built-in team messaging, group channels, and file sharing — no external tools needed, everything synced.',
+  },
+];
+
+let _authCarouselTimer: ReturnType<typeof setInterval> | null = null;
+
 function drawAuthLeftPanel(): string {
+  const slides = AUTH_CAROUSEL_SLIDES.map((s, i) => `
+    <div class="auth-carousel-slide${i === 0 ? ' active' : ''}" data-slide="${i}">
+      <div class="auth-carousel-tag">
+        <span class="auth-carousel-tag-dot"></span>
+        <span>${s.tag}</span>
+      </div>
+      <h1 class="split-hero-title">${s.title.replace(/\n/g, '<br/>')}</h1>
+      <p class="split-hero-sub">${s.desc}</p>
+    </div>
+  `).join('');
+
+  const dots = AUTH_CAROUSEL_SLIDES.map((_, i) => `
+    <button class="auth-carousel-dot${i === 0 ? ' active' : ''}" data-dot="${i}" aria-label="Slide ${i + 1}"></button>
+  `).join('');
+
   return `
     <div class="split-left-panel">
       <div class="split-brand-row">
@@ -1437,18 +1478,54 @@ function drawAuthLeftPanel(): string {
         </div>
         <span class="split-brand-text">AdminSuite</span>
       </div>
-      
-      <div>
-        <h1 class="split-hero-title">Manage Smarter.<br/>Grow Faster.<br/>Scale Anywhere.</h1>
-        <p class="split-hero-sub">A centralized control center to manage your employees, clients, projects, and finances seamlessly in one beautiful platform.</p>
+
+      <div class="auth-carousel">
+        <div class="auth-carousel-slides" id="auth-carousel-slides">
+          ${slides}
+        </div>
+        <div class="auth-carousel-dots" id="auth-carousel-dots">
+          ${dots}
+        </div>
       </div>
-      
+
       <div style="font-size:11px; opacity:0.5; font-weight:500; color:#ffffff;">
-        Powered by <span style="font-weight:700; color:#ffffff;">Dima</span><span style="font-weight:700; color:#2563eb;">Code</span>
+        Powered by <span style="font-weight:700; color:#ffffff;">Dima</span><span style="font-weight:700; color:#818cf8;">Code</span>
       </div>
     </div>
   `;
 }
+
+function bindAuthCarousel() {
+  let current = 0;
+
+  const goTo = (idx: number) => {
+    const slides = document.querySelectorAll<HTMLElement>('.auth-carousel-slide');
+    const dots = document.querySelectorAll<HTMLElement>('.auth-carousel-dot');
+    slides.forEach((s, i) => s.classList.toggle('active', i === idx));
+    dots.forEach((d, i) => d.classList.toggle('active', i === idx));
+    current = idx;
+  };
+
+  // Dot clicks
+  document.querySelectorAll<HTMLElement>('.auth-carousel-dot').forEach((dot) => {
+    dot.addEventListener('click', () => {
+      const idx = parseInt(dot.dataset.dot || '0', 10);
+      if (_authCarouselTimer) clearInterval(_authCarouselTimer);
+      goTo(idx);
+      _authCarouselTimer = setInterval(() => {
+        goTo((current + 1) % AUTH_CAROUSEL_SLIDES.length);
+      }, 4000);
+    });
+  });
+
+  // Auto-advance
+  if (_authCarouselTimer) clearInterval(_authCarouselTimer);
+  _authCarouselTimer = setInterval(() => {
+    goTo((current + 1) % AUTH_CAROUSEL_SLIDES.length);
+  }, 4000);
+}
+
+
 
 function drawLogin(): string {
   return `
@@ -1506,6 +1583,7 @@ function drawLogin(): string {
 }
 
 function bindLoginEvents() {
+  bindAuthCarousel();
   const form = document.getElementById('login-form') as HTMLFormElement;
   const togglePwd = document.getElementById('login-pwd-toggle');
   const pwdInput = document.getElementById('login-password') as HTMLInputElement;
@@ -1718,6 +1796,7 @@ function drawRegister(): string {
 
 function bindRegisterEvents() {
   if (state.registerStep === 'credentials') {
+    bindAuthCarousel();
     const form = document.getElementById('register-form') as HTMLFormElement;
     const togglePwd = document.getElementById('reg-pwd-toggle');
     const pwdInput = document.getElementById('reg-password') as HTMLInputElement;
@@ -7843,6 +7922,7 @@ function drawForgotPassword(): string {
 }
 
 function bindForgotPasswordEvents() {
+  bindAuthCarousel();
   const backToLogin = document.getElementById('forgot-back-to-login');
   const changeEmail = document.getElementById('forgot-change-email');
   const resendOtp = document.getElementById('forgot-resend-otp');
