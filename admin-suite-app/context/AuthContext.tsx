@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "@/services/storage";
 import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { supabase } from "@/services/supabase";
 import { apiService, resolveBackendUrl } from "@/services/api";
 import { registerForPushNotificationsAsync, unregisterFromPushNotificationsAsync } from "@/services/notifications";
 
@@ -126,6 +127,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (credentials: { username: string; password: string }) => {
+    // 1. Attempt Supabase signIn (non-blocking; session is not persisted)
+    try {
+      await supabase.auth.signInWithPassword({
+        email: credentials.username,
+        password: credentials.password,
+      });
+    } catch (e: any) {
+      // Supabase auth is supplementary — Django is the primary auth provider
+      console.warn("Supabase signIn skipped:", e?.message);
+    }
+
+    // 2. Log in with Django backend (primary auth)
     try {
       const res = await apiService.login({
         username: credentials.username,
@@ -157,31 +170,69 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   /**
-   * Step 1 of registration: sends a 6-digit OTP to the user's email via Django.
+   * Step 1 of registration: sends a 6-digit OTP to the user's email via Supabase.
    */
-  const requestEmailOTP = async (email: string, _password: string) => {
+  const requestEmailOTP = async (email: string, password: string) => {
     try {
-      const res = await apiService.sendEmailCode({ email });
-      // In DEBUG mode the backend returns the code directly for easy testing
-      if (res.data?.code) {
-        await AsyncStorage.setItem("auth.debug_otp_code", res.data.code);
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+
+      if (error) {
+        throw new Error(error.message);
       }
+
+      // Supabase returns an empty identities array when user already exists
+      if (data?.user?.identities?.length === 0) {
+        throw new Error("An account with this email already exists. Please sign in instead.");
+      }
+
+      if (!data?.user) {
+        throw new Error("Sign up failed. Please check your email and try again.");
+      }
+
+      await AsyncStorage.setItem("auth.use_supabase_signup", "true");
     } catch (err: any) {
-      throw new Error(err.response?.data?.error || err.message || "Failed to send verification email.");
+      if (err.message && err.message.includes("already exists")) {
+        throw err;
+      }
+      console.warn("Supabase signUp failed, falling back to Django local verification:", err?.message);
+      await AsyncStorage.setItem("auth.use_supabase_signup", "false");
+      try {
+        const res = await apiService.sendEmailCode({ email });
+        if (res.data?.code) {
+          await AsyncStorage.setItem("auth.debug_otp_code", res.data.code);
+        }
+      } catch (djangoErr: any) {
+        throw new Error(djangoErr.response?.data?.error || djangoErr.message || "Failed to send verification code via Django.");
+      }
     }
   };
 
   /**
-   * Resend OTP email via Django (same endpoint, generates a fresh code).
+   * Resend OTP email via Supabase or Django backend.
    */
   const resendEmailOTP = async (email: string) => {
-    try {
-      const res = await apiService.sendEmailCode({ email });
-      if (res.data?.code) {
-        await AsyncStorage.setItem("auth.debug_otp_code", res.data.code);
+    const useSupabase = await AsyncStorage.getItem("auth.use_supabase_signup");
+    if (useSupabase !== "false") {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: email.trim().toLowerCase(),
+      });
+
+      if (error) {
+        throw new Error(error.message);
       }
-    } catch (err: any) {
-      throw new Error(err.response?.data?.error || err.message || "Failed to resend verification code.");
+    } else {
+      try {
+        const res = await apiService.sendEmailCode({ email });
+        if (res.data?.code) {
+          await AsyncStorage.setItem("auth.debug_otp_code", res.data.code);
+        }
+      } catch (djangoErr: any) {
+        throw new Error(djangoErr.response?.data?.error || djangoErr.message || "Failed to resend verification code.");
+      }
     }
   };
 
@@ -189,19 +240,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * Step 2: verifies the OTP then registers the user on the Django backend.
    */
   const verifyEmailOTP = async (email: string, code: string, password: string) => {
-    // 1. Verify the code
-    try {
-      await apiService.verifyEmailCode({ email, code: code.trim() });
-    } catch (err: any) {
-      throw new Error(err.response?.data?.error || err.message || "Invalid or expired verification code.");
+    const useSupabase = await AsyncStorage.getItem("auth.use_supabase_signup");
+
+    if (useSupabase !== "false") {
+      const { error } = await supabase.auth.verifyOtp({
+        email,
+        token: code.trim(),
+        type: 'signup',
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+    } else {
+      try {
+        await apiService.verifyEmailCode({ email, code: code.trim() });
+      } catch (djangoErr: any) {
+        throw new Error(djangoErr.response?.data?.error || djangoErr.message || "Invalid or expired verification code.");
+      }
     }
 
-    // 2. Register on Django backend
+    // 2. Register on Django backend with supabase_verified flag
     try {
       const signupRes = await apiService.signup({
         email,
         password,
         confirm_password: password,
+        supabase_verified: useSupabase !== "false",
       });
 
       const token = signupRes.data.token;
@@ -271,6 +336,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await unregisterFromPushNotificationsAsync();
     } catch (e) {
       console.warn("Unregister push notifications error:", e);
+    }
+
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.warn("Supabase sign out error:", e);
     }
 
     // Note: We DO NOT clear the TOUR_KEY here because the onboarding tour should only be seen by new users.

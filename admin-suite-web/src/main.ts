@@ -701,6 +701,64 @@ const state: AppState = {
 document.documentElement.setAttribute('data-theme', state.theme);
 
 // ============================================================
+// SUPABASE AUTH CONFIGURATION (REST VIA FETCH)
+// ============================================================
+
+const SUPABASE_URL = (import.meta as any).env?.VITE_SUPABASE_URL || 'https://whjxjqsxrnjpkoknfixo.supabase.co';
+const SUPABASE_KEY = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndoanhqcXN4cm5qcGtva25maXhvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzMjIxMTMsImV4cCI6MjA5NDg5ODExM30.sw6ac1XgIGZbXs9PJVhyliUSDGrkI1Cv6k4x02BcsE4';
+
+async function supabaseSignUp(email: string, password: string) {
+  const response = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
+    method: 'POST',
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ email, password })
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.msg || err.message || 'Supabase account creation failed.');
+  }
+  const data = await response.json();
+  if (data?.user?.identities?.length === 0) {
+    throw new Error('An account with this email already exists.');
+  }
+  return data;
+}
+
+async function supabaseVerifyOTP(email: string, code: string) {
+  const response = await fetch(`${SUPABASE_URL}/auth/v1/verify`, {
+    method: 'POST',
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ email, token: code, type: 'signup' })
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.msg || err.message || 'Verification code is invalid or expired.');
+  }
+  return response.json();
+}
+
+async function supabaseResendOTP(email: string) {
+  const response = await fetch(`${SUPABASE_URL}/auth/v1/resend`, {
+    method: 'POST',
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ email, type: 'signup' })
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.msg || err.message || 'Failed to resend code.');
+  }
+}
+
+// ============================================================
 // ============================================================
 // DJANGO REST CLIENT
 // ============================================================
@@ -1888,11 +1946,8 @@ function bindRegisterEvents() {
         submitBtn.innerHTML = '<span class="dot-loader" style="margin: 0; gap: 4px;"><span style="width:6px;height:6px;"></span><span style="width:6px;height:6px;"></span><span style="width:6px;height:6px;"></span></span>';
 
         try {
-          // Send OTP via Django — no Supabase
-          await apiRequest('auth/email/send-code/', {
-            method: 'POST',
-            body: JSON.stringify({ email })
-          });
+          // 1. SignUp with Supabase to trigger OTP verification email
+          await supabaseSignUp(email, pwd);
 
           state.otpEmail = email;
           state.otpPassword = pwd;
@@ -1962,11 +2017,8 @@ function bindRegisterEvents() {
     if (resendBtn) {
       resendBtn.addEventListener('click', async () => {
         try {
-          // Resend OTP via Django
-          await apiRequest('auth/email/send-code/', {
-            method: 'POST',
-            body: JSON.stringify({ email: state.otpEmail })
-          });
+          // Resend OTP via Supabase
+          await supabaseResendOTP(state.otpEmail);
           state.otpCountdown = 30;
           startOTPTimer();
           renderApp();
@@ -1989,19 +2041,17 @@ function bindRegisterEvents() {
         verifyBtn.innerText = 'Verifying...';
 
         try {
-          // 1. Verify OTP via Django
-          await apiRequest('auth/email/verify/', {
-            method: 'POST',
-            body: JSON.stringify({ email: state.otpEmail, code })
-          });
+          // 1. Verify OTP via Supabase
+          await supabaseVerifyOTP(state.otpEmail, code);
 
-          // 2. Register user on Django backend
+          // 2. Register user on Django backend (bypassing verification there)
           const signupRes = await apiRequest('register/', {
             method: 'POST',
             body: JSON.stringify({
               email: state.otpEmail,
               password: state.otpPassword,
-              confirm_password: state.otpPassword
+              confirm_password: state.otpPassword,
+              supabase_verified: true
             })
           });
 
