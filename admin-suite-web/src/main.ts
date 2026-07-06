@@ -763,9 +763,10 @@ async function supabaseResendOTP(email: string) {
 // DJANGO REST CLIENT
 // ============================================================
 
-const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-  ? 'http://localhost:8000/api/'
-  : 'https://adminsuite-api.onrender.com/api/';
+const API_BASE = localStorage.getItem('API_URL_OVERRIDE') || 
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://localhost:8000/api/'
+    : 'https://adminsuite-api.onrender.com/api/');
 
 async function apiRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
   const token = localStorage.getItem('admin-suite.token');
@@ -2541,23 +2542,8 @@ function drawOfflineScreen(): string {
 function bindOfflineEvents() {
   const retryBtn = document.getElementById('retry-sync-btn');
   if (retryBtn) {
-    retryBtn.addEventListener('click', async () => {
-      retryBtn.setAttribute('disabled', 'true');
-      retryBtn.innerText = 'Connecting...';
-      
-      const ok = await syncAppData();
-      if (ok) {
-        if (state.user && !state.user.profile_complete) {
-          state.view = 'complete-profile';
-        } else {
-          state.view = 'app';
-        }
-        renderApp();
-      } else {
-        showToast('Backend still unreachable.', 'error');
-        retryBtn.removeAttribute('disabled');
-        retryBtn.innerText = 'Retry Connection';
-      }
+    retryBtn.addEventListener('click', () => {
+      window.location.reload();
     });
   }
 }
