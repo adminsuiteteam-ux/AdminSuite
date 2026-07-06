@@ -338,5 +338,28 @@
     "verifying": "Verifying...",
     "resetPassword": "Reset Password",
     "resetting": "Resetting..."
+  },
+  "createEmployee": {
+    "whoFor": "Who are you creating this account for?",
+    "roleHint": "Select the role that best matches the new team member's responsibilities.",
+    "adminAccountSetup": "Admin Account Setup",
+    "branchScope": "Branch Scope",
+    "newBranchNote": "A new branch will be created and this admin will be its branch head.",
+    "department": "Department",
+    "status": "Status",
+    "bio": "Bio",
+    "performanceRating": "Performance Rating",
+    "socialHint": "Add social media handles. Only filled handles will appear on the profile.",
+    "additionalOptional": "Additional (optional)",
+    "financialHint": "Set financial details. Leave amounts as 0 if not applicable.",
+    "tapToUpload": "Tap to upload",
+    "removePhoto": "Remove photo",
+    "photoOptionalNote": "This step is optional. You can always add or change the photo later from the employee profile.",
+    "accountCreated": "Account Created! 🎉",
+    "welcomeEmailSent": "A welcome email with login details has been sent to the employee. You can also share the temporary password below:",
+    "email": "EMAIL",
+    "temporaryPassword": "TEMPORARY PASSWORD",
+    "firstLoginNote": "The employee will be required to change this password on their first login.",
+    "done": "Done"
   }
 }

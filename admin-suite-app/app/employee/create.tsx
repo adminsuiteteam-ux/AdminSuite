@@ -21,6 +21,7 @@ import { useData } from "@/context/DataContext";
 import { useColors } from "@/hooks/useColors";
 import { useToast } from "@/context/ToastContext";
 import { apiService, appendFileToFormData, getMediaUrl } from "@/services/api";
+import { useTranslation } from "react-i18next";
 
 // ─────────────────────────────────────────────────────────────
 // Step definitions differ by role
@@ -130,6 +131,7 @@ const ROLE_KEY_MAP: Record<string, string> = {
 // ─────────────────────────────────────────────────────────────
 export default function CreateEmployeeScreen() {
   const colors = useColors();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const { employees, refresh } = useData();
   const { editId } = useLocalSearchParams<{ editId?: string }>();
@@ -379,7 +381,19 @@ export default function CreateEmployeeScreen() {
         formData.append("location", location || "Main Headquarters");
       }
     } else {
-      formData.append("role", ROLE_KEY_MAP[selectedRole] || selectedRole);
+      const roleKey = (() => {
+        switch (selectedRole) {
+          case "Admin": return "BRANCH_ADMIN";
+          case "HR Manager": return "HR";
+          case "Secretary": return "SECRETARY";
+          case "Finance Officer": return "FINANCE";
+          case "Operations Manager": return "OPERATIONS";
+          case "Department Manager": return "DEPT_MANAGER";
+          case "Employee": return "EMPLOYEE";
+          default: return selectedRole;
+        }
+      })();
+      formData.append("role", roleKey);
       const finalDepartment =
         department === "Other" ? customDepartment.trim() : department;
       formData.append("department", finalDepartment);
@@ -469,7 +483,7 @@ export default function CreateEmployeeScreen() {
     }
   };
 
-  const currentStep = stepsList[step] ?? { title: "Creating", subtitle: "" };
+  const currentStep = stepsList.find((_, i) => i === step) ?? { title: "Creating", subtitle: "" };
 
   return (
     <KeyboardAvoidingView
@@ -531,7 +545,7 @@ export default function CreateEmployeeScreen() {
                 marginBottom: 4,
               }}
             >
-              Who are you creating this account for?
+              {t("createEmployee.whoFor")}
             </Text>
             <Text
               style={{
@@ -541,7 +555,7 @@ export default function CreateEmployeeScreen() {
                 marginBottom: 8,
               }}
             >
-              Select the role that best matches the new team member's responsibilities.
+              {t("createEmployee.roleHint")}
             </Text>
             {AVAILABLE_ROLES.map((r) => {
               const isSelected = selectedRole === r.id;
@@ -612,14 +626,14 @@ export default function CreateEmployeeScreen() {
                 marginBottom: 4,
               }}
             >
-              Admin Account Setup
+              {t("createEmployee.adminAccountSetup")}
             </Text>
 
             {/* Branch scope selector */}
             <Text
               style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}
             >
-              Branch Scope
+              {t("createEmployee.branchScope")}
             </Text>
             <View style={{ flexDirection: "row", gap: 10 }}>
               {[
@@ -680,7 +694,7 @@ export default function CreateEmployeeScreen() {
                       lineHeight: 19,
                     }}
                   >
-                    A new branch will be created and this admin will be its branch head.
+                    {t("createEmployee.newBranchNote")}
                   </Text>
                 </View>
                 <Field
@@ -751,7 +765,7 @@ export default function CreateEmployeeScreen() {
             <Text
               style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}
             >
-              Department
+              {t("createEmployee.department")}
             </Text>
             <View style={styles.chipGrid}>
               {DEPARTMENTS.map((d) => (
@@ -797,7 +811,7 @@ export default function CreateEmployeeScreen() {
             <Text
               style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}
             >
-              Status
+              {t("createEmployee.status")}
             </Text>
             <View style={{ flexDirection: "row", gap: 10 }}>
               {STATUSES.map((s) => (
@@ -869,7 +883,7 @@ export default function CreateEmployeeScreen() {
             <Text
               style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}
             >
-              Bio
+              {t("createEmployee.bio")}
             </Text>
             <TextInput
               value={bio}
@@ -902,7 +916,7 @@ export default function CreateEmployeeScreen() {
             <Text
               style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}
             >
-              Performance Rating
+              {t("createEmployee.performanceRating")}
             </Text>
             <View style={{ flexDirection: "row", gap: 8 }}>
               {[1, 2, 3, 4, 5].map((i) => (
@@ -931,7 +945,7 @@ export default function CreateEmployeeScreen() {
                 marginBottom: 4,
               }}
             >
-              Add social media handles. Only filled handles will appear on the profile.
+              {t("createEmployee.socialHint")}
             </Text>
             <SocialField
               icon="whatsapp"
@@ -979,7 +993,7 @@ export default function CreateEmployeeScreen() {
                 textTransform: "uppercase",
               }}
             >
-              Additional (optional)
+              {t("createEmployee.additionalOptional")}
             </Text>
             <SocialField
               icon="linkedin"
@@ -1024,7 +1038,7 @@ export default function CreateEmployeeScreen() {
                 marginBottom: 4,
               }}
             >
-              Set financial details. Leave amounts as 0 if not applicable.
+              {t("createEmployee.financialHint")}
             </Text>
             <Field
               label="Employee owes company"
@@ -1077,7 +1091,7 @@ export default function CreateEmployeeScreen() {
                       fontSize: 12,
                     }}
                   >
-                    Tap to upload
+                    {t("createEmployee.tapToUpload")}
                   </Text>
                 </View>
               )}
@@ -1091,7 +1105,7 @@ export default function CreateEmployeeScreen() {
                     fontSize: 13,
                   }}
                 >
-                  Remove photo
+                  {t("createEmployee.removePhoto")}
                 </Text>
               </Pressable>
             )}
@@ -1104,8 +1118,7 @@ export default function CreateEmployeeScreen() {
                 paddingHorizontal: 20,
               }}
             >
-              This step is optional. You can always add or change the photo later from the employee
-              profile.
+              {t("createEmployee.photoOptionalNote")}
             </Text>
           </View>
         )}
@@ -1154,7 +1167,7 @@ export default function CreateEmployeeScreen() {
             <Text
               style={[styles.modalTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}
             >
-              Account Created! 🎉
+              {t("createEmployee.accountCreated")}
             </Text>
             <Text
               style={[
@@ -1162,8 +1175,7 @@ export default function CreateEmployeeScreen() {
                 { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
               ]}
             >
-              A welcome email with login details has been sent to the employee. You can also share
-              the temporary password below:
+              {t("createEmployee.welcomeEmailSent")}
             </Text>
 
             <View
@@ -1173,7 +1185,7 @@ export default function CreateEmployeeScreen() {
               ]}
             >
               <View style={styles.detailRow}>
-                <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>EMAIL</Text>
+                <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>{t("createEmployee.email")}</Text>
                 <Text style={[styles.detailValue, { color: colors.foreground }]} selectable>
                   {createdEmployee?.email}
                 </Text>
@@ -1181,7 +1193,7 @@ export default function CreateEmployeeScreen() {
               <View style={[styles.detailDivider, { backgroundColor: colors.border }]} />
               <View style={styles.detailRow}>
                 <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>
-                  TEMPORARY PASSWORD
+                  {t("createEmployee.temporaryPassword")}
                 </Text>
                 <View style={styles.passwordCopyRow}>
                   <Text
@@ -1215,7 +1227,7 @@ export default function CreateEmployeeScreen() {
             </View>
 
             <Text style={[styles.infoNote, { color: colors.mutedForeground }]}>
-              The employee will be required to change this password on their first login.
+              {t("createEmployee.firstLoginNote")}
             </Text>
 
             <Pressable
@@ -1228,7 +1240,7 @@ export default function CreateEmployeeScreen() {
                 { backgroundColor: colors.accent, opacity: pressed ? 0.9 : 1 },
               ]}
             >
-              <Text style={styles.modalDoneBtnText}>Done</Text>
+              <Text style={styles.modalDoneBtnText}>{t("createEmployee.done")}</Text>
             </Pressable>
           </View>
         </View>
