@@ -1531,7 +1531,7 @@ export default function AdminChatScreen() {
           onRequestClose={() => setShowCreateGroup(false)}
         >
           <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
             style={{ flex: 1 }}
           >
             <Pressable style={styles.backdrop} onPress={() => setShowCreateGroup(false)}>
@@ -1677,7 +1677,7 @@ export default function AdminChatScreen() {
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={Platform.OS === "ios" ? 34 : 0}
     >
       {/* In-App Notification Banner */}
@@ -1943,7 +1943,7 @@ export default function AdminChatScreen() {
         onRequestClose={() => setShowGroupProfile(false)}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
           style={{ flex: 1 }}
         >
         <Pressable style={styles.backdrop} onPress={() => setShowGroupProfile(false)}>

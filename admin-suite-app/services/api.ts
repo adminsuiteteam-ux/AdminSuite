@@ -221,7 +221,7 @@ export const apiService = {
       headers: {
         'Content-Type': isFormData ? undefined : 'application/json',
       },
-      timeout: isFormData ? 60000 : 30000,
+      timeout: isFormData ? 120000 : 30000,
     });
   },
 
@@ -270,7 +270,7 @@ export const apiService = {
       headers: {
         'Content-Type': isFormData ? undefined : 'application/json',
       },
-      timeout: isFormData ? 60000 : 30000, // 60s for file uploads
+      timeout: isFormData ? 120000 : 30000, // 120s for file uploads
     });
   },
   updateEmployee: (id: string, data: any) => {
@@ -279,7 +279,7 @@ export const apiService = {
       headers: {
         'Content-Type': isFormData ? undefined : 'application/json',
       },
-      timeout: isFormData ? 60000 : 30000,
+      timeout: isFormData ? 120000 : 30000,
     });
   },
   patchEmployee: (id: string, data: any) => {
@@ -288,7 +288,7 @@ export const apiService = {
       headers: {
         'Content-Type': isFormData ? undefined : 'application/json',
       },
-      timeout: isFormData ? 60000 : 30000,
+      timeout: isFormData ? 120000 : 30000,
     });
   },
   deleteEmployee: (id: string) => apiClient.delete(`employees/${id}/`),

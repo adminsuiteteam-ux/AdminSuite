@@ -385,7 +385,16 @@ class TransactionViewSet(viewsets.ModelViewSet):
         return get_scoped_queryset(Transaction, self.request)
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        user = self.request.user
+        branch = None
+        try:
+            ext = user.extension
+            branch = ext.branch
+            if not branch and ext.organization:
+                branch = ext.organization.branches.first()
+        except Exception:
+            pass
+        serializer.save(user=user, branch=branch)
 
 
 class NotificationViewSet(viewsets.ModelViewSet):
