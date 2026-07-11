@@ -965,13 +965,7 @@ const DASHBOARD_TOUR_STEPS = [
 // WIZARD CONFIG
 // ============================================================
 
-const HEARD_FROM_OPTIONS = [
-  { value: 'youtube', label: 'YouTube', icon: '▶', color: '#ef4444' },
-  { value: 'tiktok', label: 'TikTok', icon: '♪', color: '#00f2fe' },
-  { value: 'facebook', label: 'Facebook & Socials', icon: 'f', color: '#1877f2' },
-  { value: 'friend', label: 'A Friend / Colleague', icon: '👤', color: 'var(--foreground)' },
-  { value: 'others', label: 'Other Sources', icon: '•••', color: '#6366f1' }
-];
+
 
 const ROLE_OPTIONS = [
   {
@@ -2146,14 +2140,14 @@ function startOTPTimer() {
 // ------------------------------------------------------------
 
 function drawCompleteProfile(): string {
-  const stepPct = Math.round((state.completeProfileSlide / 6) * 100);
+  const stepPct = Math.round((state.completeProfileSlide / 5) * 100);
   
   return `
     <div class="wizard-container">
       <div class="wizard-card">
         <div class="wizard-header">
           <div class="wizard-header-top">
-            <span class="wizard-step-info">Slide ${state.completeProfileSlide + 1} of 7</span>
+            <span class="wizard-step-info">Slide ${state.completeProfileSlide + 1} of 6</span>
             <span style="font-weight:600; font-size:12px;">${stepPct}% Completed</span>
           </div>
           <div class="wizard-progress-bar">
@@ -2168,7 +2162,7 @@ function drawCompleteProfile(): string {
         <div class="wizard-footer">
           <button class="btn btn-outline" id="wiz-back-btn" ${state.completeProfileSlide === 0 ? 'disabled style="opacity:0.5; cursor:default;"' : ''}>Back</button>
           <button class="btn btn-primary" id="wiz-next-btn">
-            ${state.completeProfileSlide === 6 ? 'Complete Setup' : 'Continue'}
+            ${state.completeProfileSlide === 5 ? 'Complete Setup' : 'Continue'}
           </button>
         </div>
       </div>
@@ -2181,25 +2175,7 @@ function drawCompleteProfileSlideBody(): string {
   const d = state.completeProfileData || {};
 
   switch (state.completeProfileSlide) {
-    case 0: // Discovery Source
-
-      return `
-        <h2 style="font-size:20px; font-weight:700; margin-bottom:12px;">How did you find us?</h2>
-        <p style="color:var(--muted-foreground); font-size:14px; margin-bottom:24px;">Please select how you heard about Admin Suite to help us scale.</p>
-        <div class="option-select-grid">
-          ${HEARD_FROM_OPTIONS.map(opt => `
-            <div class="option-select-card ${d.heard_from === opt.value ? 'selected' : ''}" data-value="${opt.value}">
-              <div class="option-select-icon" style="background:${opt.color}15; color:${opt.color};">${opt.icon}</div>
-              <div class="option-select-text">
-                <div class="option-select-title">${opt.label}</div>
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      `;
-    
-    case 1: // Role Selection
-
+    case 0: // Role Selection
       return `
         <h2 style="font-size:20px; font-weight:700; margin-bottom:12px;">Choose your workspace role</h2>
         <p style="color:var(--muted-foreground); font-size:14px; margin-bottom:24px;">Select the title that best describes your workspace responsibilities.</p>
@@ -2216,7 +2192,7 @@ function drawCompleteProfileSlideBody(): string {
         </div>
       `;
 
-    case 2: // Personal Details
+    case 1: // Personal Details
       return `
         <h2 style="font-size:20px; font-weight:700; margin-bottom:12px;">Personal details</h2>
         <p style="color:var(--muted-foreground); font-size:14px; margin-bottom:24px;">Complete your user profile card to personalize notifications.</p>
@@ -2242,7 +2218,7 @@ function drawCompleteProfileSlideBody(): string {
         </div>
       `;
 
-    case 3: // Business Profile
+    case 2: // Business Profile
       return `
         <h2 style="font-size:20px; font-weight:700; margin-bottom:12px;">Organization Profile</h2>
         <p style="color:var(--muted-foreground); font-size:14px; margin-bottom:24px;">Provide details about your corporate structure (Optional).</p>
@@ -2275,7 +2251,7 @@ function drawCompleteProfileSlideBody(): string {
         </div>
       `;
 
-    case 4: // Simulated Biometrics
+    case 3: // Simulated Biometrics
       return `
         <h2 style="font-size:20px; font-weight:700; margin-bottom:12px;">Security Gateways</h2>
         <p style="color:var(--muted-foreground); font-size:14px; margin-bottom:24px;">Activate simulated biometrics to lock/unlock Admin Suite workspace console.</p>
@@ -2289,7 +2265,7 @@ function drawCompleteProfileSlideBody(): string {
         </div>
       `;
 
-    case 5: // Notifications
+    case 4: // Notifications
       return `
         <h2 style="font-size:20px; font-weight:700; margin-bottom:12px;">Workspace Announcements</h2>
         <p style="color:var(--muted-foreground); font-size:14px; margin-bottom:24px;">Activate dashboard notifications to sync with server events.</p>
@@ -2303,7 +2279,7 @@ function drawCompleteProfileSlideBody(): string {
         </div>
       `;
 
-    case 6: // Review Sheet
+    case 5: // Review Sheet
       return `
         <h2 style="font-size:20px; font-weight:700; margin-bottom:12px;">Submit verification card</h2>
         <p style="color:var(--muted-foreground); font-size:14px; margin-bottom:24px;">Please review your submitted corporate profile info sheet before committing.</p>
@@ -2343,7 +2319,7 @@ function drawCompleteProfileSlideBody(): string {
 function bindCompleteProfileEvents() {
   if (!state.completeProfileData) {
     state.completeProfileData = {
-      heard_from: '',
+      heard_from: 'N/A',
       role: '',
       name: '',
       location: '',
@@ -2368,15 +2344,13 @@ function bindCompleteProfileEvents() {
     card.addEventListener('click', (e) => {
       const val = (e.currentTarget as HTMLElement).dataset.value || '';
       if (state.completeProfileSlide === 0) {
-        d.heard_from = val;
-      } else if (state.completeProfileSlide === 1) {
         d.role = val;
       }
       renderApp();
     });
   });
 
-  // Track inputs on step 2
+  // Track inputs on step 1 (Personal Details)
   const nameIn = document.getElementById('cp-name') as HTMLInputElement;
   const locIn = document.getElementById('cp-location') as HTMLInputElement;
   const bioIn = document.getElementById('cp-bio') as HTMLTextAreaElement;
@@ -2385,13 +2359,13 @@ function bindCompleteProfileEvents() {
   if (locIn) locIn.addEventListener('input', () => d.location = locIn.value);
   if (bioIn) bioIn.addEventListener('input', () => d.bio = bioIn.value);
 
-  if (state.completeProfileSlide === 2) {
+  if (state.completeProfileSlide === 1) {
     bindPhoneInputEvents('cp-phone', (val) => {
       d.phone = val;
     });
   }
 
-  // Track inputs on step 3
+  // Track inputs on step 2 (Business Details)
   const bizIn = document.getElementById('cp-biz-name') as HTMLInputElement;
   const orgLoc = document.getElementById('cp-org-location') as HTMLInputElement;
   const orgEmail = document.getElementById('cp-org-email') as HTMLInputElement;
@@ -2423,15 +2397,11 @@ function bindCompleteProfileEvents() {
   if (nextBtn) {
     nextBtn.addEventListener('click', async () => {
       // Validations
-      if (state.completeProfileSlide === 0 && !d.heard_from) {
-        showToast('Please select how you heard about us', 'error');
-        return;
-      }
-      if (state.completeProfileSlide === 1 && !d.role) {
+      if (state.completeProfileSlide === 0 && !d.role) {
         showToast('Please select your workspace role', 'error');
         return;
       }
-      if (state.completeProfileSlide === 2) {
+      if (state.completeProfileSlide === 1) {
         if (!d.name.trim() || !d.location.trim() || !d.phone.trim()) {
           showToast('Please complete all required personal info fields', 'error');
           return;
@@ -2445,7 +2415,7 @@ function bindCompleteProfileEvents() {
         d.phone = phoneCheck.formatted;
       }
 
-      if (state.completeProfileSlide < 6) {
+      if (state.completeProfileSlide < 5) {
         state.completeProfileSlide++;
         renderApp();
       } else {
@@ -2458,7 +2428,7 @@ function bindCompleteProfileEvents() {
             first_name: d.name.split(' ')[0] || d.name,
             location: d.location,
             phone: d.phone,
-            heard_from: d.heard_from,
+            heard_from: d.heard_from || 'N/A',
             role: d.role,
             bio: d.bio,
             business_name: d.business_name,
