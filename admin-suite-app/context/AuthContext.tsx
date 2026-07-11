@@ -169,44 +169,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  /**
-   * Step 1 of registration: sends a 6-digit OTP to the user's email via Supabase.
-   */
   const requestEmailOTP = async (email: string, password: string) => {
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-      });
+    const useSupabaseAuth = process.env.EXPO_PUBLIC_USE_SUPABASE_AUTH === "true";
 
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      // Supabase returns an empty identities array when user already exists
-      if (data?.user?.identities?.length === 0) {
-        throw new Error("An account with this email already exists. Please sign in instead.");
-      }
-
-      if (!data?.user) {
-        throw new Error("Sign up failed. Please check your email and try again.");
-      }
-
-      await AsyncStorage.setItem("auth.use_supabase_signup", "true");
-    } catch (err: any) {
-      if (err.message && err.message.includes("already exists")) {
-        throw err;
-      }
-      console.warn("Supabase signUp failed, falling back to Django local verification:", err?.message);
-      await AsyncStorage.setItem("auth.use_supabase_signup", "false");
+    if (useSupabaseAuth) {
       try {
-        const res = await apiService.sendEmailCode({ email });
-        if (res.data?.code) {
-          await AsyncStorage.setItem("auth.debug_otp_code", res.data.code);
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+        });
+
+        if (error) {
+          throw new Error(error.message);
         }
-      } catch (djangoErr: any) {
-        throw new Error(djangoErr.response?.data?.error || djangoErr.message || "Failed to send verification code via Django.");
+
+        // Supabase returns an empty identities array when user already exists
+        if (data?.user?.identities?.length === 0) {
+          throw new Error("An account with this email already exists. Please sign in instead.");
+        }
+
+        if (!data?.user) {
+          throw new Error("Sign up failed. Please check your email and try again.");
+        }
+
+        await AsyncStorage.setItem("auth.use_supabase_signup", "true");
+        return;
+      } catch (err: any) {
+        if (err.message && err.message.includes("already exists")) {
+          throw err;
+        }
+        console.warn("Supabase signUp failed, falling back to Django local verification:", err?.message);
       }
+    }
+
+    // Default to Django local verification (Supabase-free flow)
+    await AsyncStorage.setItem("auth.use_supabase_signup", "false");
+    try {
+      const res = await apiService.sendEmailCode({ email });
+      if (res.data?.code) {
+        await AsyncStorage.setItem("auth.debug_otp_code", res.data.code);
+      }
+    } catch (djangoErr: any) {
+      throw new Error(djangoErr.response?.data?.error || djangoErr.message || "Failed to send verification code via Django.");
     }
   };
 

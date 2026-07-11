@@ -1947,8 +1947,18 @@ function bindRegisterEvents() {
         submitBtn.innerHTML = '<span class="dot-loader" style="margin: 0; gap: 4px;"><span style="width:6px;height:6px;"></span><span style="width:6px;height:6px;"></span><span style="width:6px;height:6px;"></span></span>';
 
         try {
-          // 1. SignUp with Supabase to trigger OTP verification email
-          await supabaseSignUp(email, pwd);
+          const USE_SUPABASE_AUTH = (import.meta as any).env?.VITE_USE_SUPABASE_AUTH === 'true';
+
+          if (USE_SUPABASE_AUTH) {
+            // 1. SignUp with Supabase to trigger OTP verification email
+            await supabaseSignUp(email, pwd);
+          } else {
+            // 1. Request OTP via Django local/SMTP email verification
+            await apiRequest('auth/email/send-code/', {
+              method: 'POST',
+              body: JSON.stringify({ email })
+            });
+          }
 
           state.otpEmail = email;
           state.otpPassword = pwd;
@@ -2018,8 +2028,17 @@ function bindRegisterEvents() {
     if (resendBtn) {
       resendBtn.addEventListener('click', async () => {
         try {
-          // Resend OTP via Supabase
-          await supabaseResendOTP(state.otpEmail);
+          const USE_SUPABASE_AUTH = (import.meta as any).env?.VITE_USE_SUPABASE_AUTH === 'true';
+          if (USE_SUPABASE_AUTH) {
+            // Resend OTP via Supabase
+            await supabaseResendOTP(state.otpEmail);
+          } else {
+            // Resend OTP via Django
+            await apiRequest('auth/email/send-code/', {
+              method: 'POST',
+              body: JSON.stringify({ email: state.otpEmail })
+            });
+          }
           state.otpCountdown = 30;
           startOTPTimer();
           renderApp();
@@ -2042,19 +2061,41 @@ function bindRegisterEvents() {
         verifyBtn.innerText = 'Verifying...';
 
         try {
-          // 1. Verify OTP via Supabase
-          await supabaseVerifyOTP(state.otpEmail, code);
+          const USE_SUPABASE_AUTH = (import.meta as any).env?.VITE_USE_SUPABASE_AUTH === 'true';
+          let signupRes;
 
-          // 2. Register user on Django backend (bypassing verification there)
-          const signupRes = await apiRequest('register/', {
-            method: 'POST',
-            body: JSON.stringify({
-              email: state.otpEmail,
-              password: state.otpPassword,
-              confirm_password: state.otpPassword,
-              supabase_verified: true
-            })
-          });
+          if (USE_SUPABASE_AUTH) {
+            // 1. Verify OTP via Supabase
+            await supabaseVerifyOTP(state.otpEmail, code);
+
+            // 2. Register user on Django backend (bypassing verification there)
+            signupRes = await apiRequest('register/', {
+              method: 'POST',
+              body: JSON.stringify({
+                email: state.otpEmail,
+                password: state.otpPassword,
+                confirm_password: state.otpPassword,
+                supabase_verified: true
+              })
+            });
+          } else {
+            // 1. Verify OTP via Django
+            await apiRequest('auth/email/verify/', {
+              method: 'POST',
+              body: JSON.stringify({ email: state.otpEmail, code })
+            });
+
+            // 2. Register user on Django backend (with supabase_verified = false)
+            signupRes = await apiRequest('register/', {
+              method: 'POST',
+              body: JSON.stringify({
+                email: state.otpEmail,
+                password: state.otpPassword,
+                confirm_password: state.otpPassword,
+                supabase_verified: false
+              })
+            });
+          }
 
           clearInterval(state.otpTimer);
           localStorage.setItem('admin-suite.token', signupRes.token);
