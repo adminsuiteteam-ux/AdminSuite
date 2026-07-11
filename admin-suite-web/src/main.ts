@@ -8835,69 +8835,63 @@ function renderChatProfileDrawer() {
     return;
   }
 
+  const isGroup = c.type === 'group';
+  const members: any[] = c.members_details || [];
+
+  // Build members list HTML (for groups)
+  const membersListHtml = members.length > 0
+    ? members.map((m: any) => {
+        const avatarHtml = m.avatar
+          ? `<img src="${m.avatar}" alt="${sanitizeHtml(m.name)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
+          : sanitizeHtml((m.name || 'U').slice(0, 2).toUpperCase());
+        return `
+          <div style="display:flex; align-items:center; gap:10px; padding:7px 0; border-bottom:1px solid var(--border);">
+            <div class="chat-contact-avatar" style="width:34px; height:34px; font-size:12px; flex-shrink:0;">${avatarHtml}</div>
+            <div style="flex:1; min-width:0;">
+              <div style="font-size:13px; font-weight:600; color:var(--foreground); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${sanitizeHtml(m.name)}</div>
+              <div style="font-size:11px; color:var(--muted-foreground);">${sanitizeHtml(m.role || 'Member')}</div>
+            </div>
+          </div>`;
+      }).join('')
+    : `<div style="font-size:12px; color:var(--muted-foreground); padding:8px 0;">No members found.</div>`;
+
   drawer.innerHTML = DOMPurify.sanitize(`
     <div class="drawer-header" style="padding: 16px 20px; border-bottom: 1.5px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: var(--secondary);">
       <div style="display:flex; align-items:center; gap:12px;">
         <button class="btn-ghost" id="chat-profile-close-btn" style="padding:4px; font-size:16px; display:flex; align-items:center; justify-content:center; background:none; border:none; color:inherit; cursor:pointer;">${getIconSvg('x')}</button>
-        <span style="font-weight:700; font-size:15px; color:var(--foreground);">Contact info</span>
+        <span style="font-weight:700; font-size:15px; color:var(--foreground);">${isGroup ? 'Group info' : 'Contact info'}</span>
       </div>
-      <button class="btn-ghost" style="padding:4px; font-size:16px; display:flex; align-items:center; justify-content:center; background:none; border:none; color:inherit; cursor:pointer;">${getIconSvg('edit')}</button>
     </div>
     
     <div class="drawer-body" style="padding: 20px; display: flex; flex-direction: column; gap: 20px; overflow-y:auto; flex:1;">
       <!-- Big Avatar and Name -->
       <div style="display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; border-bottom: 1.5px solid var(--border); padding-bottom: 20px;">
         <div class="chat-contact-avatar" style="width: 120px; height: 120px; font-size: 32px; border-radius: 50%;">
-          ${c.avatar ? `<img src="${c.avatar}" alt="${sanitizeHtml(c.name)}">` : sanitizeHtml(c.initials || c.name.slice(0,2).toUpperCase())}
+          ${c.avatar ? `<img src="${c.avatar}" alt="${sanitizeHtml(c.name)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">` : sanitizeHtml(c.initials || c.name.slice(0,2).toUpperCase())}
         </div>
         <div>
           <h3 style="font-size: 18px; font-weight: 700; margin: 0; color:var(--foreground);">${sanitizeHtml(c.name)}</h3>
-          <p style="color: var(--muted-foreground); font-size: 12.5px; margin: 2px 0 0 0;">${c.type === 'group' ? 'Group Workspace' : 'Other business'}</p>
-        </div>
-        <button class="btn btn-outline" style="border-radius: 20px; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 6px 16px;">
-          ${getIconSvg('send')} Share
-        </button>
-      </div>
-
-      <!-- Business Notice -->
-      <div style="background: var(--secondary); padding: 12px 16px; border-radius: var(--radius-sm); font-size: 12.5px; line-height: 1.5; color: var(--foreground); display: flex; gap: 10px; align-items: flex-start; border:1px solid var(--border);">
-        <span style="color: var(--success); font-size: 14px; margin-top: 2px; display:flex; align-items:center; justify-content:center;">${getIconSvg('info')}</span>
-        <div>
-          <div style="font-weight: 600;">This is a business account.</div>
-        </div>
-      </div>
-
-      <!-- Media, links and docs -->
-      <div style="border-bottom: 1.5px solid var(--border); padding-bottom: 16px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; font-size: 13px;">
-          <span style="color: var(--muted-foreground); font-weight: 600;">Media, links and docs</span>
-          <span style="color: var(--muted-foreground); font-weight: 700;">13</span>
-        </div>
-        <div style="display: flex; gap: 8px;">
-          <div style="width: 60px; height: 60px; border-radius: var(--radius-sm); overflow: hidden; background: var(--secondary); border:1px solid var(--border); cursor: pointer;">
-            <img src="/logo.png" style="width:100%; height:100%; object-fit:cover; opacity:0.8;">
-          </div>
-          <div style="width: 60px; height: 60px; border-radius: var(--radius-sm); overflow: hidden; background: var(--secondary); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; cursor: pointer; color: var(--muted-foreground);">
-            ${getIconSvg('video')}
-          </div>
+          <p style="color: var(--muted-foreground); font-size: 12.5px; margin: 2px 0 0 0;">${isGroup ? `${members.length} member${members.length !== 1 ? 's' : ''}` : (sanitizeHtml(c.role || 'Team Member'))}</p>
         </div>
       </div>
 
       <!-- Settings options -->
       <div style="display: flex; flex-direction: column; gap: 14px; border-bottom: 1.5px solid var(--border); padding-bottom: 16px; font-size: 13px; color:var(--foreground);">
-        <div style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
+        <div style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;" id="chat-drawer-starred">
           <div style="display: flex; align-items: center; gap: 12px;">
             <span style="color: var(--muted-foreground); display:flex; align-items:center;">${getIconSvg('star')}</span>
             <span>Starred messages</span>
           </div>
+          <span style="color: var(--muted-foreground); font-size:12px;">${getIconSvg('chevron-right')}</span>
         </div>
-        <div style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
+        <div style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;" id="chat-drawer-notif">
           <div style="display: flex; align-items: center; gap: 12px;">
             <span style="color: var(--muted-foreground); display:flex; align-items:center;">${getIconSvg('bell')}</span>
             <span>Notification settings</span>
           </div>
+          <span style="color: var(--muted-foreground); font-size:12px;">${getIconSvg('chevron-right')}</span>
         </div>
-        <div style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
+        <div style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;" id="chat-drawer-disappear">
           <div style="display: flex; align-items: center; gap: 12px;">
             <span style="color: var(--muted-foreground); display:flex; align-items:center;">${getIconSvg('clock')}</span>
             <div>
@@ -8905,8 +8899,9 @@ function renderChatProfileDrawer() {
               <div style="font-size: 11px; color: var(--muted-foreground);">Off</div>
             </div>
           </div>
+          <span style="color: var(--muted-foreground); font-size:12px;">${getIconSvg('chevron-right')}</span>
         </div>
-        <div style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
+        <div style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;" id="chat-drawer-privacy">
           <div style="display: flex; align-items: center; gap: 12px;">
             <span style="color: var(--muted-foreground); display:flex; align-items:center;">${getIconSvg('shield')}</span>
             <div>
@@ -8914,8 +8909,9 @@ function renderChatProfileDrawer() {
               <div style="font-size: 11px; color: var(--muted-foreground);">Off</div>
             </div>
           </div>
+          <span style="color: var(--muted-foreground); font-size:12px;">${getIconSvg('chevron-right')}</span>
         </div>
-        <div style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
+        <div style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;" id="chat-drawer-encryption">
           <div style="display: flex; align-items: center; gap: 12px;">
             <span style="color: var(--muted-foreground); display:flex; align-items:center;">${getIconSvg('lock')}</span>
             <div>
@@ -8923,14 +8919,39 @@ function renderChatProfileDrawer() {
               <div style="font-size: 11px; color: var(--muted-foreground); max-width:200px; line-height:1.3;">Messages are end-to-end encrypted. Click to verify.</div>
             </div>
           </div>
+          <span style="color: var(--muted-foreground); font-size:12px;">${getIconSvg('chevron-right')}</span>
         </div>
       </div>
 
-      <!-- About and phone number -->
-      <div style="border-bottom: 1.5px solid var(--border); padding-bottom: 16px; font-size: 13px; color:var(--foreground);">
-        <div style="color: var(--muted-foreground); font-size: 11px; margin-bottom: 6px; font-weight: 600; text-transform:uppercase;">About and phone number</div>
+      ${isGroup
+        ? /* GROUP: show member list */ `
+      <div style="border-bottom: 1.5px solid var(--border); padding-bottom: 16px; font-size: 13px;">
+        <div style="color: var(--muted-foreground); font-size: 11px; margin-bottom: 10px; font-weight: 600; text-transform:uppercase; letter-spacing:0.5px;">About and phone number</div>
         <div style="font-weight: 600; margin-bottom: 2px;">+234 812 373 2939</div>
-        <div style="font-size: 11.5px; color: var(--muted-foreground);">Linked Email: ${sanitizeHtml(c.email || 'N/A')}</div>
+        <div style="font-size: 11.5px; color: var(--muted-foreground); margin-bottom: 12px;">Linked Email: N/A</div>
+        
+        <div style="color: var(--muted-foreground); font-size: 11px; margin-bottom: 10px; font-weight: 600; text-transform:uppercase; letter-spacing:0.5px;">Members List (${members.length})</div>
+        <div id="chat-drawer-members-list">
+          ${membersListHtml}
+        </div>
+      </div>`
+        : /* DM: show about/email section */ `
+      <div style="border-bottom: 1.5px solid var(--border); padding-bottom: 16px; font-size: 13px; color:var(--foreground);">
+        <div style="color: var(--muted-foreground); font-size: 11px; margin-bottom: 6px; font-weight: 600; text-transform:uppercase; letter-spacing:0.5px;">About</div>
+        ${c.role ? `<div style="font-weight: 600; margin-bottom: 4px;">${sanitizeHtml(c.role)}</div>` : ''}
+        ${c.email ? `<div style="font-size: 12px; color: var(--muted-foreground); display:flex; align-items:center; gap:6px;">${getIconSvg('mail')}<span>${sanitizeHtml(c.email)}</span></div>` : `<div style="font-size:12px; color:var(--muted-foreground);">No email address provided.</div>`}
+      </div>`
+      }
+
+      <!-- Media, links and docs -->
+      <div style="border-bottom: 1.5px solid var(--border); padding-bottom: 16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; font-size: 13px;">
+          <span style="color: var(--muted-foreground); font-weight: 600;">Media, links and docs</span>
+        </div>
+        <div style="text-align:center; padding:16px 0; color:var(--muted-foreground); font-size:12px;">
+          ${getIconSvg('image')}
+          <div style="margin-top:6px;">No shared media yet.</div>
+        </div>
       </div>
 
       <!-- Actions -->
@@ -8943,13 +8964,18 @@ function renderChatProfileDrawer() {
           <span style="display:flex; align-items:center;">${getIconSvg('trash-2')}</span>
           <span>Clear chat</span>
         </div>
+        ${!isGroup ? `
         <div style="display: flex; align-items: center; gap: 12px; color: var(--danger); cursor: pointer;" id="chat-drawer-block-btn">
           <span style="display:flex; align-items:center;">${getIconSvg('slash')}</span>
           <span>Block ${sanitizeHtml(c.name)}</span>
-        </div>
+        </div>` : `
+        <div style="display: flex; align-items: center; gap: 12px; color: var(--danger); cursor: pointer;" id="chat-drawer-block-btn">
+          <span style="display:flex; align-items:center;">${getIconSvg('slash')}</span>
+          <span>Block Team Chat</span>
+        </div>`}
         <div style="display: flex; align-items: center; gap: 12px; color: var(--danger); cursor: pointer;" id="chat-drawer-report-btn">
           <span style="display:flex; align-items:center;">${getIconSvg('thumbs-down')}</span>
-          <span>Report business</span>
+          <span>Report ${isGroup ? 'group' : 'business'}</span>
         </div>
         <div style="display: flex; align-items: center; gap: 12px; color: var(--danger); cursor: pointer;" id="chat-drawer-delete-btn">
           <span style="display:flex; align-items:center;">${getIconSvg('trash')}</span>
@@ -8966,22 +8992,34 @@ function renderChatProfileDrawer() {
     drawer.classList.remove('open');
   });
 
-  // Action toasts inside drawer
-  const actionToasts: Record<string, string> = {
-    'chat-drawer-fav-btn': 'Added to favourites!',
-    'chat-drawer-clear-btn': 'Chat cleared!',
-    'chat-drawer-block-btn': `Blocked ${c.name}!`,
-    'chat-drawer-report-btn': 'Report submitted!',
-    'chat-drawer-delete-btn': 'Chat deleted successfully.'
-  };
+  // Settings row clicks — informational toasts
+  document.getElementById('chat-drawer-starred')?.addEventListener('click', () => showToast('Starred messages coming soon!', 'info'));
+  document.getElementById('chat-drawer-notif')?.addEventListener('click', () => showToast('Notification settings coming soon!', 'info'));
+  document.getElementById('chat-drawer-disappear')?.addEventListener('click', () => showToast('Disappearing messages coming soon!', 'info'));
+  document.getElementById('chat-drawer-privacy')?.addEventListener('click', () => showToast('Advanced chat privacy coming soon!', 'info'));
+  document.getElementById('chat-drawer-encryption')?.addEventListener('click', () => showToast('🔒 All messages in AdminSuite are end-to-end encrypted.', 'success'));
 
-  Object.entries(actionToasts).forEach(([id, msg]) => {
-    document.getElementById(id)?.addEventListener('click', () => {
-      showToast(msg, 'info');
-      if (id === 'chat-drawer-delete-btn' || id === 'chat-drawer-clear-btn') {
-        drawer.classList.remove('open');
-      }
-    });
+  // Action buttons
+  document.getElementById('chat-drawer-fav-btn')?.addEventListener('click', () => showToast(`⭐ ${c.name} added to favourites!`, 'success'));
+  document.getElementById('chat-drawer-report-btn')?.addEventListener('click', () => {
+    showToast(`Report submitted for ${c.name}.`, 'info');
+  });
+  document.getElementById('chat-drawer-block-btn')?.addEventListener('click', () => {
+    showToast(`${c.name} has been blocked.`, 'info');
+    drawer.classList.remove('open');
+  });
+  document.getElementById('chat-drawer-clear-btn')?.addEventListener('click', async () => {
+    showToast('Chat cleared.', 'info');
+    state.chatMessages = [];
+    refreshChatMessages();
+    drawer.classList.remove('open');
+  });
+  document.getElementById('chat-drawer-delete-btn')?.addEventListener('click', () => {
+    showToast('Chat deleted.', 'info');
+    state.chatMessages = [];
+    state.chatActiveContact = null;
+    drawer.classList.remove('open');
+    updateChatDOM();
   });
 }
 

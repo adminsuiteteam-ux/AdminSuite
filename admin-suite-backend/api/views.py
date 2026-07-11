@@ -2355,6 +2355,17 @@ def chat_contacts(request):
         group__isnull=True
     ).exclude(sender=request.user).exclude(read_by=request.user).count()
 
+    # Build members list for Team Chat (all employees + admin)
+    tc_members = []
+    tc_admin_profile = getattr(company_user, 'profile', None)
+    tc_admin_avatar = request.build_absolute_uri(tc_admin_profile.avatar.url) if tc_admin_profile and tc_admin_profile.avatar else None
+    tc_admin_name = f"{company_user.first_name} {company_user.last_name}".strip() or company_user.username
+    tc_members.append({'id': company_user.id, 'name': tc_admin_name, 'avatar': tc_admin_avatar, 'role': 'Admin'})
+    for emp in Employee.objects.filter(user=company_user, is_archived=False).select_related('linked_user'):
+        if emp.linked_user:
+            emp_av = request.build_absolute_uri(emp.avatar.url) if emp.avatar else None
+            tc_members.append({'id': emp.linked_user.id, 'name': emp.name, 'avatar': emp_av, 'role': emp.role or 'Employee'})
+
     contacts.append({
         'id': 'group',
         'type': 'group',
@@ -2363,6 +2374,7 @@ def chat_contacts(request):
         'avatar': None,
         'group_locked': settings_obj.group_locked,
         'is_blocked_from_group': request.user.id in (settings_obj.blocked_user_ids or []),
+        'members_details': tc_members,
         'last_message': tc_latest.text if tc_latest and not tc_latest.is_deleted else ("This message was deleted" if tc_latest and tc_latest.is_deleted else None),
         'last_message_time': tc_latest.created_at.isoformat() if tc_latest else None,
         'unread_count': tc_unread,
@@ -2389,6 +2401,15 @@ def chat_contacts(request):
             group=g
         ).exclude(sender=request.user).exclude(read_by=request.user).count()
 
+        g_members = []
+        for mu in g.members.select_related('profile').all():
+            mu_profile = getattr(mu, 'profile', None)
+            mu_avatar = request.build_absolute_uri(mu_profile.avatar.url) if mu_profile and mu_profile.avatar else None
+            mu_emp = employees.filter(linked_user=mu).first()
+            mu_role = mu_emp.role if mu_emp else ('Admin' if mu == company_user else 'Member')
+            mu_name = f"{mu.first_name} {mu.last_name}".strip() or mu.username
+            g_members.append({'id': mu.id, 'name': mu_name, 'avatar': mu_avatar, 'role': mu_role})
+
         contacts.append({
             'id': g.id,
             'type': 'group',
@@ -2398,6 +2419,8 @@ def chat_contacts(request):
             'group_locked': g.only_admins_can_chat,
             'is_blocked_from_group': False,
             'members': list(g.members.values_list('id', flat=True)),
+            'members_details': g_members,
+            'admins': list(g.admins.values_list('id', flat=True)),
             'last_message': g_latest.text if g_latest and not g_latest.is_deleted else ("This message was deleted" if g_latest and g_latest.is_deleted else None),
             'last_message_time': g_latest.created_at.isoformat() if g_latest else None,
             'unread_count': g_unread,
@@ -2435,6 +2458,7 @@ def chat_contacts(request):
             'name': admin_name,
             'initials': admin_name[:2].upper(),
             'avatar': admin_avatar,
+            'email': company_user.email or '',
             'group_locked': False,
             'is_blocked_from_group': False,
             'last_message': dm_latest.text if dm_latest and not dm_latest.is_deleted else ("This message was deleted" if dm_latest and dm_latest.is_deleted else None),
@@ -2472,6 +2496,8 @@ def chat_contacts(request):
                 'initials': emp.initials or emp.name[:2].upper(),
                 'avatar': emp_avatar,
                 'employee_id': emp.id,
+                'email': emp.linked_user.email or '',
+                'role': emp.role or '',
                 'group_locked': False,
                 'is_blocked_from_group': is_blocked,
                 'last_message': dm_latest.text if dm_latest and not dm_latest.is_deleted else ("This message was deleted" if dm_latest and dm_latest.is_deleted else None),
