@@ -1170,6 +1170,8 @@ window.addEventListener('hashchange', () => {
 
 // Track previous view so we can do partial updates when staying in the same view
 let _prevView: AppState['view'] | null = null;
+let _lastRenderedTab: string | null = null;
+let _lastRenderedProfileId: string | null = null;
 
 export function renderApp() {
   const root = document.getElementById('root');
@@ -1280,6 +1282,8 @@ export function renderApp() {
         sessionStorage.removeItem('stripe_cancel');
         setTimeout(() => showToast('Payment cancelled. Your plan has not changed.', 'info'), 600);
       }
+      _lastRenderedTab = state.activeTab;
+      _lastRenderedProfileId = state.activeProfile ? String(state.activeProfile.id) : null;
       break;
   }
 }
@@ -1294,14 +1298,28 @@ export function renderApp() {
  *   4. The sidebar overlay for mobile
  */
 function _patchAppView() {
-  // 1. Update page content (the main area that changes on tab switch)
   const pageContent = document.querySelector('.page-content');
+  const tabChanged = (state.activeTab !== _lastRenderedTab) || (state.activeProfile ? String(state.activeProfile.id) : null) !== _lastRenderedProfileId;
+  
   if (pageContent) {
-    pageContent.innerHTML = DOMPurify.sanitize(drawTabContent());
-    // 3D Spring View Switch Animation Reset
-    pageContent.classList.remove('page-content-animate');
-    void (pageContent as HTMLElement).offsetWidth; // Trigger layout reflow
-    pageContent.classList.add('page-content-animate');
+    // For Chat tab, if already rendered, don't nuke the entire pageContent HTML!
+    // Nuking resets the scroll position of contacts list, the active message scroll, and focus.
+    if (state.activeTab === 'chat' && document.querySelector('.chat-wrapper')) {
+      // Just update specific components of chat, don't nuke the wrapper
+      updateChatDOM();
+    } else {
+      pageContent.innerHTML = DOMPurify.sanitize(drawTabContent());
+      
+      if (tabChanged) {
+        // Only trigger the fade-in animation on actual tab transition to prevent blinking
+        pageContent.classList.remove('page-content-animate');
+        void (pageContent as HTMLElement).offsetWidth; // Trigger layout reflow
+        pageContent.classList.add('page-content-animate');
+      } else {
+        // Keep the animation class so it stays visible without restarting the fade-in blink
+        pageContent.classList.add('page-content-animate');
+      }
+    }
   }
 
   // 2. Update sidebar active states
@@ -1357,7 +1375,15 @@ function _patchAppView() {
 
   // Re-bind events since inner content changed
   bindNavigationEvents();
-  bindTabSpecificEvents();
+  if (tabChanged) {
+    bindTabSpecificEvents();
+  } else if (state.activeTab !== 'chat') {
+    // For other tabs, if their innerHTML was replaced, we still need to re-bind events
+    bindTabSpecificEvents();
+  }
+
+  _lastRenderedTab = state.activeTab;
+  _lastRenderedProfileId = state.activeProfile ? String(state.activeProfile.id) : null;
 }
 
 // ------------------------------------------------------------
@@ -8162,54 +8188,84 @@ let chatSearchQuery = '';
 async function pollChatData() {
   if (state.activeTab !== 'chat') return;
   try {
-    const contactsData = await apiRequest('chat/contacts/');
-    state.chatContacts = contactsData;
-    
-    if (state.chatActiveContact) {
+    const activeContact = state.chatActiveContact;
+
+    if (activeContact) {
+      // Parallelize fetching contacts & messages to load chat twice as fast
+      let url = 'chat/messages/';
+      if (activeContact.type === 'private' || activeContact.type === 'dm') {
+        url += `?recipient_id=${activeContact.id}`;
+      } else if (activeContact.type === 'group' && activeContact.id !== 'group') {
+        if (state.chatActiveChannel) {
+          url += `?channel_id=${state.chatActiveChannel.id}`;
+        } else {
+          url += `?group_id=${activeContact.id}`;
+        }
+      }
+
+      const [contactsData, messagesData] = await Promise.all([
+        apiRequest('chat/contacts/'),
+        apiRequest(url)
+      ]);
+
+      state.chatContacts = contactsData;
+
       const updated = state.chatContacts.find(
-        (c: any) => c.id === state.chatActiveContact.id && c.type === state.chatActiveContact.type
+        (c: any) => c.id === activeContact.id && c.type === activeContact.type
       );
       if (updated) {
         state.chatActiveContact = updated;
       }
-    } else if (state.chatContacts.length > 0) {
-      state.chatActiveContact = state.chatContacts[0];
-    }
 
-    if (state.chatActiveContact) {
-      let url = 'chat/messages/';
-      if (state.chatActiveContact.type === 'private' || state.chatActiveContact.type === 'dm') {
-        url += `?recipient_id=${state.chatActiveContact.id}`;
-        state.chatChannels = [];
-        state.chatActiveChannel = null;
-      } else if (state.chatActiveContact.type === 'group' && state.chatActiveContact.id !== 'group') {
-        // Fetch channels for this group
+      if (activeContact.type === 'group' && activeContact.id !== 'group') {
         try {
-          const channels = await apiRequest(`chat/channels/?group_id=${state.chatActiveContact.id}`);
+          const channels = await apiRequest(`chat/channels/?group_id=${activeContact.id}`);
           state.chatChannels = channels;
           if (channels.length > 0 && !state.chatActiveChannel) {
-            // Set first channel as active by default
             state.chatActiveChannel = channels[0];
           }
         } catch (err) {
           state.chatChannels = [];
           state.chatActiveChannel = null;
         }
-
-        if (state.chatActiveChannel) {
-          url += `?channel_id=${state.chatActiveChannel.id}`;
-        } else {
-          url += `?group_id=${state.chatActiveContact.id}`;
-        }
       } else {
-        // Company-wide group chat
-        url += '';
         state.chatChannels = [];
         state.chatActiveChannel = null;
       }
-      const messagesData = await apiRequest(url);
-      // Normalise: DRF may return paginated { results: [] } or a plain array
+
       state.chatMessages = Array.isArray(messagesData) ? messagesData : (messagesData?.results ?? []);
+    } else {
+      // Initial load: no active contact selected yet
+      const contactsData = await apiRequest('chat/contacts/');
+      state.chatContacts = contactsData;
+      
+      if (state.chatContacts.length > 0) {
+        state.chatActiveContact = state.chatContacts[0];
+        
+        let url = 'chat/messages/';
+        const firstContact = state.chatActiveContact;
+        if (firstContact.type === 'private' || firstContact.type === 'dm') {
+          url += `?recipient_id=${firstContact.id}`;
+        } else if (firstContact.type === 'group' && firstContact.id !== 'group') {
+          try {
+            const channels = await apiRequest(`chat/channels/?group_id=${firstContact.id}`);
+            state.chatChannels = channels;
+            if (channels.length > 0) {
+              state.chatActiveChannel = channels[0];
+              url += `?channel_id=${channels[0].id}`;
+            } else {
+              url += `?group_id=${firstContact.id}`;
+            }
+          } catch {
+            state.chatChannels = [];
+            state.chatActiveChannel = null;
+            url += `?group_id=${firstContact.id}`;
+          }
+        }
+        
+        const messagesData = await apiRequest(url);
+        state.chatMessages = Array.isArray(messagesData) ? messagesData : (messagesData?.results ?? []);
+      }
     }
     
     updateChatDOM();
@@ -9315,16 +9371,21 @@ const WS_MAX_RECONNECT = 5;          // max retry attempts before giving up
 const WS_RECONNECT_BASE_MS = 3000;   // start at 3 s (not 1 s) to avoid rapid-fire beeps
 
 function getChatWsUrl(): string | null {
-  const apiBase = (window as any).API_BASE || 'https://adminsuite.onrender.com';
   const token = state.authToken;
   const user = state.user;
   if (!token || !user) return null;
 
   // Derive workspace_id (admin is own workspace; employee looks up admin)
   const workspaceId: number = (user as any).admin_id || user.id;
-  const wsBase = apiBase.replace(/^https?:\/\//, '').replace(/\/$/, '');
-  const proto = apiBase.startsWith('https') ? 'wss' : 'ws';
-  return `${proto}://${wsBase}/ws/chat/${workspaceId}/?token=${token}`;
+  
+  // Use the actual API_BASE constant (not window.API_BASE which is undefined)
+  // API_BASE is either 'http://localhost:8000/api/' or 'https://adminsuite-api.onrender.com/api/'
+  const host = API_BASE
+    .replace(/^https?:\/\//, '') // strip protocol prefix
+    .split('/')[0];             // extract the host/port part only (e.g. adminsuite-api.onrender.com)
+    
+  const proto = API_BASE.startsWith('https') ? 'wss' : 'ws';
+  return `${proto}://${host}/ws/chat/${workspaceId}/?token=${token}`;
 }
 
 function connectChatWebSocket(): void {
