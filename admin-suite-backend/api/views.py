@@ -388,6 +388,7 @@ class TransactionViewSet(viewsets.ModelViewSet):
         user = self.request.user
         branch = None
         try:
+            # pyrefly: ignore [missing-attribute]
             ext = user.extension
             branch = ext.branch
             if not branch and ext.organization:
@@ -465,6 +466,7 @@ def me(request):
                 from django.contrib.auth.password_validation import validate_password
                 from django.core.exceptions import ValidationError as DjangoValidationError
                 validate_password(password, user=user)
+            # pyrefly: ignore [unbound-name]
             except DjangoValidationError as e:
                 return Response({'password': list(e.messages)}, status=status.HTTP_400_BAD_REQUEST)
             user.set_password(password)
@@ -1579,6 +1581,7 @@ def confirm_password_reset(request):
         from django.contrib.auth.password_validation import validate_password
         from django.core.exceptions import ValidationError as DjangoValidationError
         validate_password(new_password, user=user)
+    # pyrefly: ignore [unbound-name]
     except DjangoValidationError as e:
         return Response({'error': e.messages[0]}, status=status.HTTP_400_BAD_REQUEST)
 

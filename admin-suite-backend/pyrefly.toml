@@ -5,6 +5,13 @@
 # Point to the venv so pyrefly resolves imports correctly
 venv = ".venv"
 
+# Exclude paths that Pyrefly cannot analyze correctly due to Django's metaclass magic
+# Management commands, migrations, and Django internals produce false positives
+exclude = [
+  "api/management/**",
+  "api/migrations/**",
+]
+
 [errors]
 # bad-override fires on every DRF ModelSerializer.Meta class — known false positive
 bad-override = false
