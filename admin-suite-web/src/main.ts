@@ -8926,10 +8926,6 @@ function renderChatProfileDrawer() {
       ${isGroup
         ? /* GROUP: show member list */ `
       <div style="border-bottom: 1.5px solid var(--border); padding-bottom: 16px; font-size: 13px;">
-        <div style="color: var(--muted-foreground); font-size: 11px; margin-bottom: 10px; font-weight: 600; text-transform:uppercase; letter-spacing:0.5px;">About and phone number</div>
-        <div style="font-weight: 600; margin-bottom: 2px;">+234 812 373 2939</div>
-        <div style="font-size: 11.5px; color: var(--muted-foreground); margin-bottom: 12px;">Linked Email: N/A</div>
-        
         <div style="color: var(--muted-foreground); font-size: 11px; margin-bottom: 10px; font-weight: 600; text-transform:uppercase; letter-spacing:0.5px;">Members List (${members.length})</div>
         <div id="chat-drawer-members-list">
           ${membersListHtml}
