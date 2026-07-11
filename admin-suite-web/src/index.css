@@ -27,6 +27,7 @@
   
   --radius: 8px;
   --radius-sm: 4px;
+  --radius-md: 8px;
   --radius-lg: 12px;
   --radius-full: 9999px;
   
@@ -3132,7 +3133,7 @@ input, select, textarea { font-family: inherit; }
   letter-spacing: 0.5px;
 }
 
-/* Wizard progress and wizard buttons */
+/* Legacy wizard-progress aliases — kept for backwards compatibility with older slide code */
 .wizard-progress {
   height: 4px;
   background: var(--border);
@@ -3140,12 +3141,6 @@ input, select, textarea { font-family: inherit; }
   overflow: hidden;
   margin-bottom: 20px;
   width: 100%;
-}
-.wizard-progress-bar {
-  height: 100%;
-  background: var(--primary);
-  width: 0%;
-  transition: width 0.2s ease;
 }
 .wizard-step-indicator {
   font-size: 11px;

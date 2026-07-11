@@ -2319,7 +2319,7 @@ function drawCompleteProfileSlideBody(): string {
 function bindCompleteProfileEvents() {
   if (!state.completeProfileData) {
     state.completeProfileData = {
-      heard_from: 'N/A',
+      heard_from: '',
       role: '',
       name: '',
       location: '',
@@ -2428,7 +2428,7 @@ function bindCompleteProfileEvents() {
             first_name: d.name.split(' ')[0] || d.name,
             location: d.location,
             phone: d.phone,
-            heard_from: d.heard_from || 'N/A',
+            heard_from: d.heard_from || '',
             role: d.role,
             bio: d.bio,
             business_name: d.business_name,

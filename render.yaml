@@ -36,9 +36,16 @@ services:
         sync: false
       - key: DEFAULT_FROM_EMAIL
         sync: false
-      # ── Other services ───────────────────────────────────────────────────────
+      # ── Cloudinary (media storage) ───────────────────────────────────────────
+      # Used by django-cloudinary-storage for avatar/logo uploads.
+      - key: CLOUDINARY_CLOUD_NAME
+        value: db3m3jumf
+      - key: CLOUDINARY_API_KEY
+        value: "221272228917619"
+      - key: CLOUDINARY_API_SECRET
+        value: 1QWAEeTV6fQKBz7IGbw3Np11URY
       - key: CLOUDINARY_URL
-        sync: false
+        value: "cloudinary://221272228917619:1QWAEeTV6fQKBz7IGbw3Np11URY@db3m3jumf"
       - key: ADMIN_USERNAME
         value: admin
       - key: ADMIN_EMAIL
