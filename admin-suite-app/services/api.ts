@@ -12,7 +12,7 @@ const getLocalHost = () => {
     const ip = hostUri.split(':')[0];
     if (ip) return ip;
   }
-  return '192.168.135.152';
+  return '192.168.202.152';
 };
 
 const PRODUCTION_URL = 'https://adminsuite-api.onrender.com';
@@ -20,10 +20,11 @@ const ENV_API_URL = process.env.EXPO_PUBLIC_API_URL;
 const HOST = getLocalHost();
 const DEFAULT_URL = `http://${HOST}:8000/`;
 
-// Use production URL from env if available, otherwise fall back to local dev
-export const BASE_URL = ENV_API_URL
-  ? (ENV_API_URL.endsWith('/') ? ENV_API_URL : `${ENV_API_URL}/`)
-  : DEFAULT_URL;
+// In development, prioritize local backend unless explicitly forcing production API
+export const BASE_URL = (__DEV__ && process.env.EXPO_PUBLIC_USE_PROD_API !== 'true')
+  ? DEFAULT_URL
+  : (ENV_API_URL ? (ENV_API_URL.endsWith('/') ? ENV_API_URL : `${ENV_API_URL}/`) : `${PRODUCTION_URL}/`);
+
 
 let activeBaseUrl = BASE_URL;
 const API_URL = `${activeBaseUrl}api/`;

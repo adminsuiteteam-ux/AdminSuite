@@ -23,6 +23,7 @@
     },
     "android": {
       "package": "com.adminsuite.app",
+      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#0a0a0a"

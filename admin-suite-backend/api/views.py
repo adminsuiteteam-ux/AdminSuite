@@ -45,104 +45,107 @@ class ThrottledObtainAuthToken(ObtainAuthToken):
         from django.contrib.auth import authenticate
         from .models import UserProfile
         from rest_framework.authtoken.models import Token
+        from core.safe_logger import safe_log
 
-        username = request.data.get('username', '').strip()
-        password = request.data.get('password', '')
+        try:
+            username = request.data.get('username', '').strip()
+            password = request.data.get('password', '')
 
-        if not username or not password:
-            return Response({'error': 'Username and password are required.'}, status=status.HTTP_400_BAD_REQUEST)
+            if not username or not password:
+                return Response({'error': 'Username and password are required.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Resolve email to username if email is used
-        target_user = None
-        if '@' in username:
-            try:
-                target_user = User.objects.get(email__iexact=username)
-            except User.DoesNotExist:
-                pass
-        else:
-            try:
-                target_user = User.objects.get(username__iexact=username)
-            except User.DoesNotExist:
-                pass
+            # Resolve email to username if email is used (use .first() to prevent MultipleObjectsReturned)
+            target_user = None
+            if '@' in username:
+                target_user = User.objects.filter(email__iexact=username).first()
+            else:
+                target_user = User.objects.filter(username__iexact=username).first()
 
-        profile = None
-        if target_user:
-            profile, _ = UserProfile.objects.get_or_create(user=target_user)
-            # Check if currently suspended
-            if profile.suspended_until and profile.suspended_until > timezone.now():
-                time_left = int((profile.suspended_until - timezone.now()).total_seconds())
-                minutes_left = max(1, (time_left + 59) // 60)
-                # Show standard lockout screen block
-                return Response({
-                    'error': 'suspended',
-                    'message': f'Account suspended. Please try again after {minutes_left} minutes.',
-                    'suspended_until': profile.suspended_until.isoformat()
-                }, status=status.HTTP_423_LOCKED)
-
-        # Attempt to authenticate
-        user = None
-        if target_user:
-            user = authenticate(username=target_user.username, password=password)
-        else:
-            user = authenticate(username=username, password=password)
-
-        if not user:
-            # Authentication failed!
-            if target_user and profile:
-                profile.failed_login_attempts += 1
-                attempts_left = 7 - profile.failed_login_attempts
-
-                if profile.failed_login_attempts >= 7:
-                    profile.suspended_until = timezone.now() + timezone.timedelta(minutes=10)
-                    profile.save()
+            profile = None
+            if target_user:
+                profile = UserProfile.objects.filter(user=target_user).first()
+                if not profile:
+                    profile = UserProfile.objects.create(user=target_user)
+                # Check if currently suspended
+                if profile.suspended_until and profile.suspended_until > timezone.now():
+                    time_left = int((profile.suspended_until - timezone.now()).total_seconds())
+                    minutes_left = max(1, (time_left + 59) // 60)
                     return Response({
                         'error': 'suspended',
-                        'message': 'Account has been suspended for 10 minutes due to 7 consecutive failed login attempts.',
+                        'message': f'Account suspended. Please try again after {minutes_left} minutes.',
                         'suspended_until': profile.suspended_until.isoformat()
                     }, status=status.HTTP_423_LOCKED)
-                elif profile.failed_login_attempts >= 3:
-                    profile.save()
-                    return Response({
-                        'error': 'warning',
-                        'message': f'Incorrect credentials. You have only {attempts_left} trials left before account is suspended for 10 minutes. Click Forgot Password to reset it.',
-                        'attempts_left': attempts_left
-                    }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Attempt to authenticate
+            user = None
+            if target_user:
+                user = authenticate(username=target_user.username, password=password)
+            else:
+                user = authenticate(username=username, password=password)
+
+            if not user:
+                # Authentication failed!
+                if target_user and profile:
+                    profile.failed_login_attempts += 1
+                    attempts_left = 7 - profile.failed_login_attempts
+
+                    if profile.failed_login_attempts >= 7:
+                        profile.suspended_until = timezone.now() + timezone.timedelta(minutes=10)
+                        profile.save()
+                        return Response({
+                            'error': 'suspended',
+                            'message': 'Account has been suspended for 10 minutes due to 7 consecutive failed login attempts.',
+                            'suspended_until': profile.suspended_until.isoformat()
+                        }, status=status.HTTP_423_LOCKED)
+                    elif profile.failed_login_attempts >= 3:
+                        profile.save()
+                        return Response({
+                            'error': 'warning',
+                            'message': f'Incorrect credentials. You have only {attempts_left} trials left before account is suspended for 10 minutes. Click Forgot Password to reset it.',
+                            'attempts_left': attempts_left
+                        }, status=status.HTTP_400_BAD_REQUEST)
+                    else:
+                        profile.save()
+                        return Response({
+                            'error': 'invalid_credentials',
+                            'message': f'Unable to log in with provided credentials. {attempts_left} trials left.',
+                            'attempts_left': attempts_left
+                        }, status=status.HTTP_400_BAD_REQUEST)
                 else:
-                    profile.save()
                     return Response({
                         'error': 'invalid_credentials',
-                        'message': f'Unable to log in with provided credentials. {attempts_left} trials left.',
-                        'attempts_left': attempts_left
+                        'message': 'Unable to log in with provided credentials.'
                     }, status=status.HTTP_400_BAD_REQUEST)
-            else:
+
+            # Successful login!
+            if not isinstance(user, User):
                 return Response({
                     'error': 'invalid_credentials',
                     'message': 'Unable to log in with provided credentials.'
                 }, status=status.HTTP_400_BAD_REQUEST)
 
-        # Successful login!
-        if not isinstance(user, User):
+            profile, _ = UserProfile.objects.get_or_create(user=user)
+            profile.failed_login_attempts = 0
+            profile.suspended_until = None
+            profile.save()
+
+            token, created = Token.objects.get_or_create(user=user)
             return Response({
-                'error': 'invalid_credentials',
-                'message': 'Unable to log in with provided credentials.'
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-        profile, _ = UserProfile.objects.get_or_create(user=user)
-        profile.failed_login_attempts = 0
-        profile.suspended_until = None
-        profile.save()
-
-        token, created = Token.objects.get_or_create(user=user)
-        return Response({
-            'token': token.key,
-            'user': {
-                'id': user.id,
-                'username': user.username,
-                'email': user.email,
-                'name': user.first_name or user.username,
-                'profile_complete': profile.profile_complete,
-            }
-        })
+                'token': token.key,
+                'user': {
+                    'id': user.id,
+                    'username': user.username,
+                    'email': user.email,
+                    'name': user.first_name or user.username,
+                    'profile_complete': profile.profile_complete,
+                }
+            })
+        except Exception as e:
+            safe_log("error", f"Error in ThrottledObtainAuthToken: {str(e)}")
+            return Response({
+                'error': 'server_error',
+                'message': f'Authentication error: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 
@@ -2355,13 +2358,16 @@ def chat_contacts(request):
         group__isnull=True
     ).exclude(sender=request.user).exclude(read_by=request.user).count()
 
+    # Get all employees in organization
+    employees = Employee.objects.filter(user=company_user, is_archived=False).select_related('linked_user')
+
     # Build members list for Team Chat (all employees + admin)
     tc_members = []
     tc_admin_profile = getattr(company_user, 'profile', None)
     tc_admin_avatar = request.build_absolute_uri(tc_admin_profile.avatar.url) if tc_admin_profile and tc_admin_profile.avatar else None
     tc_admin_name = f"{company_user.first_name} {company_user.last_name}".strip() or company_user.username
     tc_members.append({'id': company_user.id, 'name': tc_admin_name, 'avatar': tc_admin_avatar, 'role': 'Admin'})
-    for emp in Employee.objects.filter(user=company_user, is_archived=False).select_related('linked_user'):
+    for emp in employees:
         if emp.linked_user:
             emp_av = request.build_absolute_uri(emp.avatar.url) if emp.avatar else None
             tc_members.append({'id': emp.linked_user.id, 'name': emp.name, 'avatar': emp_av, 'role': emp.role or 'Employee'})
@@ -2426,8 +2432,6 @@ def chat_contacts(request):
             'unread_count': g_unread,
         })
 
-    # Get all employees in organization
-    employees = Employee.objects.filter(user=company_user, is_archived=False).select_related('linked_user')
 
     if is_employee and company_user != request.user:
         # Employee can DM the admin
