@@ -4,17 +4,16 @@ services:
     runtime: python
     rootDir: admin-suite-backend
     buildCommand: ./build.sh
-    startCommand: gunicorn core.wsgi:application --bind 0.0.0.0:$PORT
+    startCommand: daphne core.asgi:application --bind 0.0.0.0 --port $PORT
     envVars:
       - key: DJANGO_DEBUG
         value: "False"
       - key: DJANGO_SECRET_KEY
         generateValue: true
       # ── Database ─────────────────────────────────────────────────────────────
-      # Xata PostgreSQL — adminsuite (eu-central-1, PostgreSQL 18.4)
-      # Branch: main | Free tier: 15GB included
+      # Set DATABASE_URL securely in Render Dashboard (e.g., Xata PostgreSQL)
       - key: DATABASE_URL
-        value: postgresql://xata:MnNYdUe0PnmFbSMsXlAUJBCf0b53abOx9dboV3ORRrkqSCM5ItYK7edV8EYbl1jp@vupe99lt7d4336l6fuh6845ep8.eu-central-1.xata.tech/xata?sslmode=require
+        sync: false
       - key: DJANGO_ALLOWED_HOSTS
         fromService:
           type: web
@@ -37,23 +36,23 @@ services:
       - key: DEFAULT_FROM_EMAIL
         sync: false
       # ── Cloudinary (media storage) ───────────────────────────────────────────
-      # Used by django-cloudinary-storage for avatar/logo uploads.
+      # Configure in Render Dashboard for avatar/logo uploads.
       - key: CLOUDINARY_CLOUD_NAME
-        value: db3m3jumf
+        sync: false
       - key: CLOUDINARY_API_KEY
-        value: "221272228917619"
+        sync: false
       - key: CLOUDINARY_API_SECRET
-        value: 1QWAEeTV6fQKBz7IGbw3Np11URY
+        sync: false
       - key: CLOUDINARY_URL
-        value: "cloudinary://221272228917619:1QWAEeTV6fQKBz7IGbw3Np11URY@db3m3jumf"
+        sync: false
       - key: ADMIN_USERNAME
         value: admin
       - key: ADMIN_EMAIL
         value: admin@adminsuite.app
       - key: ADMIN_PASSWORD
-        value: "AdminDimaro2210!"
+        sync: false
       - key: SETUP_SECRET_TOKEN
-        value: adminsuite-setup-9x7k2p
+        sync: false
       - key: STRIPE_PUBLISHABLE_KEY
         sync: false
       - key: STRIPE_SECRET_KEY

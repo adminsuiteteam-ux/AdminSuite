@@ -23,15 +23,15 @@ load_dotenv(BASE_DIR / '.env')
 
 # Configure Cloudinary from environment variables (works both locally and on Render)
 cloudinary.config(
-    cloud_name=os.environ.get('CLOUDINARY_CLOUD_NAME', 'db3m3jumf'),
-    api_key=os.environ.get('CLOUDINARY_API_KEY', '221272228917619'),
-    api_secret=os.environ.get('CLOUDINARY_API_SECRET', '1QWAEeTV6fQKBz7IGbw3Np11URY'),
+    cloud_name=os.environ.get('CLOUDINARY_CLOUD_NAME', ''),
+    api_key=os.environ.get('CLOUDINARY_API_KEY', ''),
+    api_secret=os.environ.get('CLOUDINARY_API_SECRET', ''),
 )
 
 CLOUDINARY_STORAGE = {
-    'CLOUD_NAME': os.environ.get('CLOUDINARY_CLOUD_NAME', 'db3m3jumf'),
-    'API_KEY': os.environ.get('CLOUDINARY_API_KEY', '221272228917619'),
-    'API_SECRET': os.environ.get('CLOUDINARY_API_SECRET', '1QWAEeTV6fQKBz7IGbw3Np11URY'),
+    'CLOUD_NAME': os.environ.get('CLOUDINARY_CLOUD_NAME', ''),
+    'API_KEY': os.environ.get('CLOUDINARY_API_KEY', ''),
+    'API_SECRET': os.environ.get('CLOUDINARY_API_SECRET', ''),
 }
 
 import sentry_sdk

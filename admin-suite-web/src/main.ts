@@ -8646,7 +8646,7 @@ function _bindChatViewportEvents() {
         // Upload the file attachment
         const formData = new FormData();
         formData.append('file', file);
-        await fetch(`${(window as any).API_BASE || 'https://adminsuite.onrender.com'}/api/chat/messages/${sentMsg.id}/attach/`, {
+        await fetch(`${API_BASE}chat/messages/${sentMsg.id}/attach/`, {
           method: 'POST',
           headers: { 'Authorization': `Token ${state.authToken}` },
           body: formData,
