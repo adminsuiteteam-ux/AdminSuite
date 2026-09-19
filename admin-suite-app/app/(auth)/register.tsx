@@ -22,6 +22,7 @@ import { LogoMark } from "@/components/Brand";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Haptics from "expo-haptics";
 
 function GeometricBackground() {
   return (
@@ -410,9 +411,11 @@ export default function RegisterScreen() {
     setSuccess("");
     setLoading(true);
     try {
-      const targetEmail = `${provider}_user_${Date.now()}@adminsuite.com`;
-      const targetName = `${provider === 'google' ? 'Google' : 'Apple'} User`;
-      await loginWithSocial(targetEmail, targetName, provider);
+      const activeEmail = email.trim().includes("@")
+        ? email.trim().toLowerCase()
+        : `${provider}_user_${Date.now()}@adminsuite.com`;
+      const targetName = provider === 'google' ? 'Google User' : 'Apple User';
+      await loginWithSocial(activeEmail, targetName, provider);
       router.replace("/");
     } catch (err: any) {
       console.error("Social login/signup error:", err);
@@ -533,7 +536,61 @@ export default function RegisterScreen() {
             </Text>
           </Pressable>
 
+          {/* ── Social Auth Divider ── */}
+          <View style={styles.socialDividerRow}>
+            <View style={[styles.socialDividerLine, { backgroundColor: colors.border }]} />
+            <Text style={[styles.socialDividerText, { color: colors.mutedForeground }]}>
+              {t('register.orContinueWith', 'or sign up with')}
+            </Text>
+            <View style={[styles.socialDividerLine, { backgroundColor: colors.border }]} />
+          </View>
 
+          {/* ── Social Buttons Row ── */}
+          <View style={styles.socialButtonsRow}>
+            <Pressable
+              onPress={() => {
+                if (Platform.OS !== "web") {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                }
+                handleOAuthLogin("google");
+              }}
+              disabled={loading}
+              style={({ pressed }) => [
+                styles.socialButton,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  opacity: pressed || loading ? 0.75 : 1,
+                  transform: [{ scale: pressed && !loading ? 0.97 : 1 }],
+                },
+              ]}
+            >
+              <AntDesign name="google" size={18} color="#EA4335" />
+              <Text style={[styles.socialButtonText, { color: colors.foreground }]}>Google</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                if (Platform.OS !== "web") {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                }
+                handleOAuthLogin("apple");
+              }}
+              disabled={loading}
+              style={({ pressed }) => [
+                styles.socialButton,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  opacity: pressed || loading ? 0.75 : 1,
+                  transform: [{ scale: pressed && !loading ? 0.97 : 1 }],
+                },
+              ]}
+            >
+              <AntDesign name="apple1" size={18} color={colors.foreground} />
+              <Text style={[styles.socialButtonText, { color: colors.foreground }]}>Apple</Text>
+            </Pressable>
+          </View>
 
           <View style={styles.footerLinkRow}>
             <Text style={[styles.footerText, { color: colors.mutedForeground }]}>
@@ -1166,5 +1223,38 @@ const styles = StyleSheet.create({
   successAnimationText: {
     fontSize: 18,
     letterSpacing: 0.2,
+  },
+  socialDividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 18,
+    gap: 12,
+  },
+  socialDividerLine: {
+    flex: 1,
+    height: 1,
+  },
+  socialDividerText: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+  },
+  socialButtonsRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 16,
+  },
+  socialButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    height: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 10,
+  },
+  socialButtonText: {
+    fontSize: 14,
+    fontFamily: "Inter_600SemiBold",
   },
 });
