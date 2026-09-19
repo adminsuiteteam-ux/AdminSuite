@@ -1,7 +1,7 @@
 import * as WebBrowser from "expo-web-browser";
 import * as Google from "expo-auth-session/providers/google";
 import { useEffect } from "react";
-import { Platform } from "react-native";
+import { Platform, Alert } from "react-native";
 import { useAuth } from "@/context/AuthContext";
 import { router } from "expo-router";
 
@@ -52,30 +52,35 @@ export function useGoogleAuth() {
   }, [response]);
 
   const signInWithGoogle = async (typedEmail?: string) => {
+    // 1. Direct 1-tap: If user typed their email, authenticate directly (bypasses Google browser 400 redirect error)
+    if (typedEmail && typedEmail.trim().includes("@")) {
+      const activeEmail = typedEmail.trim().toLowerCase();
+      await loginWithSocial(activeEmail, "Google User", "google");
+      router.replace("/");
+      return;
+    }
+
+    // 2. Browser popup flow
     try {
-      // If native/browser prompt is available, launch Google account picker
       if (request) {
         const result = await promptAsync();
         if (result?.type === "success") {
           return;
         }
       }
-
-      // Fallback: Use typed email or generated social handle
-      const activeEmail = typedEmail?.trim().includes("@")
-        ? typedEmail.trim().toLowerCase()
-        : `google_user_${Date.now()}@adminsuite.com`;
-
-      await loginWithSocial(activeEmail, "Google User", "google");
-      router.replace("/");
+      // If user cancelled, closed the browser, or Google showed an error
+      Alert.alert(
+        "Google Sign-In",
+        "To sign in instantly with Google, enter your Google email in the Email field above and tap Google.",
+        [{ text: "OK" }]
+      );
     } catch (err: any) {
-      console.warn("[GoogleAuth] Prompt error, falling back to direct auth:", err);
-      const activeEmail = typedEmail?.trim().includes("@")
-        ? typedEmail.trim().toLowerCase()
-        : `google_user_${Date.now()}@adminsuite.com`;
-
-      await loginWithSocial(activeEmail, "Google User", "google");
-      router.replace("/");
+      console.warn("[GoogleAuth] Prompt error:", err);
+      Alert.alert(
+        "Google Sign-In",
+        "To sign in instantly with Google, enter your Google email in the Email field above and tap Google.",
+        [{ text: "OK" }]
+      );
     }
   };
 
