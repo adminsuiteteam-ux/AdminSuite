@@ -117,7 +117,14 @@ export default function CreateBudgetScreen() {
         }]} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 100 }}>
+      <ScrollView
+        style={{ flex: 1, backgroundColor: colors.background }}
+        contentContainerStyle={{ padding: 20, paddingBottom: 160, backgroundColor: colors.background }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        automaticallyAdjustKeyboardInsets={true}
+      >
         {step === 1 ? (
           <View style={styles.slide}>
             <Text style={[styles.slideTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>

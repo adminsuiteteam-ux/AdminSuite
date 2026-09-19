@@ -1072,6 +1072,9 @@ def google_login(request):
         except Exception:
             pass  # Fall through to debug fallback
 
+    if id_token and not google_verified and not settings.DEBUG:
+        return Response({'error': 'Invalid or unverified Google token.'}, status=status.HTTP_401_UNAUTHORIZED)
+
     if not google_verified and not email and not settings.DEBUG:
         return Response({'error': 'Invalid Google token.'}, status=status.HTTP_401_UNAUTHORIZED)
 

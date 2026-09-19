@@ -24,6 +24,7 @@
     },
     "android": {
       "package": "com.adminsuite.app",
+      "softwareKeyboardLayoutMode": "resize",
       "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
@@ -54,7 +55,8 @@
           "androidMode": "default",
           "iosDisplayInForeground": true
         }
-      ]
+      ],
+      "@react-native-google-signin/google-signin"
     ],
     "experiments": {
       "typedRoutes": true

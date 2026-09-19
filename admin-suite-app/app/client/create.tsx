@@ -171,7 +171,14 @@ export default function CreateClientScreen() {
         <View style={[styles.progressFill, { width: `${((step + 1) / STEPS.length) * 100}%`, backgroundColor: colors.accent }]} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 120 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        style={{ flex: 1, backgroundColor: colors.background }}
+        contentContainerStyle={{ padding: 20, paddingBottom: 160, backgroundColor: colors.background }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        automaticallyAdjustKeyboardInsets={true}
+      >
         {step === 0 && (
           <View style={{ gap: 16 }}>
             <Field label="Company Name" value={company} onChangeText={setCompany} placeholder="e.g. Northwind Retail" colors={colors} />

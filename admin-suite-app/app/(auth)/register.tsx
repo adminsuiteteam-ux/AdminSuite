@@ -1014,22 +1014,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 12,
   },
-  socialButton: {
-    flex: 1,
-    height: 48,
-    borderWidth: 1.5,
-    borderColor: "#d1d1d6",
-    borderRadius: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#ffffff",
-  },
-  socialButtonText: {
-    fontSize: 14,
-    color: "#1c1c1e",
-    fontFamily: "Inter_600SemiBold",
-  },
   footerLinkRow: {
     flexDirection: "row",
     justifyContent: "center",

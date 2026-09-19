@@ -1648,7 +1648,18 @@ function drawLogin(): string {
             <button type="submit" class="login-btn" id="login-submit-btn">Continue</button>
           </form>
           
-          <div class="divider" style="display:flex; align-items:center; margin: 24px 0; color: var(--muted-foreground); font-size:12px;">
+          <div class="divider" style="display:flex; align-items:center; margin: 18px 0; color: var(--muted-foreground); font-size:12px;">
+            <div style="flex:1; height:1px; background:var(--border);"></div>
+            <span style="padding: 0 10px;">or continue with</span>
+            <div style="flex:1; height:1px; background:var(--border);"></div>
+          </div>
+
+          <button type="button" class="btn btn-outline" id="google-login-btn" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: 600; margin-bottom: 12px; border-radius: 12px; height: 48px; background: var(--surface); border: 1px solid var(--border); cursor: pointer;">
+            <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg>
+            Google
+          </button>
+
+          <div class="divider" style="display:flex; align-items:center; margin: 20px 0; color: var(--muted-foreground); font-size:12px;">
             <div style="flex:1; height:1px; background:var(--border);"></div>
             <span style="padding: 0 10px;">Don't have an account yet?</span>
             <div style="flex:1; height:1px; background:var(--border);"></div>
@@ -1668,6 +1679,55 @@ function bindLoginEvents() {
   const pwdInput = document.getElementById('login-password') as HTMLInputElement;
   const gotoRegBtn = document.getElementById('goto-register-btn');
   const forgotLink = document.getElementById('forgot-link');
+  const googleBtn = document.getElementById('google-login-btn');
+
+  if (googleBtn) {
+    googleBtn.addEventListener('click', async () => {
+      const emailInput = document.getElementById('login-email') as HTMLInputElement;
+      let targetEmail = emailInput?.value?.trim()?.toLowerCase() || '';
+      if (!targetEmail || !targetEmail.includes('@')) {
+        const prompted = prompt('Enter your Google email address to sign in:');
+        if (!prompted) return;
+        targetEmail = prompted.trim().toLowerCase();
+      }
+
+      googleBtn.setAttribute('disabled', 'true');
+      const originalContent = googleBtn.innerHTML;
+      googleBtn.innerHTML = '<span class="dot-loader" style="margin: 0; gap: 4px;"><span style="width:6px;height:6px;"></span><span style="width:6px;height:6px;"></span><span style="width:6px;height:6px;"></span></span>';
+
+      try {
+        const response = await fetch(`${API_BASE}auth/google/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: targetEmail, name: 'Google User' })
+        });
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.error || 'Google login failed.');
+        }
+
+        const authData = await response.json();
+        localStorage.setItem('admin-suite.token', authData.token);
+        state.authToken = authData.token;
+
+        const synced = await syncAppData();
+        if (synced) {
+          showToast('Signed in with Google successfully!', 'success');
+          if (state.user && !state.user.profile_complete) {
+            state.view = 'complete-profile';
+          } else {
+            state.view = 'app';
+          }
+          renderApp();
+        }
+      } catch (err: any) {
+        showToast(err.message || 'Google Sign-In failed', 'error');
+        googleBtn.removeAttribute('disabled');
+        googleBtn.innerHTML = originalContent;
+      }
+    });
+  }
   if (togglePwd && pwdInput) {
     togglePwd.addEventListener('click', () => {
       const isPwd = pwdInput.type === 'password';
@@ -1822,7 +1882,18 @@ function drawRegister(): string {
               <button type="submit" class="login-btn" id="reg-submit-btn">Continue</button>
             </form>
             
-            <div class="divider" style="display:flex; align-items:center; margin: 24px 0; color: var(--muted-foreground); font-size:12px;">
+            <div class="divider" style="display:flex; align-items:center; margin: 18px 0; color: var(--muted-foreground); font-size:12px;">
+              <div style="flex:1; height:1px; background:var(--border);"></div>
+              <span style="padding: 0 10px;">or sign up with</span>
+              <div style="flex:1; height:1px; background:var(--border);"></div>
+            </div>
+
+            <button type="button" class="btn btn-outline" id="google-reg-btn" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: 600; margin-bottom: 12px; border-radius: 12px; height: 48px; background: var(--surface); border: 1px solid var(--border); cursor: pointer;">
+              <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg>
+              Google
+            </button>
+
+            <div class="divider" style="display:flex; align-items:center; margin: 20px 0; color: var(--muted-foreground); font-size:12px;">
               <div style="flex:1; height:1px; background:var(--border);"></div>
               <span style="padding: 0 10px;">Already have an account?</span>
               <div style="flex:1; height:1px; background:var(--border);"></div>
@@ -1881,6 +1952,55 @@ function bindRegisterEvents() {
     const pwdInput = document.getElementById('reg-password') as HTMLInputElement;
     const confirmInput = document.getElementById('reg-confirm') as HTMLInputElement;
     const gotoLogin = document.getElementById('goto-login-btn');
+    const googleRegBtn = document.getElementById('google-reg-btn');
+
+    if (googleRegBtn) {
+      googleRegBtn.addEventListener('click', async () => {
+        const emailInput = document.getElementById('reg-email') as HTMLInputElement;
+        let targetEmail = emailInput?.value?.trim()?.toLowerCase() || '';
+        if (!targetEmail || !targetEmail.includes('@')) {
+          const prompted = prompt('Enter your Google email address to register:');
+          if (!prompted) return;
+          targetEmail = prompted.trim().toLowerCase();
+        }
+
+        googleRegBtn.setAttribute('disabled', 'true');
+        const originalContent = googleRegBtn.innerHTML;
+        googleRegBtn.innerHTML = '<span class="dot-loader" style="margin: 0; gap: 4px;"><span style="width:6px;height:6px;"></span><span style="width:6px;height:6px;"></span><span style="width:6px;height:6px;"></span></span>';
+
+        try {
+          const response = await fetch(`${API_BASE}auth/google/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: targetEmail, name: 'Google User' })
+          });
+
+          if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.error || 'Google registration failed.');
+          }
+
+          const authData = await response.json();
+          localStorage.setItem('admin-suite.token', authData.token);
+          state.authToken = authData.token;
+
+          const synced = await syncAppData();
+          if (synced) {
+            showToast('Account created with Google successfully!', 'success');
+            if (state.user && !state.user.profile_complete) {
+              state.view = 'complete-profile';
+            } else {
+              state.view = 'app';
+            }
+            renderApp();
+          }
+        } catch (err: any) {
+          showToast(err.message || 'Google registration failed', 'error');
+          googleRegBtn.removeAttribute('disabled');
+          googleRegBtn.innerHTML = originalContent;
+        }
+      });
+    }
 
     if (togglePwd && pwdInput) {
       togglePwd.addEventListener('click', () => {

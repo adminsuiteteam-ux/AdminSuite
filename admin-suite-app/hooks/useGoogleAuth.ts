@@ -8,9 +8,33 @@ import { router } from "expo-router";
 // Enables completion of auth session across native and web redirects
 WebBrowser.maybeCompleteAuthSession();
 
+// Native GoogleSignin setup (Android / iOS)
+let GoogleSignin: any = null;
+let statusCodes: any = null;
+
+if (Platform.OS !== "web") {
+  try {
+    const RNSignIn = require("@react-native-google-signin/google-signin");
+    GoogleSignin = RNSignIn.GoogleSignin;
+    statusCodes = RNSignIn.statusCodes;
+
+    GoogleSignin.configure({
+      webClientId:
+        process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB ||
+        process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID ||
+        "423529031276-mujj55b0vk708a311iguoeo13mkjrhvj.apps.googleusercontent.com",
+      offlineAccess: true,
+      forceCodeForRefreshToken: false,
+    });
+  } catch (e) {
+    console.warn("[GoogleAuth] Native GoogleSignin initialization notice:", e);
+  }
+}
+
 export function useGoogleAuth() {
   const { loginWithSocial } = useAuth();
 
+  // Web auth session request
   const [request, response, promptAsync] = Google.useAuthRequest({
     androidClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID || process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
     iosClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS || process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
@@ -52,7 +76,54 @@ export function useGoogleAuth() {
   }, [response]);
 
   const signInWithGoogle = async (typedEmail?: string) => {
-    // 1. Direct 1-tap: If user typed their email, authenticate directly (bypasses Google browser 400 redirect error)
+    // 1. Native mobile (Android / iOS): Official Google Play Services Account Picker
+    if (Platform.OS !== "web" && GoogleSignin) {
+      try {
+        await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+        const signInResult = await GoogleSignin.signIn();
+
+        if (signInResult?.type === "success" && signInResult.data) {
+          const { idToken, user } = signInResult.data;
+          if (idToken) {
+            await loginWithSocial(
+              user.email,
+              user.name || `${user.givenName || ''} ${user.familyName || ''}`.trim() || "Google User",
+              "google",
+              idToken
+            );
+            router.replace("/");
+            return;
+          }
+        } else if ((signInResult as any)?.idToken) {
+          // Compatibility with older response structure
+          const legacyResult = signInResult as any;
+          await loginWithSocial(
+            legacyResult.user?.email || "",
+            legacyResult.user?.name || "Google User",
+            "google",
+            legacyResult.idToken
+          );
+          router.replace("/");
+          return;
+        }
+      } catch (error: any) {
+        if (error?.code === statusCodes?.SIGN_IN_CANCELLED) {
+          // User closed the Google account picker sheet - do nothing
+          return;
+        } else if (error?.code === statusCodes?.IN_PROGRESS) {
+          return;
+        } else if (error?.code === statusCodes?.PLAY_SERVICES_NOT_AVAILABLE) {
+          Alert.alert(
+            "Google Play Services",
+            "Google Play Services is not available or outdated on this device."
+          );
+          return;
+        }
+        console.warn("[GoogleAuth] Native Sign-In notice:", error);
+      }
+    }
+
+    // 2. Direct 1-tap fallback if typed email is already provided
     if (typedEmail && typedEmail.trim().includes("@")) {
       const activeEmail = typedEmail.trim().toLowerCase();
       await loginWithSocial(activeEmail, "Google User", "google");
@@ -60,7 +131,7 @@ export function useGoogleAuth() {
       return;
     }
 
-    // 2. Browser popup flow
+    // 3. Web browser flow (or fallback when native module is in Expo Go without prebuild)
     try {
       if (request) {
         const result = await promptAsync();
@@ -68,24 +139,13 @@ export function useGoogleAuth() {
           return;
         }
       }
-      // If user cancelled, closed the browser, or Google showed an error
-      Alert.alert(
-        "Google Sign-In",
-        "To sign in instantly with Google, enter your Google email in the Email field above and tap Google.",
-        [{ text: "OK" }]
-      );
     } catch (err: any) {
-      console.warn("[GoogleAuth] Prompt error:", err);
-      Alert.alert(
-        "Google Sign-In",
-        "To sign in instantly with Google, enter your Google email in the Email field above and tap Google.",
-        [{ text: "OK" }]
-      );
+      console.warn("[GoogleAuth] Web prompt error:", err);
     }
   };
 
   return {
     signInWithGoogle,
-    isReady: !!request,
+    isReady: Platform.OS !== "web" ? true : !!request,
   };
 }

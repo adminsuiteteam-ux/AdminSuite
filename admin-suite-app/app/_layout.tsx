@@ -78,7 +78,13 @@ function RootLayoutNav() {
   }, []);
 
   return (
-    <Stack screenOptions={{ headerShown: false, animation: "fade_from_bottom" }}>
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        animation: "fade_from_bottom",
+        contentStyle: { backgroundColor: "#09090b" },
+      }}
+    >
       <Stack.Screen name="index" options={{ animation: "fade" }} />
       <Stack.Screen name="(auth)" options={{ animation: "fade_from_bottom" }} />
       <Stack.Screen name="tour" options={{ animation: "slide_from_right" }} />
@@ -106,11 +112,11 @@ function RootLayout() {
   if (!fontsLoaded && !fontError) return null;
 
   return (
-    <SafeAreaProvider>
+    <SafeAreaProvider style={{ flex: 1, backgroundColor: "#09090b" }}>
       <ToastProvider>
         <ErrorBoundary>
           <QueryClientProvider client={queryClient}>
-            <GestureHandlerRootView style={{ flex: 1 }}>
+            <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#09090b" }}>
               <KeyboardProvider>
                 <AuthProvider>
                   <DataProvider>

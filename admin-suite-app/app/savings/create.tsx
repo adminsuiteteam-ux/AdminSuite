@@ -83,9 +83,12 @@ export default function CreateSavingsScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={{ padding: 20, paddingBottom: 120 }}
+        style={{ flex: 1, backgroundColor: colors.background }}
+        contentContainerStyle={{ padding: 20, paddingBottom: 160, backgroundColor: colors.background }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        automaticallyAdjustKeyboardInsets={true}
       >
         <View style={{ gap: 20 }}>
 

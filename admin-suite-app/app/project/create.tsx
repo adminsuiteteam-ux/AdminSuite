@@ -114,7 +114,14 @@ export default function CreateProjectScreen() {
         <View style={{ width: 38 }} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 20 }}>
+      <ScrollView
+        style={{ flex: 1, backgroundColor: colors.background }}
+        contentContainerStyle={{ padding: 20, paddingBottom: 160, backgroundColor: colors.background }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        automaticallyAdjustKeyboardInsets={true}
+      >
         <View style={styles.formGroup}>
           <Text style={[styles.label, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Project Name</Text>
           <TextInput
