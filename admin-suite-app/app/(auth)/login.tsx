@@ -1,4 +1,4 @@
-import { Feather, AntDesign } from "@expo/vector-icons";
+import { Feather, AntDesign, Ionicons } from "@expo/vector-icons";
 
 import { Link, router } from "expo-router";
 import * as SecureStore from "@/services/storage";
@@ -203,9 +203,15 @@ export default function LoginScreen() {
     >
       <ScrollView
         style={{ flex: 1, backgroundColor: colors.background }}
-        contentContainerStyle={{ flexGrow: 1, paddingBottom: 40, backgroundColor: colors.background }}
+        contentContainerStyle={{
+          flexGrow: 1,
+          justifyContent: "center",
+          paddingBottom: Math.max(insets.bottom + 40, 48),
+          backgroundColor: colors.background,
+        }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        bounces={true}
       >
         <View style={[styles.container, { paddingTop: insets.top + 32, paddingBottom: insets.bottom + 24 }]}>
           <View style={styles.header}>
@@ -403,7 +409,7 @@ export default function LoginScreen() {
                   },
                 ]}
               >
-                <AntDesign name="apple1" size={18} color={colors.foreground} />
+                <Ionicons name="logo-apple" size={19} color={colors.foreground} />
                 <Text style={[styles.socialButtonText, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>Apple</Text>
               </Pressable>
             </View>
@@ -452,9 +458,12 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    width: "100%",
+    maxWidth: 440,
+    alignSelf: "center",
     paddingHorizontal: 24,
     justifyContent: "center",
+    flexGrow: 1,
   },
   header: {
     alignItems: "center",

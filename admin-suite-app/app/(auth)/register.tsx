@@ -1,4 +1,4 @@
-import { Feather, AntDesign } from "@expo/vector-icons";
+import { Feather, AntDesign, Ionicons } from "@expo/vector-icons";
 import { LinearGradient as ExpoLinearGradient } from "expo-linear-gradient";
 import { Link, router } from "expo-router";
 import React, { useState, useEffect, useRef } from "react";
@@ -589,7 +589,7 @@ export default function RegisterScreen() {
                 },
               ]}
             >
-              <AntDesign name="apple1" size={18} color={colors.foreground} />
+              <Ionicons name="logo-apple" size={19} color={colors.foreground} />
               <Text style={[styles.socialButtonText, { color: colors.foreground }]}>Apple</Text>
             </Pressable>
           </View>
@@ -808,9 +808,16 @@ export default function RegisterScreen() {
 
       <ScrollView
         style={{ flex: 1, backgroundColor: screenBg }}
-        contentContainerStyle={{ flexGrow: 1, justifyContent: "center", padding: isTablet ? 12 : 0, backgroundColor: screenBg }}
+        contentContainerStyle={{
+          flexGrow: 1,
+          justifyContent: isTablet ? "center" : undefined,
+          paddingTop: isTablet ? 12 : 0,
+          paddingBottom: Math.max(insets.bottom + 40, 48),
+          backgroundColor: screenBg,
+        }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        bounces={true}
       >
         {isTablet ? (
           <View style={[styles.splitFrame, { borderColor: colors.border, backgroundColor: colors.card }]}>
@@ -847,9 +854,9 @@ export default function RegisterScreen() {
           </View>
         ) : (
           // Mobile Layout (Form view after intro)
-          <Animated.View style={{ flex: 1, opacity: formOpacity }}>
+          <Animated.View style={{ width: "100%", opacity: formOpacity }}>
             {/* Logo and Name on Top for phone screen */}
-            <View style={[styles.mobileLogoHeader, { paddingTop: insets.top + 32 }]}>
+            <View style={[styles.mobileLogoHeader, { paddingTop: Math.max(insets.top + 16, 24) }]}>
               <LogoMark size={48} tint={isDarkTheme ? "#ffffff" : "#1c1c1e"} />
               <Text style={[styles.mobileLogoHeaderTitle, { color: colors.foreground }]}>{t('register.appName')}</Text>
             </View>

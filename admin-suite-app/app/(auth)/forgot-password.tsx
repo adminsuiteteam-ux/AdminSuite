@@ -5,6 +5,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -340,9 +341,21 @@ export default function ForgotPasswordScreen() {
         </Pressable>
       </View>
 
-      <View style={styles.container}>
-        {renderContent()}
-      </View>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{
+          flexGrow: 1,
+          justifyContent: "center",
+          paddingBottom: Math.max(insets.bottom + 32, 40),
+        }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        bounces={true}
+      >
+        <View style={styles.container}>
+          {renderContent()}
+        </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -361,10 +374,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   container: {
-    flex: 1,
+    width: "100%",
+    maxWidth: 440,
+    alignSelf: "center",
     paddingHorizontal: 24,
     justifyContent: "center",
-    paddingBottom: 100,
+    flexGrow: 1,
   },
   iconCircle: {
     width: 64,

@@ -208,9 +208,16 @@ export default function EmployeeSetupScreen() {
       style={{ flex: 1, backgroundColor: colors.background }}
     >
       <ScrollView
-        contentContainerStyle={{ flexGrow: 1 }}
+        style={{ flex: 1, backgroundColor: colors.background }}
+        contentContainerStyle={{
+          flexGrow: 1,
+          justifyContent: "center",
+          paddingBottom: Math.max(insets.bottom + 40, 48),
+          backgroundColor: colors.background,
+        }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        bounces={true}
       >
         <View style={[styles.container, { paddingTop: insets.top + 32, paddingBottom: insets.bottom + 24 }]}>
           <View style={styles.header}>
@@ -340,9 +347,12 @@ export default function EmployeeSetupScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    width: "100%",
+    maxWidth: 440,
+    alignSelf: "center",
     paddingHorizontal: 24,
     justifyContent: "center",
+    flexGrow: 1,
   },
   header: {
     alignItems: "center",
