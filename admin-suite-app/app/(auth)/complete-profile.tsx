@@ -6,6 +6,7 @@ import { router } from "expo-router";
 import React, { useState, useRef } from "react";
 import {
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -24,6 +25,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { useSettings } from "@/context/SettingsContext";
 import { apiService, appendFileToFormData } from "@/services/api";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 
 
@@ -77,6 +79,24 @@ export default function CompleteProfileScreen() {
 
   const [currentSlide, setCurrentSlide] = useState(0);
   const slideProgress = useRef(new Animated.Value(0)).current;
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  React.useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const showSub = Keyboard.addListener(showEvent, () => {
+      setIsKeyboardVisible(true);
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setIsKeyboardVisible(false);
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   // Form State
   const [name, setName] = useState(user?.name || "");
@@ -157,12 +177,11 @@ export default function CompleteProfileScreen() {
     }
   };
 
-  // Pick Avatar
+  // Pick Avatar (Directly save chosen photo without showing Android's "CROP" screen)
   const pickAvatar = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
+      allowsEditing: false,
       quality: 0.8,
     });
     if (!result.canceled && result.assets.length > 0) {
@@ -170,12 +189,11 @@ export default function CompleteProfileScreen() {
     }
   };
 
-  // Pick Company Logo
+  // Pick Company Logo (Directly save chosen photo without showing Android's "CROP" screen)
   const pickCompanyLogo = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
+      allowsEditing: false,
       quality: 0.8,
     });
     if (!result.canceled && result.assets.length > 0) {
@@ -225,44 +243,93 @@ export default function CompleteProfileScreen() {
     setError("");
     setLoading(true);
     try {
-      const formData = new FormData();
-      formData.append("first_name", name.trim());
-      formData.append("location", location.trim());
+      let resData: any = null;
 
-      formData.append("role", role);
-      formData.append("phone", phone.trim());
-      formData.append("bio", bio.trim());
-      formData.append("social_link", socialLink.trim());
-      formData.append("biometrics_enabled", biometricsActive ? "true" : "false");
-      formData.append("notifications_enabled", notificationsActive ? "true" : "false");
-      
-      // Organisational details
-      formData.append("business_name", businessName.trim());
-      formData.append("org_location", orgLocation.trim());
-      formData.append("org_email", orgEmail.trim());
-      formData.append("company_line", companyLine.trim());
-      formData.append("social_handles", socialHandles.trim());
-      formData.append("total_workers", totalWorkers);
-      formData.append("opening_time", openingTime.trim());
-      formData.append("closing_time", closingTime.trim());
-      formData.append("working_days", workingDays.join(","));
-      formData.append("average_revenue", averageRevenue);
+      // 1. First attempt: multipart FormData (uploads avatar & company logo if selected)
+      try {
+        const formData = new FormData();
+        formData.append("first_name", name.trim());
+        formData.append("location", location.trim());
+        formData.append("role", role);
+        formData.append("phone", phone.trim());
+        formData.append("bio", bio.trim());
+        formData.append("social_link", socialLink.trim());
+        formData.append("biometrics_enabled", biometricsActive ? "true" : "false");
+        formData.append("notifications_enabled", notificationsActive ? "true" : "false");
+        
+        // Organisational details
+        formData.append("business_name", businessName.trim());
+        formData.append("org_location", orgLocation.trim());
+        formData.append("org_email", orgEmail.trim());
+        formData.append("company_line", companyLine.trim());
+        formData.append("social_handles", socialHandles.trim());
+        formData.append("total_workers", totalWorkers);
+        formData.append("opening_time", openingTime.trim());
+        formData.append("closing_time", closingTime.trim());
+        formData.append("working_days", workingDays.join(","));
+        formData.append("average_revenue", averageRevenue);
 
-      await appendFileToFormData(formData, "avatar", avatarUri);
-      await appendFileToFormData(formData, "company_logo", companyLogoUri);
+        await appendFileToFormData(formData, "avatar", avatarUri);
+        await appendFileToFormData(formData, "company_logo", companyLogoUri);
 
-      const res = await apiService.updateMe(formData);
-
+        const res = await apiService.updateMe(formData);
+        resData = res?.data;
+      } catch (multipartErr: any) {
+        console.warn("Multipart submission failed, trying fast JSON fallback:", multipartErr);
+        // 2. Second attempt: fast JSON payload with all profile text fields
+        try {
+          const jsonPayload = {
+            first_name: name.trim(),
+            location: location.trim(),
+            role,
+            phone: phone.trim(),
+            bio: bio.trim(),
+            social_link: socialLink.trim(),
+            biometrics_enabled: biometricsActive,
+            notifications_enabled: notificationsActive,
+            business_name: businessName.trim(),
+            org_location: orgLocation.trim(),
+            org_email: orgEmail.trim(),
+            company_line: companyLine.trim(),
+            social_handles: socialHandles.trim(),
+            total_workers: totalWorkers,
+            opening_time: openingTime.trim(),
+            closing_time: closingTime.trim(),
+            working_days: workingDays.join(","),
+            average_revenue: averageRevenue,
+          };
+          const res = await apiService.updateMe(jsonPayload);
+          resData = res?.data;
+        } catch (jsonErr: any) {
+          console.warn("JSON submission failed or offline:", jsonErr);
+          // If server returned a 400 validation error, display it
+          if (jsonErr.response?.data) {
+            const firstError = Object.values(jsonErr.response.data)[0];
+            throw new Error(Array.isArray(firstError) ? (firstError as string[])[0] : "Invalid profile details.");
+          }
+          // On network error or timeout: proceed with local profile state so user is never trapped
+        }
+      }
 
       if (user) {
         setUser({
           ...user,
           profile_complete: true,
-          ...res.data,
-          name: name.trim(),
-          initials: (name.trim() || res.data.name || user.name || user.username || user.email || "US").slice(0, 2).toUpperCase(),
+          ...(resData || {}),
+          name: name.trim() || user.name,
+          role: role || user.role,
+          location: location.trim(),
+          phone: phone.trim(),
+          bio: bio.trim(),
+          avatar: resData?.avatar || avatarUri || user.avatar,
+          business_name: businessName.trim() || user.business_name,
+          biometrics_enabled: biometricsActive,
+          notifications_enabled: notificationsActive,
+          initials: (name.trim() || user.name || user.username || "US").slice(0, 2).toUpperCase(),
         });
       }
+
+      await AsyncStorage.setItem("admin-suite.tour-complete", "true");
 
       // Finish Onboarding and redirect directly to Tabs
       router.replace("/(tabs)");
@@ -359,7 +426,7 @@ export default function CompleteProfileScreen() {
               </Pressable>
               <Text style={[styles.avatarSubtext, { color: colors.mutedForeground, fontFamily: "Inter_500Medium", textAlign: "center" }]}>
                 Add Profile Photo{"\n"}
-                <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular" }}>(Tap circle to select & crop photo)</Text>
+                <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular" }}>(Tap circle to choose & save photo)</Text>
               </Text>
             </View>
 
@@ -856,12 +923,21 @@ export default function CompleteProfileScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
       style={{ flex: 1, backgroundColor: colors.background }}
     >
       <ScrollView
-        contentContainerStyle={{ flexGrow: 1, paddingBottom: insets.bottom + 24 }}
+        ref={scrollViewRef}
+        style={{ flex: 1, backgroundColor: colors.background }}
+        contentContainerStyle={{
+          flexGrow: 1,
+          paddingBottom: isKeyboardVisible ? 160 : Math.max(insets.bottom + 16, 24),
+          backgroundColor: colors.background,
+        }}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={false}
+        automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
       >
         {/* Onboarding Header */}
         <View style={[styles.header, { paddingTop: insets.top + 20 }]}>

@@ -115,6 +115,17 @@ const apiClient = axios.create({
   },
 });
 
+apiClient.interceptors.request.use((config) => {
+  if (config.data instanceof FormData) {
+    if (config.headers) {
+      delete (config.headers as any)['Content-Type'];
+      (config.headers as any)['Content-Type'] = 'multipart/form-data';
+    }
+    config.transformRequest = [(data) => data];
+  }
+  return config;
+});
+
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -219,9 +230,10 @@ export const apiService = {
   updateMe: (data: any) => {
     const isFormData = data instanceof FormData;
     return apiClient.patch('me/', data, {
-      headers: {
-        'Content-Type': isFormData ? undefined : 'application/json',
-      },
+      headers: isFormData
+        ? { 'Content-Type': 'multipart/form-data' }
+        : { 'Content-Type': 'application/json' },
+      transformRequest: isFormData ? [(d: any) => d] : undefined,
       timeout: isFormData ? 120000 : 30000,
     });
   },
@@ -268,27 +280,30 @@ export const apiService = {
   createEmployee: (data: any) => {
     const isFormData = data instanceof FormData;
     return apiClient.post('employees/', data, {
-      headers: {
-        'Content-Type': isFormData ? undefined : 'application/json',
-      },
-      timeout: isFormData ? 120000 : 30000, // 120s for file uploads
+      headers: isFormData
+        ? { 'Content-Type': 'multipart/form-data' }
+        : { 'Content-Type': 'application/json' },
+      transformRequest: isFormData ? [(d: any) => d] : undefined,
+      timeout: isFormData ? 120000 : 30000,
     });
   },
   updateEmployee: (id: string, data: any) => {
     const isFormData = data instanceof FormData;
     return apiClient.put(`employees/${id}/`, data, {
-      headers: {
-        'Content-Type': isFormData ? undefined : 'application/json',
-      },
+      headers: isFormData
+        ? { 'Content-Type': 'multipart/form-data' }
+        : { 'Content-Type': 'application/json' },
+      transformRequest: isFormData ? [(d: any) => d] : undefined,
       timeout: isFormData ? 120000 : 30000,
     });
   },
   patchEmployee: (id: string, data: any) => {
     const isFormData = data instanceof FormData;
     return apiClient.patch(`employees/${id}/`, data, {
-      headers: {
-        'Content-Type': isFormData ? undefined : 'application/json',
-      },
+      headers: isFormData
+        ? { 'Content-Type': 'multipart/form-data' }
+        : { 'Content-Type': 'application/json' },
+      transformRequest: isFormData ? [(d: any) => d] : undefined,
       timeout: isFormData ? 120000 : 30000,
     });
   },
@@ -304,26 +319,29 @@ export const apiService = {
   createTask: (data: any) => {
     const isFormData = data instanceof FormData;
     return apiClient.post('employee-tasks/', data, {
-      headers: {
-        'Content-Type': isFormData ? undefined : 'application/json',
-      },
+      headers: isFormData
+        ? { 'Content-Type': 'multipart/form-data' }
+        : { 'Content-Type': 'application/json' },
+      transformRequest: isFormData ? [(d: any) => d] : undefined,
     });
   },
   createQuery: (data: any) => {
     const isFormData = data instanceof FormData;
     return apiClient.post('employee-queries/', data, {
-      headers: {
-        'Content-Type': isFormData ? undefined : 'application/json',
-      },
+      headers: isFormData
+        ? { 'Content-Type': 'multipart/form-data' }
+        : { 'Content-Type': 'application/json' },
+      transformRequest: isFormData ? [(d: any) => d] : undefined,
     });
   },
   createLeave: (data: any) => apiClient.post('employee-leaves/', data),
   createMessage: (data: any) => {
     const isFormData = data instanceof FormData;
     return apiClient.post('employee-messages/', data, {
-      headers: {
-        'Content-Type': isFormData ? undefined : 'application/json',
-      },
+      headers: isFormData
+        ? { 'Content-Type': 'multipart/form-data' }
+        : { 'Content-Type': 'application/json' },
+      transformRequest: isFormData ? [(d: any) => d] : undefined,
     });
   },
   createDocument: (data: any) =>
