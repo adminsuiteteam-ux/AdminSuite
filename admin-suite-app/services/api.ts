@@ -20,10 +20,10 @@ const ENV_API_URL = process.env.EXPO_PUBLIC_API_URL;
 const HOST = getLocalHost();
 const DEFAULT_URL = `http://${HOST}:8000/`;
 
-// In development, prioritize local backend unless explicitly forcing production API
-export const BASE_URL = (__DEV__ && process.env.EXPO_PUBLIC_USE_PROD_API !== 'true')
-  ? DEFAULT_URL
-  : (ENV_API_URL ? (ENV_API_URL.endsWith('/') ? ENV_API_URL : `${ENV_API_URL}/`) : `${PRODUCTION_URL}/`);
+export const BASE_URL = ENV_API_URL
+  ? (ENV_API_URL.endsWith('/') ? ENV_API_URL : `${ENV_API_URL}/`)
+  : DEFAULT_URL;
+
 
 
 let activeBaseUrl = BASE_URL;
@@ -170,15 +170,6 @@ const pingUrl = async (url: string): Promise<boolean> => {
  * This eliminates the slow startup/login delay caused by pinging all candidates.
  */
 export const resolveBackendUrl = async (): Promise<string | null> => {
-  // In development mode, always use local backend unless explicitly forcing prod API
-  if (__DEV__ && process.env.EXPO_PUBLIC_USE_PROD_API !== 'true') {
-    const cleanBase = DEFAULT_URL;
-    activeBaseUrl = cleanBase;
-    apiClient.defaults.baseURL = `${cleanBase}api/`;
-    console.log(`[API] DEV mode active — using local backend: ${apiClient.defaults.baseURL}`);
-    return DEFAULT_URL;
-  }
-
   // Fast path: env var is set → trust it and update the client base URL
   if (ENV_API_URL) {
     const cleanBase = ENV_API_URL.endsWith('/') ? ENV_API_URL : `${ENV_API_URL}/`;
