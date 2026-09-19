@@ -23,6 +23,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from "expo-haptics";
+import { useGoogleAuth } from "@/hooks/useGoogleAuth";
 
 function GeometricBackground() {
   return (
@@ -170,6 +171,7 @@ export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { requestEmailOTP, resendEmailOTP, verifyEmailOTP, loginWithSocial } = useAuth();
+  const { signInWithGoogle } = useGoogleAuth();
 
   const isDemoKey = false;
 
@@ -552,7 +554,7 @@ export default function RegisterScreen() {
                 if (Platform.OS !== "web") {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
                 }
-                handleOAuthLogin("google");
+                signInWithGoogle(email);
               }}
               disabled={loading}
               style={({ pressed }) => [

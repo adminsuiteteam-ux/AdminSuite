@@ -49,7 +49,7 @@ type AuthContextType = {
   resendEmailOTP: (email: string) => Promise<void>;
   /** Step 2: verify OTP then register on Django backend */
   verifyEmailOTP: (email: string, code: string, password: string) => Promise<void>;
-  loginWithSocial: (email: string, name: string, provider: 'google' | 'apple') => Promise<void>;
+  loginWithSocial: (email: string, name: string, provider: 'google' | 'apple', idToken?: string) => Promise<void>;
   logout: () => Promise<void>;
   tourComplete: boolean;
   completeTour: () => Promise<void>;
@@ -300,19 +300,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await login({ username: email, password });
   };
 
-  const loginWithSocial = async (email: string, name: string, provider: 'google' | 'apple') => {
+  const loginWithSocial = async (email: string, name: string, provider: 'google' | 'apple', idToken?: string) => {
     setLoading(true);
     try {
       let res;
       if (provider === 'google') {
         res = await apiService.loginWithGoogle({
-          id_token: "dummy_supabase_oauth_token",
+          id_token: idToken || "dummy_google_oauth_token",
           email: email,
           name: name,
         });
       } else {
         res = await apiService.loginWithApple({
-          identity_token: "dummy_supabase_oauth_token",
+          identity_token: idToken || "dummy_apple_oauth_token",
           email: email,
           name: name,
         });

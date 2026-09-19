@@ -21,11 +21,13 @@ import { LogoMark } from "../../components/Brand";
 import { useAuth } from "../../context/AuthContext";
 import { useColors } from "../../hooks/useColors";
 import { shadows, spacing, motion } from "@/constants/theme";
+import { useGoogleAuth } from "@/hooks/useGoogleAuth";
 
 export default function LoginScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { login, tourComplete, user, loginWithSocial } = useAuth();
+  const { signInWithGoogle } = useGoogleAuth();
 
   const rawKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
   const isDemoKey = !rawKey || rawKey.includes("placeholder");
@@ -366,7 +368,7 @@ export default function LoginScreen() {
                   if (Platform.OS !== "web") {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
                   }
-                  handleOAuthLogin("google");
+                  signInWithGoogle(email);
                 }}
                 disabled={loading}
                 style={({ pressed }) => [
