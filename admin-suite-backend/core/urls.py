@@ -27,7 +27,24 @@ _SETUP_TOKEN = os.environ.get('SETUP_SECRET_TOKEN', 'adminsuite-setup-9x7k2p')
 
 
 def health_check(request):
-    return JsonResponse({"status": "ok", "service": "adminsuite-api"})
+    db_status = "ok"
+    db_error = None
+    user_count = 0
+    try:
+        from django.contrib.auth.models import User
+        user_count = User.objects.count()
+    except Exception as e:
+        db_status = "error"
+        db_error = str(e)
+
+    return JsonResponse({
+        "status": "ok" if db_status == "ok" else "degraded",
+        "service": "adminsuite-api",
+        "build": "2026-09-18-layerbase",
+        "database": db_status,
+        "db_error": db_error,
+        "user_count": user_count,
+    })
 
 
 def sentry_debug(request):

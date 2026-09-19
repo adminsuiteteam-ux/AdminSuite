@@ -127,15 +127,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (credentials: { username: string; password: string }) => {
-    // 1. Attempt Supabase signIn (non-blocking; session is not persisted)
-    try {
-      await supabase.auth.signInWithPassword({
-        email: credentials.username,
-        password: credentials.password,
-      });
-    } catch (e: any) {
-      // Supabase auth is supplementary — Django is the primary auth provider
-      console.warn("Supabase signIn skipped:", e?.message);
+    // 1. Attempt Supabase signIn only if explicitly enabled
+    if (process.env.EXPO_PUBLIC_USE_SUPABASE_AUTH === 'true') {
+      try {
+        await supabase.auth.signInWithPassword({
+          email: credentials.username,
+          password: credentials.password,
+        });
+      } catch (e: any) {
+        console.warn("Supabase signIn skipped:", e?.message);
+      }
     }
 
     // 2. Log in with Django backend (primary auth)

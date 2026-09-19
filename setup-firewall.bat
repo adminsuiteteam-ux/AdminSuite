@@ -11,10 +11,12 @@ if %errorLevel% == 0 (
     echo [OK] Running with administrator privileges.
     echo.
     echo Adding inbound firewall rule for Port 8000 - Django...
-    powershell -Command "New-NetFirewallRule -DisplayName 'Django Dev Server' -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8000 -Force"
+    netsh advfirewall firewall delete rule name="Django Dev Server" >nul 2>&1
+    netsh advfirewall firewall add rule name="Django Dev Server" dir=in action=allow protocol=TCP localport=8000
     echo.
     echo Adding inbound firewall rule for Port 8081 - Expo Metro...
-    powershell -Command "New-NetFirewallRule -DisplayName 'Expo Metro Bundler' -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8081 -Force"
+    netsh advfirewall firewall delete rule name="Expo Metro Bundler" >nul 2>&1
+    netsh advfirewall firewall add rule name="Expo Metro Bundler" dir=in action=allow protocol=TCP localport=8081
     echo.
     echo ========================================================
     echo SUCCESS: Firewall rules configured successfully!
