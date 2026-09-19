@@ -40,7 +40,10 @@ def health_check(request):
     return JsonResponse({
         "status": "ok" if db_status == "ok" else "degraded",
         "service": "adminsuite-api",
-        "build": "2026-09-18-layerbase",
+        "build": "2026-09-19-email-ssl",
+        "email_host": settings.EMAIL_HOST,
+        "email_port": settings.EMAIL_PORT,
+        "email_ssl": settings.EMAIL_USE_SSL,
         "database": db_status,
         "db_error": db_error,
         "user_count": user_count,
