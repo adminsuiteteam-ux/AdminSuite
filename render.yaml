@@ -26,15 +26,17 @@ services:
       - key: EMAIL_HOST
         value: smtp.gmail.com
       - key: EMAIL_PORT
-        value: "587"
+        value: "465"
       - key: EMAIL_USE_TLS
+        value: "False"
+      - key: EMAIL_USE_SSL
         value: "True"
       - key: EMAIL_HOST_USER
-        sync: false
+        value: adminsuiteteam@gmail.com
       - key: EMAIL_HOST_PASSWORD
-        sync: false
+        value: ctlqddwhiagkpfjy
       - key: DEFAULT_FROM_EMAIL
-        sync: false
+        value: AdminSuite <adminsuiteteam@gmail.com>
       # ── Cloudinary (media storage) ───────────────────────────────────────────
       # Configure in Render Dashboard for avatar/logo uploads.
       - key: CLOUDINARY_CLOUD_NAME

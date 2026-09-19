@@ -339,12 +339,13 @@ CLOUDINARY_URL = os.environ.get('CLOUDINARY_URL')
 
 # Email Configuration
 EMAIL_BACKEND = os.environ.get('DJANGO_EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
-EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 465))
-EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'False').lower() in ('true', '1', 'yes')
-EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'True').lower() in ('true', '1', 'yes')
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'adminsuiteteam@gmail.com')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', 'ctlqddwhiagkpfjy')
-EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', 15))
+EMAIL_HOST = os.environ.get('EMAIL_HOST') or 'smtp.gmail.com'
+_raw_port = os.environ.get('EMAIL_PORT') or '465'
+EMAIL_PORT = int(_raw_port)
+EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'True').lower() in ('true', '1', 'yes') or EMAIL_PORT == 465
+EMAIL_USE_TLS = False if EMAIL_USE_SSL else (os.environ.get('EMAIL_USE_TLS', 'False').lower() in ('true', '1', 'yes'))
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER') or 'adminsuiteteam@gmail.com'
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD') or 'ctlqddwhiagkpfjy'
+EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT') or 15)
 
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'AdminSuite <adminsuiteteam@gmail.com>')
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL') or 'AdminSuite <adminsuiteteam@gmail.com>'
