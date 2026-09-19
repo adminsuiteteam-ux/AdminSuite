@@ -27,7 +27,9 @@ if (Platform.OS !== "web") {
       forceCodeForRefreshToken: false,
     });
   } catch (e) {
-    console.warn("[GoogleAuth] Native GoogleSignin initialization notice:", e);
+    GoogleSignin = null;
+    statusCodes = null;
+    console.warn("[GoogleAuth] Native GoogleSignin is not available in Expo Go (requires a development build/APK). Falling back to auth session.", e);
   }
 }
 
