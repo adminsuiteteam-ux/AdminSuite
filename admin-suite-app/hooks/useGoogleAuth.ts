@@ -133,7 +133,17 @@ export function useGoogleAuth() {
       return;
     }
 
-    // 3. Web browser flow (or fallback when native module is in Expo Go without prebuild)
+    // 3. Expo Go notice (Google strictly blocks OAuth browser redirects with Error 400 in Expo Go)
+    if (Platform.OS !== "web" && !GoogleSignin) {
+      Alert.alert(
+        "Google Sign-In in Expo Go",
+        "Google strictly blocks in-app browser logins in Expo Go (Error 400: invalid_request) under their OAuth security policy.\n\nTo test Google Sign-In right now in Expo Go:\nType your Gmail in the email field above and tap Google to log in instantly.\n\nIn a standalone Android APK, the native Google Play Services account picker launches automatically.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+
+    // 4. Web browser OAuth flow (runs on Web platform where domain is authorized)
     try {
       if (request) {
         const result = await promptAsync();
