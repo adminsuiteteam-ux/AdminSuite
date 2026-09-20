@@ -768,6 +768,106 @@ const API_BASE = localStorage.getItem('API_URL_OVERRIDE') ||
     ? 'http://localhost:8000/api/'
     : 'https://adminsuite-api.onrender.com/api/');
 
+// ============================================================
+// GOOGLE IDENTITY SERVICES (GIS) — Official Sign-In Popup
+// ============================================================
+
+declare const google: any; // GIS SDK global
+const GOOGLE_CLIENT_ID = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || '';
+
+/**
+ * Opens the official Google account chooser popup and resolves
+ * with the credential JWT on success. Rejects if cancelled/failed.
+ */
+function triggerGoogleSignIn(): Promise<{ credential: string }> {
+  return new Promise((resolve, reject) => {
+    if (typeof google === 'undefined' || !google?.accounts?.id) {
+      reject(new Error('Google Sign-In SDK not loaded. Please refresh and try again.'));
+      return;
+    }
+    if (!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID === 'YOUR_GOOGLE_CLIENT_ID_HERE') {
+      reject(new Error('Google Client ID is not configured. Contact the administrator.'));
+      return;
+    }
+    google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: (response: any) => {
+        if (response.credential) {
+          resolve({ credential: response.credential });
+        } else {
+          reject(new Error('Google Sign-In was cancelled.'));
+        }
+      },
+      auto_select: false,
+      cancel_on_tap_outside: true,
+    });
+    // Show the Google account chooser popup
+    google.accounts.id.prompt((notification: any) => {
+      if (notification.isNotDisplayed()) {
+        // Fallback: If popup can't display (e.g. third-party cookies blocked),
+        // use the FedCM or render a button in an overlay
+        const overlay = document.createElement('div');
+        overlay.id = 'gsi-overlay';
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:99999;backdrop-filter:blur(4px);';
+        const container = document.createElement('div');
+        container.style.cssText = 'background:white;border-radius:16px;padding:32px 40px;text-align:center;box-shadow:0 25px 50px rgba(0,0,0,0.25);max-width:400px;width:90%;';
+        container.innerHTML = `
+          <h3 style="margin:0 0 8px;font-size:18px;color:#1a1a1a;">Sign in with Google</h3>
+          <p style="margin:0 0 20px;color:#666;font-size:14px;">Select your Google account below</p>
+          <div id="gsi-button-container"></div>
+          <button id="gsi-cancel" style="margin-top:16px;background:none;border:none;color:#888;cursor:pointer;font-size:13px;">Cancel</button>
+        `;
+        overlay.appendChild(container);
+        document.body.appendChild(overlay);
+        
+        google.accounts.id.renderButton(
+          container.querySelector('#gsi-button-container'),
+          { theme: 'outline', size: 'large', width: 300, text: 'signin_with' }
+        );
+        
+        const cancelBtn = container.querySelector('#gsi-cancel');
+        const closeOverlay = () => { overlay.remove(); reject(new Error('Google Sign-In was cancelled.')); };
+        cancelBtn?.addEventListener('click', closeOverlay);
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) closeOverlay(); });
+      }
+    });
+  });
+}
+
+/** Sends Google credential JWT to the backend and authenticates the user */
+async function handleGoogleAuth(successMsg: string) {
+  const { credential } = await triggerGoogleSignIn();
+  
+  // Remove overlay if present
+  document.getElementById('gsi-overlay')?.remove();
+  
+  const response = await fetch(`${API_BASE}auth/google/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id_token: credential })
+  });
+  
+  if (!response.ok) {
+    const errData = await response.json().catch(() => ({}));
+    throw new Error(errData.error || 'Google authentication failed.');
+  }
+  
+  const authData = await response.json();
+  localStorage.setItem('admin-suite.token', authData.token);
+  state.authToken = authData.token;
+  
+  const synced = await syncAppData();
+  if (synced) {
+    showToast(successMsg, 'success');
+    if (state.user && !state.user.profile_complete) {
+      state.view = 'complete-profile';
+    } else {
+      state.view = 'app';
+    }
+    renderApp();
+  }
+}
+
 async function apiRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
   const token = localStorage.getItem('admin-suite.token');
   const headers = new Headers(options.headers || {});
@@ -1683,45 +1783,14 @@ function bindLoginEvents() {
 
   if (googleBtn) {
     googleBtn.addEventListener('click', async () => {
-      const emailInput = document.getElementById('login-email') as HTMLInputElement;
-      let targetEmail = emailInput?.value?.trim()?.toLowerCase() || '';
-      if (!targetEmail || !targetEmail.includes('@')) {
-        const prompted = prompt('Enter your Google email address to sign in:');
-        if (!prompted) return;
-        targetEmail = prompted.trim().toLowerCase();
-      }
-
       googleBtn.setAttribute('disabled', 'true');
       const originalContent = googleBtn.innerHTML;
       googleBtn.innerHTML = '<span class="dot-loader" style="margin: 0; gap: 4px;"><span style="width:6px;height:6px;"></span><span style="width:6px;height:6px;"></span><span style="width:6px;height:6px;"></span></span>';
 
       try {
-        const response = await fetch(`${API_BASE}auth/google/`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: targetEmail, name: 'Google User' })
-        });
-
-        if (!response.ok) {
-          const errData = await response.json().catch(() => ({}));
-          throw new Error(errData.error || 'Google login failed.');
-        }
-
-        const authData = await response.json();
-        localStorage.setItem('admin-suite.token', authData.token);
-        state.authToken = authData.token;
-
-        const synced = await syncAppData();
-        if (synced) {
-          showToast('Signed in with Google successfully!', 'success');
-          if (state.user && !state.user.profile_complete) {
-            state.view = 'complete-profile';
-          } else {
-            state.view = 'app';
-          }
-          renderApp();
-        }
+        await handleGoogleAuth('Signed in with Google successfully!');
       } catch (err: any) {
+        document.getElementById('gsi-overlay')?.remove();
         showToast(err.message || 'Google Sign-In failed', 'error');
         googleBtn.removeAttribute('disabled');
         googleBtn.innerHTML = originalContent;
@@ -1956,45 +2025,14 @@ function bindRegisterEvents() {
 
     if (googleRegBtn) {
       googleRegBtn.addEventListener('click', async () => {
-        const emailInput = document.getElementById('reg-email') as HTMLInputElement;
-        let targetEmail = emailInput?.value?.trim()?.toLowerCase() || '';
-        if (!targetEmail || !targetEmail.includes('@')) {
-          const prompted = prompt('Enter your Google email address to register:');
-          if (!prompted) return;
-          targetEmail = prompted.trim().toLowerCase();
-        }
-
         googleRegBtn.setAttribute('disabled', 'true');
         const originalContent = googleRegBtn.innerHTML;
         googleRegBtn.innerHTML = '<span class="dot-loader" style="margin: 0; gap: 4px;"><span style="width:6px;height:6px;"></span><span style="width:6px;height:6px;"></span><span style="width:6px;height:6px;"></span></span>';
 
         try {
-          const response = await fetch(`${API_BASE}auth/google/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: targetEmail, name: 'Google User' })
-          });
-
-          if (!response.ok) {
-            const errData = await response.json().catch(() => ({}));
-            throw new Error(errData.error || 'Google registration failed.');
-          }
-
-          const authData = await response.json();
-          localStorage.setItem('admin-suite.token', authData.token);
-          state.authToken = authData.token;
-
-          const synced = await syncAppData();
-          if (synced) {
-            showToast('Account created with Google successfully!', 'success');
-            if (state.user && !state.user.profile_complete) {
-              state.view = 'complete-profile';
-            } else {
-              state.view = 'app';
-            }
-            renderApp();
-          }
+          await handleGoogleAuth('Account created with Google successfully!');
         } catch (err: any) {
+          document.getElementById('gsi-overlay')?.remove();
           showToast(err.message || 'Google registration failed', 'error');
           googleRegBtn.removeAttribute('disabled');
           googleRegBtn.innerHTML = originalContent;

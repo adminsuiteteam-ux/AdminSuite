@@ -13,6 +13,7 @@ def _send_via_django_mail(to_email: str, subject: str, html_body: str, text_body
     Otherwise, it sends via the configured SMTP server (Gmail in production).
     """
     from django.core.mail import EmailMultiAlternatives
+    import socket
 
     from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'AdminSuite <no-reply@adminsuite.app>')
     
@@ -23,7 +24,16 @@ def _send_via_django_mail(to_email: str, subject: str, html_body: str, text_body
         to=[to_email]
     )
     msg.attach_alternative(html_body, "text/html")
-    msg.send()
+    
+    try:
+        msg.send(fail_silently=False)
+    except socket.timeout:
+        safe_log("error", f"SMTP timeout sending to {to_email} — EMAIL_TIMEOUT may be too low")
+        raise
+    except OSError as e:
+        safe_log("error", f"SMTP connection error to {settings.EMAIL_HOST}:{settings.EMAIL_PORT} — {type(e).__name__}: {e}")
+        raise
+
 
 
 def send_onboarding_email(email, name, temp_password, company_name, role_display):

@@ -346,6 +346,6 @@ EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'True').lower() in ('true', '1',
 EMAIL_USE_TLS = False if EMAIL_USE_SSL else (os.environ.get('EMAIL_USE_TLS', 'False').lower() in ('true', '1', 'yes'))
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER') or 'adminsuiteteam@gmail.com'
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD') or 'ctlqddwhiagkpfjy'
-EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT') or 15)
+EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT') or 30)
 
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL') or 'AdminSuite <adminsuiteteam@gmail.com>'

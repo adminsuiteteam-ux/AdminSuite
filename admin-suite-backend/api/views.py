@@ -1381,20 +1381,28 @@ def send_email_verification(request):
     # Send the OTP via email (Django SMTP — Supabase-free)
     from core.safe_logger import safe_log, mask_email
     from .emails import send_signup_otp_email
+    email_sent = False
+    email_error_detail = ''
     try:
         send_signup_otp_email(email, code)
+        email_sent = True
     except Exception as e:
-        safe_log("error", f"Failed to send OTP email to {mask_email(email)}: {str(e)}")
-        return Response(
-            {'error': 'Failed to send verification email. Please try again.'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        email_error_detail = str(e)
+        safe_log("error", f"Failed to send OTP email to {mask_email(email)}: {email_error_detail}")
+        # In DEBUG mode, don't block registration — the code will be returned in the response
+        if not settings.DEBUG:
+            return Response(
+                {'error': 'Failed to send verification email. Please try again later.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
-    safe_log("info", "Verification code dispatched", extra={"email": mask_email(email)})
+    safe_log("info", "Verification code dispatched", extra={"email": mask_email(email), "email_sent": email_sent})
 
     response_data = {'message': 'Verification code sent successfully.', 'email': email}
     if settings.DEBUG:
         response_data['code'] = code  # Dev convenience only — never exposed in production
+        if not email_sent:
+            response_data['warning'] = f'Email delivery failed ({email_error_detail}), but code is available in DEBUG mode.'
 
     return Response(response_data)
 
