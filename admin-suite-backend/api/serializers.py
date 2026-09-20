@@ -277,9 +277,15 @@ class EmployeeSerializer(serializers.ModelSerializer):
         validated_data['linked_user'] = emp_user
         validated_data['branch'] = target_branch
 
+        if not user and creator_user:
+            user = creator_user
+            validated_data['user'] = user
+
         # Filter finance_data to only valid EmployeeFinance fields
         valid_finance_fields = {f.name for f in EmployeeFinance._meta.get_fields() if hasattr(f, 'column')} # type: ignore
         clean_finance = {k: v for k, v in finance_data.items() if k in valid_finance_fields and k != 'id'}
+        if 'current_pay' not in clean_finance or clean_finance['current_pay'] in (None, '', 0):
+            clean_finance['current_pay'] = validated_data.get('salary', 0)
         
         # Create finance record first
         finance = EmployeeFinance.objects.create(user=user, **clean_finance) # type: ignore
@@ -288,15 +294,21 @@ class EmployeeSerializer(serializers.ModelSerializer):
         # Save temp password to display to Admin
         employee._temp_password = temp_password  # type: ignore[attr-defined]
 
-        # Send onboarding email
-        from .emails import send_onboarding_email
-        send_onboarding_email(
-            email=email,
-            name=name,
-            temp_password=temp_password,
-            company_name=creator_org.name if creator_org else "AdminSuite Company",
-            role_display=role_display
-        )
+        # Send onboarding email (best-effort — never abort creation on SMTP failure)
+        try:
+            from .emails import send_onboarding_email
+            send_onboarding_email(
+                email=email,
+                name=name,
+                temp_password=temp_password,
+                company_name=creator_org.name if creator_org else "AdminSuite Company",
+                role_display=role_display
+            )
+        except Exception as e:
+            import logging
+            logging.getLogger('adminsuite').warning(
+                f'[EmployeeCreate] Onboarding email failed for {email}: {e}'
+            )
 
         return employee
 
@@ -395,7 +407,7 @@ class ClientSerializer(serializers.ModelSerializer):
         read_only_fields = ['user']
         extra_kwargs = {
             'location': {'required': False, 'allow_blank': True, 'allow_null': True, 'default': ''},
-            'website': {'required': False, 'allow_blank': True, 'allow_null': True, 'default': ''},
+            'website': {'required': False, 'allow_blank': True, 'allow_null': True, 'default': None},
             'description': {'required': False, 'allow_blank': True, 'allow_null': True, 'default': ''},
             'remark': {'required': False, 'allow_blank': True, 'allow_null': True, 'default': ''},
             'coords': {'required': False},

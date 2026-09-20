@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { apiService } from '@/services/api';
 import { useAuth } from './AuthContext';
+import { useWorkspaceSocket, WorkspaceSyncEvent } from '@/hooks/useWorkspaceSocket';
 
 interface Metrics {
   employees: number;
@@ -177,6 +178,78 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       if (intervalId) clearInterval(intervalId);
     };
   }, [user, fetchAll]);
+
+  const handleSyncEvent = useCallback((event: WorkspaceSyncEvent) => {
+    switch (event.event) {
+      case "employee.created":
+        if (event.data) {
+          setEmployees(prev => {
+            if (prev.some(e => String(e.id) === String(event.data.id))) return prev;
+            return [event.data, ...prev];
+          });
+          setMetrics(prev => ({ ...prev, employees: prev.employees + 1 }));
+        }
+        break;
+      case "employee.updated":
+        if (event.data) {
+          setEmployees(prev =>
+            prev.map(e => (String(e.id) === String(event.data.id) ? { ...e, ...event.data } : e))
+          );
+        }
+        break;
+      case "employee.deleted":
+        if (event.data?.id) {
+          setEmployees(prev => prev.filter(e => String(e.id) !== String(event.data.id)));
+          setMetrics(prev => ({ ...prev, employees: Math.max(0, prev.employees - 1) }));
+        }
+        break;
+      case "financial_pulse.updated":
+        if (event.data) {
+          setMetrics(prev => ({
+            ...prev,
+            netProfit: event.data.netProfit !== undefined ? event.data.netProfit : prev.netProfit,
+            totalIncome: event.data.totalIncome !== undefined ? event.data.totalIncome : prev.totalIncome,
+            totalExpense: event.data.totalExpense !== undefined ? event.data.totalExpense : prev.totalExpense,
+          }));
+          if (event.data.totalPayroll !== undefined) {
+            setPayrollMetrics(prev => ({
+              ...prev,
+              total: event.data.totalPayroll,
+              staffPaid: event.data.staffPaid !== undefined ? event.data.staffPaid : prev.staffPaid,
+            }));
+          }
+        }
+        break;
+      case "transaction.created":
+        if (event.data) {
+          setTransactions(prev => [event.data, ...prev.filter(t => t.id !== event.data.id)]);
+        }
+        break;
+      case "client.created":
+        if (event.data) {
+          setClients(prev => [event.data, ...prev.filter(c => c.id !== event.data.id)]);
+          setMetrics(prev => ({ ...prev, clients: prev.clients + 1 }));
+        }
+        break;
+      case "client.updated":
+        if (event.data) {
+          setClients(prev =>
+            prev.map(c => (String(c.id) === String(event.data.id) ? { ...c, ...event.data } : c))
+          );
+        }
+        break;
+      case "client.deleted":
+        if (event.data?.id) {
+          setClients(prev => prev.filter(c => String(c.id) !== String(event.data.id)));
+          setMetrics(prev => ({ ...prev, clients: Math.max(0, prev.clients - 1) }));
+        }
+        break;
+      default:
+        break;
+    }
+  }, []);
+
+  useWorkspaceSocket(handleSyncEvent);
 
   const togglePayrollMonth = useCallback(async (month: string, currentPaid: boolean) => {
     const newPaid = !currentPaid;

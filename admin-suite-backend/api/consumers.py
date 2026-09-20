@@ -308,6 +308,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
     async def broadcast_presence(self, event):
         await self.send(text_data=json.dumps(event['payload']))
 
+    async def broadcast_workspace_event(self, event):
+        await self.send(text_data=json.dumps(event['payload']))
+
     # ──────────────────────────────────────────────────────────────────────
     # Database helpers (sync → async via database_sync_to_async)
     # ──────────────────────────────────────────────────────────────────────
@@ -538,3 +541,28 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     async def _send_error(self, detail: str):
         await self.send(text_data=json.dumps({'type': 'error', 'detail': detail}))
+
+
+def broadcast_workspace_sync(workspace_id, event_name, data=None):
+    """
+    Broadcasts real-time workspace events (e.g. employee.updated, financial_pulse.updated, task.updated)
+    to all connected clients in the workspace group.
+    """
+    try:
+        from channels.layers import get_channel_layer
+        from asgiref.sync import async_to_sync
+        channel_layer = get_channel_layer()
+        if channel_layer and workspace_id:
+            async_to_sync(channel_layer.group_send)(
+                f'workspace_{workspace_id}',
+                {
+                    'type': 'broadcast_workspace_event',
+                    'payload': {
+                        'type': 'workspace.sync',
+                        'event': event_name,
+                        'data': data or {},
+                    }
+                }
+            )
+    except Exception as e:
+        logger.warning(f'[WS Broadcast Error] {event_name} for workspace {workspace_id}: {e}')

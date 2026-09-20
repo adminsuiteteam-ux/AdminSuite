@@ -27,6 +27,7 @@ export const BASE_URL = ENV_API_URL
 
 
 let activeBaseUrl = BASE_URL;
+export const getActiveBaseUrl = () => activeBaseUrl;
 const API_URL = `${activeBaseUrl}api/`;
 
 // ─── Media URL helper ─────────────────────────────────────────────────────────

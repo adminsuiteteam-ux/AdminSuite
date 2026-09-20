@@ -105,20 +105,29 @@ export default function CreateClientScreen() {
     if (saving) return;
     setSaving(true);
 
+    let formattedWebsite: string | null = website.trim();
+    if (formattedWebsite) {
+      if (!/^https?:\/\//i.test(formattedWebsite)) {
+        formattedWebsite = `https://${formattedWebsite}`;
+      }
+    } else {
+      formattedWebsite = null;
+    }
+
     const payload = {
-      company,
-      contact,
+      company: company.trim(),
+      contact: contact.trim(),
       status,
-      email,
-      location,
-      website,
-      description,
-      remark,
+      email: email.trim(),
+      location: location.trim(),
+      website: formattedWebsite,
+      description: description.trim(),
+      remark: remark.trim(),
       lifetime_value: parseFloat(lifetimeValue) || 0,
       pending_payments: parseFloat(pendingPayments) || 0,
       client_owes_company: parseFloat(clientOwes) || 0,
       company_owes_client: parseFloat(companyOwes) || 0,
-      coords: { lat: 0, lng: 0 }, // Default coords
+      coords: { lat: 0, lng: 0 },
     };
 
     try {
@@ -135,11 +144,26 @@ export default function CreateClientScreen() {
         type: "success",
       });
       router.back();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Save failed:", err);
+      const data = err?.response?.data;
+      let msg = `Failed to ${isEditing ? "update" : "save"} client. Please try again.`;
+      if (data) {
+        if (typeof data === "string") {
+          msg = data;
+        } else if (data.detail) {
+          msg = data.detail;
+        } else {
+          const firstKey = Object.keys(data)[0];
+          if (firstKey) {
+            const val = data[firstKey];
+            msg = `${firstKey}: ${Array.isArray(val) ? val[0] : val}`;
+          }
+        }
+      }
       showToast({
         title: "Error",
-        message: `Failed to ${isEditing ? "update" : "save"} client. Please try again.`,
+        message: msg,
         type: "error",
       });
     } finally {

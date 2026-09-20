@@ -177,11 +177,12 @@ export default function CompleteProfileScreen() {
     }
   };
 
-  // Pick Avatar (Directly save chosen photo without showing Android's "CROP" screen)
+  // Pick Avatar with crop
   const pickAvatar = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: false,
+      allowsEditing: true,
+      aspect: [1, 1],
       quality: 0.8,
     });
     if (!result.canceled && result.assets.length > 0) {
@@ -189,11 +190,12 @@ export default function CompleteProfileScreen() {
     }
   };
 
-  // Pick Company Logo (Directly save chosen photo without showing Android's "CROP" screen)
+  // Pick Company Logo with crop
   const pickCompanyLogo = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: false,
+      allowsEditing: true,
+      aspect: [1, 1],
       quality: 0.8,
     });
     if (!result.canceled && result.assets.length > 0) {

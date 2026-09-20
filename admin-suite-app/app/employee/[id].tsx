@@ -474,14 +474,14 @@ export default function EmployeeDetailScreen() {
     );
   };
 
-  const fin = employee.finance || {
-    currentPay: 0,
-    employeeOwesCompany: 0,
-    companyOwesEmployee: 0,
-    shares: 0,
-    bonuses: 0,
-    deductions: 0
-  };
+  const fin = employee.finance || {};
+  const currentPay = Number(fin.current_pay ?? fin.currentPay ?? employee.salary ?? 0);
+  const employeeOwesCompany = Number(fin.employee_owes_company ?? fin.employeeOwesCompany ?? 0);
+  const companyOwesEmployee = Number(fin.company_owes_employee ?? fin.companyOwesEmployee ?? 0);
+  const shares = Number(fin.shares ?? 0);
+  const bonuses = Number(fin.bonuses ?? 0);
+  const deductions = Number(fin.deductions ?? 0);
+
   const statusLabel = employee.status === "on_leave" ? "ON LEAVE" : employee.status === "terminated" ? "INACTIVE" : employee.status.toUpperCase();
 
   const open = (url: string) => {
@@ -492,18 +492,18 @@ export default function EmployeeDetailScreen() {
     router.push(`/employee/create?editId=${employee.id}` as any);
   };
 
-  const socialButtons: { icon: string; color: string; onPress: () => void }[] = [];
+  const socialButtons: { icon: string; onPress: () => void }[] = [];
   PRIMARY_SOCIALS.forEach((s) => {
     if (s.key === "phone") {
-      socialButtons.push({ icon: s.icon, color: s.color, onPress: () => open(`tel:${employee.phone}`) });
+      socialButtons.push({ icon: s.icon, onPress: () => open(`tel:${employee.phone}`) });
     } else {
       const handle = Object.entries(employee.socials || {}).find(([k]) => k === s.key)?.[1] as string | undefined;
-      if (handle) socialButtons.push({ icon: s.icon, color: s.color, onPress: () => open(s.url(handle)) });
+      if (handle) socialButtons.push({ icon: s.icon, onPress: () => open(s.url(handle)) });
     }
   });
   EXTRA_SOCIALS.forEach((s) => {
     const handle = Object.entries(employee.socials || {}).find(([k]) => k === s.key)?.[1] as string | undefined;
-    if (handle) socialButtons.push({ icon: s.icon, color: s.color, onPress: () => open(s.url(handle)) });
+    if (handle) socialButtons.push({ icon: s.icon, onPress: () => open(s.url(handle)) });
   });
 
   return (
@@ -630,7 +630,6 @@ export default function EmployeeDetailScreen() {
                 <SocialIconBtn
                   key={idx}
                   icon={btn.icon}
-                  color={btn.color}
                   onPress={btn.onPress}
                 />
               ))}
@@ -665,11 +664,11 @@ export default function EmployeeDetailScreen() {
         <FloatInView delay={240}>
           <Section title="Manage">
             <View style={styles.manageGrid}>
-              <ManageBtn icon="flag" color={employee.is_flagged ? "#ef4444" : "#f97316"} label={employee.is_flagged ? "Unflag" : "Flag"} onPress={() => setFlagModalOpen(true)} />
-              <ManageBtn icon="alert-circle" color="#eab308" label="Query" onPress={() => setQueryModalOpen(true)} />
-              <ManageBtn icon="check-square" color="#22c55e" label="Give task" onPress={() => setTaskModalOpen(true)} />
-              <ManageBtn icon="edit-3" color="#2563eb" label="Edit" onPress={onEdit} />
-              <ManageBtn icon="trash-2" color="#ef4444" label="Delete" onPress={() => {
+              <ManageBtn icon="flag" label={employee.is_flagged ? "Unflag" : "Flag"} onPress={() => setFlagModalOpen(true)} />
+              <ManageBtn icon="alert-circle" label="Query" onPress={() => setQueryModalOpen(true)} />
+              <ManageBtn icon="check-square" label="Give task" onPress={() => setTaskModalOpen(true)} />
+              <ManageBtn icon="edit-3" label="Edit" onPress={onEdit} />
+              <ManageBtn icon="trash-2" label="Delete" onPress={() => {
                 Alert.alert("Confirm Delete", `Are you sure you want to delete ${employee.name}?`, [
                   { text: "Cancel", style: "cancel" },
                   { text: "Delete", style: "destructive", onPress: async () => {
@@ -677,7 +676,7 @@ export default function EmployeeDetailScreen() {
                   }},
                 ]);
               }} />
-              <ManageBtn icon="more-horizontal" color="#64748b" label="More" onPress={() => setMoreOpen((v) => !v)} />
+              <ManageBtn icon="more-horizontal" label="More" onPress={() => setMoreOpen((v) => !v)} />
             </View>
             {moreOpen && (
               <View style={[styles.moreCard, { backgroundColor: colors.isDark ? "#18181c" : "#ffffff", borderColor: colors.border, borderRadius: colors.radius }]}>
@@ -695,16 +694,16 @@ export default function EmployeeDetailScreen() {
         <FloatInView delay={300}>
           <Section title="Financial record">
             <View style={[styles.detailCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
-              <DetailRow icon="dollar-sign" label="Current pay" value={fmt(fin.currentPay)} />
-              {fin.employeeOwesCompany > 0 && (
-                <DetailRow icon="alert-circle" label="Employee owes company" value={fmt(fin.employeeOwesCompany)} valueColor="#ef4444" />
+              <DetailRow icon="dollar-sign" label="Current pay" value={fmt(isNaN(currentPay) ? 0 : currentPay)} />
+              {employeeOwesCompany > 0 && (
+                <DetailRow icon="alert-circle" label="Employee owes company" value={fmt(isNaN(employeeOwesCompany) ? 0 : employeeOwesCompany)} valueColor="#ef4444" />
               )}
-              {fin.companyOwesEmployee > 0 && (
-                <DetailRow icon="alert-triangle" label="Company owes employee" value={fmt(fin.companyOwesEmployee)} valueColor="#22c55e" />
+              {companyOwesEmployee > 0 && (
+                <DetailRow icon="alert-triangle" label="Company owes employee" value={fmt(isNaN(companyOwesEmployee) ? 0 : companyOwesEmployee)} valueColor="#22c55e" />
               )}
-              <DetailRow icon="bar-chart-2" label="Company shares" value={fin.shares > 0 ? `${fin.shares}%` : "None"} />
-              <DetailRow icon="gift" label="Bonuses" value={fmt(fin.bonuses)} />
-              <DetailRow icon="minus-circle" label="Deductions" value={fmt(fin.deductions)} last />
+              <DetailRow icon="bar-chart-2" label="Company shares" value={shares > 0 ? `${shares}%` : "None"} />
+              <DetailRow icon="gift" label="Bonuses" value={fmt(isNaN(bonuses) ? 0 : bonuses)} />
+              <DetailRow icon="minus-circle" label="Deductions" value={fmt(isNaN(deductions) ? 0 : deductions)} last />
             </View>
             <Pressable
               onPress={() => router.push(`/employee/finance?id=${employee.id}` as any)}
@@ -1037,10 +1036,11 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function SocialIconBtn({ icon, color, onPress }: { icon: string; color: string; onPress: () => void }) {
+function SocialIconBtn({ icon, onPress }: { icon: string; onPress: () => void }) {
+  const colors = useColors();
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.socialIconBtn, { backgroundColor: color + "1A", opacity: pressed ? 0.7 : 1 }]}>
-      <FontAwesome6 name={icon} size={18} color={color} />
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.socialIconBtn, { backgroundColor: colors.isDark ? "#222228" : "#f4f4f5", borderColor: colors.border, borderWidth: 1, opacity: pressed ? 0.7 : 1 }]}>
+      <FontAwesome6 name={icon} size={18} color={colors.foreground} />
     </Pressable>
   );
 }
@@ -1058,12 +1058,12 @@ function DetailRow({ icon, label, value, last, valueColor }: { icon: keyof typeo
   );
 }
 
-function ManageBtn({ icon, color, label, onPress }: { icon: keyof typeof Feather.glyphMap; color: string; label: string; onPress: () => void }) {
+function ManageBtn({ icon, label, onPress }: { icon: keyof typeof Feather.glyphMap; label: string; onPress: () => void }) {
   const colors = useColors();
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.manageBtn, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius, opacity: pressed ? 0.7 : 1 }]}>
-      <View style={[styles.manageIcon, { backgroundColor: color + "1A" }]}>
-        <Feather name={icon} size={18} color={color} />
+      <View style={[styles.manageIcon, { backgroundColor: colors.primary + "18" }]}>
+        <Feather name={icon} size={18} color={colors.primary} />
       </View>
       <Text style={{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 12 }}>{label}</Text>
     </Pressable>

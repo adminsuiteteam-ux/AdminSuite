@@ -371,23 +371,56 @@ export default function EmployeesScreen() {
         )}
       </ScrollView>
 
+      {/* ── Fullscreen Blur & Dark Dim Backdrop ── */}
+      {filterMenuOpen && (
+        <Pressable
+          onPress={toggleFilterMenu}
+          style={[StyleSheet.absoluteFill, { zIndex: 997 }]}
+        >
+          <BlurView
+            intensity={Platform.OS === "web" ? 35 : 75}
+            tint="dark"
+            style={StyleSheet.absoluteFill}
+          />
+          <View
+            style={[
+              StyleSheet.absoluteFill,
+              { backgroundColor: "rgba(0, 0, 0, 0.65)" },
+            ]}
+          />
+        </Pressable>
+      )}
+
       {/* ── Vertical Role Filter Panel ── */}
       <Animated.View
         pointerEvents={filterMenuOpen ? "auto" : "none"}
         style={[
           styles.filterPopupWrap,
           {
-            bottom: bottomOffset + 64,
+            bottom: bottomOffset + 68,
             right: 16,
             transform: [{ translateY: slideAnim }],
             opacity: slideAnim.interpolate({ inputRange: [0, 300], outputRange: [1, 0] }),
-            backgroundColor: colors.card,
+            backgroundColor: colors.isDark ? "#16161a" : "#ffffff",
             borderColor: colors.border,
+            borderWidth: 1.5,
           },
         ]}
       >
-        <BlurView intensity={Platform.OS === "web" ? 30 : 60} tint="dark" style={StyleSheet.absoluteFill} />
         <View style={styles.filterPopupInner}>
+          <Text
+            style={{
+              fontSize: 11,
+              fontFamily: "Inter_700Bold",
+              color: colors.mutedForeground,
+              textTransform: "uppercase",
+              letterSpacing: 0.6,
+              paddingHorizontal: 8,
+              paddingVertical: 6,
+            }}
+          >
+            Filter by Role
+          </Text>
           {ROLE_FILTERS.map((opt) => {
             const active = selectedRoleFilter === opt.id;
             return (
@@ -400,19 +433,22 @@ export default function EmployeesScreen() {
                 style={({ pressed }) => [
                   styles.roleFilterChip,
                   {
-                    borderColor: active ? opt.color : colors.border,
-                    backgroundColor: active ? opt.color + "22" : "transparent",
+                    borderColor: active ? opt.color : "transparent",
+                    backgroundColor: active
+                      ? opt.color + "25"
+                      : pressed
+                      ? colors.isDark ? "#222228" : "#f4f4f5"
+                      : "transparent",
                     borderRadius: 12,
-                    opacity: pressed ? 0.85 : 1,
                   },
                 ]}
               >
                 <View
                   style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: 14,
-                    backgroundColor: opt.color + "20",
+                    width: 30,
+                    height: 30,
+                    borderRadius: 15,
+                    backgroundColor: opt.color + "25",
                     alignItems: "center",
                     justifyContent: "center",
                     marginRight: 10,
@@ -420,8 +456,8 @@ export default function EmployeesScreen() {
                 >
                   <Feather
                     name={opt.icon}
-                    size={13}
-                    color={active ? opt.color : colors.mutedForeground}
+                    size={14}
+                    color={opt.color}
                   />
                 </View>
                 <Text
@@ -435,7 +471,7 @@ export default function EmployeesScreen() {
                   {opt.label}
                 </Text>
                 {active && (
-                  <Feather name="check" size={14} color={opt.color} />
+                  <Feather name="check" size={15} color={opt.color} />
                 )}
               </Pressable>
             );
@@ -614,7 +650,7 @@ const styles = StyleSheet.create({
   },
   filterPopupWrap: {
     position: "absolute",
-    width: 210,
+    width: 220,
     borderRadius: 16,
     borderWidth: 1,
     overflow: "hidden",

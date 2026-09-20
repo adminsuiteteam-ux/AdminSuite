@@ -217,6 +217,39 @@ def get_scoped_queryset(model, request, user_field='user', branch_field='branch'
         return model.objects.none()
 
 
+def get_workspace_id(user):
+    """Returns the primary workspace_id (owner admin user PK) for this user."""
+    if not user or not getattr(user, 'is_authenticated', False):
+        return None
+    try:
+        employee = getattr(user, 'employee_profile', None)
+        if employee and employee.user_id:
+            return employee.user_id
+    except Exception:
+        pass
+    return user.id
+
+
+def get_financial_pulse_data(user):
+    """Calculates live financial pulse figures for the user's workspace."""
+    from django.db.models import Sum
+    ws_id = get_workspace_id(user)
+    if not ws_id:
+        return {}
+    txs = Transaction.objects.filter(user_id=ws_id)
+    total_income = txs.filter(type='income').aggregate(total=Sum('amount'))['total'] or 0
+    total_expense = txs.filter(type='expense').aggregate(total=Sum('amount'))['total'] or 0
+    total_payroll = Employee.objects.filter(user_id=ws_id).exclude(status='terminated').aggregate(total=Sum('salary'))['total'] or 0
+    staff_paid = Employee.objects.filter(user_id=ws_id, status='active').count()
+    return {
+        'netProfit': float(total_income) - float(total_expense),
+        'totalIncome': float(total_income),
+        'totalExpense': float(total_expense),
+        'totalPayroll': float(total_payroll),
+        'staffPaid': staff_paid,
+    }
+
+
 class EmployeeViewSet(viewsets.ModelViewSet):
     serializer_class = EmployeeSerializer
     permission_classes = [IsAuthenticated]
@@ -242,6 +275,26 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             body=f"{instance.name} has been onboarded as {instance.role} in {instance.department}.",
             data={'screen': 'employees', 'employeeId': str(instance.id)}
         )
+        # Real-time WebSocket broadcast
+        from .consumers import broadcast_workspace_sync
+        ws_id = get_workspace_id(self.request.user)
+        broadcast_workspace_sync(ws_id, 'employee.created', EmployeeSerializer(instance, context={'request': self.request}).data)
+        broadcast_workspace_sync(ws_id, 'financial_pulse.updated', get_financial_pulse_data(self.request.user))
+
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        from .consumers import broadcast_workspace_sync
+        ws_id = get_workspace_id(self.request.user)
+        broadcast_workspace_sync(ws_id, 'employee.updated', EmployeeSerializer(instance, context={'request': self.request}).data)
+        broadcast_workspace_sync(ws_id, 'financial_pulse.updated', get_financial_pulse_data(self.request.user))
+
+    def perform_destroy(self, instance):
+        from .consumers import broadcast_workspace_sync
+        ws_id = get_workspace_id(self.request.user)
+        emp_id = instance.id
+        instance.delete()
+        broadcast_workspace_sync(ws_id, 'employee.deleted', {'id': emp_id})
+        broadcast_workspace_sync(ws_id, 'financial_pulse.updated', get_financial_pulse_data(self.request.user))
 
     @action(detail=True, methods=['post'])
     def flag(self, request, pk=None):
@@ -287,6 +340,9 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                     body='Your profile flag has been cleared by the administrator.',
                     data={'screen': 'profile'}
                 )
+        from .consumers import broadcast_workspace_sync
+        ws_id = get_workspace_id(request.user)
+        broadcast_workspace_sync(ws_id, 'employee.updated', EmployeeSerializer(employee, context={'request': request}).data)
         return Response({'status': 'success', 'is_flagged': employee.is_flagged})
 
     @action(detail=True, methods=['post'])
@@ -307,6 +363,9 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 body='Your staff account has been deactivated. Contact your administrator for details.',
                 data={'screen': 'profile'}
             )
+        from .consumers import broadcast_workspace_sync
+        ws_id = get_workspace_id(request.user)
+        broadcast_workspace_sync(ws_id, 'employee.updated', EmployeeSerializer(employee, context={'request': request}).data)
         return Response({'status': 'success', 'is_archived': True})
 
     @action(detail=True, methods=['post'])
@@ -327,6 +386,9 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 body='Your staff account has been reactivated. Welcome back!',
                 data={'screen': 'dashboard'}
             )
+        from .consumers import broadcast_workspace_sync
+        ws_id = get_workspace_id(request.user)
+        broadcast_workspace_sync(ws_id, 'employee.updated', EmployeeSerializer(employee, context={'request': request}).data)
         return Response({'status': 'success', 'is_archived': False})
 
 
@@ -346,7 +408,23 @@ class ClientViewSet(viewsets.ModelViewSet):
             org = None
         if org:
             check_subscription_limit(org, 'clients')
-        serializer.save(user=self.request.user)
+        instance = serializer.save(user=self.request.user)
+        from .consumers import broadcast_workspace_sync
+        ws_id = get_workspace_id(self.request.user)
+        broadcast_workspace_sync(ws_id, 'client.created', ClientSerializer(instance).data)
+
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        from .consumers import broadcast_workspace_sync
+        ws_id = get_workspace_id(self.request.user)
+        broadcast_workspace_sync(ws_id, 'client.updated', ClientSerializer(instance).data)
+
+    def perform_destroy(self, instance):
+        from .consumers import broadcast_workspace_sync
+        ws_id = get_workspace_id(self.request.user)
+        c_id = instance.id
+        instance.delete()
+        broadcast_workspace_sync(ws_id, 'client.deleted', {'id': c_id})
 
 
 class ProjectViewSet(viewsets.ModelViewSet):
@@ -398,7 +476,26 @@ class TransactionViewSet(viewsets.ModelViewSet):
                 branch = ext.organization.branches.first()
         except Exception:
             pass
-        serializer.save(user=user, branch=branch)
+        instance = serializer.save(user=user, branch=branch)
+        from .consumers import broadcast_workspace_sync
+        ws_id = get_workspace_id(user)
+        broadcast_workspace_sync(ws_id, 'financial_pulse.updated', get_financial_pulse_data(user))
+        broadcast_workspace_sync(ws_id, 'transaction.created', TransactionSerializer(instance).data)
+
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        from .consumers import broadcast_workspace_sync
+        ws_id = get_workspace_id(self.request.user)
+        broadcast_workspace_sync(ws_id, 'financial_pulse.updated', get_financial_pulse_data(self.request.user))
+        broadcast_workspace_sync(ws_id, 'transaction.updated', TransactionSerializer(instance).data)
+
+    def perform_destroy(self, instance):
+        from .consumers import broadcast_workspace_sync
+        ws_id = get_workspace_id(self.request.user)
+        tx_id = instance.id
+        instance.delete()
+        broadcast_workspace_sync(ws_id, 'financial_pulse.updated', get_financial_pulse_data(self.request.user))
+        broadcast_workspace_sync(ws_id, 'transaction.deleted', {'id': tx_id})
 
 
 class NotificationViewSet(viewsets.ModelViewSet):
@@ -580,6 +677,7 @@ def me(request):
         'average_revenue': profile_data.get('average_revenue', ''),
         'company_logo': company_logo_url,
         'employee_id': employee_id,
+        'workspace_id': get_workspace_id(user),
     })
 
 
@@ -1920,6 +2018,11 @@ class SalaryAdjustmentViewSet(viewsets.ModelViewSet):
                 data={'screen': 'finance'}
             )
 
+        from .consumers import broadcast_workspace_sync
+        ws_id = get_workspace_id(self.request.user)
+        broadcast_workspace_sync(ws_id, 'financial_pulse.updated', get_financial_pulse_data(self.request.user))
+        broadcast_workspace_sync(ws_id, 'employee.updated', EmployeeSerializer(employee, context={'request': self.request}).data)
+
 
 class EmployeeFinanceViewSet(viewsets.ModelViewSet):
     serializer_class = EmployeeFinanceSerializer
@@ -1941,10 +2044,16 @@ class EmployeeFinanceViewSet(viewsets.ModelViewSet):
         if employee and employee.linked_user:
             send_push_notification(
                 user=employee.linked_user,
-                title='💰 Financial Record Updated',
-                body='Your financial record has been updated by the administrator.',
+                title='💼 Finance Profile Updated',
+                body='Your compensation and financial details have been updated.',
                 data={'screen': 'finance'}
             )
+
+        from .consumers import broadcast_workspace_sync
+        ws_id = get_workspace_id(self.request.user)
+        broadcast_workspace_sync(ws_id, 'financial_pulse.updated', get_financial_pulse_data(self.request.user))
+        if employee:
+            broadcast_workspace_sync(ws_id, 'employee.updated', EmployeeSerializer(employee, context={'request': self.request}).data)
 
 
 # ---------------------------------------------------------------------------
