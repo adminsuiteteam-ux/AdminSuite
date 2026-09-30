@@ -6,12 +6,58 @@ from core.safe_logger import safe_log
 logger = logging.getLogger(__name__)
 
 
+def _send_via_brevo_api(to_email: str, subject: str, html_body: str, text_body: str, api_key: str) -> None:
+    """Dispatches a transactional email via Brevo's HTTPS REST API.
+    Bypasses cloud provider SMTP firewall port blocks (ports 25/465/587).
+    """
+    import requests
+    from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'AdminSuite <adminsuiteteam@gmail.com>')
+    sender_name = "AdminSuite"
+    sender_email = "adminsuiteteam@gmail.com"
+    if "<" in from_email and ">" in from_email:
+        sender_name = from_email.split("<")[0].strip() or "AdminSuite"
+        sender_email = from_email.split("<")[1].split(">")[0].strip() or "adminsuiteteam@gmail.com"
+
+    payload = {
+        "sender": {"name": sender_name, "email": sender_email},
+        "to": [{"email": to_email}],
+        "subject": subject,
+        "htmlContent": html_body,
+        "textContent": text_body,
+    }
+    resp = requests.post(
+        "https://api.brevo.com/v3/smtp/email",
+        headers={
+            "api-key": api_key,
+            "content-type": "application/json",
+            "accept": "application/json",
+        },
+        json=payload,
+        timeout=12,
+    )
+    if resp.status_code in (200, 201, 202):
+        safe_log("info", f"Successfully dispatched transactional email via Brevo HTTPS API to {to_email}")
+        return
+
+    err_msg = f"Brevo API error ({resp.status_code}): {resp.text}"
+    safe_log("error", err_msg)
+    raise Exception(err_msg)
+
+
 def _send_via_django_mail(to_email: str, subject: str, html_body: str, text_body: str) -> None:
     """
-    Internal helper — dispatches a transactional email via Django's native email system.
-    If DJANGO_EMAIL_BACKEND points to console (default in dev), it prints to terminal.
-    Otherwise, it sends via the configured SMTP server (Gmail in production).
+    Internal helper — dispatches a transactional email.
+    If BREVO_API_KEY is configured, sends via Brevo's HTTPS API (essential on Render/cloud hosts).
+    Otherwise falls back to Django's native SMTP / console email backend.
     """
+    brevo_key = getattr(settings, 'BREVO_API_KEY', None) or os.environ.get('BREVO_API_KEY')
+    if brevo_key and brevo_key.strip():
+        try:
+            _send_via_brevo_api(to_email, subject, html_body, text_body, brevo_key.strip())
+            return
+        except Exception as e:
+            safe_log("warn", f"Brevo dispatch failed, falling back to Django SMTP: {e}")
+
     from django.core.mail import EmailMultiAlternatives
     import socket
 
