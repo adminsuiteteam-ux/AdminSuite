@@ -40,7 +40,8 @@ def health_check(request):
     return JsonResponse({
         "status": "ok" if db_status == "ok" else "degraded",
         "service": "adminsuite-api",
-        "build": "2026-09-19-email-ssl",
+        "build": "2026-09-30-brevo-api",
+        "brevo_configured": bool(getattr(settings, 'BREVO_API_KEY', None) or os.environ.get('BREVO_API_KEY')),
         "email_host": settings.EMAIL_HOST,
         "email_port": settings.EMAIL_PORT,
         "email_ssl": settings.EMAIL_USE_SSL,
