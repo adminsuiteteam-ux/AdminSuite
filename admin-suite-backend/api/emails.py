@@ -21,6 +21,10 @@ def _send_via_zeptomail_api(to_email: str, subject: str, html_body: str, text_bo
     elif "@" in from_email:
         sender_email = from_email.strip()
 
+    # Safety: ZeptoMail requires sending from the verified custom domain
+    if not sender_email.endswith("@brownforte.com"):
+        sender_email = "noreply@brownforte.com"
+
     auth_header = send_token.strip()
     if not auth_header.startswith("Zoho-enczapikey"):
         auth_header = f"Zoho-enczapikey {auth_header}"
