@@ -21,7 +21,12 @@ services:
           property: host
       - key: CORS_ALLOWED_ORIGINS
         value: https://adminsuite.onrender.com,https://adminsuite-web.onrender.com
-      # ── Email (Brevo HTTPS REST API — bypasses cloud provider SMTP port blocks) ───
+      # ── Email (ZeptoMail HTTPS REST API — verified custom domain brownforte.com) ──
+      - key: ZEPTOMAIL_SEND_MAIL_TOKEN
+        sync: false
+      - key: DEFAULT_FROM_EMAIL
+        value: AdminSuite <noreply@brownforte.com>
+      # ── Email (Brevo HTTPS REST API fallback) ────────────────────────────────────
       - key: BREVO_API_KEY
         sync: false
       # ── Email (Gmail SMTP fallback) ──────────────────────────────────────────
@@ -37,8 +42,6 @@ services:
         value: adminsuiteteam@gmail.com
       - key: EMAIL_HOST_PASSWORD
         value: ctlqddwhiagkpfjy
-      - key: DEFAULT_FROM_EMAIL
-        value: AdminSuite <adminsuiteteam@gmail.com>
       # ── Cloudinary (media storage) ───────────────────────────────────────────
       # Configure in Render Dashboard for avatar/logo uploads.
       - key: CLOUDINARY_CLOUD_NAME

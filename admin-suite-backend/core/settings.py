@@ -348,7 +348,10 @@ EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER') or 'adminsuiteteam@gmail.com
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD') or 'ctlqddwhiagkpfjy'
 EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT') or 30)
 
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL') or 'AdminSuite <adminsuiteteam@gmail.com>'
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL') or 'AdminSuite <noreply@brownforte.com>'
 
-# Brevo HTTP Email API (Bypasses cloud provider SMTP port blocks on port 465/587)
+# ZeptoMail HTTPS Email API (Primary transactional email dispatch via verified custom domain brownforte.com)
+ZEPTOMAIL_SEND_MAIL_TOKEN = os.environ.get('ZEPTOMAIL_SEND_MAIL_TOKEN')
+
+# Brevo HTTP Email API (Fallback)
 BREVO_API_KEY = os.environ.get('BREVO_API_KEY')

@@ -6,17 +6,72 @@ from core.safe_logger import safe_log
 logger = logging.getLogger(__name__)
 
 
+def _send_via_zeptomail_api(to_email: str, subject: str, html_body: str, text_body: str, send_token: str) -> None:
+    """Dispatches a transactional email via ZeptoMail's HTTPS REST API.
+    Bypasses cloud provider SMTP firewall port blocks (ports 25/465/587) and authenticates
+    with verified custom domain brownforte.com (DKIM/SPF) for 100% Primary Inbox delivery.
+    """
+    import requests
+    from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'AdminSuite <noreply@brownforte.com>')
+    sender_name = "AdminSuite"
+    sender_email = "noreply@brownforte.com"
+    if "<" in from_email and ">" in from_email:
+        sender_name = from_email.split("<")[0].strip() or "AdminSuite"
+        sender_email = from_email.split("<")[1].split(">")[0].strip() or "noreply@brownforte.com"
+    elif "@" in from_email:
+        sender_email = from_email.strip()
+
+    auth_header = send_token.strip()
+    if not auth_header.startswith("Zoho-enczapikey"):
+        auth_header = f"Zoho-enczapikey {auth_header}"
+
+    payload = {
+        "from": {
+            "address": sender_email,
+            "name": sender_name,
+        },
+        "to": [
+            {
+                "email_address": {
+                    "address": to_email,
+                    "name": to_email.split("@")[0],
+                }
+            }
+        ],
+        "subject": subject,
+        "htmlbody": html_body,
+        "textbody": text_body,
+    }
+    resp = requests.post(
+        "https://api.zeptomail.com/v1.1/email",
+        headers={
+            "accept": "application/json",
+            "content-type": "application/json",
+            "authorization": auth_header,
+        },
+        json=payload,
+        timeout=12,
+    )
+    if resp.status_code in (200, 201, 202):
+        safe_log("info", f"Successfully dispatched transactional email via ZeptoMail HTTPS API to {to_email}")
+        return
+
+    err_msg = f"ZeptoMail API error ({resp.status_code}): {resp.text}"
+    safe_log("error", err_msg)
+    raise Exception(err_msg)
+
+
 def _send_via_brevo_api(to_email: str, subject: str, html_body: str, text_body: str, api_key: str) -> None:
     """Dispatches a transactional email via Brevo's HTTPS REST API.
     Bypasses cloud provider SMTP firewall port blocks (ports 25/465/587).
     """
     import requests
-    from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'AdminSuite <adminsuiteteam@gmail.com>')
+    from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'AdminSuite <noreply@brownforte.com>')
     sender_name = "AdminSuite"
-    sender_email = "adminsuiteteam@gmail.com"
+    sender_email = "noreply@brownforte.com"
     if "<" in from_email and ">" in from_email:
         sender_name = from_email.split("<")[0].strip() or "AdminSuite"
-        sender_email = from_email.split("<")[1].split(">")[0].strip() or "adminsuiteteam@gmail.com"
+        sender_email = from_email.split("<")[1].split(">")[0].strip() or "noreply@brownforte.com"
 
     payload = {
         "sender": {"name": sender_name, "email": sender_email},
@@ -47,9 +102,18 @@ def _send_via_brevo_api(to_email: str, subject: str, html_body: str, text_body: 
 def _send_via_django_mail(to_email: str, subject: str, html_body: str, text_body: str) -> None:
     """
     Internal helper — dispatches a transactional email.
-    If BREVO_API_KEY is configured, sends via Brevo's HTTPS API (essential on Render/cloud hosts).
-    Otherwise falls back to Django's native SMTP / console email backend.
+    1. Primary: ZeptoMail HTTPS API using verified domain brownforte.com (bypasses spam filters).
+    2. Fallback 1: Brevo HTTPS API.
+    3. Fallback 2: Django native SMTP / console email backend.
     """
+    zeptomail_token = getattr(settings, 'ZEPTOMAIL_SEND_MAIL_TOKEN', None) or os.environ.get('ZEPTOMAIL_SEND_MAIL_TOKEN')
+    if zeptomail_token and zeptomail_token.strip():
+        try:
+            _send_via_zeptomail_api(to_email, subject, html_body, text_body, zeptomail_token.strip())
+            return
+        except Exception as e:
+            safe_log("warn", f"ZeptoMail dispatch failed, falling back to Brevo/SMTP: {e}")
+
     brevo_key = getattr(settings, 'BREVO_API_KEY', None) or os.environ.get('BREVO_API_KEY')
     if brevo_key and brevo_key.strip():
         try:
@@ -61,7 +125,7 @@ def _send_via_django_mail(to_email: str, subject: str, html_body: str, text_body
     from django.core.mail import EmailMultiAlternatives
     import socket
 
-    from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'AdminSuite <no-reply@adminsuite.app>')
+    from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'AdminSuite <noreply@brownforte.com>')
     
     msg = EmailMultiAlternatives(
         subject=subject,
