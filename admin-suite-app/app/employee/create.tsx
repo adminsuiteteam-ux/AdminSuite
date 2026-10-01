@@ -1,4 +1,5 @@
 import { FontAwesome6, Feather } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
 import * as ImagePicker from "expo-image-picker";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -441,7 +442,6 @@ export default function CreateEmployeeScreen() {
         router.back();
       } else {
         response = await apiService.createEmployee(formData);
-        await refresh();
         const tempPassword = response.data?.temp_password;
         if (tempPassword) {
           setCreatedEmployee({ email, tempPassword });
@@ -453,6 +453,8 @@ export default function CreateEmployeeScreen() {
           });
           router.back();
         }
+        // Asynchronously update cached state in background without stalling the UI
+        refresh().catch((err) => console.warn("Background refresh error:", err));
       }
     } catch (err: any) {
       console.error("Save failed:", err);
@@ -1163,10 +1165,34 @@ export default function CreateEmployeeScreen() {
       </View>
 
       {/* ── Success Modal ───────────────────────────────────── */}
-      <Modal visible={createdEmployee !== null} transparent animationType="fade">
+      <Modal visible={createdEmployee !== null} transparent animationType="fade" statusBarTranslucent>
         <View style={styles.modalOverlay}>
+          <BlurView
+            intensity={Platform.OS === "web" ? 35 : 65}
+            tint={colors.isDark ? "dark" : "light"}
+            style={StyleSheet.absoluteFill}
+          />
           <View
-            style={[styles.modalContent, { backgroundColor: colors.card, borderColor: colors.border }]}
+            style={[
+              StyleSheet.absoluteFill,
+              {
+                backgroundColor: colors.isDark ? "rgba(0, 0, 0, 0.72)" : "rgba(15, 23, 42, 0.45)",
+              },
+            ]}
+          />
+          <View
+            style={[
+              styles.modalContent,
+              {
+                backgroundColor: colors.isDark ? "#12131a" : "#ffffff",
+                borderColor: colors.isDark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.08)",
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 16 },
+                shadowOpacity: colors.isDark ? 0.6 : 0.25,
+                shadowRadius: 30,
+                elevation: 24,
+              },
+            ]}
           >
             <View style={[styles.successIconCircle, { backgroundColor: colors.accent + "1A" }]}>
               <Feather name="check-circle" size={40} color={colors.accent} />
@@ -1188,7 +1214,10 @@ export default function CreateEmployeeScreen() {
             <View
               style={[
                 styles.detailsContainer,
-                { backgroundColor: colors.background, borderColor: colors.border },
+                {
+                  backgroundColor: colors.isDark ? "#1a1b26" : "#f8fafc",
+                  borderColor: colors.isDark ? "rgba(255, 255, 255, 0.08)" : colors.border,
+                },
               ]}
             >
               <View style={styles.detailRow}>
@@ -1197,7 +1226,7 @@ export default function CreateEmployeeScreen() {
                   {createdEmployee?.email}
                 </Text>
               </View>
-              <View style={[styles.detailDivider, { backgroundColor: colors.border }]} />
+              <View style={[styles.detailDivider, { backgroundColor: colors.isDark ? "rgba(255, 255, 255, 0.08)" : colors.border }]} />
               <View style={styles.detailRow}>
                 <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>
                   {t("createEmployee.temporaryPassword")}
@@ -1214,8 +1243,16 @@ export default function CreateEmployeeScreen() {
                     style={({ pressed }) => [
                       styles.copyBtn,
                       {
-                        backgroundColor: copied ? colors.accent + "1A" : colors.border + "4D",
-                        borderColor: copied ? colors.accent : colors.border,
+                        backgroundColor: copied
+                          ? colors.accent + "22"
+                          : colors.isDark
+                          ? "#252736"
+                          : colors.border + "4D",
+                        borderColor: copied
+                          ? colors.accent
+                          : colors.isDark
+                          ? "rgba(255, 255, 255, 0.12)"
+                          : colors.border,
                         opacity: pressed ? 0.7 : 1,
                       },
                     ]}
@@ -1457,7 +1494,6 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
     justifyContent: "center",
     alignItems: "center",
     padding: 24,

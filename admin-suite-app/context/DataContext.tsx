@@ -79,7 +79,7 @@ const initialPayrollMetrics: PayrollMetrics = {
 };
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, setUser } = useAuth();
   const [employees, setEmployees] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
@@ -195,6 +195,36 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           setEmployees(prev =>
             prev.map(e => (String(e.id) === String(event.data.id) ? { ...e, ...event.data } : e))
           );
+          // Live sync to logged-in user profile if this employee matches
+          if (
+            user &&
+            (String(user.employee_id) === String(event.data.id) ||
+              String(user.id) === String(event.data.linked_user) ||
+              (user.email && event.data.email && user.email.toLowerCase() === event.data.email.toLowerCase()))
+          ) {
+            setUser({
+              ...user,
+              name: event.data.name || user.name,
+              role: event.data.role || user.role,
+              avatar: event.data.avatar !== undefined ? event.data.avatar : user.avatar,
+              phone: event.data.phone !== undefined ? event.data.phone : user.phone,
+              location: event.data.location !== undefined ? event.data.location : user.location,
+              bio: event.data.bio !== undefined ? event.data.bio : user.bio,
+            });
+          }
+        }
+        break;
+      case "user.updated":
+        if (event.data && user && String(user.id) === String(event.data.id)) {
+          setUser({ ...user, ...event.data });
+        }
+        break;
+      case "notification.created":
+        if (event.data) {
+          setNotifications(prev => {
+            if (prev.some(n => String(n.id) === String(event.data.id))) return prev;
+            return [event.data, ...prev];
+          });
         }
         break;
       case "employee.deleted":

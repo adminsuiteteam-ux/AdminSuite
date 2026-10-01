@@ -304,7 +304,10 @@ class EmployeeSerializer(serializers.ModelSerializer):
             
             # Sync avatar to profile now that the uploaded file has been persisted to storage
             if employee.avatar:
-                profile.avatar = employee.avatar
+                try:
+                    profile.avatar = employee.avatar.name
+                except Exception:
+                    profile.avatar = employee.avatar
             profile.role = system_role.lower()
             profile.is_first_login = True
             profile.profile_complete = True
@@ -313,21 +316,27 @@ class EmployeeSerializer(serializers.ModelSerializer):
             # Save temp password to display to Admin
             employee._temp_password = temp_password  # type: ignore[attr-defined]
 
-        # Send onboarding email (best-effort — never abort creation on SMTP failure)
-        try:
-            from .emails import send_onboarding_email
-            send_onboarding_email(
-                email=email,
-                name=name,
-                temp_password=temp_password,
-                company_name=creator_org.name if creator_org else "AdminSuite Company",
-                role_display=role_display
-            )
-        except Exception as e:
-            import logging
-            logging.getLogger('adminsuite').warning(
-                f'[EmployeeCreate] Onboarding email failed for {email}: {e}'
-            )
+        # Send onboarding email asynchronously in background thread so HTTP response is instant (<200ms)
+        import threading
+        target_company = creator_org.name if creator_org else "AdminSuite Company"
+
+        def _dispatch_onboarding_email():
+            try:
+                from .emails import send_onboarding_email
+                send_onboarding_email(
+                    email=email,
+                    name=name,
+                    temp_password=temp_password,
+                    company_name=target_company,
+                    role_display=role_display
+                )
+            except Exception as e:
+                import logging
+                logging.getLogger('adminsuite').warning(
+                    f'[EmployeeCreate] Onboarding email failed for {email}: {e}'
+                )
+
+        threading.Thread(target=_dispatch_onboarding_email, daemon=True).start()
 
         return employee
 

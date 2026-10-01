@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
   Alert,
   Animated,
@@ -47,6 +47,18 @@ export default function EmployeeProfileScreen() {
   const [photoUri, setPhotoUri] = useState<string | null>(user?.avatar ? getMediaUrl(user.avatar) : null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (user) {
+      if (user.avatar) {
+        setPhotoUri(getMediaUrl(user.avatar));
+      }
+      if (user.name) setName(user.name);
+      if (user.phone) setPhone(user.phone);
+      if (user.location) setLocation(user.location);
+      if (user.bio) setBio(user.bio);
+    }
+  }, [user]);
 
   // Animation values for input glow
   const nameGlow = useRef(new Animated.Value(0)).current;
@@ -256,9 +268,12 @@ export default function EmployeeProfileScreen() {
         {/* ── Avatar initials / image ── */}
         <View style={styles.avatarRow}>
           <Pressable onPress={pickImage} style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1 })}>
-            <View style={[styles.avatarCircle, { backgroundColor: colors.primary, overflow: "hidden" }]}>
-              {photoUri ? (
-                <Image source={{ uri: photoUri }} style={{ width: "100%", height: "100%" }} />
+            <View style={[styles.avatarCircle, { backgroundColor: colors.primary, overflow: "hidden", borderWidth: 1, borderColor: colors.border }]}>
+              {photoUri || user?.avatar ? (
+                <Image
+                  source={{ uri: photoUri || getMediaUrl(user?.avatar || null) }}
+                  style={{ width: "100%", height: "100%" }}
+                />
               ) : (
                 <Text style={[styles.avatarTxt, { fontFamily: "Inter_700Bold" }]}>
                   {user?.initials || "ME"}

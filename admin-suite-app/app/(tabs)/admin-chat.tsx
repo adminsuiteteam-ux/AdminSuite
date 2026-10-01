@@ -693,64 +693,117 @@ export default function AdminChatScreen() {
   const handleSend = async () => {
     const text = inputText.trim();
     if (!text || sending) return;
-    setSending(true);
-    try {
-      if (editingMsg) {
+
+    if (editingMsg) {
+      setSending(true);
+      try {
         await apiService.editChatMessage(editingMsg.id, text);
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === editingMsg.id ? { ...m, text, display_text: text, is_edited: true } : m
+          )
+        );
         setEditingMsg(null);
-      } else {
-        const payload: any = { text };
-        if (activeContact?.type === "group") {
-          if (activeContact.id !== "group") {
-            payload.group_id = activeContact.id;
-          }
-        } else if (activeContact?.id) {
-          payload.recipient_id = activeContact.id;
-        }
-        if (replyTo) payload.reply_to_id = replyTo.id;
-        await apiService.sendChatMessage(payload);
-        setReplyTo(null);
-
-        // Immediately move this contact to top with updated last_message
-        if (activeContact) {
-          const now = new Date().toISOString();
-          setContacts((prev) => {
-            const updated = prev.map((c) =>
-              String(c.id) === String(activeContact.id)
-                ? { ...c, last_message: text, last_message_time: now, unread_count: 0 }
-                : c
-            );
-            // Re-sort so this conversation bubbles to top
-            return [...updated].sort((a, b) => {
-              const ta = a.last_message_time ? new Date(a.last_message_time).getTime() : 0;
-              const tb = b.last_message_time ? new Date(b.last_message_time).getTime() : 0;
-              return tb - ta;
-            });
-          });
-        }
+        setInputText("");
+      } catch {
+        showToast({ title: "Error", message: "Failed to edit message.", type: "error" });
+      } finally {
+        setSending(false);
       }
-      // Reset typing status immediately
-      lastTypingSentRef.current = 0;
-      const tPayload: any = { is_typing: false };
-      if (activeContact?.type === "group") {
-        if (activeContact.id !== "group") {
-          tPayload.group_id = activeContact.id;
-        }
-      } else if (activeContact?.id) {
-        tPayload.recipient_id = activeContact.id;
-      }
-      apiService.sendChatTyping(tPayload).catch(() => {});
-
-      setInputText("");
-      await fetchMessages();
-      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
-    } catch {
-      showToast({ title: "Error", message: "Failed to send message.", type: "error" });
-    } finally {
-      setSending(false);
+      return;
     }
+
+    // ── Instant Optimistic Sending ──
+    const tempId = -Date.now();
+    const optimisticMsg: ChatMessage = {
+      id: tempId,
+      sender_id: myId ?? 0,
+      sender_name: (user as any)?.first_name
+        ? `${(user as any).first_name} ${(user as any).last_name || ""}`.trim()
+        : (user?.username || "You"),
+      sender_initials: ((user as any)?.first_name?.[0] || user?.username?.[0] || "U").toUpperCase(),
+      sender_avatar: (user as any)?.avatar || null,
+      recipient_id: activeContact?.type === "group" ? null : (activeContact?.id as number),
+      text,
+      display_text: text,
+      is_pinned: false,
+      is_edited: false,
+      is_deleted: false,
+      reply_to_id: replyTo ? replyTo.id : null,
+      reply_to_text: replyTo ? replyTo.text : null,
+      reply_to_sender: replyTo ? replyTo.sender_name : null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    // 1. Instantly clear input & reply
+    setInputText("");
+    const savedReply = replyTo;
+    setReplyTo(null);
+
+    // 2. Instantly show optimistic bubble in chat
+    setMessages((prev) => [...prev, optimisticMsg]);
+
+    // 3. Instantly bubble conversation to top in contacts list
+    if (activeContact) {
+      const now = new Date().toISOString();
+      setContacts((prev) => {
+        const updated = prev.map((c) =>
+          String(c.id) === String(activeContact.id)
+            ? { ...c, last_message: text, last_message_time: now, unread_count: 0 }
+            : c
+        );
+        return [...updated].sort((a, b) => {
+          const ta = a.last_message_time ? new Date(a.last_message_time).getTime() : 0;
+          const tb = b.last_message_time ? new Date(b.last_message_time).getTime() : 0;
+          return tb - ta;
+        });
+      });
+    }
+
+    // 4. Instantly scroll to bottom
+    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 40);
+
+    // 5. Send stop typing in background
+    lastTypingSentRef.current = 0;
+    const tPayload: any = { is_typing: false };
+    if (activeContact?.type === "group") {
+      if (activeContact.id !== "group") {
+        tPayload.group_id = activeContact.id;
+      }
+    } else if (activeContact?.id) {
+      tPayload.recipient_id = activeContact.id;
+    }
+    apiService.sendChatTyping(tPayload).catch(() => {});
+
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    }
+
+    // 6. Network dispatch in background
+    const payload: any = { text };
+    if (activeContact?.type === "group") {
+      if (activeContact.id !== "group") {
+        payload.group_id = activeContact.id;
+      }
+    } else if (activeContact?.id) {
+      payload.recipient_id = activeContact.id;
+    }
+    if (savedReply) payload.reply_to_id = savedReply.id;
+
+    try {
+      const res = await apiService.sendChatMessage(payload);
+      if (res.data) {
+        // Replace temporary ID with persisted message
+        setMessages((prev) =>
+          prev.map((m) => (m.id === tempId ? res.data : m))
+        );
+      }
+    } catch {
+      // Revert optimistic message on failure
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      setInputText(text);
+      showToast({ title: "Error", message: "Failed to send message.", type: "error" });
     }
   };
 
@@ -1699,11 +1752,12 @@ export default function AdminChatScreen() {
   const isCustomGroup = activeContact.type === "group" && activeContact.id !== "group";
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 34 : 0}
-    >
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <KeyboardAvoidingView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 34 : 0}
+      >
       {/* In-App Notification Banner */}
       <InAppNotificationBanner
         notification={notification}
@@ -2448,6 +2502,7 @@ export default function AdminChatScreen() {
         </Pressable>
       </Modal>
     </KeyboardAvoidingView>
+    </View>
   );
 }
 

@@ -768,6 +768,25 @@ const API_BASE = localStorage.getItem('API_URL_OVERRIDE') ||
     ? 'http://localhost:8000/api/'
     : 'https://adminsuite-api.onrender.com/api/');
 
+function getMediaUrl(url: string | null | undefined): string {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
+    return url;
+  }
+  const base = API_BASE.replace(/\/api\/?$/, '');
+  const cleanPath = url.startsWith('/') ? url : `/${url}`;
+  return `${base}${cleanPath}`;
+}
+
+function renderAvatarHtml(avatarUrl: string | null | undefined, initials: string, sizeClass = 'avatar blue'): string {
+  const safeInitials = sanitizeHtml(initials || 'U');
+  if (avatarUrl) {
+    const src = getMediaUrl(avatarUrl);
+    return `<div class="${sizeClass}" style="padding:0;overflow:hidden;position:relative;"><img src="${src}" alt="${safeInitials}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;" onerror="this.onerror=null;this.parentElement.innerHTML='${safeInitials}';" /></div>`;
+  }
+  return `<div class="${sizeClass}">${safeInitials}</div>`;
+}
+
 // ============================================================
 // GOOGLE IDENTITY SERVICES (GIS) — Official Sign-In Popup
 // ============================================================
@@ -3794,7 +3813,7 @@ function drawHRDashboard(): string {
 
   const recentEmpRows = state.employees.slice(0, 5).map((e: any) => `
     <tr>
-      <td><div class="user-row"><div class="avatar blue">${sanitizeHtml(e.initials || e.name[0])}</div><div><div class="cell-primary">${sanitizeHtml(e.name)}</div><div class="cell-muted">${sanitizeHtml(e.department)}</div></div></div></td>
+      <td><div class="user-row">${renderAvatarHtml(e.avatar, e.initials || e.name[0], 'avatar blue')}<div><div class="cell-primary">${sanitizeHtml(e.name)}</div><div class="cell-muted">${sanitizeHtml(e.department)}</div></div></div></td>
       <td>${sanitizeHtml(e.role)}</td>
       <td><span class="status-badge ${e.status === 'active' ? 'active' : 'inactive'}">${sanitizeHtml(e.status)}</span></td>
     </tr>
@@ -3992,7 +4011,7 @@ function drawDeptManagerDashboard(): string {
   const deptEmployees = state.employees.slice(0, 5);
   const empRows = deptEmployees.map((e: any) => `
     <tr>
-      <td><div class="user-row"><div class="avatar blue">${sanitizeHtml(e.initials || e.name[0])}</div><div><div class="cell-primary">${sanitizeHtml(e.name)}</div></div></div></td>
+      <td><div class="user-row">${renderAvatarHtml(e.avatar, e.initials || e.name[0], 'avatar blue')}<div><div class="cell-primary">${sanitizeHtml(e.name)}</div></div></div></td>
       <td>${sanitizeHtml(e.role)}</td>
       <td><div class="progress-bar" style="width:80px;"><div class="progress-fill blue" style="width:${e.performance || 0}%;"></div></div></td>
     </tr>
@@ -5129,7 +5148,7 @@ function drawEmployeesTab(): string {
     <tr style="cursor: pointer;" data-employee-id="${e.id}">
       <td>
         <div class="user-row">
-          <div class="avatar blue">${sanitizeHtml(e.initials || e.name[0] || 'E')}</div>
+          ${renderAvatarHtml(e.avatar, e.initials || e.name[0] || 'E', 'avatar blue')}
           <div>
             <div class="cell-primary">${sanitizeHtml(e.name)}</div>
             <div class="cell-muted">${sanitizeHtml(e.email)}</div>
@@ -9000,7 +9019,7 @@ function renderChatProfileDrawer() {
   const membersListHtml = members.length > 0
     ? members.map((m: any) => {
         const avatarHtml = m.avatar
-          ? `<img src="${m.avatar}" alt="${sanitizeHtml(m.name)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
+          ? `<img src="${getMediaUrl(m.avatar)}" alt="${sanitizeHtml(m.name)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
           : sanitizeHtml((m.name || 'U').slice(0, 2).toUpperCase());
         return `
           <div style="display:flex; align-items:center; gap:10px; padding:7px 0; border-bottom:1px solid var(--border);">
@@ -9025,7 +9044,7 @@ function renderChatProfileDrawer() {
       <!-- Big Avatar and Name -->
       <div style="display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; border-bottom: 1.5px solid var(--border); padding-bottom: 20px;">
         <div class="chat-contact-avatar" style="width: 120px; height: 120px; font-size: 32px; border-radius: 50%;">
-          ${c.avatar ? `<img src="${c.avatar}" alt="${sanitizeHtml(c.name)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">` : sanitizeHtml(c.initials || c.name.slice(0,2).toUpperCase())}
+          ${c.avatar ? `<img src="${getMediaUrl(c.avatar)}" alt="${sanitizeHtml(c.name)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">` : sanitizeHtml(c.initials || c.name.slice(0,2).toUpperCase())}
         </div>
         <div>
           <h3 style="font-size: 18px; font-weight: 700; margin: 0; color:var(--foreground);">${sanitizeHtml(c.name)}</h3>
@@ -9698,6 +9717,42 @@ function handleWsEvent(data: any): void {
     case 'call.signal':
       onWsCallSignal(data);
       break;
+    case 'workspace.sync': {
+      const syncEvt = data.event;
+      const syncData = data.data;
+      if (syncEvt === 'employee.updated' && syncData) {
+        state.employees = state.employees.map((e: any) =>
+          String(e.id) === String(syncData.id) ? { ...e, ...syncData } : e
+        );
+        if (state.user && (String(state.user.id) === String(syncData.linked_user) || (state.user.email && syncData.email && state.user.email.toLowerCase() === syncData.email.toLowerCase()))) {
+          state.user = {
+            ...state.user,
+            name: syncData.name || state.user.name,
+            role: syncData.role || state.user.role,
+            avatar: syncData.avatar !== undefined ? syncData.avatar : state.user.avatar,
+            phone: syncData.phone !== undefined ? syncData.phone : state.user.phone,
+            location: syncData.location !== undefined ? syncData.location : state.user.location,
+            bio: syncData.bio !== undefined ? syncData.bio : state.user.bio,
+          };
+        }
+        renderApp();
+      } else if (syncEvt === 'notification.created' && syncData) {
+        state.notifications = [syncData, ...(state.notifications || [])];
+        showToast(syncData.title || 'New Notification', 'info');
+        renderApp();
+      } else if (syncEvt === 'financial_pulse.updated' && syncData) {
+        if (state.metrics) {
+          state.metrics = {
+            ...state.metrics,
+            netProfit: syncData.netProfit !== undefined ? syncData.netProfit : state.metrics.netProfit,
+            totalIncome: syncData.totalIncome !== undefined ? syncData.totalIncome : state.metrics.totalIncome,
+            totalExpense: syncData.totalExpense !== undefined ? syncData.totalExpense : state.metrics.totalExpense,
+          };
+          renderApp();
+        }
+      }
+      break;
+    }
     case 'pong':
       break; // heartbeat ack
     default:

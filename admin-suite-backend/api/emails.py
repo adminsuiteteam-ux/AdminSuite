@@ -54,7 +54,7 @@ def _send_via_zeptomail_api(to_email: str, subject: str, html_body: str, text_bo
             "authorization": auth_header,
         },
         json=payload,
-        timeout=12,
+        timeout=8,
     )
     if resp.status_code in (200, 201, 202):
         safe_log("info", f"Successfully dispatched transactional email via ZeptoMail HTTPS API to {to_email}")
@@ -92,7 +92,7 @@ def _send_via_brevo_api(to_email: str, subject: str, html_body: str, text_body: 
             "accept": "application/json",
         },
         json=payload,
-        timeout=12,
+        timeout=6,
     )
     if resp.status_code in (200, 201, 202):
         safe_log("info", f"Successfully dispatched transactional email via Brevo HTTPS API to {to_email}")
@@ -130,6 +130,9 @@ def _send_via_django_mail(to_email: str, subject: str, html_body: str, text_body
     import socket
 
     from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'AdminSuite <noreply@brownforte.com>')
+    # If using Gmail SMTP directly, fallback sender must match authenticated user
+    if 'gmail' in getattr(settings, 'EMAIL_HOST', '').lower() and getattr(settings, 'EMAIL_HOST_USER', None):
+        from_email = f"AdminSuite <{settings.EMAIL_HOST_USER}>"
     
     msg = EmailMultiAlternatives(
         subject=subject,
@@ -139,7 +142,9 @@ def _send_via_django_mail(to_email: str, subject: str, html_body: str, text_body
     )
     msg.attach_alternative(html_body, "text/html")
     
+    orig_timeout = socket.getdefaulttimeout()
     try:
+        socket.setdefaulttimeout(5)
         msg.send(fail_silently=False)
     except socket.timeout:
         safe_log("error", f"SMTP timeout sending to {to_email} — EMAIL_TIMEOUT may be too low")
@@ -147,14 +152,17 @@ def _send_via_django_mail(to_email: str, subject: str, html_body: str, text_body
     except OSError as e:
         safe_log("error", f"SMTP connection error to {settings.EMAIL_HOST}:{settings.EMAIL_PORT} — {type(e).__name__}: {e}")
         raise
+    finally:
+        socket.setdefaulttimeout(orig_timeout)
 
 
 
 def send_onboarding_email(email, name, temp_password, company_name, role_display):
     """
-    Sends an onboarding email with login credentials and next steps.
+    Sends an onboarding email with account creation confirmation, temporary credentials,
+    and a workplace newsletter bulletin.
     """
-    subject = f"Welcome to {company_name} on AdminSuite! 🚀"
+    subject = f"Your Account Has Been Created! Welcome to {company_name} 🎉"
     
     html_content = f"""
     <!DOCTYPE html>
@@ -162,52 +170,119 @@ def send_onboarding_email(email, name, temp_password, company_name, role_display
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Welcome to AdminSuite</title>
+        <title>Your Account Has Been Created</title>
     </head>
-    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #fafafa; margin: 0; padding: 0; color: #1a1a1a; -webkit-font-smoothing: antialiased;">
-        <div style="max-width: 580px; margin: 40px auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05); border: 1px solid #eaeaea;">
-            <!-- Premium Gradient Header -->
-            <div style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); padding: 40px 30px; text-align: center; color: #ffffff;">
-                <div style="font-size: 28px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 8px;">AdminSuite</div>
-                <div style="font-size: 14px; opacity: 0.9; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase;">Workspace Onboarding</div>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0f1117; margin: 0; padding: 20px 10px; color: #1a1a1a; -webkit-font-smoothing: antialiased;">
+        <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 18px; overflow: hidden; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25); border: 1px solid #e5e7eb;">
+            <!-- Header Banner -->
+            <div style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #6366f1 100%); padding: 42px 30px; text-align: center; color: #ffffff;">
+                <div style="display: inline-block; background: rgba(255, 255, 255, 0.2); padding: 6px 14px; border-radius: 20px; font-size: 11px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; margin-bottom: 12px; backdrop-filter: blur(10px);">
+                    Account Created by Administrator
+                </div>
+                <div style="font-size: 30px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 6px;">Welcome to {company_name}! 🚀</div>
+                <div style="font-size: 14px; opacity: 0.92; font-weight: 500;">Your employee account has been created and is ready to use</div>
             </div>
             
             <!-- Main Content -->
-            <div style="padding: 40px 35px; line-height: 1.6;">
-                <h2 style="font-size: 22px; font-weight: 700; margin-top: 0; margin-bottom: 20px; color: #111111;">Hello {name},</h2>
-                <p style="font-size: 15px; color: #4b5563; margin-bottom: 12px;">Welcome to <strong>{company_name}</strong>! Your account has been initialized with the role of <strong>{role_display}</strong>.</p>
-                <p style="font-size: 15px; color: #4b5563; margin-bottom: 24px;">You can now log in to the AdminSuite workspace app using the temporary credentials below:</p>
+            <div style="padding: 36px 32px; line-height: 1.6;">
+                <h2 style="font-size: 21px; font-weight: 700; margin-top: 0; margin-bottom: 14px; color: #111827;">Hello {name},</h2>
+                <p style="font-size: 15px; color: #374151; margin-bottom: 16px; line-height: 1.6;">
+                    Your organization administrator at <strong>{company_name}</strong> has created an employee account for you on <strong>AdminSuite</strong> with the assigned role of <strong>{role_display}</strong>.
+                </p>
+                <p style="font-size: 15px; color: #374151; margin-bottom: 24px; line-height: 1.6;">
+                    You can log in to your workplace account immediately using the temporary credentials below:
+                </p>
                 
-                <!-- Credentials Card -->
-                <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 24px; margin: 24px 0;">
-                    <div style="margin-bottom: 14px; font-size: 14px;">
-                        <span style="font-weight: 700; color: #6b7280; display: inline-block; width: 100px;">EMAIL:</span>
-                        <span style="font-family: monospace; font-size: 15px; color: #4f46e5; font-weight: bold; background-color: #f3f4f6; padding: 4px 8px; border-radius: 6px;">{email}</span>
+                <!-- Credentials Box -->
+                <div style="background: linear-gradient(145deg, #f8fafc 0%, #f1f5f9 100%); border: 1.5px solid #e2e8f0; border-radius: 14px; padding: 22px; margin: 24px 0;">
+                    <div style="margin-bottom: 16px; font-size: 14px;">
+                        <span style="font-weight: 700; color: #64748b; display: inline-block; width: 110px; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase;">Work Email</span>
+                        <span style="font-family: monospace; font-size: 15px; color: #1e293b; font-weight: 700; background-color: #ffffff; padding: 6px 12px; border-radius: 8px; border: 1px solid #cbd5e1;">{email}</span>
                     </div>
                     <div style="font-size: 14px;">
-                        <span style="font-weight: 700; color: #6b7280; display: inline-block; width: 100px;">PASSWORD:</span>
-                        <span style="font-family: monospace; font-size: 15px; color: #4f46e5; font-weight: bold; background-color: #f3f4f6; padding: 4px 8px; border-radius: 6px;">{temp_password}</span>
+                        <span style="font-weight: 700; color: #64748b; display: inline-block; width: 110px; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase;">Temp Password</span>
+                        <span style="font-family: monospace; font-size: 17px; color: #4f46e5; font-weight: 800; background-color: #ffffff; padding: 6px 14px; border-radius: 8px; border: 1px solid #c7d2fe; letter-spacing: 1px;">{temp_password}</span>
                     </div>
                 </div>
                 
-                <!-- Security Warning -->
-                <div style="background-color: #fffbeb; border-left: 4px solid #f59e0b; border-radius: 4px; padding: 16px; margin: 24px 0;">
-                    <p style="margin: 0; font-size: 13.5px; color: #b45309; font-weight: 600; line-height: 1.5;">
-                        ⚠️ Security requirement: You must update this temporary password to your personal secure password immediately upon logging in for the first time.
+                <!-- Security Reminder -->
+                <div style="background-color: #fffbeb; border-left: 4px solid #f59e0b; border-radius: 6px; padding: 14px 16px; margin: 22px 0;">
+                    <p style="margin: 0; font-size: 13.5px; color: #92400e; font-weight: 600; line-height: 1.5;">
+                        🔒 <strong>First-Time Login:</strong> When you log in with this temporary password, the system will prompt you to set your own private, permanent password.
                     </p>
                 </div>
-                
-                <p style="font-size: 14px; color: #6b7280; margin-top: 24px;">Open your AdminSuite mobile application, enter these details, and complete your profile setup.</p>
+
+                <!-- Workplace Newsletter & Welcome Bulletin -->
+                <div style="margin-top: 36px; padding-top: 28px; border-top: 2px dashed #e2e8f0;">
+                    <div style="display: flex; align-items: center; margin-bottom: 16px;">
+                        <span style="background: #eef2ff; color: #4f46e5; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; padding: 4px 10px; border-radius: 6px; display: inline-block;">
+                            📰 Workplace Newsletter & Updates
+                        </span>
+                    </div>
+                    <h3 style="font-size: 18px; font-weight: 700; color: #111827; margin: 0 0 14px 0;">
+                        Welcome to {company_name} — What's Next?
+                    </h3>
+                    <p style="font-size: 14px; color: #4b5563; margin-bottom: 18px; line-height: 1.6;">
+                        You have been automatically subscribed to the monthly <strong>{company_name} Workplace Bulletin</strong>! Here are key features and updates to help you get started:
+                    </p>
+
+                    <!-- Newsletter Card 1 -->
+                    <div style="background-color: #f9fafb; border-radius: 12px; padding: 16px 18px; margin-bottom: 12px; border: 1px solid #f3f4f6;">
+                        <div style="font-size: 14px; font-weight: 700; color: #1f2937; margin-bottom: 4px;">
+                            📱 1. Complete Your Employee Profile
+                        </div>
+                        <div style="font-size: 13px; color: #4b5563; line-height: 1.5;">
+                            Open the AdminSuite mobile app or web dashboard to add your photo, bio, phone number, and social handles so teammates can connect with you.
+                        </div>
+                    </div>
+
+                    <!-- Newsletter Card 2 -->
+                    <div style="background-color: #f9fafb; border-radius: 12px; padding: 16px 18px; margin-bottom: 12px; border: 1px solid #f3f4f6;">
+                        <div style="font-size: 14px; font-weight: 700; color: #1f2937; margin-bottom: 4px;">
+                            ⏱️ 2. Attendance & Shift Management
+                        </div>
+                        <div style="font-size: 13px; color: #4b5563; line-height: 1.5;">
+                            Clock in and out directly from your smartphone. Track your logged hours, leave requests, and schedule in real-time.
+                        </div>
+                    </div>
+
+                    <!-- Newsletter Card 3 -->
+                    <div style="background-color: #f9fafb; border-radius: 12px; padding: 16px 18px; margin-bottom: 12px; border: 1px solid #f3f4f6;">
+                        <div style="font-size: 14px; font-weight: 700; color: #1f2937; margin-bottom: 4px;">
+                            💰 3. Payslips & Financial Pulse
+                        </div>
+                        <div style="font-size: 13px; color: #4b5563; line-height: 1.5;">
+                            Access your salary records, compensation breakdowns, and downloadable payslips securely whenever you need them.
+                        </div>
+                    </div>
+
+                    <!-- Newsletter Card 4 -->
+                    <div style="background-color: #f9fafb; border-radius: 12px; padding: 16px 18px; margin-bottom: 18px; border: 1px solid #f3f4f6;">
+                        <div style="font-size: 14px; font-weight: 700; color: #1f2937; margin-bottom: 4px;">
+                            📢 4. Team Announcements & Project Collaboration
+                        </div>
+                        <div style="font-size: 13px; color: #4b5563; line-height: 1.5;">
+                            Stay up-to-date with branch broadcasts, department objectives, and collaborative task boards with fellow colleagues.
+                        </div>
+                    </div>
+
+                    <!-- Newsletter subscription confirmation notice -->
+                    <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 14px 16px; margin-top: 14px;">
+                        <p style="margin: 0; font-size: 13px; color: #166534; font-weight: 500; line-height: 1.5;">
+                            📬 <strong>Newsletter Subscription Confirmed:</strong> You will receive our monthly workplace bulletin with company updates, event calendars, employee spotlights, and helpful productivity tips.
+                        </p>
+                    </div>
+                </div>
             </div>
             
-            <!-- Footer with "Powered by DimaCode" branding -->
-            <div style="background-color: #f9fafb; padding: 30px; text-align: center; font-size: 12px; color: #9ca3af; border-top: 1px solid #f3f4f6;">
-                <p style="margin: 0 0 10px 0;">This is an automated onboarding message sent on behalf of {company_name}.</p>
-                <div style="margin: 18px 0; border-top: 1px solid #e5e7eb; padding-top: 18px;">
-                    <span style="font-size: 11px; letter-spacing: 1px; text-transform: uppercase; font-weight: 700; color: #cbd5e1; display: block; margin-bottom: 4px;">Powered By</span>
-                    <span style="font-size: 14px; font-weight: 800; color: #6b7280; letter-spacing: -0.5px;">DimaCode</span>
+            <!-- Footer -->
+            <div style="background-color: #f8fafc; padding: 28px 24px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
+                <p style="margin: 0 0 10px 0;">This account onboarding message and workplace newsletter was sent on behalf of <strong>{company_name}</strong>.</p>
+                <div style="margin: 16px 0; border-top: 1px solid #e2e8f0; padding-top: 16px;">
+                    <span style="font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 700; color: #94a3b8; display: block; margin-bottom: 4px;">POWERED BY</span>
+                    <span style="font-size: 15px; font-weight: 800; color: #4f46e5; letter-spacing: -0.3px;">AdminSuite</span>
                 </div>
-                <p style="margin: 0;">&copy; 2026 AdminSuite. All rights reserved.</p>
+                <p style="margin: 0;">&copy; 2026 AdminSuite Workspace. All rights reserved.</p>
             </div>
         </div>
     </body>
@@ -216,13 +291,25 @@ def send_onboarding_email(email, name, temp_password, company_name, role_display
     
     text_content = (
         f"Hello {name},\n\n"
-        f"Welcome to {company_name}! Your account has been created with the role of {role_display}.\n\n"
+        f"Your employee account has been created by your administrator at {company_name} on AdminSuite!\n\n"
+        f"Role: {role_display}\n\n"
         f"Your login credentials are:\n"
-        f"Email: {email}\n"
+        f"Work Email: {email}\n"
         f"Temporary Password: {temp_password}\n\n"
-        f"Note: You will be required to reset this password upon your first login.\n\n"
+        f"Security Notice: You must reset this temporary password to your personal secure password upon your first login.\n\n"
+        f"--------------------------------------------------\n"
+        f"NEWSLETTER & WORKPLACE BULLETIN\n"
+        f"Welcome to {company_name}!\n"
+        f"You are subscribed to the monthly Workplace Bulletin. Here is what to do next:\n"
+        f"1. Profile Setup: Complete your photo and contact info in the app.\n"
+        f"2. Shift & Attendance: Clock in and out using your smartphone.\n"
+        f"3. Payslips & Finance: View your pay and financial summaries securely.\n"
+        f"4. Projects & Tasks: Collaborate with your team on active objectives.\n\n"
+        f"Monthly newsletters with company news, upcoming events, and tips will be sent to this email.\n"
+        f"--------------------------------------------------\n\n"
         f"Best regards,\n"
-        f"The {company_name} Admin Team"
+        f"The {company_name} Team\n"
+        f"Powered by AdminSuite"
     )
     
     try:

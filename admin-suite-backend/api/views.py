@@ -269,32 +269,127 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             
         instance = serializer.save(user=self.request.user)
 
-        # Non-blocking post-creation hooks
-        try:
-            send_push_notification(
-                user=self.request.user,
-                title='👤 New Staff Member Added',
-                body=f"{instance.name} has been onboarded as {instance.role} in {instance.department}.",
-                data={'screen': 'employees', 'employeeId': str(instance.id)}
-            )
-        except Exception as e:
-            logger.warning(f"[EmployeeCreate] Push notification failed: {e}")
+        # Non-blocking post-creation hooks in background thread
+        import threading
+        creator = self.request.user
+        emp_instance = instance
 
-        try:
-            from .consumers import broadcast_workspace_sync
-            ws_id = get_workspace_id(self.request.user)
-            if ws_id:
-                broadcast_workspace_sync(ws_id, 'employee.created', EmployeeSerializer(instance, context={'request': self.request}).data)
-                broadcast_workspace_sync(ws_id, 'financial_pulse.updated', get_financial_pulse_data(self.request.user))
-        except Exception as e:
-            logger.warning(f"[EmployeeCreate] WebSocket broadcast failed: {e}")
+        def _async_post_create():
+            try:
+                send_push_notification(
+                    user=creator,
+                    title='👤 New Staff Member Added',
+                    body=f"{emp_instance.name} has been onboarded as {emp_instance.role} in {emp_instance.department}.",
+                    data={'screen': 'employees', 'employeeId': str(emp_instance.id)}
+                )
+            except Exception as e:
+                logger.warning(f"[EmployeeCreate] Push notification failed: {e}")
+
+            try:
+                from .consumers import broadcast_workspace_sync
+                ws_id = get_workspace_id(creator)
+                if ws_id:
+                    broadcast_workspace_sync(ws_id, 'employee.created', EmployeeSerializer(emp_instance).data)
+                    broadcast_workspace_sync(ws_id, 'financial_pulse.updated', get_financial_pulse_data(creator))
+            except Exception as e:
+                logger.warning(f"[EmployeeCreate] WebSocket broadcast failed: {e}")
+
+        threading.Thread(target=_async_post_create, daemon=True).start()
 
     def perform_update(self, serializer):
         instance = serializer.save()
         from .consumers import broadcast_workspace_sync
+        from django.contrib.auth.models import User
         ws_id = get_workspace_id(self.request.user)
-        broadcast_workspace_sync(ws_id, 'employee.updated', EmployeeSerializer(instance, context={'request': self.request}).data)
+
+        # Sync changes to linked User and UserProfile
+        target_user = instance.linked_user or User.objects.filter(email__iexact=instance.email).first()
+        if target_user:
+            if not instance.linked_user:
+                instance.linked_user = target_user
+                instance.save(update_fields=['linked_user'])
+
+            if instance.name:
+                parts = instance.name.strip().split(' ')
+                target_user.first_name = parts[0]
+                target_user.last_name = ' '.join(parts[1:]) if len(parts) > 1 else ''
+                target_user.save(update_fields=['first_name', 'last_name'])
+
+            from .models import UserProfile
+            target_profile, _ = UserProfile.objects.get_or_create(user=target_user)
+            if instance.avatar:
+                try:
+                    target_profile.avatar = instance.avatar.name
+                except Exception:
+                    target_profile.avatar = instance.avatar
+            if instance.role:
+                target_profile.role = instance.role.lower()
+            if instance.phone:
+                target_profile.phone = instance.phone
+            if instance.location:
+                target_profile.location = instance.location
+            if instance.bio:
+                target_profile.bio = instance.bio
+            target_profile.save()
+
+        # Broadcast real-time employee and workspace metrics
+        emp_data = EmployeeSerializer(instance, context={'request': self.request}).data
+        broadcast_workspace_sync(ws_id, 'employee.updated', emp_data)
         broadcast_workspace_sync(ws_id, 'financial_pulse.updated', get_financial_pulse_data(self.request.user))
+
+        # Real-time live notifications & user state sync to employee
+        if target_user:
+            avatar_url = None
+            if instance.avatar:
+                try:
+                    avatar_url = self.request.build_absolute_uri(instance.avatar.url)
+                except Exception:
+                    avatar_url = None
+
+            broadcast_workspace_sync(ws_id, 'user.updated', {
+                'id': target_user.id,
+                'email': instance.email,
+                'name': instance.name,
+                'role': instance.role,
+                'avatar': avatar_url,
+            })
+
+            # Send live push notification and in-app Notification in background
+            import threading
+            admin_name = self.request.user.get_full_name() or self.request.user.username
+
+            def _send_employee_update_notif():
+                from .notifications import send_push_notification
+                from .models import Notification
+                title = "Profile & Account Updated 👤"
+                body = f"Your workplace profile and employee details were updated by administrator {admin_name}."
+                try:
+                    send_push_notification(
+                        user=target_user,
+                        title=title,
+                        body=body,
+                        data={'screen': 'profile'}
+                    )
+                except Exception as e:
+                    logger.warning(f"[EmployeeUpdate] Push notification failed: {e}")
+
+                try:
+                    notif = Notification.objects.create(
+                        user=target_user,
+                        title=title,
+                        body=body,
+                        time="Just now"
+                    )
+                    if ws_id:
+                        broadcast_workspace_sync(
+                            ws_id,
+                            'notification.created',
+                            NotificationSerializer(notif).data
+                        )
+                except Exception as e:
+                    logger.warning(f"[EmployeeUpdate] In-app notification creation failed: {e}")
+
+            threading.Thread(target=_send_employee_update_notif, daemon=True).start()
 
     def perform_destroy(self, instance):
         from .consumers import broadcast_workspace_sync
@@ -654,27 +749,62 @@ def me(request):
                         ext.branch = branch
                     ext.save(update_fields=['role', 'organization', 'branch'])
 
-            # Sync to Employee profile if it exists
-            employee = getattr(user, 'employee_profile', None)
+            # Sync to Employee profile if it exists (searching linked_user or email)
+            employee = getattr(user, 'employee_profile', None) or Employee.objects.filter(email__iexact=user.email).first()
             if employee:
-                employee.avatar = profile.avatar
-                employee.save(update_fields=['avatar'])
+                update_fields = []
+                if not employee.linked_user:
+                    employee.linked_user = user
+                    update_fields.append('linked_user')
+                if profile.avatar:
+                    employee.avatar = profile.avatar
+                    update_fields.append('avatar')
+                if first_name:
+                    employee.name = f"{user.first_name} {user.last_name}".strip()
+                    update_fields.append('name')
+                if request.data.get('phone'):
+                    employee.phone = request.data.get('phone')
+                    update_fields.append('phone')
+                if request.data.get('location'):
+                    employee.location = request.data.get('location')
+                    update_fields.append('location')
+                if request.data.get('bio'):
+                    employee.bio = request.data.get('bio')
+                    update_fields.append('bio')
+                if update_fields:
+                    employee.save(update_fields=list(set(update_fields)))
+
+                # Real-time broadcast so Admin and colleagues immediately see the new avatar & profile changes
+                ws_id = get_workspace_id(user)
+                if ws_id:
+                    from .consumers import broadcast_workspace_sync
+                    broadcast_workspace_sync(
+                        ws_id,
+                        'employee.updated',
+                        EmployeeSerializer(employee, context={'request': request}).data
+                    )
         else:
             return Response(profile_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    name = f"{user.first_name} {user.last_name}".strip() or user.username
+    employee = getattr(user, 'employee_profile', None) or Employee.objects.filter(email__iexact=user.email).first()
+    name = f"{user.first_name} {user.last_name}".strip() or (employee.name if employee else user.username)
     profile_data = UserProfileSerializer(profile).data
     avatar_url = None
     if profile.avatar:
         avatar_url = request.build_absolute_uri(profile.avatar.url)
+    elif employee and employee.avatar:
+        avatar_url = request.build_absolute_uri(employee.avatar.url)
+        try:
+            profile.avatar = employee.avatar.name
+            profile.save(update_fields=['avatar'])
+        except Exception:
+            pass
+
     company_logo_url = None
     if profile.company_logo:
         company_logo_url = request.build_absolute_uri(profile.company_logo.url)
 
-    employee_id = None
-    employee = getattr(user, 'employee_profile', None)
-    if employee:
-        employee_id = employee.id
+    employee_id = employee.id if employee else None
 
     return Response({
         'id': user.id,
@@ -2383,36 +2513,42 @@ def chat_send(request):
     )
     msg.read_by.add(request.user)
 
-    # ── Push Notifications ──────────────────────────────────────────────────
+    # ── Push Notifications (dispatched in background so HTTP response is instant) ──
     sender_name = request.user.get_full_name() or request.user.username
     short_text = text[:80] + ('...' if len(text) > 80 else '')
 
-    if recipient:
-        # Direct message — notify the recipient only
-        send_push_notification(
-            user=recipient,
-            title=f'💬 New message from {sender_name}',
-            body=short_text,
-            data={'screen': 'chat', 'recipientId': str(request.user.id)}
-        )
-    elif chat_group:
-        # Custom group — notify all members except the sender
-        for member in chat_group.members.exclude(id=request.user.id):
-            send_push_notification(
-                user=member,
-                title=f'💬 {chat_group.name}: {sender_name}',
-                body=short_text,
-                data={'screen': 'chat-group', 'groupId': str(chat_group.id)}
-            )
-    else:
-        # General company group — notify the admin (company_user) if sender is not admin
-        if request.user != company_user:
-            send_push_notification(
-                user=company_user,
-                title=f'💬 Group: {sender_name}',
-                body=short_text,
-                data={'screen': 'chat'}
-            )
+    def _async_chat_push():
+        try:
+            if recipient:
+                # Direct message — notify the recipient only
+                send_push_notification(
+                    user=recipient,
+                    title=f'💬 New message from {sender_name}',
+                    body=short_text,
+                    data={'screen': 'chat', 'recipientId': str(request.user.id)}
+                )
+            elif chat_group:
+                # Custom group — notify all members except the sender
+                for member in chat_group.members.exclude(id=request.user.id):
+                    send_push_notification(
+                        user=member,
+                        title=f'💬 {chat_group.name}: {sender_name}',
+                        body=short_text,
+                        data={'screen': 'chat-group', 'groupId': str(chat_group.id)}
+                    )
+            else:
+                # General company group — notify the admin (company_user) if sender is not admin
+                if request.user != company_user:
+                    send_push_notification(
+                        user=company_user,
+                        title=f'💬 Group: {sender_name}',
+                        body=short_text,
+                        data={'screen': 'chat'}
+                    )
+        except Exception as push_err:
+            logger.warning(f"[Chat Push Notification Error]: {push_err}")
+
+    threading.Thread(target=_async_chat_push, daemon=True).start()
     # ───────────────────────────────────────────────────────────────────────
 
     serializer = ChatMessageSerializer(msg, context={'request': request})

@@ -12,6 +12,7 @@ import {
   View,
   ActivityIndicator,
   Dimensions,
+  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -20,7 +21,7 @@ import { SectionHeader } from "@/components/SectionHeader";
 import { StatCard } from "@/components/StatCard";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
-import { apiService } from "@/services/api";
+import { apiService, getMediaUrl } from "@/services/api";
 import { EmployeeDashboardTour, TourLayout, EMPLOYEE_TOUR_STEPS } from "@/components/EmployeeDashboardTour";
 
 const { height: screenHeight } = Dimensions.get("window");
@@ -239,9 +240,24 @@ export default function EmployeeDashboard() {
             />
             <View style={styles.headerTop}>
               {/* Profile avatar */}
-              <View style={[styles.headerAvatarWrap]}>
-                <Feather name="user" size={20} color="#fff" />
-              </View>
+              <Pressable
+                onPress={() => router.push("/(employee)/profile" as any)}
+                hitSlop={8}
+                style={({ pressed }) => [{ opacity: pressed ? 0.8 : 1 }]}
+              >
+                <View style={[styles.headerAvatarWrap, { overflow: "hidden", borderWidth: 1, borderColor: "rgba(255,255,255,0.25)" }]}>
+                  {user?.avatar ? (
+                    <Image
+                      source={{ uri: getMediaUrl(user.avatar) }}
+                      style={{ width: "100%", height: "100%" }}
+                    />
+                  ) : (
+                    <Text style={{ color: "#fff", fontFamily: "Inter_700Bold", fontSize: 16 }}>
+                      {user?.initials || "EM"}
+                    </Text>
+                  )}
+                </View>
+              </Pressable>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.greeting, { fontFamily: "Inter_500Medium" }]}>
                   {greeting()},

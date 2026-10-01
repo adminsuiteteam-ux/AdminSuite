@@ -14,6 +14,7 @@ import {
   Text,
   useWindowDimensions,
   View,
+  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
@@ -28,6 +29,7 @@ import { useData } from "@/context/DataContext";
 import { useCurrencyFmt } from "@/context/SettingsContext";
 import { useColors } from "@/hooks/useColors";
 import { AIReportModal } from "@/components/AIReportModal";
+import { getMediaUrl } from "@/services/api";
 
 const { height: screenHeight } = Dimensions.get("window");
 
@@ -46,18 +48,7 @@ export default function DashboardScreen() {
   const [reportOpen, setReportOpen] = useState(false);
   const [viewedNotifIds, setViewedNotifIds] = useState<number[]>([]);
 
-  // Animated pulsing dot for Live Financial Pulse
-  const pulseAnim = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1, duration: 1200, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 0, duration: 1200, useNativeDriver: true }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [pulseAnim]);
+
 
   // Load viewed notifications on mount
   useEffect(() => {
@@ -254,6 +245,34 @@ export default function DashboardScreen() {
               }}
               style={styles.headerTop}
             >
+              <Pressable
+                onPress={() => router.push("/settings/profile" as any)}
+                hitSlop={8}
+                style={({ pressed }) => [{ opacity: pressed ? 0.8 : 1, marginRight: 12 }]}
+              >
+                <View style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  overflow: "hidden",
+                  backgroundColor: "rgba(255,255,255,0.18)",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderWidth: 1.5,
+                  borderColor: "rgba(255,255,255,0.25)"
+                }}>
+                  {user?.avatar ? (
+                    <Image
+                      source={{ uri: getMediaUrl(user.avatar) }}
+                      style={{ width: "100%", height: "100%" }}
+                    />
+                  ) : (
+                    <Text style={{ color: "#fff", fontFamily: "Inter_700Bold", fontSize: 16 }}>
+                      {user?.initials || "AD"}
+                    </Text>
+                  )}
+                </View>
+              </Pressable>
               <View style={{ flex: 1 }}>
               <Text style={[styles.greeting, { fontFamily: "Inter_500Medium" }]}>
                 {greeting()},
@@ -367,262 +386,7 @@ export default function DashboardScreen() {
           </FloatInView>
         </View>
 
-        {/* ── Financial Pulse Cards (matching web dashboard) ── */}
-        <FloatInView delay={130}>
-          <View style={styles.section}>
-            <View style={styles.pulseHeaderRow}>
-              <View style={styles.pulseLiveWrap}>
-                <Animated.View
-                  style={[
-                    styles.pulseHalo,
-                    {
-                      transform: [
-                        {
-                          scale: pulseAnim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [1, 2.2],
-                          }),
-                        },
-                      ],
-                      opacity: pulseAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0.6, 0],
-                      }),
-                    },
-                  ]}
-                />
-                <View style={styles.pulseDot} />
-              </View>
-              <Text
-                style={[
-                  styles.pulseTitle,
-                  { color: colors.foreground, fontFamily: "Inter_700Bold" },
-                ]}
-              >
-                Financial pulse
-              </Text>
-              <View style={styles.liveBadge}>
-                <Text style={[styles.liveBadgeText, { fontFamily: "Inter_700Bold" }]}>
-                  LIVE
-                </Text>
-              </View>
-            </View>
 
-            <View style={styles.pulseGrid}>
-              <View style={styles.pulseRow}>
-                {/* Net Profit Card */}
-                <Pressable
-                  onPress={() => router.push("/(tabs)/finance")}
-                  style={({ pressed }) => [
-                    styles.pulseCard,
-                    {
-                      backgroundColor: colors.card,
-                      borderColor: colors.border,
-                      borderLeftColor: "#22c55e",
-                      borderRadius: colors.radius,
-                      opacity: pressed ? 0.8 : 1,
-                    },
-                  ]}
-                >
-                  <View style={styles.pulseCardTop}>
-                    <View style={{ flex: 1 }}>
-                      <Text
-                        style={[
-                          styles.pulseCardLabel,
-                          { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" },
-                        ]}
-                      >
-                        NET PROFIT
-                      </Text>
-                      <Text
-                        style={[
-                          styles.pulseCardValue,
-                          {
-                            color: "#22c55e",
-                            fontFamily: "Inter_700Bold",
-                            fontVariant: ["tabular-nums"],
-                          },
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {fmt(m.netProfit)}
-                      </Text>
-                    </View>
-                    <View style={[styles.pulseIconWrap, { backgroundColor: "rgba(34,197,94,0.12)" }]}>
-                      <Feather name="trending-up" size={16} color="#22c55e" />
-                    </View>
-                  </View>
-                  <Text
-                    style={[
-                      styles.pulseCardSub,
-                      { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
-                    ]}
-                  >
-                    Income - Expenses
-                  </Text>
-                </Pressable>
-
-                {/* Total Income Card */}
-                <Pressable
-                  onPress={() => router.push("/(tabs)/finance")}
-                  style={({ pressed }) => [
-                    styles.pulseCard,
-                    {
-                      backgroundColor: colors.card,
-                      borderColor: colors.border,
-                      borderLeftColor: "#10b981",
-                      borderRadius: colors.radius,
-                      opacity: pressed ? 0.8 : 1,
-                    },
-                  ]}
-                >
-                  <View style={styles.pulseCardTop}>
-                    <View style={{ flex: 1 }}>
-                      <Text
-                        style={[
-                          styles.pulseCardLabel,
-                          { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" },
-                        ]}
-                      >
-                        TOTAL INCOME
-                      </Text>
-                      <Text
-                        style={[
-                          styles.pulseCardValue,
-                          {
-                            color: colors.foreground,
-                            fontFamily: "Inter_700Bold",
-                            fontVariant: ["tabular-nums"],
-                          },
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {fmt(m.totalIncome)}
-                      </Text>
-                    </View>
-                    <View style={[styles.pulseIconWrap, { backgroundColor: "rgba(16,185,129,0.12)" }]}>
-                      <Feather name="arrow-down-left" size={16} color="#10b981" />
-                    </View>
-                  </View>
-                  <Text
-                    style={[
-                      styles.pulseCardSub,
-                      { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
-                    ]}
-                  >
-                    Total revenue earned
-                  </Text>
-                </Pressable>
-              </View>
-
-              <View style={styles.pulseRow}>
-                {/* Total Expenses Card */}
-                <Pressable
-                  onPress={() => router.push("/(tabs)/finance")}
-                  style={({ pressed }) => [
-                    styles.pulseCard,
-                    {
-                      backgroundColor: colors.card,
-                      borderColor: colors.border,
-                      borderLeftColor: "#f59e0b",
-                      borderRadius: colors.radius,
-                      opacity: pressed ? 0.8 : 1,
-                    },
-                  ]}
-                >
-                  <View style={styles.pulseCardTop}>
-                    <View style={{ flex: 1 }}>
-                      <Text
-                        style={[
-                          styles.pulseCardLabel,
-                          { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" },
-                        ]}
-                      >
-                        TOTAL EXPENSES
-                      </Text>
-                      <Text
-                        style={[
-                          styles.pulseCardValue,
-                          {
-                            color: "#f59e0b",
-                            fontFamily: "Inter_700Bold",
-                            fontVariant: ["tabular-nums"],
-                          },
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {fmt(m.totalExpense)}
-                      </Text>
-                    </View>
-                    <View style={[styles.pulseIconWrap, { backgroundColor: "rgba(245,158,11,0.12)" }]}>
-                      <Feather name="arrow-up-right" size={16} color="#f59e0b" />
-                    </View>
-                  </View>
-                  <Text
-                    style={[
-                      styles.pulseCardSub,
-                      { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
-                    ]}
-                  >
-                    Total costs incurred
-                  </Text>
-                </Pressable>
-
-                {/* Payroll Card */}
-                <Pressable
-                  onPress={() => router.push("/(tabs)/finance")}
-                  style={({ pressed }) => [
-                    styles.pulseCard,
-                    {
-                      backgroundColor: colors.card,
-                      borderColor: colors.border,
-                      borderLeftColor: "#ef4444",
-                      borderRadius: colors.radius,
-                      opacity: pressed ? 0.8 : 1,
-                    },
-                  ]}
-                >
-                  <View style={styles.pulseCardTop}>
-                    <View style={{ flex: 1 }}>
-                      <Text
-                        style={[
-                          styles.pulseCardLabel,
-                          { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" },
-                        ]}
-                      >
-                        PAYROLL
-                      </Text>
-                      <Text
-                        style={[
-                          styles.pulseCardValue,
-                          {
-                            color: colors.foreground,
-                            fontFamily: "Inter_700Bold",
-                            fontVariant: ["tabular-nums"],
-                          },
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {fmt(payrollMetrics?.total || 0)}
-                      </Text>
-                    </View>
-                    <View style={[styles.pulseIconWrap, { backgroundColor: "rgba(239,68,68,0.12)" }]}>
-                      <Feather name="users" size={16} color="#ef4444" />
-                    </View>
-                  </View>
-                  <Text
-                    style={[
-                      styles.pulseCardSub,
-                      { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
-                    ]}
-                  >
-                    {payrollMetrics?.staffPaid ?? 0} staff paid
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
-          </View>
-        </FloatInView>
 
         <View
           ref={statsRef}
