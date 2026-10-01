@@ -268,18 +268,26 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             check_subscription_limit(org, 'employees')
             
         instance = serializer.save(user=self.request.user)
-        # Notify the admin who created this employee that onboarding is complete
-        send_push_notification(
-            user=self.request.user,
-            title='👤 New Staff Member Added',
-            body=f"{instance.name} has been onboarded as {instance.role} in {instance.department}.",
-            data={'screen': 'employees', 'employeeId': str(instance.id)}
-        )
-        # Real-time WebSocket broadcast
-        from .consumers import broadcast_workspace_sync
-        ws_id = get_workspace_id(self.request.user)
-        broadcast_workspace_sync(ws_id, 'employee.created', EmployeeSerializer(instance, context={'request': self.request}).data)
-        broadcast_workspace_sync(ws_id, 'financial_pulse.updated', get_financial_pulse_data(self.request.user))
+
+        # Non-blocking post-creation hooks
+        try:
+            send_push_notification(
+                user=self.request.user,
+                title='👤 New Staff Member Added',
+                body=f"{instance.name} has been onboarded as {instance.role} in {instance.department}.",
+                data={'screen': 'employees', 'employeeId': str(instance.id)}
+            )
+        except Exception as e:
+            logger.warning(f"[EmployeeCreate] Push notification failed: {e}")
+
+        try:
+            from .consumers import broadcast_workspace_sync
+            ws_id = get_workspace_id(self.request.user)
+            if ws_id:
+                broadcast_workspace_sync(ws_id, 'employee.created', EmployeeSerializer(instance, context={'request': self.request}).data)
+                broadcast_workspace_sync(ws_id, 'financial_pulse.updated', get_financial_pulse_data(self.request.user))
+        except Exception as e:
+            logger.warning(f"[EmployeeCreate] WebSocket broadcast failed: {e}")
 
     def perform_update(self, serializer):
         instance = serializer.save()
@@ -409,22 +417,34 @@ class ClientViewSet(viewsets.ModelViewSet):
         if org:
             check_subscription_limit(org, 'clients')
         instance = serializer.save(user=self.request.user)
-        from .consumers import broadcast_workspace_sync
-        ws_id = get_workspace_id(self.request.user)
-        broadcast_workspace_sync(ws_id, 'client.created', ClientSerializer(instance).data)
+        try:
+            from .consumers import broadcast_workspace_sync
+            ws_id = get_workspace_id(self.request.user)
+            if ws_id:
+                broadcast_workspace_sync(ws_id, 'client.created', ClientSerializer(instance).data)
+        except Exception as e:
+            logger.warning(f"[ClientCreate] Broadcast error: {e}")
 
     def perform_update(self, serializer):
         instance = serializer.save()
-        from .consumers import broadcast_workspace_sync
-        ws_id = get_workspace_id(self.request.user)
-        broadcast_workspace_sync(ws_id, 'client.updated', ClientSerializer(instance).data)
+        try:
+            from .consumers import broadcast_workspace_sync
+            ws_id = get_workspace_id(self.request.user)
+            if ws_id:
+                broadcast_workspace_sync(ws_id, 'client.updated', ClientSerializer(instance).data)
+        except Exception as e:
+            logger.warning(f"[ClientUpdate] Broadcast error: {e}")
 
     def perform_destroy(self, instance):
-        from .consumers import broadcast_workspace_sync
-        ws_id = get_workspace_id(self.request.user)
-        c_id = instance.id
-        instance.delete()
-        broadcast_workspace_sync(ws_id, 'client.deleted', {'id': c_id})
+        try:
+            from .consumers import broadcast_workspace_sync
+            ws_id = get_workspace_id(self.request.user)
+            c_id = instance.id
+            instance.delete()
+            if ws_id:
+                broadcast_workspace_sync(ws_id, 'client.deleted', {'id': c_id})
+        except Exception as e:
+            logger.warning(f"[ClientDestroy] Broadcast error: {e}")
 
 
 class ProjectViewSet(viewsets.ModelViewSet):
@@ -450,12 +470,15 @@ class ProjectViewSet(viewsets.ModelViewSet):
         instance = serializer.save()
         # Notify the admin when a project is marked as completed
         if old_status != 'completed' and instance.status == 'completed':
-            send_push_notification(
-                user=self.request.user,
-                title='🎉 Project Completed',
-                body=f"Project '{instance.name}' has been marked as completed.",
-                data={'screen': 'projects', 'projectId': str(instance.id)}
-            )
+            try:
+                send_push_notification(
+                    user=self.request.user,
+                    title='🎉 Project Completed',
+                    body=f"Project '{instance.name}' has been marked as completed.",
+                    data={'screen': 'projects', 'projectId': str(instance.id)}
+                )
+            except Exception as e:
+                logger.warning(f"[ProjectUpdate] Push notification error: {e}")
 
 
 class TransactionViewSet(viewsets.ModelViewSet):
@@ -477,10 +500,14 @@ class TransactionViewSet(viewsets.ModelViewSet):
         except Exception:
             pass
         instance = serializer.save(user=user, branch=branch)
-        from .consumers import broadcast_workspace_sync
-        ws_id = get_workspace_id(user)
-        broadcast_workspace_sync(ws_id, 'financial_pulse.updated', get_financial_pulse_data(user))
-        broadcast_workspace_sync(ws_id, 'transaction.created', TransactionSerializer(instance).data)
+        try:
+            from .consumers import broadcast_workspace_sync
+            ws_id = get_workspace_id(user)
+            if ws_id:
+                broadcast_workspace_sync(ws_id, 'financial_pulse.updated', get_financial_pulse_data(user))
+                broadcast_workspace_sync(ws_id, 'transaction.created', TransactionSerializer(instance).data)
+        except Exception as e:
+            logger.warning(f"[TransactionCreate] Broadcast error: {e}")
 
     def perform_update(self, serializer):
         instance = serializer.save()

@@ -181,118 +181,137 @@ class EmployeeSerializer(serializers.ModelSerializer):
         return super().to_internal_value(data)
 
     def create(self, validated_data):
-        finance_data = validated_data.pop('finance_data', {})
-        user = validated_data.get('user')
-        branch_name = validated_data.pop('branch_name', '').strip()
-        branch_location = validated_data.pop('branch_location', '').strip()
-        role_display = validated_data.get('role', 'Employee')
+        from django.db import transaction
+        with transaction.atomic():
+            finance_data = validated_data.pop('finance_data', {})
+            user = validated_data.get('user')
+            branch_name = validated_data.pop('branch_name', '').strip()
+            branch_location = validated_data.pop('branch_location', '').strip()
+            role_display = validated_data.get('role', 'Employee')
 
-        # Auto-create user account for the employee
-        email = validated_data.get('email', '').strip().lower()
-        name = validated_data.get('name', '').strip()
-        
-        if User.objects.filter(email=email).exists():
-            raise serializers.ValidationError({"email": "A user with this email address already exists."})
+            # Auto-create or link user account for the employee
+            email = validated_data.get('email', '').strip().lower()
+            name = validated_data.get('name', '').strip()
             
-        temp_password = "Temp#" + "".join(random.choices(string.ascii_letters + string.digits, k=8))
-        
-        # Create Django User
-        emp_user = User.objects.create_user(
-            username=email,
-            email=email,
-            password=temp_password,
-            first_name=name.split(' ')[0] if name else '',
-            last_name=' '.join(name.split(' ')[1:]) if name else ''
-        )
-        
-        # Setup Employee UserProfile
-        profile, _ = UserProfile.objects.get_or_create(user=emp_user)
-        # Setup role for UserProfile and UserExtension
-        role_map = {
-            'CEO': 'CEO',
-            'ADMIN': 'CEO',
-            'NEW ADMIN': 'BRANCH_ADMIN',
-            'BRANCH_ADMIN': 'BRANCH_ADMIN',
-            'HR MANAGER': 'HR',
-            'HR': 'HR',
-            'FINANCE OFFICER': 'FINANCE',
-            'FINANCE': 'FINANCE',
-            'OPERATIONS MANAGER': 'OPERATIONS',
-            'OPERATING OFFICER': 'OPERATIONS',
-            'OPERATIONAL OFFICER': 'OPERATIONS',
-            'OPERATIONS': 'OPERATIONS',
-            'SECRETARY': 'SECRETARY',
-            'DEPARTMENT MANAGER': 'DEPT_MANAGER',
-            'DEPT_MANAGER': 'DEPT_MANAGER',
-            'EMPLOYEE': 'EMPLOYEE'
-        }
-        system_role = role_map.get(role_display.strip().upper(), 'EMPLOYEE')
-        
-        # Determine organization and branch from creator user
-        creator_user = self.context['request'].user if 'request' in self.context else user
-        creator_org = None
-        creator_branch = None
-        if creator_user:
-            try:
-                # related_name on UserExtension is 'extension' (not 'userextension')
-                creator_ext = creator_user.extension
-                creator_org = creator_ext.organization
-                creator_branch = creator_ext.branch
-            except Exception:
-                pass
-
-        target_branch = creator_branch
-
-        # Handle Branch Creation
-        if system_role == 'BRANCH_ADMIN' and branch_name and creator_org:
-            from .extended_models import Branch
-            from .views import check_subscription_limit
-            check_subscription_limit(creator_org, 'branches')
-            # Create a new branch under organization
-            target_branch = Branch.objects.create(
-                name=branch_name,
-                organization=creator_org,
-                created_by=creator_user,
-                location=branch_location
-            )
-
-        # Setup UserExtension
-        from .extended_models import UserExtension
-        UserExtension.objects.get_or_create(
-            user=emp_user,
-            defaults={
-                'role': system_role,
-                'organization': creator_org,
-                'branch': target_branch
+            # Check if an Employee profile already exists for this email
+            if Employee.objects.filter(email=email).exists():
+                raise serializers.ValidationError({"email": "An employee record with this email address already exists."})
+                
+            temp_password = "Temp#" + "".join(random.choices(string.ascii_letters + string.digits, k=8))
+            
+            # Reuse existing User if orphaned, or create a new Django User
+            emp_user = User.objects.filter(email=email).first()
+            if emp_user:
+                emp_user.set_password(temp_password)
+                if name:
+                    emp_user.first_name = name.split(' ')[0]
+                    emp_user.last_name = ' '.join(name.split(' ')[1:])
+                emp_user.save()
+            else:
+                emp_user = User.objects.create_user(
+                    username=email,
+                    email=email,
+                    password=temp_password,
+                    first_name=name.split(' ')[0] if name else '',
+                    last_name=' '.join(name.split(' ')[1:]) if name else ''
+                )
+            
+            # Setup Employee UserProfile
+            profile, _ = UserProfile.objects.get_or_create(user=emp_user)
+            # Setup role for UserProfile and UserExtension
+            role_map = {
+                'CEO': 'CEO',
+                'ADMIN': 'CEO',
+                'NEW ADMIN': 'BRANCH_ADMIN',
+                'BRANCH_ADMIN': 'BRANCH_ADMIN',
+                'HR MANAGER': 'HR',
+                'HR': 'HR',
+                'FINANCE OFFICER': 'FINANCE',
+                'FINANCE': 'FINANCE',
+                'OPERATIONS MANAGER': 'OPERATIONS',
+                'OPERATING OFFICER': 'OPERATIONS',
+                'OPERATIONAL OFFICER': 'OPERATIONS',
+                'OPERATIONS': 'OPERATIONS',
+                'SECRETARY': 'SECRETARY',
+                'DEPARTMENT MANAGER': 'DEPT_MANAGER',
+                'DEPT_MANAGER': 'DEPT_MANAGER',
+                'EMPLOYEE': 'EMPLOYEE'
             }
-        )
+            system_role = role_map.get(role_display.strip().upper(), 'EMPLOYEE')
+            
+            # Determine organization and branch from creator user
+            creator_user = self.context['request'].user if 'request' in self.context else user
+            creator_org = None
+            creator_branch = None
+            if creator_user:
+                try:
+                    # related_name on UserExtension is 'extension' (not 'userextension')
+                    creator_ext = creator_user.extension
+                    creator_org = creator_ext.organization
+                    creator_branch = creator_ext.branch
+                except Exception:
+                    pass
 
-        profile.role = system_role.lower()
-        profile.is_first_login = True
-        profile.profile_complete = True
-        if validated_data.get('avatar'):
-            profile.avatar = validated_data.get('avatar')
-        profile.save()
-        
-        validated_data['linked_user'] = emp_user
-        validated_data['branch'] = target_branch
+            target_branch = creator_branch
 
-        if not user and creator_user:
-            user = creator_user
-            validated_data['user'] = user
+            # Handle Branch Creation
+            if system_role == 'BRANCH_ADMIN' and branch_name and creator_org:
+                from .extended_models import Branch
+                from .views import check_subscription_limit
+                check_subscription_limit(creator_org, 'branches')
+                # Create a new branch under organization
+                target_branch = Branch.objects.create(
+                    name=branch_name,
+                    organization=creator_org,
+                    created_by=creator_user,
+                    location=branch_location
+                )
 
-        # Filter finance_data to only valid EmployeeFinance fields
-        valid_finance_fields = {f.name for f in EmployeeFinance._meta.get_fields() if hasattr(f, 'column')} # type: ignore
-        clean_finance = {k: v for k, v in finance_data.items() if k in valid_finance_fields and k != 'id'}
-        if 'current_pay' not in clean_finance or clean_finance['current_pay'] in (None, '', 0):
-            clean_finance['current_pay'] = validated_data.get('salary', 0)
-        
-        # Create finance record first
-        finance = EmployeeFinance.objects.create(user=user, **clean_finance) # type: ignore
-        employee = Employee.objects.create(finance=finance, **validated_data) # type: ignore
-        
-        # Save temp password to display to Admin
-        employee._temp_password = temp_password  # type: ignore[attr-defined]
+            # Setup UserExtension
+            from .extended_models import UserExtension
+            ext, ext_created = UserExtension.objects.get_or_create(
+                user=emp_user,
+                defaults={
+                    'role': system_role,
+                    'organization': creator_org,
+                    'branch': target_branch
+                }
+            )
+            if not ext_created:
+                ext.role = system_role
+                if creator_org:
+                    ext.organization = creator_org
+                if target_branch:
+                    ext.branch = target_branch
+                ext.save()
+            
+            validated_data['linked_user'] = emp_user
+            validated_data['branch'] = target_branch
+
+            if not user and creator_user:
+                user = creator_user
+                validated_data['user'] = user
+
+            # Filter finance_data to only valid EmployeeFinance fields
+            valid_finance_fields = {f.name for f in EmployeeFinance._meta.get_fields() if hasattr(f, 'column')} # type: ignore
+            clean_finance = {k: v for k, v in finance_data.items() if k in valid_finance_fields and k != 'id'}
+            if 'current_pay' not in clean_finance or clean_finance['current_pay'] in (None, '', 0):
+                clean_finance['current_pay'] = validated_data.get('salary', 0)
+            
+            # Create finance record and Employee record
+            finance = EmployeeFinance.objects.create(user=user, **clean_finance) # type: ignore
+            employee = Employee.objects.create(finance=finance, **validated_data) # type: ignore
+            
+            # Sync avatar to profile now that the uploaded file has been persisted to storage
+            if employee.avatar:
+                profile.avatar = employee.avatar
+            profile.role = system_role.lower()
+            profile.is_first_login = True
+            profile.profile_complete = True
+            profile.save()
+
+            # Save temp password to display to Admin
+            employee._temp_password = temp_password  # type: ignore[attr-defined]
 
         # Send onboarding email (best-effort — never abort creation on SMTP failure)
         try:
