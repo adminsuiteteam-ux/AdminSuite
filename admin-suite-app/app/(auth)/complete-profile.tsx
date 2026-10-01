@@ -80,17 +80,21 @@ export default function CompleteProfileScreen() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const slideProgress = useRef(new Animated.Value(0)).current;
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
 
   React.useEffect(() => {
     const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
     const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
 
-    const showSub = Keyboard.addListener(showEvent, () => {
+    const showSub = Keyboard.addListener(showEvent, (e) => {
       setIsKeyboardVisible(true);
+      const h = e?.endCoordinates?.height;
+      setKeyboardHeight(h && h > 0 ? h : 360);
     });
     const hideSub = Keyboard.addListener(hideEvent, () => {
       setIsKeyboardVisible(false);
+      setKeyboardHeight(0);
     });
     return () => {
       showSub.remove();
@@ -98,8 +102,19 @@ export default function CompleteProfileScreen() {
     };
   }, []);
 
-  // Form State
-  const [name, setName] = useState(user?.name || "");
+  const scrollToInput = (offset: number) => {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollTo({ y: offset, animated: true });
+    }, 120);
+  };
+
+  // Form State — don't default name to raw email address
+  const initialName = user?.name && !user.name.includes("@")
+    ? user.name
+    : (user as any)?.first_name
+      ? `${(user as any).first_name} ${(user as any).last_name || ""}`.trim()
+      : "";
+  const [name, setName] = useState(initialName);
 
   const [role, setRole] = useState<string>("");
   const [location, setLocation] = useState("");
@@ -441,6 +456,7 @@ export default function CompleteProfileScreen() {
               <TextInput
                 value={name}
                 onChangeText={setName}
+                onFocus={() => scrollToInput(80)}
                 placeholder="e.g. John Doe"
                 placeholderTextColor={colors.mutedForeground}
                 style={[styles.input, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}
@@ -455,6 +471,7 @@ export default function CompleteProfileScreen() {
               <TextInput
                 value={location}
                 onChangeText={setLocation}
+                onFocus={() => scrollToInput(200)}
                 placeholder="e.g. Lagos, Nigeria"
                 placeholderTextColor={colors.mutedForeground}
                 style={[styles.input, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}
@@ -469,6 +486,7 @@ export default function CompleteProfileScreen() {
               <TextInput
                 value={phone}
                 onChangeText={setPhone}
+                onFocus={() => scrollToInput(300)}
                 placeholder="+234 80 1234 5678"
                 placeholderTextColor={colors.mutedForeground}
                 keyboardType="phone-pad"
@@ -483,6 +501,7 @@ export default function CompleteProfileScreen() {
               <TextInput
                 value={bio}
                 onChangeText={setBio}
+                onFocus={() => scrollToInput(380)}
                 placeholder="Brief summary..."
                 placeholderTextColor={colors.mutedForeground}
                 multiline
@@ -531,6 +550,7 @@ export default function CompleteProfileScreen() {
               <TextInput
                 value={businessName}
                 onChangeText={setBusinessName}
+                onFocus={() => scrollToInput(120)}
                 placeholder="e.g. Acme Corp"
                 placeholderTextColor={colors.mutedForeground}
                 style={[styles.input, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}
@@ -546,6 +566,7 @@ export default function CompleteProfileScreen() {
               <TextInput
                 value={orgLocation}
                 onChangeText={setOrgLocation}
+                onFocus={() => scrollToInput(220)}
                 placeholder="e.g. New York, USA"
                 placeholderTextColor={colors.mutedForeground}
                 style={[styles.input, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}
@@ -561,6 +582,7 @@ export default function CompleteProfileScreen() {
               <TextInput
                 value={orgEmail}
                 onChangeText={setOrgEmail}
+                onFocus={() => scrollToInput(300)}
                 placeholder="e.g. contact@acme.com"
                 placeholderTextColor={colors.mutedForeground}
                 keyboardType="email-address"
@@ -580,6 +602,7 @@ export default function CompleteProfileScreen() {
                   <TextInput
                     value={companyLine}
                     onChangeText={setCompanyLine}
+                    onFocus={() => scrollToInput(380)}
                     placeholder="+1 555 1234"
                     placeholderTextColor={colors.mutedForeground}
                     keyboardType="phone-pad"
@@ -596,6 +619,7 @@ export default function CompleteProfileScreen() {
                   <TextInput
                     value={socialHandles}
                     onChangeText={setSocialHandles}
+                    onFocus={() => scrollToInput(380)}
                     placeholder="e.g. @acme_inc"
                     placeholderTextColor={colors.mutedForeground}
                     style={[styles.input, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}
@@ -933,13 +957,13 @@ export default function CompleteProfileScreen() {
         style={{ flex: 1, backgroundColor: colors.background }}
         contentContainerStyle={{
           flexGrow: 1,
-          paddingBottom: isKeyboardVisible ? 160 : Math.max(insets.bottom + 16, 24),
+          paddingBottom: isKeyboardVisible ? Math.max(keyboardHeight, 360) + 140 : Math.max(insets.bottom + 24, 40),
           backgroundColor: colors.background,
         }}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={false}
-        automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
+        automaticallyAdjustKeyboardInsets={true}
       >
         {/* Onboarding Header */}
         <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
