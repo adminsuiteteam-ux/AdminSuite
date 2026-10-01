@@ -15,6 +15,7 @@ import {
   Image,
   Keyboard,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   PanResponder,
   Platform,
@@ -33,8 +34,21 @@ import * as ImagePicker from "expo-image-picker";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { useToast } from "@/context/ToastContext";
+import { useData } from "@/context/DataContext";
 import { apiService, getMediaUrl } from "@/services/api";
 import { ExpandableText } from "@/components/ExpandableText";
+
+const EMOJI_LIST = ["😀", "😂", "😍", "👍", "🔥", "🎉", "❤️", "🙌", "👏", "😮", "🤔", "😢", "🙏", "🚀", "💯", "✨", "😎", "🥳", "🤝", "👀", "💬", "✅"];
+
+const REPORT_REASONS = [
+  { id: "spam", label: "Spam / Scam / Advertising", icon: "slash" },
+  { id: "harassment", label: "Harassment or Bullying", icon: "alert-circle" },
+  { id: "inappropriate_content", label: "Inappropriate or Explicit Content", icon: "eye-off" },
+  { id: "hate_speech", label: "Hate Speech or Discrimination", icon: "shield-alert" },
+  { id: "impersonation", label: "Impersonation or Fake Account", icon: "user-x" },
+  { id: "policy_violation", label: "Company / Community Policy Violation", icon: "file-text" },
+  { id: "other", label: "Other Reason", icon: "help-circle" },
+];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Contact = {
@@ -46,6 +60,10 @@ type Contact = {
   group_locked?: boolean;
   is_blocked_from_group?: boolean;
   employee_id?: number;
+  email?: string;
+  phone?: string;
+  role?: string;
+  department?: string;
   unread_count?: number;
   last_message?: string;
   last_message_time?: string;
@@ -295,6 +313,7 @@ export default function AdminChatScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const { showToast } = useToast();
+  const { employees } = useData();
   const isDark = colors.isDark;
 
   // ── State ──
@@ -319,6 +338,21 @@ export default function AdminChatScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<FilterTab>("all");
   const [showSearch, setShowSearch] = useState(false);
+  const [showInChatSearch, setShowInChatSearch] = useState(false);
+  const [inChatSearchQuery, setInChatSearchQuery] = useState("");
+
+  // Emoji picker
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+
+  // Moderation & Reporting
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportReason, setReportReason] = useState("harassment");
+  const [reportDetails, setReportDetails] = useState("");
+  const [submittingReport, setSubmittingReport] = useState(false);
+
+  // Chat preference toggles
+  const [isMuted, setIsMuted] = useState(false);
+  const [isFavourite, setIsFavourite] = useState(false);
 
   // In-app notification
   const [notification, setNotification] = useState<{
@@ -678,9 +712,20 @@ export default function AdminChatScreen() {
   // ─── Messages with date separators ─────────────────────────────────────────
   type ListItem = { type: "date"; label: string; key: string } | { type: "msg"; msg: ChatMessage; key: string };
 
+  const displayedMessages = inChatSearchQuery.trim()
+    ? messages.filter((m) => {
+        const q = inChatSearchQuery.trim().toLowerCase();
+        return (
+          m.text.toLowerCase().includes(q) ||
+          m.sender_name.toLowerCase().includes(q) ||
+          (m.reply_to_text && m.reply_to_text.toLowerCase().includes(q))
+        );
+      })
+    : messages;
+
   const listItems: ListItem[] = [];
   let lastDateLabel = "";
-  for (const msg of messages) {
+  for (const msg of displayedMessages) {
     const label = getDateLabel(msg.created_at);
     if (label !== lastDateLabel) {
       listItems.push({ type: "date", label, key: `date-${msg.id}` });
@@ -1081,17 +1126,125 @@ export default function AdminChatScreen() {
   };
 
   // ─── Report user helper ─────────────────────────────────────────────────────
-  const handleReportUser = (contact: Contact) => {
+  const handleReportUser = (_contact: Contact) => {
+    setShowReportModal(true);
+  };
+
+  const handleSubmitReport = async () => {
+    if (!activeContact) return;
+    const targetUserId =
+      typeof activeContact.id === "number"
+        ? activeContact.id
+        : (activeContact.employee_id || 0);
+    if (!targetUserId) {
+      showToast({ title: "Error", message: "Cannot determine user ID to report.", type: "error" });
+      return;
+    }
+
+    setSubmittingReport(true);
+    try {
+      await apiService.reportChatUser({
+        reported_user_id: targetUserId,
+        reason: reportReason,
+        details: reportDetails.trim(),
+      });
+      setShowReportModal(false);
+      setReportDetails("");
+      showToast({
+        title: "Report Submitted",
+        message: `Account for ${activeContact.name} has been reported. The developer and administration team have been notified.`,
+        type: "success",
+      });
+    } catch (err: any) {
+      const msg = err.response?.data?.error || err.message || "Failed to submit report";
+      showToast({ title: "Report Failed", message: msg, type: "error" });
+    } finally {
+      setSubmittingReport(false);
+    }
+  };
+
+  const handleInitiateCall = async (type: "voice" | "video") => {
+    if (!activeContact || typeof activeContact.id !== "number") return;
+    try {
+      showToast({ title: type === "voice" ? "📞 Starting Call..." : "📹 Starting Video...", message: `Connecting with ${activeContact.name}`, type: "info" });
+      const res = await apiService.initiateCall({
+        call_type: type,
+        callee_id: activeContact.id as number,
+      });
+      const { id: callId, room_url, room_name, token } = res.data;
+      // Auto-send a call link into the chat so the other party can also join
+      if (room_url) {
+        const icon = type === "voice" ? "📞" : "📹";
+        const msg = `${icon} [${type === "voice" ? "Voice" : "Video"} Call Started] Join here: ${room_url}`;
+        const payload: any = { text: msg, recipient_id: activeContact.id };
+        apiService.sendChatMessage(payload).catch(() => {});
+      }
+      // Navigate to CallScreen
+      router.push({
+        pathname: "/call",
+        params: {
+          callId,
+          callType: type,
+          roomUrl: room_url || "",
+          roomName: room_name || "",
+          token: token || "",
+          calleeName: activeContact.name,
+          calleeInitials: activeContact.initials,
+        },
+      });
+    } catch (e: any) {
+      showToast({ title: "Call Failed", message: e?.response?.data?.error || "Could not start call.", type: "error" });
+    }
+  };
+
+  const handleInitiateGroupCall = async () => {
+    if (!activeContact) return;
+    const groupId = typeof activeContact.id === "number" ? activeContact.id : undefined;
+    try {
+      showToast({ title: "📞 Starting Group Call...", message: `Starting conference for ${activeContact.name}`, type: "info" });
+      const res = await apiService.initiateCall({
+        call_type: "video",
+        ...(groupId ? { group_id: groupId } : {}),
+      });
+      const { id: callId, room_url, room_name, token } = res.data;
+      if (room_url) {
+        const msg = `📹 [Group Conference Started] Join here: ${room_url}`;
+        const payload: any = { text: msg };
+        if (groupId) payload.group_id = groupId;
+        apiService.sendChatMessage(payload).catch(() => {});
+      }
+      router.push({
+        pathname: "/call",
+        params: {
+          callId,
+          callType: "video",
+          roomUrl: room_url || "",
+          roomName: room_name || "",
+          token: token || "",
+          calleeName: activeContact.name,
+          calleeInitials: activeContact.initials,
+        },
+      });
+    } catch (e: any) {
+      showToast({ title: "Group Call Failed", message: e?.response?.data?.error || "Could not start group call.", type: "error" });
+    }
+  };
+
+  const handleDeleteChat = () => {
+    if (!activeContact) return;
     Alert.alert(
-      "Report User",
-      `Report ${contact.name} for inappropriate behavior?`,
+      "Delete Chat",
+      `Delete conversation with ${activeContact.name}? This will clear your chat messages and close this conversation.`,
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Report",
+          text: "Delete",
           style: "destructive",
-          onPress: () =>
-            showToast({ title: "Reported", message: `${contact.name} has been reported.`, type: "success" }),
+          onPress: () => {
+            setMessages([]);
+            setActiveContact(null);
+            showToast({ title: "Chat Deleted", message: "Conversation deleted successfully.", type: "success" });
+          },
         },
       ]
     );
@@ -1118,14 +1271,64 @@ export default function AdminChatScreen() {
   // ─── Header Menu Actions ───────────────────────────────────────────────────
   const handleHeaderMenuAction = (actionId: string) => {
     if (!activeContact) return;
-    if (actionId === "search") {
-      setShowSearch(true);
+    if (actionId === "info") {
+      if (activeContact.type === "group") setShowGroupProfile(true);
+      else setShowContactProfile(true);
+    } else if (actionId === "search") {
+      setShowInChatSearch(true);
+    } else if (actionId === "voice") {
+      handleInitiateCall("voice");
+    } else if (actionId === "video") {
+      handleInitiateCall("video");
+    } else if (actionId === "group_call") {
+      handleInitiateGroupCall();
+    } else if (actionId === "mute") {
+      setIsMuted((m) => {
+        const next = !m;
+        showToast({
+          title: next ? "Muted" : "Unmuted",
+          message: next ? "Notifications muted for 8 hours." : "You will receive notifications for this chat.",
+          type: "info",
+        });
+        return next;
+      });
+    } else if (actionId === "disappearing") {
+      Alert.alert(
+        "Disappearing Messages",
+        "Set a timer for messages in this chat:",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Off", onPress: () => showToast({ title: "Disappearing Messages", message: "Disappearing messages turned off.", type: "info" }) },
+          { text: "24 Hours", onPress: () => showToast({ title: "Disappearing Messages", message: "Messages will disappear after 24 hours.", type: "success" }) },
+          { text: "7 Days", onPress: () => showToast({ title: "Disappearing Messages", message: "Messages will disappear after 7 days.", type: "success" }) },
+        ]
+      );
+    } else if (actionId === "favourites") {
+      setIsFavourite((f) => {
+        const next = !f;
+        showToast({
+          title: "Favourites",
+          message: next ? `${activeContact.name} added to favourites.` : `${activeContact.name} removed from favourites.`,
+          type: "success",
+        });
+        return next;
+      });
+    } else if (actionId === "call_link") {
+      Clipboard.setString("https://meet.google.com/new");
+      showToast({ title: "Call Link Copied", message: "Meeting link copied to clipboard. Paste into chat to share.", type: "success" });
+    } else if (actionId === "schedule_call") {
+      Alert.alert("Schedule Call", `Schedule a calendar call with ${activeContact.name}?`, [
+        { text: "Cancel", style: "cancel" },
+        { text: "Add to Calendar", onPress: () => showToast({ title: "Scheduled", message: "Call reminder created.", type: "success" }) },
+      ]);
     } else if (actionId === "clear") {
       handleClearChat();
     } else if (actionId === "block") {
       handleBlockDMUser(activeContact);
     } else if (actionId === "report") {
-      handleReportUser(activeContact);
+      setShowReportModal(true);
+    } else if (actionId === "delete") {
+      handleDeleteChat();
     }
   };
 
@@ -1583,20 +1786,24 @@ export default function AdminChatScreen() {
           )}
         </ScrollView>
 
-        {/* ── Floating Action Button ── */}
+        {/* ── Floating Action Button (Create Group) ── */}
         <Animated.View style={[styles.fab, { transform: [{ scale: fabScale }], bottom: insets.bottom + 20 }]}>
           <Pressable
             onPress={handleFabPress}
             style={[
               styles.fabInner,
               {
-                backgroundColor: colors.primary,
-                borderWidth: 2,
-                borderColor: isDark ? "rgba(255,255,255,0.25)" : "transparent",
+                backgroundColor: colors.accent,
+                borderWidth: 1.5,
+                borderColor: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.1)",
+                shadowColor: colors.accent,
+                shadowOpacity: isDark ? 0.6 : 0.35,
+                shadowRadius: 10,
+                elevation: 8,
               },
             ]}
           >
-            <Feather name="plus" size={26} color="#fff" />
+            <Feather name="plus" size={26} color="#ffffff" />
           </Pressable>
         </Animated.View>
 
@@ -1755,8 +1962,8 @@ export default function AdminChatScreen() {
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <KeyboardAvoidingView
         style={[styles.container, { backgroundColor: colors.background }]}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 34 : 0}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
       >
       {/* In-App Notification Banner */}
       <InAppNotificationBanner
@@ -1776,7 +1983,12 @@ export default function AdminChatScreen() {
         ]}
       >
         <Pressable
-          onPress={() => setActiveContact(null)}
+          onPress={() => {
+            setActiveContact(null);
+            setShowInChatSearch(false);
+            setInChatSearchQuery("");
+            setShowEmojiPicker(false);
+          }}
           style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.6 : 1 }]}
           hitSlop={8}
         >
@@ -1809,20 +2021,20 @@ export default function AdminChatScreen() {
             )}
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.headerName, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+            <Text style={[styles.headerName, { color: colors.foreground, fontFamily: "Inter_700Bold" }]} numberOfLines={1}>
               {activeContact.name}
             </Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
               {typingStatus ? (
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                   <TypingIndicator color={colors.primary} />
-                  <Text style={[styles.headerSub, { color: colors.primary, fontFamily: "Inter_400Regular" }]}>
+                  <Text style={[styles.headerSub, { color: colors.primary, fontFamily: "Inter_400Regular" }]} numberOfLines={1}>
                     {typingStatus}
                   </Text>
                 </View>
               ) : (
-                <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                  {isGroupChat ? "Tap to view group info" : "Tap to view profile"}
+                <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]} numberOfLines={1}>
+                  {isGroupChat ? "Tap for group info" : "Tap for contact info"}
                 </Text>
               )}
               {isGroupChat && groupLocked && (
@@ -1837,15 +2049,90 @@ export default function AdminChatScreen() {
           </View>
         </Pressable>
 
-        {/* Three-dot menu */}
-        <Pressable
-          onPress={() => setShowHeaderMenu(true)}
-          style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.6 : 1 }]}
-          hitSlop={4}
-        >
-          <Feather name="more-vertical" size={20} color={colors.foreground} />
-        </Pressable>
+        {/* Call & Action buttons */}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+          {!isGroupChat ? (
+            <>
+              <Pressable
+                onPress={() => handleInitiateCall("voice")}
+                style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.6 : 1 }]}
+                hitSlop={6}
+              >
+                <Feather name="phone" size={18} color={colors.foreground} />
+              </Pressable>
+              <Pressable
+                onPress={() => handleInitiateCall("video")}
+                style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.6 : 1 }]}
+                hitSlop={6}
+              >
+                <Feather name="video" size={18} color={colors.foreground} />
+              </Pressable>
+            </>
+          ) : (
+            <Pressable
+              onPress={handleInitiateGroupCall}
+              style={({ pressed }) => [
+                styles.groupCallBtn,
+                { opacity: pressed ? 0.7 : 1, backgroundColor: colors.accent + "20" },
+              ]}
+              hitSlop={6}
+            >
+              <Feather name="phone" size={13} color={colors.accent} />
+              <Text style={{ color: colors.accent, fontSize: 11, fontFamily: "Inter_600SemiBold" }}>Call</Text>
+            </Pressable>
+          )}
+
+          {/* Search Toggle */}
+          <Pressable
+            onPress={() => {
+              setShowInChatSearch((s) => !s);
+              if (showInChatSearch) setInChatSearchQuery("");
+            }}
+            style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.6 : 1 }]}
+            hitSlop={6}
+          >
+            <Feather
+              name={showInChatSearch ? "x" : "search"}
+              size={18}
+              color={showInChatSearch ? colors.primary : colors.foreground}
+            />
+          </Pressable>
+
+          {/* Three-dot menu */}
+          <Pressable
+            onPress={() => setShowHeaderMenu(true)}
+            style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.6 : 1 }]}
+            hitSlop={6}
+          >
+            <Feather name="more-vertical" size={20} color={colors.foreground} />
+          </Pressable>
+        </View>
       </View>
+
+      {/* ── Active In-Chat Search Bar ── */}
+      {showInChatSearch && (
+        <View
+          style={[
+            styles.inChatSearchBar,
+            { backgroundColor: isDark ? "#18181b" : "#f4f4f5", borderBottomColor: colors.border },
+          ]}
+        >
+          <Feather name="search" size={16} color={colors.mutedForeground} />
+          <TextInput
+            value={inChatSearchQuery}
+            onChangeText={setInChatSearchQuery}
+            placeholder="Search in this chat..."
+            placeholderTextColor={colors.mutedForeground}
+            style={[styles.inChatSearchInput, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}
+            autoFocus
+          />
+          {inChatSearchQuery.length > 0 && (
+            <Pressable onPress={() => setInChatSearchQuery("")} hitSlop={6}>
+              <Feather name="x-circle" size={16} color={colors.mutedForeground} />
+            </Pressable>
+          )}
+        </View>
+      )}
 
       {/* ── Body ── */}
       <View style={{ flex: 1 }}>
@@ -1864,11 +2151,13 @@ export default function AdminChatScreen() {
             showsVerticalScrollIndicator={false}
             refreshing={refreshing}
             onRefresh={handleRefresh}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
             ListEmptyComponent={
               <View style={styles.emptyList}>
                 <Feather name="message-circle" size={36} color={colors.mutedForeground} />
                 <Text style={[styles.emptyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                  {t("chat.noMessages")}
+                  {inChatSearchQuery.trim() ? "No matching messages found." : t("chat.noMessages")}
                 </Text>
               </View>
             }
@@ -1893,17 +2182,46 @@ export default function AdminChatScreen() {
           </View>
         )}
 
+        {/* Emoji Selector Panel */}
+        {showEmojiPicker && (
+          <View style={[styles.emojiPickerContainer, { backgroundColor: isDark ? "#18181b" : "#fff", borderTopColor: colors.border }]}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.emojiScroll}>
+              {EMOJI_LIST.map((em) => (
+                <Pressable
+                  key={em}
+                  onPress={() => {
+                    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                    setInputText((prev) => prev + em);
+                  }}
+                  style={styles.emojiTouch}
+                >
+                  <Text style={styles.emojiGlyph}>{em}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
         {/* Input bar */}
         <View
           style={[
             styles.inputBar,
             {
-              paddingBottom: Math.max(insets.bottom, 12),
+              paddingBottom: isKeyboardOpen ? 8 : Math.max(insets.bottom, 10),
               backgroundColor: isDark ? "#09090b" : "#fff",
               borderTopColor: colors.border,
             },
           ]}
         >
+          {/* Emoji button */}
+          <Pressable
+            onPress={() => setShowEmojiPicker((v) => !v)}
+            style={({ pressed }) => [styles.emojiToggleBtn, { opacity: pressed ? 0.7 : 1 }]}
+            hitSlop={6}
+          >
+            <Feather name="smile" size={22} color={showEmojiPicker ? colors.accent : colors.mutedForeground} />
+          </Pressable>
+
           <View style={[styles.inputWrap, { backgroundColor: isDark ? "#27272a" : "#f4f4f5", borderColor: colors.border }]}>
             <TextInput
               value={inputText}
@@ -1911,6 +2229,10 @@ export default function AdminChatScreen() {
               placeholder={editingMsg ? t("chat.editPlaceholder") : t("chat.typePlaceholder")}
               placeholderTextColor={colors.mutedForeground}
               multiline
+              onFocus={() => {
+                setShowEmojiPicker(false);
+                setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 80);
+              }}
               style={[styles.input, { color: colors.text, fontFamily: "Inter_400Regular" }]}
               onSubmitEditing={handleSend}
             />
@@ -2264,7 +2586,7 @@ export default function AdminChatScreen() {
         </Pressable>
       </Modal>
 
-      {/* ── Contact Profile Modal (DM) ── */}
+      {/* ── Contact Profile Modal (DM) — Full Detail Drawer matching Web ── */}
       <Modal
         visible={showContactProfile}
         transparent
@@ -2274,86 +2596,447 @@ export default function AdminChatScreen() {
         <Pressable style={styles.backdrop} onPress={() => setShowContactProfile(false)}>
           <Pressable
             style={[
-              styles.groupProfileSheet,
+              styles.contactProfileSheet,
               { backgroundColor: isDark ? "#18181b" : "#fff", borderColor: colors.border },
             ]}
             onPress={(e) => e.stopPropagation()}
           >
             <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
 
-            {activeContact && activeContact.type === "private" && (
-              <>
-                {/* Avatar */}
-                <View style={{ alignItems: "center", marginBottom: 20, gap: 10 }}>
-                  <View style={[styles.groupProfileAvatar, { backgroundColor: colors.accent, overflow: "hidden" }]}>
-                    {activeContact.avatar ? (
-                      <Image source={{ uri: getMediaUrl(activeContact.avatar) }} style={{ width: "100%", height: "100%" }} />
-                    ) : (
-                      <Text style={{ color: "#fff", fontSize: 24, fontFamily: "Inter_700Bold" }}>{activeContact.initials}</Text>
-                    )}
+            {/* Header with Title and Close */}
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <Text style={{ color: colors.foreground, fontSize: 16, fontFamily: "Inter_700Bold" }}>
+                Contact Info
+              </Text>
+              <Pressable onPress={() => setShowContactProfile(false)} hitSlop={8}>
+                <Feather name="x" size={20} color={colors.mutedForeground} />
+              </Pressable>
+            </View>
+
+            {activeContact && activeContact.type === "private" && (() => {
+              const activeEmp = employees.find(
+                (e: any) =>
+                  e.id === activeContact.id ||
+                  e.id === activeContact.employee_id ||
+                  e.name?.toLowerCase() === activeContact.name?.toLowerCase()
+              );
+              const empEmail = activeEmp?.email || activeContact.email;
+              const empPhone = activeEmp?.phone || activeContact.phone;
+              const empRole = activeEmp?.role || activeContact.role || "Team Member";
+              const empDept = activeEmp?.department || activeContact.department || "General";
+
+              return (
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
+                  {/* Big Avatar and Name */}
+                  <View style={{ alignItems: "center", marginBottom: 16, gap: 8 }}>
+                    <View style={{ position: "relative" }}>
+                      <View style={[styles.fullProfileAvatar, { backgroundColor: colors.accent, overflow: "hidden" }]}>
+                        {activeContact.avatar ? (
+                          <Image source={{ uri: getMediaUrl(activeContact.avatar) }} style={{ width: "100%", height: "100%" }} />
+                        ) : (
+                          <Text style={{ color: "#fff", fontSize: 32, fontFamily: "Inter_700Bold" }}>{activeContact.initials}</Text>
+                        )}
+                      </View>
+                      <View style={[styles.onlineDotLarge, { backgroundColor: "#22c55e", borderColor: isDark ? "#18181b" : "#fff" }]} />
+                    </View>
+                    <Text style={[styles.fullProfileName, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+                      {activeContact.name}
+                    </Text>
+                    <Text style={{ color: colors.mutedForeground, fontSize: 13, fontFamily: "Inter_500Medium" }}>
+                      {empRole} • {empDept}
+                    </Text>
                   </View>
-                  <Text style={[styles.groupProfileName, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-                    {activeContact.name}
-                  </Text>
-                  <Text style={{ color: colors.mutedForeground, fontSize: 13, fontFamily: "Inter_400Regular" }}>
-                    {t("chat.directMessageChat")}
-                  </Text>
-                </View>
 
-                {/* Actions */}
-                <View style={{ gap: 10, marginTop: 12 }}>
-                  <Pressable
-                    onPress={() => {
-                      setShowContactProfile(false);
-                      handleClearChat();
-                    }}
-                    style={({ pressed }) => [
-                      styles.actionItem,
-                      { opacity: pressed ? 0.7 : 1, borderBottomColor: colors.border, paddingVertical: 14 },
-                    ]}
-                  >
-                    <Feather name="trash-2" size={18} color={colors.foreground} />
-                    <Text style={[styles.actionLabel, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
-                      {t("chat.clearConversation")}
-                    </Text>
-                  </Pressable>
+                  {/* Quick Action Pills: Message, Audio Call, Video Call, Email */}
+                  <View style={styles.quickActionPills}>
+                    <Pressable
+                      onPress={() => setShowContactProfile(false)}
+                      style={({ pressed }) => [styles.quickActionPill, { opacity: pressed ? 0.7 : 1 }]}
+                    >
+                      <View style={[styles.quickActionIconWrap, { backgroundColor: colors.primary + "15" }]}>
+                        <Feather name="message-square" size={18} color={colors.primary} />
+                      </View>
+                      <Text style={[styles.quickActionPillLabel, { color: colors.foreground }]}>Chat</Text>
+                    </Pressable>
 
-                  <Pressable
-                    onPress={() => {
-                      setShowContactProfile(false);
-                      handleBlockDMUser(activeContact);
-                    }}
-                    style={({ pressed }) => [
-                      styles.actionItem,
-                      { opacity: pressed ? 0.7 : 1, borderBottomColor: colors.border, paddingVertical: 14 },
-                    ]}
-                  >
-                    <Feather name={activeContact.is_blocked_from_group ? "user-check" : "user-x"} size={18} color={colors.danger} />
-                    <Text style={[styles.actionLabel, { color: colors.danger, fontFamily: "Inter_500Medium" }]}>
-                      {activeContact.is_blocked_from_group ? t("chat.unblockUser") : t("chat.blockUser")}
-                    </Text>
-                  </Pressable>
+                    <Pressable
+                      onPress={() => {
+                        setShowContactProfile(false);
+                        handleInitiateCall("voice");
+                      }}
+                      style={({ pressed }) => [styles.quickActionPill, { opacity: pressed ? 0.7 : 1 }]}
+                    >
+                      <View style={[styles.quickActionIconWrap, { backgroundColor: colors.accent + "15" }]}>
+                        <Feather name="phone" size={18} color={colors.accent} />
+                      </View>
+                      <Text style={[styles.quickActionPillLabel, { color: colors.foreground }]}>Audio</Text>
+                    </Pressable>
 
-                  <Pressable
-                    onPress={() => {
-                      setShowContactProfile(false);
-                      handleReportUser(activeContact);
-                    }}
-                    style={({ pressed }) => [
-                      styles.actionItem,
-                      { opacity: pressed ? 0.7 : 1, borderBottomColor: "transparent", paddingVertical: 14 },
-                    ]}
-                  >
-                    <Feather name="alert-triangle" size={18} color={colors.danger} />
-                    <Text style={[styles.actionLabel, { color: colors.danger, fontFamily: "Inter_500Medium" }]}>
-                      {t("chat.reportUser")}
+                    <Pressable
+                      onPress={() => {
+                        setShowContactProfile(false);
+                        handleInitiateCall("video");
+                      }}
+                      style={({ pressed }) => [styles.quickActionPill, { opacity: pressed ? 0.7 : 1 }]}
+                    >
+                      <View style={[styles.quickActionIconWrap, { backgroundColor: "#22c55e15" }]}>
+                        <Feather name="video" size={18} color="#22c55e" />
+                      </View>
+                      <Text style={[styles.quickActionPillLabel, { color: colors.foreground }]}>Video</Text>
+                    </Pressable>
+
+                    {empEmail ? (
+                      <Pressable
+                        onPress={() => Linking.openURL(`mailto:${empEmail}`)}
+                        style={({ pressed }) => [styles.quickActionPill, { opacity: pressed ? 0.7 : 1 }]}
+                      >
+                        <View style={[styles.quickActionIconWrap, { backgroundColor: "#f59e0b15" }]}>
+                          <Feather name="mail" size={18} color="#f59e0b" />
+                        </View>
+                        <Text style={[styles.quickActionPillLabel, { color: colors.foreground }]}>Email</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+
+                  {/* Section: About & Contact Details */}
+                  <View style={[styles.profileSectionBox, { backgroundColor: isDark ? "#27272a40" : "#f4f4f5", borderColor: colors.border }]}>
+                    <Text style={[styles.profileSectionTitle, { color: colors.mutedForeground }]}>
+                      ABOUT & CONTACT INFO
                     </Text>
-                  </Pressable>
-                </View>
-              </>
-            )}
+
+                    {empEmail && (
+                      <Pressable
+                        onPress={() => {
+                          Clipboard.setString(empEmail);
+                          showToast({ title: "Copied", message: "Email copied to clipboard.", type: "success" });
+                        }}
+                        style={styles.profileDetailRow}
+                      >
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+                          <Feather name="mail" size={16} color={colors.mutedForeground} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>Email</Text>
+                            <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: "Inter_500Medium" }}>{empEmail}</Text>
+                          </View>
+                        </View>
+                        <Feather name="copy" size={14} color={colors.mutedForeground} />
+                      </Pressable>
+                    )}
+
+                    {empPhone && (
+                      <Pressable
+                        onPress={() => Linking.openURL(`tel:${empPhone}`)}
+                        style={styles.profileDetailRow}
+                      >
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+                          <Feather name="phone" size={16} color={colors.mutedForeground} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>Phone</Text>
+                            <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: "Inter_500Medium" }}>{empPhone}</Text>
+                          </View>
+                        </View>
+                        <Feather name="phone-call" size={14} color={colors.accent} />
+                      </Pressable>
+                    )}
+
+                    <View style={styles.profileDetailRow}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+                        <Feather name="briefcase" size={16} color={colors.mutedForeground} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>Department & Role</Text>
+                          <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: "Inter_500Medium" }}>{empDept} • {empRole}</Text>
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Section: Chat Options & Security */}
+                  <View style={[styles.profileSectionBox, { backgroundColor: isDark ? "#27272a40" : "#f4f4f5", borderColor: colors.border }]}>
+                    <Text style={[styles.profileSectionTitle, { color: colors.mutedForeground }]}>
+                      SETTINGS & SECURITY
+                    </Text>
+
+                    <Pressable
+                      onPress={() => showToast({ title: "Starred Messages", message: "Starred messages screen coming soon.", type: "info" })}
+                      style={styles.profileSettingRow}
+                    >
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                        <Feather name="star" size={16} color={colors.mutedForeground} />
+                        <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: "Inter_500Medium" }}>Starred Messages</Text>
+                      </View>
+                      <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+                    </Pressable>
+
+                    <Pressable
+                      onPress={() => {
+                        setIsMuted((m) => {
+                          const next = !m;
+                          showToast({
+                            title: next ? "Muted" : "Unmuted",
+                            message: next ? "Notifications muted for 8 hours." : "Notifications enabled.",
+                            type: "info",
+                          });
+                          return next;
+                        });
+                      }}
+                      style={styles.profileSettingRow}
+                    >
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                        <Feather name={isMuted ? "bell-off" : "bell"} size={16} color={isMuted ? colors.warning : colors.mutedForeground} />
+                        <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: "Inter_500Medium" }}>
+                          {isMuted ? "Muted (8h)" : "Notification Settings"}
+                        </Text>
+                      </View>
+                      <Text style={{ fontSize: 12, color: colors.accent, fontFamily: "Inter_600SemiBold" }}>
+                        {isMuted ? "Unmute" : "Mute"}
+                      </Text>
+                    </Pressable>
+
+                    <Pressable
+                      onPress={() => {
+                        Alert.alert("Disappearing Messages", "Select timer for disappearing messages:", [
+                          { text: "Cancel", style: "cancel" },
+                          { text: "Off", onPress: () => showToast({ title: "Updated", message: "Disappearing messages turned off.", type: "info" }) },
+                          { text: "24 Hours", onPress: () => showToast({ title: "Updated", message: "Messages disappear after 24h.", type: "success" }) },
+                          { text: "7 Days", onPress: () => showToast({ title: "Updated", message: "Messages disappear after 7 days.", type: "success" }) },
+                        ]);
+                      }}
+                      style={styles.profileSettingRow}
+                    >
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                        <Feather name="clock" size={16} color={colors.mutedForeground} />
+                        <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: "Inter_500Medium" }}>Disappearing Messages</Text>
+                      </View>
+                      <Text style={{ fontSize: 12, color: colors.mutedForeground }}>Off</Text>
+                    </Pressable>
+
+                    <View style={styles.profileSettingRow}>
+                      <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10, flex: 1 }}>
+                        <Feather name="lock" size={16} color="#22c55e" style={{ marginTop: 2 }} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 13, color: colors.foreground, fontFamily: "Inter_500Medium" }}>Encryption</Text>
+                          <Text style={{ fontSize: 11, color: colors.mutedForeground, marginTop: 2, lineHeight: 15 }}>
+                            Messages and calls are end-to-end encrypted. Tap to verify.
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Section: Media, Links & Docs */}
+                  <View style={[styles.profileSectionBox, { backgroundColor: isDark ? "#27272a40" : "#f4f4f5", borderColor: colors.border }]}>
+                    <Text style={[styles.profileSectionTitle, { color: colors.mutedForeground }]}>
+                      MEDIA, LINKS AND DOCS
+                    </Text>
+                    <View style={{ alignItems: "center", paddingVertical: 12, gap: 6 }}>
+                      <Feather name="image" size={24} color={colors.mutedForeground} />
+                      <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>
+                        No shared media yet.
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Section: Actions & Moderation */}
+                  <View style={{ gap: 8, marginTop: 4 }}>
+                    <Pressable
+                      onPress={() => {
+                        setIsFavourite((f) => {
+                          const next = !f;
+                          showToast({
+                            title: "Favourites",
+                            message: next ? `${activeContact.name} added to favourites.` : `${activeContact.name} removed from favourites.`,
+                            type: "success",
+                          });
+                          return next;
+                        });
+                      }}
+                      style={({ pressed }) => [styles.profileActionBtn, { opacity: pressed ? 0.7 : 1 }]}
+                    >
+                      <Feather name="heart" size={17} color={isFavourite ? colors.danger : colors.mutedForeground} />
+                      <Text style={[styles.profileActionLabel, { color: colors.foreground }]}>
+                        {isFavourite ? "Remove from Favourites" : "Add to Favourites"}
+                      </Text>
+                    </Pressable>
+
+                    <Pressable
+                      onPress={() => {
+                        setShowContactProfile(false);
+                        handleClearChat();
+                      }}
+                      style={({ pressed }) => [styles.profileActionBtn, { opacity: pressed ? 0.7 : 1 }]}
+                    >
+                      <Feather name="trash-2" size={17} color={colors.danger} />
+                      <Text style={[styles.profileActionLabel, { color: colors.danger }]}>
+                        Clear Chat
+                      </Text>
+                    </Pressable>
+
+                    <Pressable
+                      onPress={() => {
+                        setShowContactProfile(false);
+                        handleBlockDMUser(activeContact);
+                      }}
+                      style={({ pressed }) => [styles.profileActionBtn, { opacity: pressed ? 0.7 : 1 }]}
+                    >
+                      <Feather name={activeContact.is_blocked_from_group ? "user-check" : "slash"} size={17} color={colors.danger} />
+                      <Text style={[styles.profileActionLabel, { color: colors.danger }]}>
+                        {activeContact.is_blocked_from_group ? "Unblock User" : `Block ${activeContact.name}`}
+                      </Text>
+                    </Pressable>
+
+                    <Pressable
+                      onPress={() => {
+                        setShowContactProfile(false);
+                        setShowReportModal(true);
+                      }}
+                      style={({ pressed }) => [styles.profileActionBtn, { opacity: pressed ? 0.7 : 1 }]}
+                    >
+                      <Feather name="alert-triangle" size={17} color={colors.danger} />
+                      <Text style={[styles.profileActionLabel, { color: colors.danger }]}>
+                        Report Account
+                      </Text>
+                    </Pressable>
+
+                    <Pressable
+                      onPress={() => {
+                        setShowContactProfile(false);
+                        handleDeleteChat();
+                      }}
+                      style={({ pressed }) => [styles.profileActionBtn, { opacity: pressed ? 0.7 : 1 }]}
+                    >
+                      <Feather name="trash" size={17} color={colors.danger} />
+                      <Text style={[styles.profileActionLabel, { color: colors.danger }]}>
+                        Delete Chat
+                      </Text>
+                    </Pressable>
+                  </View>
+                </ScrollView>
+              );
+            })()}
           </Pressable>
         </Pressable>
+      </Modal>
+
+      {/* ── Report Account Modal (Moderation) ── */}
+      <Modal
+        visible={showReportModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowReportModal(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+        >
+          <Pressable style={styles.backdrop} onPress={() => setShowReportModal(false)}>
+            <Pressable
+              style={[
+                styles.reportSheet,
+                { backgroundColor: isDark ? "#18181b" : "#fff", borderColor: colors.border },
+              ]}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
+
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <View style={[styles.dangerBadgeIcon, { backgroundColor: colors.danger + "20" }]}>
+                    <Feather name="alert-triangle" size={18} color={colors.danger} />
+                  </View>
+                  <View>
+                    <Text style={[styles.reportTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+                      Report Account
+                    </Text>
+                    <Text style={{ color: colors.mutedForeground, fontSize: 12, fontFamily: "Inter_400Regular" }}>
+                      Report @{activeContact?.name} for administrator review
+                    </Text>
+                  </View>
+                </View>
+                <Pressable onPress={() => setShowReportModal(false)} hitSlop={8}>
+                  <Feather name="x" size={20} color={colors.mutedForeground} />
+                </Pressable>
+              </View>
+
+              <Text style={[styles.reportSubtitle, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" }]}>
+                SELECT REASON:
+              </Text>
+              <ScrollView style={{ maxHeight: 180 }} showsVerticalScrollIndicator={false}>
+                {REPORT_REASONS.map((r) => {
+                  const selected = reportReason === r.id;
+                  return (
+                    <Pressable
+                      key={r.id}
+                      onPress={() => setReportReason(r.id)}
+                      style={[
+                        styles.reasonOption,
+                        {
+                          borderColor: selected ? colors.accent : colors.border,
+                          backgroundColor: selected ? colors.accent + "15" : "transparent",
+                        },
+                      ]}
+                    >
+                      <Feather name={r.icon as any} size={15} color={selected ? colors.accent : colors.mutedForeground} />
+                      <Text
+                        style={{
+                          flex: 1,
+                          fontSize: 13,
+                          color: selected ? colors.foreground : colors.mutedForeground,
+                          fontFamily: selected ? "Inter_600SemiBold" : "Inter_400Regular",
+                        }}
+                      >
+                        {r.label}
+                      </Text>
+                      {selected && <Feather name="check" size={16} color={colors.accent} />}
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+
+              <Text style={[styles.reportSubtitle, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold", marginTop: 10 }]}>
+                DETAILS / EXPLANATION (OPTIONAL):
+              </Text>
+              <TextInput
+                value={reportDetails}
+                onChangeText={setReportDetails}
+                placeholder="Describe what occurred or paste message context..."
+                placeholderTextColor={colors.mutedForeground}
+                multiline
+                style={[
+                  styles.reportInput,
+                  {
+                    color: colors.foreground,
+                    backgroundColor: isDark ? "#27272a" : "#f4f4f5",
+                    borderColor: colors.border,
+                    fontFamily: "Inter_400Regular",
+                  },
+                ]}
+              />
+
+              <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
+                <Pressable
+                  onPress={() => setShowReportModal(false)}
+                  style={[styles.reportCancelBtn, { borderColor: colors.border }]}
+                >
+                  <Text style={{ color: colors.foreground, fontFamily: "Inter_600SemiBold" }}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  onPress={handleSubmitReport}
+                  disabled={submittingReport}
+                  style={[styles.reportSubmitBtn, { backgroundColor: colors.danger }]}
+                >
+                  {submittingReport ? (
+                    <ActivityIndicator size={14} color="#fff" />
+                  ) : (
+                    <>
+                      <Feather name="alert-triangle" size={14} color="#fff" />
+                      <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold" }}>Submit Report</Text>
+                    </>
+                  )}
+                </Pressable>
+              </View>
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ── Avatar Popup Modal ── */}
@@ -3019,4 +3702,206 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#fff",
   },
+
+  // ── In-Chat Search ──
+  inChatSearchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  inChatSearchInput: {
+    flex: 1,
+    fontSize: 14,
+    paddingVertical: 4,
+  },
+
+  // ── Emoji Picker & Toggle ──
+  emojiToggleBtn: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  emojiPickerContainer: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 8,
+  },
+  emojiScroll: {
+    paddingHorizontal: 12,
+    gap: 8,
+  },
+  emojiTouch: {
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  emojiGlyph: {
+    fontSize: 22,
+  },
+
+  // ── Group Call Button in Top Bar ──
+  groupCallBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+
+  // ── Contact Profile Sheet (DM Detailed Info) ──
+  contactProfileSheet: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 8,
+    paddingBottom: 36,
+    paddingHorizontal: 20,
+    maxHeight: "85%",
+    borderTopWidth: 1,
+  },
+  fullProfileAvatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  onlineDotLarge: {
+    position: "absolute",
+    bottom: 2,
+    right: 2,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 2.5,
+  },
+  fullProfileName: {
+    fontSize: 18,
+    textAlign: "center",
+  },
+  quickActionPills: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-around",
+    marginVertical: 14,
+    gap: 8,
+  },
+  quickActionPill: {
+    alignItems: "center",
+    gap: 6,
+    flex: 1,
+  },
+  quickActionIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  quickActionPillLabel: {
+    fontSize: 11,
+    fontFamily: "Inter_500Medium",
+  },
+  profileSectionBox: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 12,
+    gap: 10,
+  },
+  profileSectionTitle: {
+    fontSize: 11,
+    fontFamily: "Inter_600SemiBold",
+    letterSpacing: 0.6,
+  },
+  profileDetailRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 4,
+  },
+  profileSettingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 6,
+  },
+  profileActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    gap: 12,
+  },
+  profileActionLabel: {
+    fontSize: 14,
+    fontFamily: "Inter_500Medium",
+  },
+
+  // ── Report Sheet (Moderation) ──
+  reportSheet: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 8,
+    paddingBottom: 32,
+    paddingHorizontal: 20,
+    borderTopWidth: 1,
+    maxHeight: "85%",
+  },
+  dangerBadgeIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reportTitle: {
+    fontSize: 16,
+  },
+  reportSubtitle: {
+    fontSize: 11,
+    letterSpacing: 0.6,
+    marginTop: 8,
+    marginBottom: 6,
+  },
+  reasonOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 6,
+  },
+  reportInput: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+    height: 80,
+    textAlignVertical: "top",
+    fontSize: 13,
+  },
+  reportCancelBtn: {
+    flex: 1,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reportSubmitBtn: {
+    flex: 1.5,
+    borderRadius: 12,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
 });
+

@@ -65,6 +65,7 @@ class ExportPDF(FPDF):
         self.skip_branding = skip_branding
         self.set_margins(20, 20, 20)
         self.set_auto_page_break(auto=True, margin=20)
+        self.alias_nb_pages()
         
         # Color extraction if branding is active and profile is complete
         if not self.skip_branding and self.logo_img and self.business_name:
@@ -150,7 +151,7 @@ class ExportPDF(FPDF):
         
         current_year = timezone.now().year
         left_text = f"Copyright \xa9 {current_year} Admin Suite. Powered by Dimacode"
-        right_text = f"Page {self.page_no()} of {self.alias_nb()}"
+        right_text = f"Page {self.page_no()} of {{nb}}"
         
         self.cell(100, 8, left_text, align="L")
         self.cell(70, 8, right_text, align="R")

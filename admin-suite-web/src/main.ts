@@ -9918,6 +9918,11 @@ function onWsCallSignal(data: any): void {
         if (overlay) {
           const status = overlay.querySelector('.call-overlay__status');
           if (status) status.textContent = `${data.call_type === 'video' ? '📹 Video' : '📞 Voice'} • Connected (${data.caller_name || 'Someone'} joined)`;
+          const roomUrl = state.activeCallRecord?.room_url || (overlay as any)?._callData?.room_url || data.room_url;
+          const token = state.activeCallRecord?.token || (overlay as any)?._callData?.token || data.token;
+          if (roomUrl) {
+            embedDailyRoom(overlay, roomUrl, token);
+          }
           if (!state.callTimerInterval) {
             let seconds = 0;
             const timerEl = document.createElement('div');
@@ -9955,6 +9960,11 @@ function onWsCallSignal(data: any): void {
       if (overlay) {
         const status = overlay.querySelector('.call-overlay__status');
         if (status) status.textContent = `${data.call_type === 'video' ? '📹 Video' : '📞 Voice'} • Connected`;
+        const roomUrl = state.activeCallRecord?.room_url || (overlay as any)?._callData?.room_url || data.room_url;
+        const token = state.activeCallRecord?.token || (overlay as any)?._callData?.token || data.token;
+        if (roomUrl) {
+          embedDailyRoom(overlay, roomUrl, token);
+        }
         if (!state.callTimerInterval) {
           let seconds = 0;
           const timerEl = document.createElement('div');
@@ -10141,6 +10151,38 @@ function escapeHtml(text: string): string {
 // CALL OVERLAY
 // ============================================================
 
+function embedDailyRoom(overlay: HTMLElement, roomUrl: string, token?: string): void {
+  if (!roomUrl) return;
+  const joinUrl = token ? `${roomUrl}?t=${token}` : roomUrl;
+  const status = overlay.querySelector('.call-overlay__status');
+  if (status) status.textContent = 'Connected • Live Meeting';
+
+  const initials = overlay.querySelector('.call-overlay__initials');
+  if (initials) (initials as HTMLElement).style.display = 'none';
+  const avatar = overlay.querySelector('.call-overlay__avatar');
+  if (avatar) (avatar as HTMLElement).style.display = 'none';
+
+  const existingFrame = overlay.querySelector('.call-overlay__iframe-container');
+  if (existingFrame) existingFrame.remove();
+
+  const frameContainer = document.createElement('div');
+  frameContainer.className = 'call-overlay__iframe-container';
+  frameContainer.style.cssText = 'width:min(94vw, 1050px);height:min(78vh, 640px);border-radius:16px;overflow:hidden;box-shadow:0 25px 60px rgba(0,0,0,0.6);margin:12px auto;background:#111;position:relative;border:1px solid rgba(255,255,255,0.1);';
+
+  const iframe = document.createElement('iframe');
+  iframe.src = joinUrl;
+  iframe.style.cssText = 'width:100%;height:100%;border:none;';
+  iframe.allow = 'camera; microphone; display-capture; autoplay; clipboard-write';
+  frameContainer.appendChild(iframe);
+
+  const actions = overlay.querySelector('.call-overlay__actions');
+  if (actions) {
+    overlay.insertBefore(frameContainer, actions);
+  } else {
+    overlay.appendChild(frameContainer);
+  }
+}
+
 function showIncomingCallOverlay(data: any): void {
   const existing = document.getElementById('call-overlay');
   if (existing) existing.remove();
@@ -10149,6 +10191,7 @@ function showIncomingCallOverlay(data: any): void {
   const overlay = document.createElement('div');
   overlay.className = 'call-overlay';
   overlay.id = 'call-overlay';
+  (overlay as any)._callData = data;
   
   const callerName = data.caller_name || 'Unknown';
   const isGroup = !!data.is_group_call;
@@ -10167,7 +10210,7 @@ function showIncomingCallOverlay(data: any): void {
   document.body.appendChild(overlay);
 }
 
-function showOutgoingCallOverlay(callee: any, callType: string, callId: number): void {
+function showOutgoingCallOverlay(callee: any, callType: string, callId: number, roomUrl?: string, token?: string): void {
   const existing = document.getElementById('call-overlay');
   if (existing) existing.remove();
 
@@ -10175,6 +10218,7 @@ function showOutgoingCallOverlay(callee: any, callType: string, callId: number):
   const overlay = document.createElement('div');
   overlay.className = 'call-overlay';
   overlay.id = 'call-overlay';
+  (overlay as any)._callData = { room_url: roomUrl, token: token };
   overlay.innerHTML = `
     <div class="call-overlay__initials">${(callee.name || callee.username || '?')[0].toUpperCase()}</div>
     <div class="call-overlay__name">${escapeHtml(callee.name || callee.username || 'Unknown')}</div>
@@ -10231,6 +10275,13 @@ function hideCallOverlay(): void {
         <button class="call-btn end"    title="End call"       onclick="endCall(${callId || 0})">📵</button>
         ${callType === 'video' ? `<button class="call-btn camera" title="Toggle Camera" onclick="this.style.opacity=this.style.opacity==='0.5'?'1':'0.5'">📷</button>` : ''}`;
     }
+
+    const roomUrl = (overlay as any)?._callData?.room_url || state.activeCallRecord?.room_url;
+    const token = (overlay as any)?._callData?.token || state.activeCallRecord?.token;
+    if (roomUrl) {
+      embedDailyRoom(overlay, roomUrl, token);
+    }
+
     if (!state.callTimerInterval) {
       let seconds = 0;
       const timerEl = document.createElement('div');
@@ -10267,8 +10318,10 @@ function hideCallOverlay(): void {
       recipient_id: calleeId,
       call_id: res.id,
       call_type: callType,
+      room_url: res.room_url,
+      token: res.token,
     });
-    showOutgoingCallOverlay({ name: calleeName }, callType, res.id);
+    showOutgoingCallOverlay({ name: calleeName }, callType, res.id, res.room_url, res.token);
   }).catch(() => {});
 };
 
@@ -10279,26 +10332,28 @@ function hideCallOverlay(): void {
 
   apiRequest('chat/calls/', {
     method: 'POST',
-    body: JSON.stringify({ group_id: contact.id, call_type: 'voice', is_group_call: true }),
+    body: JSON.stringify({ group_id: contact.id, call_type: 'video', is_group_call: true }),
   }).then((res: any) => {
     state.activeCallRecord = res;
-    showOutgoingCallOverlay({ name: groupName }, 'voice', res.id);
+    showOutgoingCallOverlay({ name: groupName }, 'video', res.id, res.room_url, res.token);
 
     wsSend({
       type: 'call.signal',
       signal_type: 'offer',
-      call_type: 'voice',
+      call_type: 'video',
       group_id: contact.id,
       is_group_call: true,
       call_id: res.id,
       caller_name: state.user?.name || state.user?.username || 'Someone',
+      room_url: res.room_url,
+      token: res.token,
     });
   }).catch(() => {
-    showOutgoingCallOverlay({ name: groupName }, 'voice', 0);
+    showOutgoingCallOverlay({ name: groupName }, 'video', 0);
     wsSend({
       type: 'call.signal',
       signal_type: 'offer',
-      call_type: 'voice',
+      call_type: 'video',
       group_id: contact.id,
       is_group_call: true,
       caller_name: state.user?.name || state.user?.username || 'Someone',

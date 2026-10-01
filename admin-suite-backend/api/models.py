@@ -663,3 +663,107 @@ class CallRecord(models.Model):
         dest = self.callee.username if self.callee else f"Group {self.group}"
         return f"[{self.call_type}] {self.caller.username} → {dest} ({self.status})"
 
+
+class ReportedAccount(models.Model):
+    """
+    Tracks reports against user accounts submitted by users or admins for moderation.
+    Allows developers and platform administrators to inspect reasons, chat history,
+    and take corrective moderation actions.
+    """
+    REASON_CHOICES = [
+        ('spam', 'Spam / Scam / Advertising'),
+        ('harassment', 'Harassment or Bullying'),
+        ('inappropriate_content', 'Inappropriate or Explicit Content'),
+        ('hate_speech', 'Hate Speech or Discrimination'),
+        ('impersonation', 'Impersonation or Fake Account'),
+        ('policy_violation', 'Company / Community Policy Violation'),
+        ('other', 'Other Reason'),
+    ]
+    STATUS_CHOICES = [
+        ('pending', 'Pending Review'),
+        ('under_review', 'Under Review'),
+        ('resolved', 'Resolved (Action Taken)'),
+        ('dismissed', 'Dismissed (No Violation)'),
+    ]
+    ACTION_CHOICES = [
+        ('none', 'No Action Taken'),
+        ('warned', 'User Warned'),
+        ('chat_blocked', 'Blocked from Chat'),
+        ('suspended', 'Account Suspended (is_active=False)'),
+        ('deleted', 'Account Deleted'),
+    ]
+
+    company_user = models.ForeignKey(
+        'auth.User', on_delete=models.CASCADE, null=True, blank=True,
+        related_name='company_reported_accounts',
+        help_text='Workspace admin context'
+    )
+    reporter = models.ForeignKey(
+        'auth.User', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='reports_submitted'
+    )
+    reported_user = models.ForeignKey(
+        'auth.User', on_delete=models.CASCADE,
+        related_name='reports_received'
+    )
+    reason = models.CharField(max_length=40, choices=REASON_CHOICES, default='other')
+    details = models.TextField(blank=True, default='')
+    chat_message = models.ForeignKey(
+        'ChatMessage', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='reports'
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    action_taken = models.CharField(max_length=20, choices=ACTION_CHOICES, default='none')
+    admin_notes = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Reported Account'
+        verbose_name_plural = 'Reported Accounts'
+
+    def __str__(self):
+        reporter_name = self.reporter.username if self.reporter else 'Anonymous'
+        return f"Report #{self.id}: {reporter_name} reported {self.reported_user.username} ({self.get_reason_display()}) - [{self.status}]"
+
+
+class BlockedAccount(models.Model):
+    """
+    Log and active registry of user blocks.
+    Allows developers and admins to view all block records and active block states.
+    """
+    BLOCK_SCOPE_CHOICES = [
+        ('chat_group', 'Group Chat Block'),
+        ('direct_message', 'Direct Message Block'),
+        ('workspace', 'Workspace Wide Block'),
+    ]
+
+    company_user = models.ForeignKey(
+        'auth.User', on_delete=models.CASCADE, null=True, blank=True,
+        related_name='company_blocked_accounts'
+    )
+    blocked_by = models.ForeignKey(
+        'auth.User', on_delete=models.CASCADE,
+        related_name='blocks_issued'
+    )
+    blocked_user = models.ForeignKey(
+        'auth.User', on_delete=models.CASCADE,
+        related_name='blocks_received'
+    )
+    scope = models.CharField(max_length=20, choices=BLOCK_SCOPE_CHOICES, default='chat_group')
+    reason = models.CharField(max_length=255, blank=True, default='')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        unique_together = ('blocked_by', 'blocked_user', 'scope')
+        verbose_name = 'Blocked Account'
+        verbose_name_plural = 'Blocked Accounts'
+
+    def __str__(self):
+        return f"{self.blocked_by.username} blocked {self.blocked_user.username} ({self.scope}) [Active={self.is_active}]"
+
+

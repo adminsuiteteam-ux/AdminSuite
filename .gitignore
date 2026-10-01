@@ -25,6 +25,7 @@ Thumbs.db
 **/.idea/
 **/.replit
 **/.replitignore
+IMG-*.jpg
 
 # ── Python Files & Environments ───────────────────────────────────────────────
 **/__pycache__/

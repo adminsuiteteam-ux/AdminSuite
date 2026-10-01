@@ -438,6 +438,10 @@ export const apiService = {
     apiClient.patch('chat/settings/', data),
   blockChatUser: (userId: number, block: boolean) =>
     apiClient.post('chat/block-user/', { user_id: userId, block }),
+  reportChatUser: (data: { reported_user_id: number; reason?: string; details?: string; chat_message_id?: number }) =>
+    apiClient.post('chat/report-user/', data),
+  getChatReports: (status?: string) =>
+    apiClient.get(status ? `chat/reports/?status=${status}` : 'chat/reports/'),
 
   // Chat Typing Status
   sendChatTyping: (data: { recipient_id?: number; group_id?: number; is_typing: boolean }) =>
@@ -460,6 +464,14 @@ export const apiService = {
     apiClient.post('devices/register/', data),
   unregisterDeviceToken: (data: { expo_push_token: string }) =>
     apiClient.post('devices/unregister/', data),
+
+  // ── Daily.co Video/Voice Calls ─────────────────────────────────────────────
+  initiateCall: (data: { call_type: 'voice' | 'video'; callee_id?: number; group_id?: number }) =>
+    apiClient.post('chat/calls/', data),
+  endCall: (callId: number, callStatus: 'ended' | 'rejected' | 'missed') =>
+    apiClient.post(`chat/calls/${callId}/end/`, { status: callStatus }),
+  getCallHistory: () =>
+    apiClient.get('chat/calls/'),
 };
 
 export default apiClient;

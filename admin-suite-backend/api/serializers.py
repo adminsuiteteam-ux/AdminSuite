@@ -10,6 +10,7 @@ from .models import (
     EmployeeLeave, EmployeeMessage, EmployeeDocument, SalaryAdjustment,
     ChatMessage, ChatSettings, ChatGroup,
     MessageAttachment, MessageReaction, UserPresence, ChatChannel, CallRecord,
+    ReportedAccount, BlockedAccount,
 )
 from .extended_models import Organization, Branch, Subscription, UserExtension  # multi‑branch models
 
@@ -792,3 +793,51 @@ class CallRecordSerializer(serializers.ModelSerializer):
         if m:
             return f'{m}m {s}s'
         return f'{s}s'
+
+
+class ReportedAccountSerializer(serializers.ModelSerializer):
+    reporter_name = serializers.SerializerMethodField()
+    reported_user_name = serializers.SerializerMethodField()
+    reason_display = serializers.CharField(source='get_reason_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+
+    class Meta:
+        model = ReportedAccount
+        fields = [
+            'id', 'reporter', 'reporter_name', 'reported_user', 'reported_user_name',
+            'reason', 'reason_display', 'details', 'chat_message', 'status', 'status_display',
+            'action_taken', 'admin_notes', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'reporter', 'created_at', 'updated_at']
+
+    def get_reporter_name(self, obj):
+        if not obj.reporter:
+            return 'Anonymous'
+        emp = getattr(obj.reporter, 'employee_profile', None)
+        return emp.name if emp else (obj.reporter.get_full_name() or obj.reporter.username)
+
+    def get_reported_user_name(self, obj):
+        emp = getattr(obj.reported_user, 'employee_profile', None)
+        return emp.name if emp else (obj.reported_user.get_full_name() or obj.reported_user.username)
+
+
+class BlockedAccountSerializer(serializers.ModelSerializer):
+    blocked_user_name = serializers.SerializerMethodField()
+    blocked_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BlockedAccount
+        fields = [
+            'id', 'blocked_by', 'blocked_by_name', 'blocked_user', 'blocked_user_name',
+            'scope', 'reason', 'is_active', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'blocked_by', 'created_at', 'updated_at']
+
+    def get_blocked_user_name(self, obj):
+        emp = getattr(obj.blocked_user, 'employee_profile', None)
+        return emp.name if emp else (obj.blocked_user.get_full_name() or obj.blocked_user.username)
+
+    def get_blocked_by_name(self, obj):
+        emp = getattr(obj.blocked_by, 'employee_profile', None)
+        return emp.name if emp else (obj.blocked_by.get_full_name() or obj.blocked_by.username)
+

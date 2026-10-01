@@ -19,6 +19,7 @@ from .views import (
     # Enterprise communication
     chat_presence, chat_react, chat_forward, chat_attach,
     chat_calls, chat_call_end, chat_channels, chat_channel_detail,
+    chat_report_user, chat_reports_list,
 )
 from payments.stripe_helper import stripe_webhook
 
@@ -79,6 +80,8 @@ urlpatterns = [
     path('chat/contacts/', chat_contacts, name='chat-contacts'),
     path('chat/settings/', chat_settings, name='chat-settings'),
     path('chat/block-user/', chat_block_user, name='chat-block-user'),
+    path('chat/report-user/', chat_report_user, name='chat-report-user'),
+    path('chat/reports/', chat_reports_list, name='chat-reports-list'),
     path('chat/groups/', chat_groups, name='chat-groups'),
     path('chat/groups/<int:pk>/', chat_group_detail, name='chat-group-detail'),
     path('chat/typing/', chat_typing, name='chat-typing'),  # type: ignore[arg-type]

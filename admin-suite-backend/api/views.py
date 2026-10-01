@@ -16,6 +16,7 @@ from .models import (
     EmployeeDocument, SalaryAdjustment, PayrollStatus, ChatMessage, ChatSettings,
     ChatGroup, ChatTypingStatus, UserDevice,
     MessageAttachment, MessageReaction, UserPresence, ChatChannel, CallRecord,
+    ReportedAccount, BlockedAccount,
 )
 from .serializers import (
     EmployeeSerializer, ClientSerializer, ProjectSerializer,
@@ -28,6 +29,7 @@ from .serializers import (
     ChatSettingsSerializer, ChatGroupSerializer,
     MessageAttachmentSerializer, MessageReactionSerializer, UserPresenceSerializer,
     ChatChannelSerializer, CallRecordSerializer,
+    ReportedAccountSerializer, BlockedAccountSerializer,
 )
 from .notifications import send_push_notification
 
@@ -3013,11 +3015,128 @@ def chat_block_user(request):
     settings_obj.blocked_user_ids = blocked
     settings_obj.save(update_fields=['blocked_user_ids', 'updated_at'])
 
+    # Keep BlockedAccount model synchronized so developer/admin can track blocks
+    try:
+        BlockedAccount.objects.update_or_create(
+            blocked_by=request.user,
+            blocked_user=target_user,
+            scope='chat_group',
+            defaults={
+                'company_user': company_user,
+                'is_active': bool(block),
+                'reason': request.data.get('reason', 'Blocked by administrator'),
+            }
+        )
+    except Exception as e:
+        logger.warning(f"Could not sync BlockedAccount record: {e}")
+
     return Response({
         'status': 'blocked' if block else 'unblocked',
         'user_id': user_id,
         'blocked_user_ids': blocked,
     })
+
+
+# pyrefly: ignore [bad-specialization]
+@api_view(['POST'])
+# pyrefly: ignore [bad-specialization]
+@permission_classes([IsAuthenticated])
+def chat_report_user(request):
+    """
+    POST /api/chat/report-user/
+    Body: {
+        "reported_user_id": int,
+        "reason": str,            # spam, harassment, inappropriate_content, etc.
+        "details": str,           # optional explanation
+        "chat_message_id": int,   # optional message ID
+    }
+    Submits an account report for moderation. Saves to ReportedAccount and notifies
+    the developer/admin immediately via backend in-app notifications.
+    """
+    company_user = _get_company_user(request)
+    reported_user_id = request.data.get('reported_user_id') or request.data.get('user_id')
+    reason = request.data.get('reason', 'other')
+    details = request.data.get('details', '')
+    chat_message_id = request.data.get('chat_message_id') or request.data.get('message_id')
+
+    if not reported_user_id:
+        return Response({'error': 'reported_user_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        reported_user = User.objects.get(id=reported_user_id)
+    except User.DoesNotExist:
+        return Response({'error': 'Reported user not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if reported_user == request.user:
+        return Response({'error': 'You cannot report yourself.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    chat_message = None
+    if chat_message_id:
+        chat_message = ChatMessage.objects.filter(id=chat_message_id).first()
+
+    report = ReportedAccount.objects.create(
+        company_user=company_user,
+        reporter=request.user,
+        reported_user=reported_user,
+        reason=reason,
+        details=details,
+        chat_message=chat_message,
+        status='pending',
+    )
+
+    # Immediately create backend notifications so developer and admin get notified
+    reporter_name = request.user.get_full_name() or request.user.username
+    reported_name = reported_user.get_full_name() or reported_user.username
+    notif_title = f"⚠️ Account Reported: @{reported_user.username}"
+    notif_body = f"{reporter_name} reported {reported_name} for '{report.get_reason_display()}'. Details: {details[:120] if details else 'No additional details.'}"
+
+    if company_user:
+        Notification.objects.create(
+            user=company_user,
+            title=notif_title,
+            body=notif_body,
+            time="Just now",
+        )
+
+    # Also notify all superusers/staff
+    superusers = User.objects.filter(is_superuser=True).exclude(id=company_user.id if company_user else 0)
+    for su in superusers:
+        Notification.objects.create(
+            user=su,
+            title=notif_title,
+            body=notif_body,
+            time="Just now",
+        )
+
+    serializer = ReportedAccountSerializer(report, context={'request': request})
+    return Response({
+        'status': 'success',
+        'message': f'Account for {reported_name} has been reported. The developer and administration team have received this report.',
+        'report': serializer.data
+    }, status=status.HTTP_201_CREATED)
+
+
+# pyrefly: ignore [bad-specialization]
+@api_view(['GET'])
+# pyrefly: ignore [bad-specialization]
+@permission_classes([IsAuthenticated])
+def chat_reports_list(request):
+    """
+    GET /api/chat/reports/
+    Admin endpoint to view submitted reports.
+    """
+    company_user = _get_company_user(request)
+    if not company_user or (request.user != company_user and not request.user.is_superuser):
+        return Response({'error': 'Admin permissions required.'}, status=status.HTTP_403_FORBIDDEN)
+
+    reports = ReportedAccount.objects.filter(company_user=company_user)
+    status_filter = request.query_params.get('status')
+    if status_filter:
+        reports = reports.filter(status=status_filter)
+
+    serializer = ReportedAccountSerializer(reports, many=True, context={'request': request})
+    return Response(serializer.data)
+
 
 
 # pyrefly: ignore [bad-specialization]
@@ -3369,9 +3488,11 @@ def chat_attach(request, pk):
 def chat_calls(request):
     """
     GET  /api/chat/calls/      → Call history for current user
-    POST /api/chat/calls/      → Initiate a call
-      Body: { callee_id, call_type: 'voice'|'video', group_id? }
+    POST /api/chat/calls/      → Initiate a call — creates a Daily.co room and returns join URL + token
+      Body: { callee_id?, call_type: 'voice'|'video', group_id? }
     """
+    import requests as http_requests
+
     company_user = _get_company_user(request)
     if not company_user:
         return Response({'error': 'Company profile not found.'}, status=status.HTTP_404_NOT_FOUND)
@@ -3384,7 +3505,7 @@ def chat_calls(request):
         ).select_related('caller', 'callee', 'group')[:50]
         return Response(CallRecordSerializer(calls, many=True).data)
 
-    # POST — initiate call
+    # ── POST — initiate call via Daily.co ──────────────────────────────────────
     callee_id = request.data.get('callee_id')
     call_type = request.data.get('call_type', 'voice')
     group_id = request.data.get('group_id')
@@ -3407,6 +3528,62 @@ def chat_calls(request):
     else:
         return Response({'error': 'callee_id or group_id required.'}, status=status.HTTP_400_BAD_REQUEST)
 
+    # ── Create Daily.co Room ───────────────────────────────────────────────────
+    daily_api_key = os.environ.get('DAILY_API_KEY', '')
+    daily_domain = os.environ.get('DAILY_DOMAIN', 'adminsuite')
+    room_name = f"adminsuite-call-{request.user.id}-{int(django_tz.now().timestamp())}"
+
+    daily_room_url = None
+    daily_token = None
+
+    if daily_api_key:
+        try:
+            # 1. Create the room
+            room_resp = http_requests.post(
+                'https://api.daily.co/v1/rooms',
+                headers={'Authorization': f'Bearer {daily_api_key}', 'Content-Type': 'application/json'},
+                json={
+                    'name': room_name,
+                    'privacy': 'private',
+                    'properties': {
+                        'exp': int(django_tz.now().timestamp()) + 3600,  # 1 hour
+                        'enable_chat': True,
+                        'enable_screenshare': True,
+                        'enable_recording': 'local',
+                        'start_video_off': call_type == 'voice',
+                        'start_audio_off': False,
+                        'max_participants': 20 if group else 2,
+                    }
+                },
+                timeout=10,
+            )
+            if room_resp.status_code == 200:
+                room_data = room_resp.json()
+                daily_room_url = room_data.get('url')
+
+                # 2. Create a meeting token for the caller
+                token_resp = http_requests.post(
+                    'https://api.daily.co/v1/meeting-tokens',
+                    headers={'Authorization': f'Bearer {daily_api_key}', 'Content-Type': 'application/json'},
+                    json={
+                        'properties': {
+                            'room_name': room_name,
+                            'user_name': request.user.get_full_name() or request.user.username,
+                            'user_id': str(request.user.id),
+                            'exp': int(django_tz.now().timestamp()) + 3600,
+                            'is_owner': True,
+                        }
+                    },
+                    timeout=10,
+                )
+                if token_resp.status_code == 200:
+                    daily_token = token_resp.json().get('token')
+        except Exception as e:
+            # Don't fail the call if Daily has an issue — fall back gracefully
+            import logging
+            logging.getLogger(__name__).error(f"Daily.co room creation failed: {e}")
+
+    # ── Create CallRecord in DB ────────────────────────────────────────────────
     call = CallRecord.objects.create(
         company_user=company_user,
         caller=request.user,
@@ -3416,10 +3593,40 @@ def chat_calls(request):
         status='initiated',
     )
 
-    # Notify callee via push
+    # Store room info on call if model has room_url field, else just return it
+    response_data = CallRecordSerializer(call).data
+    response_data['room_url'] = daily_room_url
+    response_data['room_name'] = room_name
+    response_data['token'] = daily_token
+    response_data['daily_domain'] = daily_domain
+
+    # ── Notify callee via push ─────────────────────────────────────────────────
+    caller_name = request.user.get_full_name() or request.user.username
+    icon = '📞' if call_type == 'voice' else '📹'
+
     if callee:
-        caller_name = request.user.get_full_name() or request.user.username
-        icon = '📞' if call_type == 'voice' else '📹'
+        # Create a callee token too so they can join directly from the notification
+        callee_token = None
+        if daily_api_key and room_name:
+            try:
+                ct_resp = http_requests.post(
+                    'https://api.daily.co/v1/meeting-tokens',
+                    headers={'Authorization': f'Bearer {daily_api_key}', 'Content-Type': 'application/json'},
+                    json={
+                        'properties': {
+                            'room_name': room_name,
+                            'user_name': callee.get_full_name() or callee.username,
+                            'user_id': str(callee.id),
+                            'exp': int(django_tz.now().timestamp()) + 3600,
+                        }
+                    },
+                    timeout=10,
+                )
+                if ct_resp.status_code == 200:
+                    callee_token = ct_resp.json().get('token')
+            except Exception:
+                pass
+
         send_push_notification(
             user=callee,
             title=f'{icon} Incoming {call_type} call from {caller_name}',
@@ -3429,10 +3636,15 @@ def chat_calls(request):
                 'callId': str(call.id),
                 'callType': call_type,
                 'callerId': str(request.user.id),
+                'callerName': caller_name,
+                'roomUrl': daily_room_url or '',
+                'roomName': room_name,
+                'token': callee_token or '',
             },
         )
 
-    return Response(CallRecordSerializer(call).data, status=status.HTTP_201_CREATED)
+    return Response(response_data, status=status.HTTP_201_CREATED)
+
 
 
 @api_view(['POST'])

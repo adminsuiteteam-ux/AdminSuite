@@ -68,6 +68,20 @@ function RootLayoutNav() {
         } else if (data.screen === 'leave') {
           // Deep-link to the employees tab (leave management is there)
           router.push('/(tabs)/employees' as any);
+        } else if (data.screen === 'call') {
+          router.push({
+            pathname: '/call',
+            params: {
+              callId: data.callId,
+              callType: data.callType || 'voice',
+              roomUrl: data.roomUrl || '',
+              roomName: data.roomName || '',
+              token: data.token || '',
+              calleeName: data.calleeName || 'Incoming Caller',
+              calleeInitials: data.calleeInitials || '??',
+              isIncoming: 'true',
+            },
+          } as any);
         }
       }
     });
@@ -91,6 +105,7 @@ function RootLayoutNav() {
       <Stack.Screen name="(tabs)" options={{ animation: "fade" }} />
       <Stack.Screen name="(employee)" options={{ animation: "fade" }} />
       <Stack.Screen name="lock" options={{ animation: "fade" }} />
+      <Stack.Screen name="call" options={{ animation: "fade_from_bottom", presentation: "fullScreenModal", gestureEnabled: false }} />
     </Stack>
   );
 }
