@@ -461,7 +461,11 @@ export default function CreateEmployeeScreen() {
       let msg = "Failed to save employee data. Please try again.";
       if (data) {
         if (typeof data === "string") {
-          msg = data;
+          if (data.includes("<html") || data.includes("<!doctype") || data.includes("<body")) {
+            msg = "Server error occurred while saving. Please check your connection and try again.";
+          } else {
+            msg = data;
+          }
         } else if (data.detail) {
           msg = data.detail;
         } else if (data.email) {
@@ -487,7 +491,8 @@ export default function CreateEmployeeScreen() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       style={{ flex: 1, backgroundColor: colors.background }}
     >
       {/* ── Header ─────────────────────────────────────────── */}
@@ -528,9 +533,11 @@ export default function CreateEmployeeScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={{ padding: 20, paddingBottom: 120 }}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: 20, paddingBottom: 28 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
       >
         {/* ══════════════════════════════════════════════════
             STEP 0 — ROLE SELECTOR
@@ -1444,10 +1451,6 @@ const styles = StyleSheet.create({
   },
   photoImage: { width: 160, height: 160, borderRadius: 80 },
   footer: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
     paddingHorizontal: 20,
     paddingTop: 12,
     borderTopWidth: StyleSheet.hairlineWidth,

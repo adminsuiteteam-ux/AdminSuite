@@ -948,7 +948,7 @@ export default function CompleteProfileScreen() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
       keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
       style={{ flex: 1, backgroundColor: colors.background }}
     >

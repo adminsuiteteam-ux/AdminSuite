@@ -13,6 +13,7 @@ import {
   Clipboard,
   FlatList,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   PanResponder,
@@ -327,6 +328,29 @@ export default function AdminChatScreen() {
     senderAvatar: string | null;
   } | null>(null);
   const lastMsgIdRef = useRef<number | null>(null);
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      () => {
+        setIsKeyboardOpen(true);
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: true });
+        }, 80);
+      }
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => {
+        setIsKeyboardOpen(false);
+      }
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   // Create Group Modal
   const [showCreateGroup, setShowCreateGroup] = useState(false);
@@ -1531,7 +1555,7 @@ export default function AdminChatScreen() {
           onRequestClose={() => setShowCreateGroup(false)}
         >
           <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
             style={{ flex: 1 }}
           >
             <Pressable style={styles.backdrop} onPress={() => setShowCreateGroup(false)}>
@@ -1677,7 +1701,7 @@ export default function AdminChatScreen() {
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
       keyboardVerticalOffset={Platform.OS === "ios" ? 34 : 0}
     >
       {/* In-App Notification Banner */}
@@ -1943,7 +1967,7 @@ export default function AdminChatScreen() {
         onRequestClose={() => setShowGroupProfile(false)}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={{ flex: 1 }}
         >
         <Pressable style={styles.backdrop} onPress={() => setShowGroupProfile(false)}>

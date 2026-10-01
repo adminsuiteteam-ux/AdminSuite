@@ -98,7 +98,8 @@ export default function CreateProjectScreen() {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: colors.background }}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
     >
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <Pressable
@@ -116,11 +117,10 @@ export default function CreateProjectScreen() {
 
       <ScrollView
         style={{ flex: 1, backgroundColor: colors.background }}
-        contentContainerStyle={{ padding: 20, paddingBottom: 160, backgroundColor: colors.background }}
+        contentContainerStyle={{ padding: 20, paddingBottom: 24, backgroundColor: colors.background }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        automaticallyAdjustKeyboardInsets={true}
+        keyboardDismissMode="interactive"
       >
         <View style={styles.formGroup}>
           <Text style={[styles.label, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Project Name</Text>
@@ -215,7 +215,7 @@ export default function CreateProjectScreen() {
         </View>
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: insets.bottom + 16, borderTopColor: colors.border }]}>
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) + 8, borderTopColor: colors.border }]}>
         <Pressable onPress={handleSave} disabled={saving} style={[styles.submitBtn, { backgroundColor: colors.primary, opacity: saving ? 0.7 : 1 }]}>
           <Text style={{ color: colors.primaryForeground, fontFamily: "Inter_600SemiBold", fontSize: 16 }}>
             {saving ? (isEditing ? "Saving..." : "Creating...") : (isEditing ? "Save Changes" : "Create Project")}

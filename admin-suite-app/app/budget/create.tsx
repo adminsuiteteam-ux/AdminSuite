@@ -90,7 +90,8 @@ export default function CreateBudgetScreen() {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: colors.background }}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
     >
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <Pressable
@@ -119,11 +120,10 @@ export default function CreateBudgetScreen() {
 
       <ScrollView
         style={{ flex: 1, backgroundColor: colors.background }}
-        contentContainerStyle={{ padding: 20, paddingBottom: 160, backgroundColor: colors.background }}
+        contentContainerStyle={{ padding: 20, paddingBottom: 24, backgroundColor: colors.background }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        automaticallyAdjustKeyboardInsets={true}
+        keyboardDismissMode="interactive"
       >
         {step === 1 ? (
           <View style={styles.slide}>
@@ -228,7 +228,7 @@ export default function CreateBudgetScreen() {
         )}
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: insets.bottom + 16, borderTopColor: colors.border }]}>
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) + 8, borderTopColor: colors.border }]}>
         <Pressable
           onPress={nextStep}
           disabled={saving}

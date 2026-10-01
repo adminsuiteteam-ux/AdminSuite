@@ -65,7 +65,8 @@ export default function CreateSavingsScreen() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       style={{ flex: 1, backgroundColor: colors.background }}
     >
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
@@ -84,11 +85,10 @@ export default function CreateSavingsScreen() {
 
       <ScrollView
         style={{ flex: 1, backgroundColor: colors.background }}
-        contentContainerStyle={{ padding: 20, paddingBottom: 160, backgroundColor: colors.background }}
+        contentContainerStyle={{ padding: 20, paddingBottom: 24, backgroundColor: colors.background }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        automaticallyAdjustKeyboardInsets={true}
+        keyboardDismissMode="interactive"
       >
         <View style={{ gap: 20 }}>
 
@@ -198,7 +198,7 @@ export default function CreateSavingsScreen() {
         style={[
           styles.footer,
           {
-            paddingBottom: insets.bottom + 16,
+            paddingBottom: Math.max(insets.bottom, 12) + 8,
             backgroundColor: colors.background,
             borderTopColor: colors.border,
           },

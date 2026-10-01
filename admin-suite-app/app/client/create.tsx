@@ -173,7 +173,8 @@ export default function CreateClientScreen() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       style={{ flex: 1, backgroundColor: colors.background }}
     >
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
@@ -197,11 +198,10 @@ export default function CreateClientScreen() {
 
       <ScrollView
         style={{ flex: 1, backgroundColor: colors.background }}
-        contentContainerStyle={{ padding: 20, paddingBottom: 160, backgroundColor: colors.background }}
+        contentContainerStyle={{ padding: 20, paddingBottom: 24, backgroundColor: colors.background }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        automaticallyAdjustKeyboardInsets={true}
+        keyboardDismissMode="interactive"
       >
         {step === 0 && (
           <View style={{ gap: 16 }}>
@@ -275,7 +275,7 @@ export default function CreateClientScreen() {
         )}
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: insets.bottom + 16, backgroundColor: colors.background, borderTopColor: colors.border }]}>
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) + 8, backgroundColor: colors.background, borderTopColor: colors.border }]}>
         <PrimaryButton
           label={step === STEPS.length - 1 ? (isEditing ? "Save Changes" : "Save Client") : "Continue"}
           onPress={next}
@@ -317,5 +317,5 @@ const styles = StyleSheet.create({
   input: { flex: 1, fontSize: 15 },
   chip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999, borderWidth: 1, justifyContent: "center" },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
-  footer: { position: "absolute", bottom: 0, left: 0, right: 0, paddingHorizontal: 20, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth },
+  footer: { paddingHorizontal: 20, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth },
 });

@@ -852,7 +852,7 @@ export default function EmployeeChatScreen() {
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
       keyboardVerticalOffset={Platform.OS === "ios" ? 34 : 0}
     >
       {/* Top Bar — WhatsApp style, no tab bar */}
