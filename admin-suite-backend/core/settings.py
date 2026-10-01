@@ -160,9 +160,12 @@ import dj_database_url
 _database_url = os.environ.get('DATABASE_URL')
 
 if _database_url:
-    # Production / staging: use the DATABASE_URL (e.g. Xata PostgreSQL)
+    # Production / staging: When connected through a pooler (e.g. PgBouncer / Layerbase),
+    # set conn_max_age=0 so Django immediately returns sockets to the pooler after each request,
+    # preventing PgBouncer socket starvation and 'FATAL: max_client_conn' errors.
+    _conn_max_age = int(os.environ.get('DB_CONN_MAX_AGE', 0 if 'pooler' in _database_url else 60))
     DATABASES = {
-        'default': dj_database_url.parse(_database_url, conn_max_age=600),
+        'default': dj_database_url.parse(_database_url, conn_max_age=_conn_max_age),
         'backup': {
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': str(BASE_DIR / 'db.sqlite3'),
