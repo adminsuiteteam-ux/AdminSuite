@@ -1,0 +1,16 @@
+# EAS Ignore file
+# Keeps upload package ultra-small and fast
+
+node_modules/
+.expo/
+android/
+ios/
+dist/
+web-build/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+npm-debug.*
+*.log
