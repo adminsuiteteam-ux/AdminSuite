@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { router } from "expo-router";
 import * as SecureStore from "@/services/storage";
 import { getActiveBaseUrl } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
@@ -79,6 +80,27 @@ export function useWorkspaceSocket(onSyncEvent?: (event: WorkspaceSyncEvent) => 
               console.log("[WorkspaceSocket] Sync event received:", payload.event);
               if (onSyncEventRef.current) {
                 onSyncEventRef.current(payload as WorkspaceSyncEvent);
+              }
+            } else if (payload.type === "call.signal") {
+              const myId = String(user?.id);
+              const isTarget = payload.recipient_id && String(payload.recipient_id) === myId;
+              if (isTarget) {
+                if (payload.signal_type === "offer") {
+                  console.log("[WorkspaceSocket] Incoming call received from:", payload.caller_name);
+                  router.push({
+                    pathname: "/call",
+                    params: {
+                      callId: payload.call_id,
+                      callType: payload.call_type || "voice",
+                      roomUrl: payload.room_url || "",
+                      roomName: payload.room_name || "",
+                      token: payload.token || "",
+                      calleeName: payload.caller_name || "Incoming Caller",
+                      calleeInitials: payload.caller_initials || "??",
+                      isIncoming: "true",
+                    },
+                  });
+                }
               }
             }
           } catch (e) {

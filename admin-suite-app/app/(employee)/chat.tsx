@@ -475,13 +475,8 @@ export default function EmployeeChatScreen() {
         showToast({ title: "Call Failed", message: "Server did not provide a room URL. Please try again.", type: "error" });
         return;
       }
-      // Auto-send a call link into the chat
-      const icon = type === "voice" ? "📞" : "📹";
-      const msg = `${icon} [${type === "voice" ? "Voice" : "Video"} Call Started] Join here: ${room_url}`;
-      const payload: any = { text: msg, recipient_id: activeContact.id };
-      apiService.sendChatMessage(payload).catch(() => {});
 
-      // Navigate to CallScreen
+      // Navigate to CallScreen directly without posting link text into chat
       router.push({
         pathname: "/call",
         params: {

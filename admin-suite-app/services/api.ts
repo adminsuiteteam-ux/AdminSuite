@@ -468,7 +468,7 @@ export const apiService = {
   // ── Daily.co Video/Voice Calls ─────────────────────────────────────────────
   initiateCall: (data: { call_type: 'voice' | 'video'; callee_id?: number; group_id?: number }) =>
     apiClient.post('chat/calls/', data),
-  endCall: (callId: number, callStatus: 'ended' | 'rejected' | 'missed') =>
+  endCall: (callId: number, callStatus: 'ended' | 'rejected' | 'missed' | 'accepted') =>
     apiClient.post(`chat/calls/${callId}/end/`, { status: callStatus }),
   getCallHistory: () =>
     apiClient.get('chat/calls/'),

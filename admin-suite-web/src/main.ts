@@ -10262,9 +10262,65 @@ function embedDailyRoom(overlay: HTMLElement, roomUrl: string, token?: string): 
   }
 }
 
+let incomingCallAudioCtx: AudioContext | null = null;
+let incomingCallRingtoneTimer: any = null;
+
+function startWebRingtone(): void {
+  stopWebRingtone();
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    incomingCallAudioCtx = new AudioCtx();
+
+    const playRingBurst = () => {
+      if (!incomingCallAudioCtx || incomingCallAudioCtx.state === 'closed') return;
+      const now = incomingCallAudioCtx.currentTime;
+      // Dual tone ring (440Hz + 480Hz)
+      const osc1 = incomingCallAudioCtx.createOscillator();
+      const osc2 = incomingCallAudioCtx.createOscillator();
+      const gain = incomingCallAudioCtx.createGain();
+
+      osc1.frequency.setValueAtTime(440, now);
+      osc2.frequency.setValueAtTime(480, now);
+
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.18, now + 0.05);
+      gain.gain.linearRampToValueAtTime(0.18, now + 1.2);
+      gain.gain.linearRampToValueAtTime(0, now + 1.3);
+
+      osc1.connect(gain);
+      osc2.connect(gain);
+      gain.connect(incomingCallAudioCtx.destination);
+
+      osc1.start(now);
+      osc2.start(now);
+      osc1.stop(now + 1.3);
+      osc2.stop(now + 1.3);
+    };
+
+    playRingBurst();
+    incomingCallRingtoneTimer = setInterval(playRingBurst, 3000);
+  } catch (e) {
+    console.warn('[WebRingtone] Audio error:', e);
+  }
+}
+
+function stopWebRingtone(): void {
+  if (incomingCallRingtoneTimer) {
+    clearInterval(incomingCallRingtoneTimer);
+    incomingCallRingtoneTimer = null;
+  }
+  if (incomingCallAudioCtx) {
+    try { incomingCallAudioCtx.close(); } catch {}
+    incomingCallAudioCtx = null;
+  }
+}
+
 function showIncomingCallOverlay(data: any): void {
   const existing = document.getElementById('call-overlay');
   if (existing) existing.remove();
+
+  startWebRingtone();
 
   const type = data.call_type === 'video' ? '📹 Video' : '📞 Voice';
   const overlay = document.createElement('div');
@@ -10309,6 +10365,7 @@ function showOutgoingCallOverlay(callee: any, callType: string, callId: number, 
 }
 
 function hideCallOverlay(): void {
+  stopWebRingtone();
   const overlay = document.getElementById('call-overlay');
   if (overlay) {
     overlay.style.opacity = '0';
@@ -10323,6 +10380,7 @@ function hideCallOverlay(): void {
 }
 
 (window as any).declineCall = function(callerId: number, callId?: number) {
+  stopWebRingtone();
   wsSend({ type: 'call.signal', signal_type: 'reject', recipient_id: callerId, call_id: callId });
   if (callId) {
     apiRequest(`chat/calls/${callId}/end/`, { method: 'POST', body: JSON.stringify({ status: 'rejected' }) }).catch(() => {});
@@ -10331,6 +10389,7 @@ function hideCallOverlay(): void {
 };
 
 (window as any).answerCall = function(callerId: number, callType: string, callId?: number, isGroupCall?: boolean, groupId?: number) {
+  stopWebRingtone();
   wsSend({
     type: 'call.signal',
     signal_type: 'answer',

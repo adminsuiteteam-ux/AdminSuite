@@ -1,3 +1,4 @@
+import "react-native-get-random-values";
 import {
   Inter_400Regular,
   Inter_500Medium,
@@ -86,8 +87,30 @@ function RootLayoutNav() {
       }
     });
 
+    // Listen for incoming notifications while app is in foreground (e.g. background call alert)
+    const foregroundSubscription = Notifications.addNotificationReceivedListener(notification => {
+      const data = notification.request.content.data;
+      if (data && data.screen === 'call') {
+        console.log('[Foreground Call Notification] Triggering incoming call screen:', data);
+        router.push({
+          pathname: '/call',
+          params: {
+            callId: data.callId,
+            callType: data.callType || 'voice',
+            roomUrl: data.roomUrl || '',
+            roomName: data.roomName || '',
+            token: data.token || '',
+            calleeName: data.callerName || data.calleeName || 'Incoming Caller',
+            calleeInitials: data.callerInitials || data.calleeInitials || '??',
+            isIncoming: 'true',
+          },
+        } as any);
+      }
+    });
+
     return () => {
       subscription.remove();
+      foregroundSubscription.remove();
     };
   }, []);
 

@@ -1206,13 +1206,8 @@ export default function AdminChatScreen() {
         showToast({ title: "Call Failed", message: "Server did not provide a room URL. Please try again.", type: "error" });
         return;
       }
-      // Auto-send a call link into the chat so the other party can also join
-      const icon = type === "voice" ? "📞" : "📹";
-      const msg = `${icon} [${type === "voice" ? "Voice" : "Video"} Call Started] Join here: ${room_url}`;
-      const payload: any = { text: msg, recipient_id: activeContact.id };
-      apiService.sendChatMessage(payload).catch(() => {});
 
-      // Navigate to CallScreen
+      // Navigate to CallScreen directly without posting link text into chat
       router.push({
         pathname: "/call",
         params: {
@@ -1244,10 +1239,6 @@ export default function AdminChatScreen() {
         showToast({ title: "Group Call Failed", message: "Server did not provide a room URL. Please try again.", type: "error" });
         return;
       }
-      const msg = `📹 [Group Conference Started] Join here: ${room_url}`;
-      const payload: any = { text: msg };
-      if (groupId) payload.group_id = groupId;
-      apiService.sendChatMessage(payload).catch(() => {});
 
       router.push({
         pathname: "/call",

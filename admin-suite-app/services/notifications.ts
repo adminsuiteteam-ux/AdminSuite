@@ -34,16 +34,28 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
       return null;
     }
 
-    // Ensure Android Notification Channel is set up with high priority and lockscreen visibility
+    // Ensure Android Notification Channels are set up with high priority and lockscreen visibility
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('default', {
         name: 'default',
-        importance: Notifications.AndroidImportance.MAX,
+        importance: Notifications.AndroidImportance.HIGH,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#FF231F7A',
         sound: 'default',
         enableVibrate: true,
         showBadge: true,
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      });
+
+      await Notifications.setNotificationChannelAsync('incoming-calls', {
+        name: 'Incoming Calls',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 1000, 1000, 1000, 1000],
+        lightColor: '#10B981',
+        sound: 'default',
+        enableVibrate: true,
+        showBadge: true,
+        bypassDnd: true,
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
       });
     }

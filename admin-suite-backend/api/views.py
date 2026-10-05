@@ -3628,10 +3628,8 @@ def chat_calls(request):
                     'name': room_name,
                     'privacy': 'private',
                     'properties': {
-                        'exp': int(django_tz.now().timestamp()) + 3600,  # 1 hour
                         'enable_chat': True,
                         'enable_screenshare': True,
-                        'enable_recording': 'local',
                         'start_video_off': call_type == 'voice',
                         'start_audio_off': False,
                         'max_participants': 20 if group else 2,
@@ -3652,7 +3650,6 @@ def chat_calls(request):
                             'room_name': room_name,
                             'user_name': request.user.get_full_name() or request.user.username,
                             'user_id': str(request.user.id),
-                            'exp': int(django_tz.now().timestamp()) + 3600,
                             'is_owner': True,
                         }
                     },
@@ -3709,7 +3706,6 @@ def chat_calls(request):
                             'room_name': room_name,
                             'user_name': callee.get_full_name() or callee.username,
                             'user_id': str(callee.id),
-                            'exp': int(django_tz.now().timestamp()) + 3600,
                         }
                     },
                     timeout=10,
@@ -3734,6 +3730,36 @@ def chat_calls(request):
                 'token': callee_token or '',
             },
         )
+
+    # ── Broadcast real-time call signal via WebSocket ────────────────────────
+    try:
+        from asgiref.sync import async_to_sync
+        from channels.layers import get_channel_layer
+        channel_layer = get_channel_layer()
+        if channel_layer:
+            async_to_sync(channel_layer.group_send)(
+                f'workspace_{company_user.id}',
+                {
+                    'type': 'broadcast_chat_event',
+                    'payload': {
+                        'type': 'call.signal',
+                        'signal_type': 'offer',
+                        'caller_id': request.user.id,
+                        'caller_name': caller_name,
+                        'caller_initials': (caller_name[:2] if caller_name else '??').upper(),
+                        'recipient_id': callee.id if callee else None,
+                        'group_id': group.id if group else None,
+                        'is_group_call': bool(group),
+                        'call_id': call.id,
+                        'call_type': call_type,
+                        'room_url': daily_room_url,
+                        'room_name': room_name,
+                        'token': callee_token or daily_token,
+                    }
+                }
+            )
+    except Exception as e:
+        logger.warning(f"[WS Broadcast] Call signal offer failed: {e}")
 
     return Response(response_data, status=status.HTTP_201_CREATED)
 
@@ -3772,6 +3798,31 @@ def chat_call_end(request, pk):
             call.accepted_at = django_tz.now()
         call.status = new_status
         call.save()
+
+        # Broadcast answer to caller
+        try:
+            from asgiref.sync import async_to_sync
+            from channels.layers import get_channel_layer
+            channel_layer = get_channel_layer()
+            if channel_layer:
+                async_to_sync(channel_layer.group_send)(
+                    f'workspace_{company_user.id}',
+                    {
+                        'type': 'broadcast_chat_event',
+                        'payload': {
+                            'type': 'call.signal',
+                            'signal_type': 'answer',
+                            'caller_id': request.user.id,
+                            'recipient_id': call.caller_id,
+                            'call_id': call.id,
+                            'call_type': call.call_type,
+                            'status': 'accepted',
+                        }
+                    }
+                )
+        except Exception:
+            pass
+
         return Response(CallRecordSerializer(call).data)
 
     call.ended_at = django_tz.now()
@@ -3780,6 +3831,31 @@ def chat_call_end(request, pk):
         delta = call.ended_at - call.accepted_at
         call.duration_seconds = int(delta.total_seconds())
     call.save()
+
+    # Broadcast end/reject to peer
+    try:
+        from asgiref.sync import async_to_sync
+        from channels.layers import get_channel_layer
+        channel_layer = get_channel_layer()
+        if channel_layer:
+            async_to_sync(channel_layer.group_send)(
+                f'workspace_{company_user.id}',
+                {
+                    'type': 'broadcast_chat_event',
+                    'payload': {
+                        'type': 'call.signal',
+                        'signal_type': 'reject' if new_status == 'rejected' else 'end',
+                        'caller_id': request.user.id,
+                        'recipient_id': call.callee_id if request.user == call.caller else call.caller_id,
+                        'call_id': call.id,
+                        'call_type': call.call_type,
+                        'status': new_status,
+                    }
+                }
+            )
+    except Exception:
+        pass
+
     return Response(CallRecordSerializer(call).data)
 
 

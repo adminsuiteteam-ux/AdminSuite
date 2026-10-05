@@ -25,6 +25,7 @@ if (Platform.OS !== "web") {
         "423529031276-mujj55b0vk708a311iguoeo13mkjrhvj.apps.googleusercontent.com",
       offlineAccess: true,
       forceCodeForRefreshToken: false,
+      scopes: ["profile", "email"],
     });
   } catch (e) {
     GoogleSignin = null;
@@ -84,27 +85,36 @@ export function useGoogleAuth() {
         await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
         const signInResult = await GoogleSignin.signIn();
 
+        let idToken: string | undefined = undefined;
+        let email: string = "";
+        let name: string = "Google User";
+
         if (signInResult?.type === "success" && signInResult.data) {
-          const { idToken, user } = signInResult.data;
-          if (idToken) {
-            await loginWithSocial(
-              user.email,
-              user.name || `${user.givenName || ''} ${user.familyName || ''}`.trim() || "Google User",
-              "google",
-              idToken
-            );
-            router.replace("/");
-            return;
-          }
+          idToken = signInResult.data.idToken;
+          email = signInResult.data.user?.email || "";
+          name =
+            signInResult.data.user?.name ||
+            `${signInResult.data.user?.givenName || ""} ${signInResult.data.user?.familyName || ""}`.trim() ||
+            "Google User";
         } else if ((signInResult as any)?.idToken) {
-          // Compatibility with older response structure
           const legacyResult = signInResult as any;
-          await loginWithSocial(
-            legacyResult.user?.email || "",
-            legacyResult.user?.name || "Google User",
-            "google",
-            legacyResult.idToken
-          );
+          idToken = legacyResult.idToken;
+          email = legacyResult.user?.email || "";
+          name = legacyResult.user?.name || "Google User";
+        }
+
+        // If idToken is missing from signIn payload, query tokens directly from Google Play Services
+        if (!idToken) {
+          try {
+            const tokens = await GoogleSignin.getTokens();
+            idToken = tokens?.idToken;
+          } catch (tokErr) {
+            console.warn("[GoogleAuth] getTokens error:", tokErr);
+          }
+        }
+
+        if (idToken || email) {
+          await loginWithSocial(email, name, "google", idToken);
           router.replace("/");
           return;
         }

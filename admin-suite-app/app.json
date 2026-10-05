@@ -19,13 +19,15 @@
       "icon": "./assets/images/icon.png",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSUserNotificationUsageDescription": "AdminSuite uses notifications to alert you about new tasks, messages, and important updates."
+        "NSUserNotificationUsageDescription": "AdminSuite uses notifications to alert you about new tasks, messages, and important updates.",
+        "NSMicrophoneUsageDescription": "AdminSuite requires microphone access for audio and video calls.",
+        "NSCameraUsageDescription": "AdminSuite requires camera access for video calls."
       }
     },
     "android": {
       "package": "com.adminsuite.app",
+      "versionCode": 1,
       "softwareKeyboardLayoutMode": "resize",
-      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#0a0a0a"
@@ -33,7 +35,10 @@
       "permissions": [
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.VIBRATE",
-        "android.permission.POST_NOTIFICATIONS"
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ]
     },
     "web": {
@@ -56,7 +61,15 @@
           "iosDisplayInForeground": true
         }
       ],
-      "@react-native-google-signin/google-signin"
+      "@react-native-google-signin/google-signin",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

@@ -25,13 +25,14 @@ def send_push_notification(user, title, body, data=None):
     if not recipients:
         return
 
+    is_call = bool(data and data.get('screen') == 'call')
     payload = {
         "to": recipients,
         "sound": "default",
         "title": title,
         "body": body,
         "data": data or {},
-        "channelId": "default",
+        "channelId": "incoming-calls" if is_call else "default",
         "priority": "high",
         "_displayInForeground": True,
     }

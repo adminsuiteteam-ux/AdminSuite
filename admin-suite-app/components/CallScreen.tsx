@@ -9,6 +9,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  Vibration,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -242,17 +243,41 @@ export default function CallScreen({ params }: { params: CallScreenParams }) {
     }
   }, [roomUrl, token, callType]);
 
+  // ── Phone Ringing Cadence (Vibration loop) ──
+  useEffect(() => {
+    if (isIncoming && callState === "ringing") {
+      // Cadence: [wait 0ms, vibrate 1000ms, pause 1000ms, vibrate 1000ms, pause 1500ms]
+      const pattern = [0, 1000, 1000, 1000, 1500];
+      Vibration.vibrate(pattern, true);
+
+      // Auto missed-call timeout after 45 seconds
+      const timeout = setTimeout(() => {
+        Vibration.cancel();
+        handleReject();
+      }, 45000);
+
+      return () => {
+        Vibration.cancel();
+        clearTimeout(timeout);
+      };
+    } else {
+      Vibration.cancel();
+    }
+  }, [isIncoming, callState]);
+
   useEffect(() => {
     if (!isIncoming) {
       joinRoom();
     }
     return () => {
+      Vibration.cancel();
       callRef.current?.destroy().catch(() => {});
     };
   }, []);
 
   // ── Hang up ──
   const handleHangUp = useCallback(async () => {
+    Vibration.cancel();
     if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
     callRef.current?.leave().catch(() => {});
     callRef.current?.destroy().catch(() => {});
@@ -265,12 +290,15 @@ export default function CallScreen({ params }: { params: CallScreenParams }) {
 
   // ── Accept incoming ──
   const handleAccept = useCallback(() => {
+    Vibration.cancel();
     if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    apiService.endCall(callId, "accepted").catch(() => {});
     joinRoom();
-  }, [joinRoom]);
+  }, [joinRoom, callId]);
 
   // ── Reject incoming ──
   const handleReject = useCallback(async () => {
+    Vibration.cancel();
     if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
     try {
       await apiService.endCall(callId, "rejected");
