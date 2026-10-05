@@ -157,12 +157,13 @@ def _send_via_django_mail(to_email: str, subject: str, html_body: str, text_body
 
 
 
-def send_onboarding_email(email, name, temp_password, company_name, role_display):
+def send_onboarding_email(email, name, temp_password, company_name, role_display, work_email=None):
     """
     Sends an onboarding email with account creation confirmation, temporary credentials,
     and a workplace newsletter bulletin.
     """
     subject = f"Your Account Has Been Created! Welcome to {company_name} 🎉"
+    login_id = work_email or email
     
     html_content = f"""
     <!DOCTYPE html>
@@ -190,17 +191,17 @@ def send_onboarding_email(email, name, temp_password, company_name, role_display
                     Your organization administrator at <strong>{company_name}</strong> has created an employee account for you on <strong>AdminSuite</strong> with the assigned role of <strong>{role_display}</strong>.
                 </p>
                 <p style="font-size: 15px; color: #374151; margin-bottom: 24px; line-height: 1.6;">
-                    You can log in to your workplace account immediately using the temporary credentials below:
+                    You can log in to your workplace account immediately using your company login credentials below:
                 </p>
                 
                 <!-- Credentials Box -->
                 <div style="background: linear-gradient(145deg, #f8fafc 0%, #f1f5f9 100%); border: 1.5px solid #e2e8f0; border-radius: 14px; padding: 22px; margin: 24px 0;">
                     <div style="margin-bottom: 16px; font-size: 14px;">
-                        <span style="font-weight: 700; color: #64748b; display: inline-block; width: 110px; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase;">Work Email</span>
-                        <span style="font-family: monospace; font-size: 15px; color: #1e293b; font-weight: 700; background-color: #ffffff; padding: 6px 12px; border-radius: 8px; border: 1px solid #cbd5e1;">{email}</span>
+                        <span style="font-weight: 700; color: #64748b; display: inline-block; width: 140px; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase;">Company Login ID</span>
+                        <span style="font-family: monospace; font-size: 15px; color: #1e293b; font-weight: 700; background-color: #ffffff; padding: 6px 12px; border-radius: 8px; border: 1px solid #cbd5e1;">{login_id}</span>
                     </div>
                     <div style="font-size: 14px;">
-                        <span style="font-weight: 700; color: #64748b; display: inline-block; width: 110px; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase;">Temp Password</span>
+                        <span style="font-weight: 700; color: #64748b; display: inline-block; width: 140px; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase;">Temp Password</span>
                         <span style="font-family: monospace; font-size: 17px; color: #4f46e5; font-weight: 800; background-color: #ffffff; padding: 6px 14px; border-radius: 8px; border: 1px solid #c7d2fe; letter-spacing: 1px;">{temp_password}</span>
                     </div>
                 </div>

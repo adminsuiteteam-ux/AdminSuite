@@ -420,6 +420,7 @@ interface Employee {
   id: number;
   name: string;
   email: string;
+  personal_email?: string;
   role: string;
   department: string;
   salary: number;
@@ -3139,9 +3140,15 @@ function drawProfilePage(): string {
                   <span style="font-weight:600;">${sanitizeHtml(emp.office || 'Main Branch')}</span>
                 </div>
                 <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:8px;">
-                  <span style="color:var(--muted-foreground);">Direct Email</span>
+                  <span style="color:var(--muted-foreground);">Company Email (Login)</span>
                   <span style="font-weight:600; text-overflow:ellipsis; overflow:hidden; max-width:180px;">${sanitizeHtml(emp.email)}</span>
                 </div>
+                ${emp.personal_email ? `
+                <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:8px;">
+                  <span style="color:var(--muted-foreground);">Personal Email</span>
+                  <span style="font-weight:600; text-overflow:ellipsis; overflow:hidden; max-width:180px;">${sanitizeHtml(emp.personal_email)}</span>
+                </div>
+                ` : ''}
                 <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:8px;">
                   <span style="color:var(--muted-foreground);">Contact Phone</span>
                   <span style="font-weight:600;">${sanitizeHtml(emp.phone || 'N/A')}</span>
@@ -5366,12 +5373,26 @@ function openAddEmployeeModal() {
   let customDepartment = '';
   let office = '';
   let status = 'active';
+  let personalEmail = '';
   let email = '';
+  let isCustomEmail = false;
   let phone = '';
   let location = '';
   let bio = '';
   let salary = '';
   let performance = 3;
+
+  const generateCompanyEmail = (fullName: string) => {
+    const rawComp = state.user?.business_name || (state.user as any)?.company || 'company';
+    const compSlug = rawComp.toLowerCase().replace(/[^a-z0-9]/g, '') || 'adminsuite';
+    const parts = fullName.trim().toLowerCase().split(/\s+/).filter(Boolean).map(p => p.replace(/[^a-z0-9]/g, ''));
+    if (parts.length >= 2) {
+      return `${parts[0]}.${parts[parts.length - 1]}@${compSlug}.com`;
+    } else if (parts.length === 1 && parts[0]) {
+      return `${parts[0]}@${compSlug}.com`;
+    }
+    return '';
+  };
   
   // Socials
   let whatsapp = '';
@@ -5457,6 +5478,9 @@ function openAddEmployeeModal() {
       `;
     } else if (selectedRole === 'Admin') {
       // Admin Setup
+      if (!isCustomEmail && name.trim() && !email) {
+        email = generateCompanyEmail(name);
+      }
       bodyHtml = `
         <div class="form-group" style="margin-bottom: 14px;">
           <label class="form-label">Branch Scope</label>
@@ -5486,8 +5510,18 @@ function openAddEmployeeModal() {
           <input type="text" class="form-input" id="adm-name" value="${sanitizeHtml(name)}" required placeholder="e.g. Chukwuemeka Obi">
         </div>
         <div class="form-group" style="margin-bottom: 14px;">
-          <label class="form-label" for="adm-email">Email Address *</label>
-          <input type="email" class="form-input" id="adm-email" value="${sanitizeHtml(email)}" required placeholder="admin@company.com">
+          <label class="form-label" for="adm-personal-email">Personal / Notification Email (Gmail, etc.) *</label>
+          <input type="email" class="form-input" id="adm-personal-email" value="${sanitizeHtml(personalEmail)}" required placeholder="e.g. employee@gmail.com">
+          <span style="font-size: 11px; color: var(--muted-foreground); margin-top: 4px; display: block;">
+            Welcome email, temporary password, newsletters, and reset codes will be sent here.
+          </span>
+        </div>
+        <div class="form-group" style="margin-bottom: 14px;">
+          <label class="form-label" for="adm-email">Company Work Email (Login ID) *</label>
+          <input type="email" class="form-input" id="adm-email" value="${sanitizeHtml(email || generateCompanyEmail(name))}" required placeholder="e.g. firstname.lastname@companyname.com">
+          <span style="font-size: 11px; color: var(--accent); margin-top: 4px; display: block;">
+            Workplace login credential. Auto-generated as firstname.lastname@companyname.com.
+          </span>
         </div>
         <div class="form-group">
           <label class="form-label" for="adm-phone">Phone Number *</label>
@@ -5547,10 +5581,23 @@ function openAddEmployeeModal() {
         `;
       } else if (step === 2) {
         // Contact
+        if (!isCustomEmail && name.trim() && !email) {
+          email = generateCompanyEmail(name);
+        }
         bodyHtml = `
           <div class="form-group" style="margin-bottom: 14px;">
-            <label class="form-label" for="emp-email">Email Address *</label>
-            <input type="email" class="form-input" id="emp-email" value="${sanitizeHtml(email)}" required placeholder="amara@company.com">
+            <label class="form-label" for="emp-personal-email">Personal / Notification Email (Gmail, etc.) *</label>
+            <input type="email" class="form-input" id="emp-personal-email" value="${sanitizeHtml(personalEmail)}" required placeholder="e.g. amara@gmail.com">
+            <span style="font-size: 11px; color: var(--muted-foreground); margin-top: 4px; display: block;">
+              Welcome email, temporary password, newsletters, and reset codes will be sent here.
+            </span>
+          </div>
+          <div class="form-group" style="margin-bottom: 14px;">
+            <label class="form-label" for="emp-email">Company Work Email (Login ID) *</label>
+            <input type="email" class="form-input" id="emp-email" value="${sanitizeHtml(email || generateCompanyEmail(name))}" required placeholder="e.g. amara.okonkwo@companyname.com">
+            <span style="font-size: 11px; color: var(--accent); margin-top: 4px; display: block;">
+              Official workplace login credential. Auto-generated as firstname.lastname@companyname.com.
+            </span>
           </div>
           <div class="form-group" style="margin-bottom: 14px;">
             <label class="form-label" for="emp-phone">Phone Number *</label>
@@ -5851,8 +5898,12 @@ function openAddEmployeeModal() {
             showToast('Please enter admin full name.', 'error');
             return;
           }
+          if (!personalEmail.trim() || !personalEmail.includes('@')) {
+            showToast('Please enter a valid personal email (e.g. Gmail).', 'error');
+            return;
+          }
           if (!email.trim() || !email.includes('@')) {
-            showToast('Please enter a valid email address.', 'error');
+            showToast('Please enter or verify the company login email.', 'error');
             return;
           }
           if (!phone.trim()) {
@@ -5875,8 +5926,12 @@ function openAddEmployeeModal() {
             }
           }
           if (step === 2) {
+            if (!personalEmail.trim() || !personalEmail.includes('@')) {
+              showToast('Please enter a valid personal email (e.g. Gmail).', 'error');
+              return;
+            }
             if (!email.trim() || !email.includes('@')) {
-              showToast('Please enter a valid email address.', 'error');
+              showToast('Please enter or verify the company login email.', 'error');
               return;
             }
             if (!phone.trim()) {
@@ -5898,9 +5953,11 @@ function openAddEmployeeModal() {
         submitBtn.disabled = true;
         submitBtn.innerText = 'Onboarding...';
 
+        const finalWorkEmail = (email || generateCompanyEmail(name)).trim().toLowerCase();
         const formData = new FormData();
         formData.append('name', name.trim());
-        formData.append('email', email.trim().toLowerCase());
+        formData.append('email', finalWorkEmail);
+        formData.append('personal_email', personalEmail.trim().toLowerCase());
         formData.append('phone', phone.trim());
         formData.append('initials', name.trim().slice(0, 2).toUpperCase());
 
@@ -5974,7 +6031,9 @@ function openAddEmployeeModal() {
           // Successful Onboarding -> Show Credentials Modal
           const tempPassword = res.temp_password || res.data?.temp_password;
           if (tempPassword) {
-            renderSuccessModal(name, email, tempPassword);
+            const confirmedWorkEmail = res.email || finalWorkEmail;
+            const confirmedPersonalEmail = res.personal_email || personalEmail;
+            renderSuccessModal(name, confirmedWorkEmail, tempPassword, confirmedPersonalEmail);
           } else {
             showToast(`${name} onboarded successfully!`, 'success');
             close();
@@ -5993,7 +6052,11 @@ function openAddEmployeeModal() {
   const saveStepState = () => {
     if (selectedRole === 'Admin') {
       name = (document.getElementById('adm-name') as HTMLInputElement)?.value || name;
-      email = (document.getElementById('adm-email') as HTMLInputElement)?.value || email;
+      personalEmail = (document.getElementById('adm-personal-email') as HTMLInputElement)?.value || personalEmail;
+      const admEmailInput = document.getElementById('adm-email') as HTMLInputElement;
+      if (admEmailInput) {
+        email = admEmailInput.value.trim().toLowerCase();
+      }
       branchName = (document.getElementById('adm-branch-name') as HTMLInputElement)?.value || branchName;
       branchLocation = (document.getElementById('adm-branch-location') as HTMLInputElement)?.value || branchLocation;
     } else {
@@ -6002,8 +6065,18 @@ function openAddEmployeeModal() {
         role = (document.getElementById('emp-role') as HTMLInputElement)?.value || role;
         customDepartment = (document.getElementById('emp-custom-dept') as HTMLInputElement)?.value || customDepartment;
         office = (document.getElementById('emp-office') as HTMLInputElement)?.value || office;
+        if (!isCustomEmail && name.trim()) {
+          email = generateCompanyEmail(name);
+        }
       } else if (step === 2) {
-        email = (document.getElementById('emp-email') as HTMLInputElement)?.value || email;
+        personalEmail = (document.getElementById('emp-personal-email') as HTMLInputElement)?.value || personalEmail;
+        const empEmailInput = document.getElementById('emp-email') as HTMLInputElement;
+        if (empEmailInput) {
+          email = empEmailInput.value.trim().toLowerCase();
+          if (email && email !== generateCompanyEmail(name)) {
+            isCustomEmail = true;
+          }
+        }
         location = (document.getElementById('emp-location') as HTMLInputElement)?.value || location;
       } else if (step === 3) {
         bio = (document.getElementById('emp-bio') as HTMLTextAreaElement)?.value || bio;
@@ -6024,23 +6097,29 @@ function openAddEmployeeModal() {
     }
   };
 
-  const renderSuccessModal = (_empName: string, empEmail: string, tempPass: string) => {
+  const renderSuccessModal = (_empName: string, empEmail: string, tempPass: string, empPersonalEmail?: string) => {
     modalContainer.innerHTML = DOMPurify.sanitize(`
       <div class="modal-overlay">
-        <div class="modal" style="max-width: 420px; text-align: center; padding: 24px;">
+        <div class="modal" style="max-width: 440px; text-align: center; padding: 24px;">
           <div style="width: 72px; height: 72px; border-radius: 50%; background: var(--success)15; color: var(--success); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto; font-size: 32px;">
             ✓
           </div>
           <h2 style="font-size: 20px; font-weight: 800; margin-bottom: 8px; font-family: 'Outfit';">Account Created! 🎉</h2>
           <p style="font-size: 13px; color: var(--muted-foreground); line-height: 1.5; margin-bottom: 20px;">
-            A welcome email with login details has been sent to the employee. You can also share the temporary password below:
+            ${empPersonalEmail ? `Login credentials and welcome bulletin have been dispatched to <strong>${sanitizeHtml(empPersonalEmail)}</strong>.` : 'A welcome email with login details has been dispatched.'}
           </p>
 
           <div class="password-box-container" style="text-align: left;">
             <div style="margin-bottom: 12px;">
-              <span style="font-size: 10px; font-weight: 700; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 4px;">EMAIL</span>
-              <span style="font-size: 14px; font-weight: 600; color: var(--foreground);">${sanitizeHtml(empEmail)}</span>
+              <span style="font-size: 10px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 4px;">COMPANY LOGIN ID</span>
+              <span style="font-size: 14px; font-weight: 700; color: var(--foreground); font-family: monospace;">${sanitizeHtml(empEmail)}</span>
             </div>
+            ${empPersonalEmail ? `
+            <div style="margin-bottom: 12px;">
+              <span style="font-size: 10px; font-weight: 700; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 4px;">NOTIFICATION EMAIL (GMAIL)</span>
+              <span style="font-size: 13px; font-weight: 600; color: var(--foreground);">${sanitizeHtml(empPersonalEmail)}</span>
+            </div>
+            ` : ''}
             <div style="height: 1px; background: var(--border); margin-bottom: 12px;"></div>
             <div>
               <span style="font-size: 10px; font-weight: 700; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 4px;">TEMPORARY PASSWORD</span>
@@ -6055,7 +6134,7 @@ function openAddEmployeeModal() {
           </div>
 
           <p style="font-size: 11px; color: var(--muted-foreground); margin-bottom: 24px; line-height: 1.4;">
-            The employee will be required to change this password on their first login.
+            The employee must use their <strong>Company Login ID</strong> to sign in. They will be prompted to set a permanent password upon first login.
           </p>
 
           <button type="button" class="btn btn-primary" id="success-done-btn" style="width: 100%; height: 48px; border-radius: var(--radius-lg); font-weight: 700; justify-content: center;">Done</button>

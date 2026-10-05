@@ -580,9 +580,21 @@ export default function EmployeeDetailScreen() {
 
             {/* Contact rows */}
             <View style={styles.contactRow}>
-              <Feather name="mail" size={16} color="rgba(255,255,255,0.7)" />
-              <Text style={[styles.contactText, { fontFamily: "Inter_500Medium" }]}>{employee.email}</Text>
+              <Feather name="shield" size={16} color="rgba(255,255,255,0.7)" />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: 0.5, fontFamily: "Inter_500Medium" }}>Company Login Email</Text>
+                <Text style={[styles.contactText, { fontFamily: "Inter_500Medium" }]}>{employee.email}</Text>
+              </View>
             </View>
+            {employee.personal_email ? (
+              <View style={styles.contactRow}>
+                <Feather name="mail" size={16} color="rgba(255,255,255,0.7)" />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: 0.5, fontFamily: "Inter_500Medium" }}>Personal / Gmail</Text>
+                  <Text style={[styles.contactText, { fontFamily: "Inter_500Medium" }]}>{employee.personal_email}</Text>
+                </View>
+              </View>
+            ) : null}
             <View style={styles.contactRow}>
               <Feather name="phone" size={16} color="rgba(255,255,255,0.7)" />
               <Text style={[styles.contactText, { fontFamily: "Inter_500Medium" }]}>{employee.phone}</Text>

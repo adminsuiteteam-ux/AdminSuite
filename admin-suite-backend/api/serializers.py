@@ -127,7 +127,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
         model = Employee
         fields = [
             'id', 'name', 'role', 'department', 'office', 'status', 
-            'performance', 'salary', 'initials', 'avatar', 'email', 
+            'performance', 'salary', 'initials', 'avatar', 'email', 'personal_email',
             'phone', 'location', 'bio', 'socials', 'finance', 'finance_data',
             'is_flagged', 'flag_reason', 'flag_note', 'is_archived',
             'activity_logs', 'queries', 'tasks', 'leaves', 'messages',
@@ -136,6 +136,8 @@ class EmployeeSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['user', 'linked_user']
         extra_kwargs = {
+            'email': {'required': False, 'allow_blank': True},
+            'personal_email': {'required': False, 'allow_blank': True},
             'office': {'required': False, 'allow_blank': True, 'default': ''},
             'phone': {'required': False, 'allow_blank': True},
             'location': {'required': False, 'allow_blank': True},
@@ -145,6 +147,13 @@ class EmployeeSerializer(serializers.ModelSerializer):
             'initials': {'required': False, 'default': ''},
             'socials': {'required': False},
         }
+
+    def validate(self, attrs):
+        if not attrs.get('email') and not attrs.get('personal_email') and self.instance is None:
+            raise serializers.ValidationError({
+                "personal_email": "Please provide an email address (e.g. employee@gmail.com)."
+            })
+        return super().validate(attrs)
 
     def get_temp_password(self, obj):
         return getattr(obj, '_temp_password', None)
@@ -196,6 +205,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
         return super().to_internal_value(data)
 
     def create(self, validated_data):
+        import re
         from django.db import transaction
         with transaction.atomic():
             finance_data = validated_data.pop('finance_data', {})
@@ -206,22 +216,75 @@ class EmployeeSerializer(serializers.ModelSerializer):
 
             # Auto-create or link user account for the employee
             email = validated_data.get('email', '').strip().lower()
+            personal_email = validated_data.get('personal_email', '').strip().lower()
             name = validated_data.get('name', '').strip()
 
             creator_user = self.context['request'].user if 'request' in self.context else user
 
-            # Guard 1: Prevent creating an employee with the current Admin's email
-            if creator_user and creator_user.email and creator_user.email.strip().lower() == email:
-                raise serializers.ValidationError({
-                    "email": "You cannot create an employee record with your own Admin account email. As the Admin, you already have full company access."
-                })
+            # Determine company organization name / slug for company work email
+            target_company_name = None
+            if creator_user:
+                try:
+                    if hasattr(creator_user, 'extension') and creator_user.extension.organization:
+                        target_company_name = creator_user.extension.organization.name
+                except Exception:
+                    pass
+                if not target_company_name:
+                    try:
+                        if hasattr(creator_user, 'profile') and creator_user.profile.business_name:
+                            target_company_name = creator_user.profile.business_name
+                    except Exception:
+                        pass
 
-            # Check if an Employee profile already exists for this email
+            company_slug = "adminsuite"
+            if target_company_name:
+                slug_cand = re.sub(r'[^a-zA-Z0-9]', '', target_company_name).lower()
+                if slug_cand:
+                    company_slug = slug_cand
+
+            # Generate base local part (firstname.lastname)
+            name_parts = [re.sub(r'[^a-zA-Z0-9]', '', p).lower() for p in name.split() if p.strip()]
+            if len(name_parts) >= 2:
+                base_local = f"{name_parts[0]}.{name_parts[-1]}"
+            elif len(name_parts) == 1:
+                base_local = name_parts[0]
+            else:
+                base_local = "employee"
+
+            # Auto-detect if 'email' was submitted as a personal email (e.g. @gmail.com) with personal_email empty
+            personal_domains = ('gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com', 'aol.com', 'mail.com')
+            if not personal_email and email and any(email.endswith(f"@{dom}") for dom in personal_domains):
+                personal_email = email
+                email = ''
+
+            # If work email is blank or matches personal email, generate unique firstname.lastname@companyname.com
+            if not email or email == personal_email:
+                candidate = f"{base_local}@{company_slug}.com"
+                counter = 2
+                while User.objects.filter(username__iexact=candidate).exists() or \
+                      User.objects.filter(email__iexact=candidate).exists() or \
+                      Employee.objects.filter(email__iexact=candidate).exists():
+                    candidate = f"{base_local}{counter}@{company_slug}.com"
+                    counter += 1
+                email = candidate
+
+            validated_data['email'] = email
+            validated_data['personal_email'] = personal_email
+
+            # Guard 1: Prevent creating an employee with the current Admin's email
+            if creator_user and creator_user.email:
+                admin_em = creator_user.email.strip().lower()
+                if admin_em in (email, personal_email):
+                    raise serializers.ValidationError({
+                        "email": "You cannot create an employee record with your own Admin account email. As the Admin, you already have full company access."
+                    })
+
+            # Check if an Employee profile already exists for this work email
             if Employee.objects.filter(email=email).exists():
-                raise serializers.ValidationError({"email": "An employee record with this email address already exists."})
+                raise serializers.ValidationError({"email": f"An employee record with the login email '{email}' already exists. Please customize the company email."})
 
             # Guard 2: Prevent overwriting any existing Admin or CEO account
-            emp_user = User.objects.filter(email=email).first()
+            emp_user = User.objects.filter(username__iexact=email).first() or User.objects.filter(email=email).first()
             if emp_user:
                 existing_profile = getattr(emp_user, 'profile', None)
                 existing_ext = getattr(emp_user, 'extension', None)
@@ -355,22 +418,24 @@ class EmployeeSerializer(serializers.ModelSerializer):
 
         # Send onboarding email asynchronously in background thread so HTTP response is instant (<200ms)
         import threading
-        target_company = creator_org.name if creator_org else "AdminSuite Company"
+        target_company = target_company_name or (creator_org.name if creator_org else "AdminSuite Company")
+        dispatch_recipient = personal_email if personal_email else email
 
         def _dispatch_onboarding_email():
             try:
                 from .emails import send_onboarding_email
                 send_onboarding_email(
-                    email=email,
+                    email=dispatch_recipient,
                     name=name,
                     temp_password=temp_password,
                     company_name=target_company,
-                    role_display=role_display
+                    role_display=role_display,
+                    work_email=email
                 )
             except Exception as e:
                 import logging
                 logging.getLogger('adminsuite').warning(
-                    f'[EmployeeCreate] Onboarding email failed for {email}: {e}'
+                    f'[EmployeeCreate] Onboarding email failed for {dispatch_recipient}: {e}'
                 )
 
         threading.Thread(target=_dispatch_onboarding_email, daemon=True).start()
@@ -411,6 +476,14 @@ class EmployeeSerializer(serializers.ModelSerializer):
             
         employee = super().update(instance, validated_data)
         if employee.linked_user:
+            emp_u = employee.linked_user
+            fields_to_update = []
+            if employee.email and (emp_u.email != employee.email or emp_u.username != employee.email):
+                emp_u.email = employee.email
+                emp_u.username = employee.email
+                fields_to_update.extend(['email', 'username'])
+            if fields_to_update:
+                emp_u.save(update_fields=fields_to_update)
             profile, _ = UserProfile.objects.get_or_create(user=employee.linked_user)
             profile.avatar = employee.avatar
             profile.save()

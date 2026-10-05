@@ -48,6 +48,7 @@ class Employee(models.Model):
     linked_user = models.OneToOneField('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='employee_profile')
     branch = models.ForeignKey('Branch', on_delete=models.SET_NULL, null=True, blank=True, related_name='employees')
     email = models.EmailField()
+    personal_email = models.EmailField(blank=True, null=True)
     phone = models.CharField(max_length=50, blank=True, null=True)
     location = models.CharField(max_length=255, blank=True, null=True)
     bio = models.TextField(blank=True, null=True)

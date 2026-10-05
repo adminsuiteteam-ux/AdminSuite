@@ -18,6 +18,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { PrimaryButton } from "@/components/PrimaryButton";
+import { useAuth } from "@/context/AuthContext";
 import { useData } from "@/context/DataContext";
 import { useColors } from "@/hooks/useColors";
 import { useToast } from "@/context/ToastContext";
@@ -134,6 +135,7 @@ export default function CreateEmployeeScreen() {
   const colors = useColors();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const { user: currentUser } = useAuth();
   const { employees, refresh } = useData();
   const { editId } = useLocalSearchParams<{ editId?: string }>();
   const { showToast } = useToast();
@@ -158,9 +160,23 @@ export default function CreateEmployeeScreen() {
   const [status, setStatus] = useState("active");
 
   // ── Step 2: Contact ─────────────────────────────────────────
+  const [personalEmail, setPersonalEmail] = useState("");
   const [email, setEmail] = useState("");
+  const [isCustomEmail, setIsCustomEmail] = useState(false);
   const [phone, setPhone] = useState("");
   const [location, setLocation] = useState("");
+
+  const generateCompanyEmail = (fullName: string) => {
+    const rawComp = currentUser?.business_name || "company";
+    const compSlug = rawComp.toLowerCase().replace(/[^a-z0-9]/g, "") || "adminsuite";
+    const parts = fullName.trim().toLowerCase().split(/\s+/).filter(Boolean).map((p) => p.replace(/[^a-z0-9]/g, ""));
+    if (parts.length >= 2) {
+      return `${parts[0]}.${parts[parts.length - 1]}@${compSlug}.com`;
+    } else if (parts.length === 1 && parts[0]) {
+      return `${parts[0]}@${compSlug}.com`;
+    }
+    return "";
+  };
 
   // ── Step 3: Profile ─────────────────────────────────────────
   const [bio, setBio] = useState("");
@@ -188,6 +204,7 @@ export default function CreateEmployeeScreen() {
   // ── Success modal ───────────────────────────────────────────
   const [createdEmployee, setCreatedEmployee] = useState<{
     email: string;
+    personalEmail?: string;
     tempPassword?: string;
   } | null>(null);
   const [copied, setCopied] = useState(false);
@@ -231,6 +248,10 @@ export default function CreateEmployeeScreen() {
         setOffice(emp.office || "");
         setStatus(emp.status || "active");
         setEmail(emp.email || "");
+        setPersonalEmail((emp as any).personal_email || "");
+        if (emp.email) {
+          setIsCustomEmail(true);
+        }
         setPhone(emp.phone || "");
         setLocation(emp.location || "");
         setBio(emp.bio || "");
@@ -274,14 +295,13 @@ export default function CreateEmployeeScreen() {
 
     if (selectedRole === "Admin") {
       if (step === 1) {
-        return adminScope === "current" ||
+        const branchOk =
+          adminScope === "current" ||
           (branchName.trim().length > 0 && branchLocation.trim().length > 0);
-      }
-      if (step === 2) {
-        return name.trim().length > 0;
-      }
-      if (step === 3) {
-        return email.includes("@") && phone.trim().length > 0;
+        const nameOk = name.trim().length > 0;
+        const emailOk = personalEmail.includes("@") || email.includes("@");
+        const phoneOk = phone.trim().length > 0;
+        return branchOk && nameOk && emailOk && phoneOk;
       }
       return true;
     }
@@ -293,7 +313,7 @@ export default function CreateEmployeeScreen() {
       // office is optional (blank=True on the model) — don't gate on it
       return name.trim().length > 0 && depValid;
     }
-    if (step === 2) return email.includes("@") && phone.trim().length > 0;
+    if (step === 2) return (personalEmail.includes("@") || email.includes("@")) && phone.trim().length > 0;
     return true;
   };
 
@@ -309,12 +329,18 @@ export default function CreateEmployeeScreen() {
           showToast({ title: "Department Required", message: "Please select a department to continue.", type: "error" });
         }
       } else if (step === 1 && selectedRole === "Admin") {
-        showToast({ title: "Branch Details", message: "Please fill in the branch name and location.", type: "error" });
-      } else if (step === 2 && selectedRole === "Admin") {
-        showToast({ title: "Name Required", message: "Please enter the admin's full name.", type: "error" });
-      } else if ((step === 3 && selectedRole === "Admin") || (step === 2 && selectedRole !== "Admin")) {
-        if (!email.includes("@")) {
-          showToast({ title: "Email Required", message: "Please enter a valid email address.", type: "error" });
+        if (adminScope === "new_branch" && (!branchName.trim() || !branchLocation.trim())) {
+          showToast({ title: "Branch Details", message: "Please fill in the branch name and location.", type: "error" });
+        } else if (!name.trim()) {
+          showToast({ title: "Name Required", message: "Please enter the admin's full name.", type: "error" });
+        } else if (!personalEmail.includes("@") && !email.includes("@")) {
+          showToast({ title: "Email Required", message: "Please enter personal Gmail or work email.", type: "error" });
+        } else if (!phone.trim()) {
+          showToast({ title: "Phone Required", message: "Please enter a phone number.", type: "error" });
+        }
+      } else if (step === 2 && selectedRole !== "Admin") {
+        if (!personalEmail.includes("@") && !email.includes("@")) {
+          showToast({ title: "Email Required", message: "Please enter personal Gmail or work email.", type: "error" });
         } else {
           showToast({ title: "Phone Required", message: "Please enter a phone number.", type: "error" });
         }
@@ -361,9 +387,15 @@ export default function CreateEmployeeScreen() {
     if (saving) return;
     setSaving(true);
 
+    const finalWorkEmail = (email.trim() || generateCompanyEmail(name)).trim().toLowerCase();
+    const finalPersonalEmail = personalEmail.trim().toLowerCase();
+
     const formData = new FormData();
     formData.append("name", name);
-    formData.append("email", email);
+    formData.append("email", finalWorkEmail);
+    if (finalPersonalEmail) {
+      formData.append("personal_email", finalPersonalEmail);
+    }
     formData.append("phone", phone);
     formData.append("initials", name.substring(0, 2).toUpperCase());
 
@@ -443,12 +475,18 @@ export default function CreateEmployeeScreen() {
       } else {
         response = await apiService.createEmployee(formData);
         const tempPassword = response.data?.temp_password;
+        const confirmedWorkEmail = response.data?.email || finalWorkEmail;
+        const confirmedPersonalEmail = response.data?.personal_email || finalPersonalEmail;
         if (tempPassword) {
-          setCreatedEmployee({ email, tempPassword });
+          setCreatedEmployee({
+            email: confirmedWorkEmail,
+            personalEmail: confirmedPersonalEmail,
+            tempPassword,
+          });
         } else {
           showToast({
             title: "Account Created",
-            message: `${name}'s account has been set up. A login email has been sent.`,
+            message: `${name}'s account has been set up. Login credentials sent to ${confirmedPersonalEmail || confirmedWorkEmail}.`,
             type: "success",
           });
           router.back();
@@ -728,15 +766,34 @@ export default function CreateEmployeeScreen() {
             <Field
               label="Full Name"
               value={name}
-              onChangeText={setName}
+              onChangeText={(val: string) => {
+                setName(val);
+                if (!isCustomEmail) {
+                  setEmail(generateCompanyEmail(val));
+                }
+              }}
               placeholder="e.g. Chukwuemeka Obi"
               colors={colors}
             />
             <Field
-              label="Email Address"
-              value={email}
-              onChangeText={setEmail}
-              placeholder="admin@company.com"
+              label="Personal / Notification Email (Gmail) *"
+              hint="Welcome email, temporary password, and reset OTPs will be sent here."
+              value={personalEmail}
+              onChangeText={setPersonalEmail}
+              placeholder="e.g. employee@gmail.com"
+              colors={colors}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+            <Field
+              label="Company Work Email (Login ID) *"
+              hint="Official workplace login credential (firstname.lastname@companyname.com)"
+              value={email || (!isCustomEmail && name.trim() ? generateCompanyEmail(name) : "")}
+              onChangeText={(val: string) => {
+                setEmail(val);
+                setIsCustomEmail(true);
+              }}
+              placeholder="e.g. firstname.lastname@companyname.com"
               colors={colors}
               keyboardType="email-address"
               autoCapitalize="none"
@@ -760,7 +817,12 @@ export default function CreateEmployeeScreen() {
             <Field
               label="Full Name"
               value={name}
-              onChangeText={setName}
+              onChangeText={(val: string) => {
+                setName(val);
+                if (!isCustomEmail) {
+                  setEmail(generateCompanyEmail(val));
+                }
+              }}
               placeholder="e.g. Amara Okonkwo"
               colors={colors}
             />
@@ -858,10 +920,24 @@ export default function CreateEmployeeScreen() {
         {step === 2 && selectedRole !== "Admin" && (
           <View style={{ gap: 16 }}>
             <Field
-              label="Email Address"
-              value={email}
-              onChangeText={setEmail}
-              placeholder="amara@company.com"
+              label="Personal / Notification Email (Gmail) *"
+              hint="Welcome email, temporary password, and reset OTPs will be sent here."
+              value={personalEmail}
+              onChangeText={setPersonalEmail}
+              placeholder="e.g. employee@gmail.com"
+              colors={colors}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+            <Field
+              label="Company Work Email (Login ID) *"
+              hint="Official workplace login credential (firstname.lastname@companyname.com)"
+              value={email || (!isCustomEmail && name.trim() ? generateCompanyEmail(name) : "")}
+              onChangeText={(val: string) => {
+                setEmail(val);
+                setIsCustomEmail(true);
+              }}
+              placeholder="e.g. firstname.lastname@companyname.com"
               colors={colors}
               keyboardType="email-address"
               autoCapitalize="none"
@@ -1221,11 +1297,22 @@ export default function CreateEmployeeScreen() {
               ]}
             >
               <View style={styles.detailRow}>
-                <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>{t("createEmployee.email")}</Text>
-                <Text style={[styles.detailValue, { color: colors.foreground }]} selectable>
+                <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>Work Login ID</Text>
+                <Text style={[styles.detailValue, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]} selectable>
                   {createdEmployee?.email}
                 </Text>
               </View>
+              {createdEmployee?.personalEmail ? (
+                <>
+                  <View style={[styles.detailDivider, { backgroundColor: colors.isDark ? "rgba(255, 255, 255, 0.08)" : colors.border }]} />
+                  <View style={styles.detailRow}>
+                    <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>Personal / Gmail</Text>
+                    <Text style={[styles.detailValue, { color: colors.foreground }]} selectable>
+                      {createdEmployee?.personalEmail}
+                    </Text>
+                  </View>
+                </>
+              ) : null}
               <View style={[styles.detailDivider, { backgroundColor: colors.isDark ? "rgba(255, 255, 255, 0.08)" : colors.border }]} />
               <View style={styles.detailRow}>
                 <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>
@@ -1271,7 +1358,9 @@ export default function CreateEmployeeScreen() {
             </View>
 
             <Text style={[styles.infoNote, { color: colors.mutedForeground }]}>
-              {t("createEmployee.firstLoginNote")}
+              {createdEmployee?.personalEmail
+                ? `Account credentials and temporary password were sent to ${createdEmployee.personalEmail}. They must use their company work email to log in.`
+                : t("createEmployee.firstLoginNote")}
             </Text>
 
             <Pressable
@@ -1296,7 +1385,7 @@ export default function CreateEmployeeScreen() {
 // ─────────────────────────────────────────────────────────────
 // Sub-components
 // ─────────────────────────────────────────────────────────────
-function Field({ label, value, onChangeText, placeholder, colors, keyboardType, autoCapitalize }: any) {
+function Field({ label, hint, value, onChangeText, placeholder, colors, keyboardType, autoCapitalize }: any) {
   return (
     <View>
       <Text
@@ -1315,6 +1404,11 @@ function Field({ label, value, onChangeText, placeholder, colors, keyboardType, 
           style={[styles.input, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}
         />
       </View>
+      {hint ? (
+        <Text style={{ fontSize: 11, color: colors.mutedForeground, marginTop: 4, fontFamily: "Inter_400Regular" }}>
+          {hint}
+        </Text>
+      ) : null}
     </View>
   );
 }

@@ -1747,11 +1747,31 @@ def send_password_reset_code(request):
     except ValidationError:
         return Response({'error': 'Invalid email address.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    # The email must be the same with what they used to create their account with
-    try:
-        user = User.objects.get(email__iexact=email)
-    except User.DoesNotExist:
+    # Find the user by company email, username, or employee personal_email
+    user = User.objects.filter(email__iexact=email).first() or User.objects.filter(username__iexact=email).first()
+    emp = None
+    if not user:
+        emp = Employee.objects.filter(personal_email__iexact=email).first()
+        if emp and emp.linked_user:
+            user = emp.linked_user
+        elif emp and emp.email:
+            user = User.objects.filter(email__iexact=emp.email).first() or User.objects.filter(username__iexact=emp.email).first()
+
+    if not user:
         return Response({'error': 'No account found with this email.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Determine destination email for OTP dispatch:
+    # If the user is an employee and has a personal email (e.g. Gmail), dispatch OTP to that personal email.
+    destination_email = email
+    if not emp:
+        emp = getattr(user, 'employee_profile', None) or Employee.objects.filter(linked_user=user).first()
+        if not emp and user.email:
+            emp = Employee.objects.filter(email__iexact=user.email).first()
+
+    if emp and emp.personal_email:
+        destination_email = emp.personal_email.strip().lower()
+    elif user.email:
+        destination_email = user.email.strip().lower()
 
     # Check if suspended
     profile, _ = UserProfile.objects.get_or_create(user=user)
@@ -1767,19 +1787,32 @@ def send_password_reset_code(request):
     # Generate 6-digit numeric code
     code = ''.join([str(secrets.randbelow(10)) for _ in range(6)])
 
-    # Store/Update verification code
-    PasswordResetCode.objects.update_or_create(
-        email=email,
-        defaults={'code': code},
-    )
+    # Store/Update verification code for BOTH input email and destination email (and user.email)
+    emails_to_bind = {email, destination_email}
+    if user.email:
+        emails_to_bind.add(user.email.strip().lower())
+    if user.username and '@' in user.username:
+        emails_to_bind.add(user.username.strip().lower())
+
+    for em in emails_to_bind:
+        PasswordResetCode.objects.update_or_create(
+            email=em,
+            defaults={'code': code},
+        )
 
     from .emails import send_password_reset_email
-    send_password_reset_email(email, code)
+    send_password_reset_email(destination_email, code)
 
     from core.safe_logger import safe_log, mask_email
-    safe_log("info", "Password reset code generated", extra={"email": mask_email(email), "code": "***"})
+    safe_log("info", "Password reset code generated", extra={"email": mask_email(destination_email), "code": "***"})
 
-    response_data = {'message': 'Verification code sent successfully.', 'email': email}
+    masked_dest = mask_email(destination_email)
+    msg = f'Verification code sent successfully to your personal email ({masked_dest}).' if destination_email != email else 'Verification code sent successfully.'
+    response_data = {
+        'message': msg,
+        'email': email,
+        'destination_email': masked_dest
+    }
     if settings.DEBUG:
         response_data['code'] = code  # Dev convenience only
 
@@ -1847,9 +1880,15 @@ def confirm_password_reset(request):
     if record.code != "VERIFIED":
         return Response({'error': 'OTP verification has not been completed.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    try:
-        user = User.objects.get(email__iexact=email)
-    except User.DoesNotExist:
+    user = User.objects.filter(email__iexact=email).first() or User.objects.filter(username__iexact=email).first()
+    if not user:
+        emp = Employee.objects.filter(personal_email__iexact=email).first()
+        if emp and emp.linked_user:
+            user = emp.linked_user
+        elif emp and emp.email:
+            user = User.objects.filter(email__iexact=emp.email).first() or User.objects.filter(username__iexact=emp.email).first()
+
+    if not user:
         return Response({'error': 'User not found.'}, status=status.HTTP_400_BAD_REQUEST)
 
     try:

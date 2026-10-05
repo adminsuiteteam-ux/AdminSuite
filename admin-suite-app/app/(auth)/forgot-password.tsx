@@ -28,6 +28,7 @@ export default function ForgotPasswordScreen() {
 
   const [stage, setStage] = useState<Stage>("email");
   const [email, setEmail] = useState("");
+  const [destinationMsg, setDestinationMsg] = useState("");
   const [code, setCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -43,9 +44,11 @@ export default function ForgotPasswordScreen() {
     setLoading(true);
     try {
       const res = await apiService.sendPasswordResetCode({ email: email.trim().toLowerCase() });
+      const msg = res.data.message || "A 6-digit OTP has been sent to your email.";
+      setDestinationMsg(msg);
       showToast({
         title: "Code Sent",
-        message: res.data.message || "A 6-digit OTP has been sent to your email.",
+        message: msg,
         type: "success",
       });
       // Dev helper notice if code is returned in dev mode
@@ -154,7 +157,7 @@ export default function ForgotPasswordScreen() {
               {t("forgotPassword.passwordRecovery")}
             </Text>
             <Text style={[styles.subtitle, { fontFamily: "Inter_400Regular", color: colors.mutedForeground }]}>
-              {t("forgotPassword.emailPrompt")}
+              Enter your company work email or personal email. The verification OTP will be sent to your registered personal email.
             </Text>
             <View style={styles.form}>
               <View style={[styles.inputWrap, { backgroundColor: colors.input }]}>
@@ -164,7 +167,7 @@ export default function ForgotPasswordScreen() {
                 <TextInput
                   value={email}
                   onChangeText={setEmail}
-                  placeholder="Enter your email"
+                  placeholder="Work or personal email"
                   placeholderTextColor={colors.mutedForeground}
                   autoCapitalize="none"
                   keyboardType="email-address"
@@ -200,7 +203,7 @@ export default function ForgotPasswordScreen() {
               {t("forgotPassword.enterOtp")}
             </Text>
             <Text style={[styles.subtitle, { fontFamily: "Inter_400Regular", color: colors.mutedForeground }]}>
-              {t("forgotPassword.otpSentTo", { email })}
+              {destinationMsg || t("forgotPassword.otpSentTo", { email })}
             </Text>
             <View style={styles.form}>
               <View style={[styles.inputWrap, { backgroundColor: colors.input }]}>
