@@ -199,6 +199,7 @@ export default function EmployeeChatScreen() {
 
   const flatListRef = useRef<FlatList>(null);
   const lastTypingSentRef = useRef<number>(0);
+  const draftsRef = useRef<Record<string, string>>({});
 
   useEffect(() => {
     router.setParams({ showDetail: activeContact ? "true" : "false" });
@@ -276,6 +277,7 @@ export default function EmployeeChatScreen() {
   const handleTextChange = (text: string) => {
     setInputText(text);
     if (!activeContact) return;
+    draftsRef.current[String(activeContact.id)] = text;
     const now = Date.now();
     const trimmed = text.trim();
     if (trimmed.length === 0) {
@@ -399,11 +401,16 @@ export default function EmployeeChatScreen() {
 
     try {
       const res = await apiService.sendChatMessage(payload);
-      if (res.data) setMessages((prev) => prev.map((m) => (m.id === tempId ? res.data : m)));
-    } catch {
+      if (res.data) {
+        if (activeContact) delete draftsRef.current[String(activeContact.id)];
+        setMessages((prev) => prev.map((m) => (m.id === tempId ? res.data : m)));
+      }
+    } catch (err: any) {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
       setInputText(text);
-      showToast({ title: "Error", message: "Failed to send message.", type: "error" });
+      if (activeContact) draftsRef.current[String(activeContact.id)] = text;
+      const errMsg = err?.response?.data?.error || err?.response?.data?.message || err?.message || "Failed to send message.";
+      showToast({ title: "Error", message: errMsg, type: "error" });
     }
   };
 
@@ -464,20 +471,23 @@ export default function EmployeeChatScreen() {
         callee_id: activeContact.id as number,
       });
       const { id: callId, room_url, room_name, token } = res.data;
-      // Auto-send a call link into the chat
-      if (room_url) {
-        const icon = type === "voice" ? "📞" : "📹";
-        const msg = `${icon} [${type === "voice" ? "Voice" : "Video"} Call Started] Join here: ${room_url}`;
-        const payload: any = { text: msg, recipient_id: activeContact.id };
-        apiService.sendChatMessage(payload).catch(() => {});
+      if (!room_url) {
+        showToast({ title: "Call Failed", message: "Server did not provide a room URL. Please try again.", type: "error" });
+        return;
       }
+      // Auto-send a call link into the chat
+      const icon = type === "voice" ? "📞" : "📹";
+      const msg = `${icon} [${type === "voice" ? "Voice" : "Video"} Call Started] Join here: ${room_url}`;
+      const payload: any = { text: msg, recipient_id: activeContact.id };
+      apiService.sendChatMessage(payload).catch(() => {});
+
       // Navigate to CallScreen
       router.push({
         pathname: "/call",
         params: {
           callId,
           callType: type,
-          roomUrl: room_url || "",
+          roomUrl: room_url,
           roomName: room_name || "",
           token: token || "",
           calleeName: activeContact.name,
@@ -622,7 +632,11 @@ export default function EmployeeChatScreen() {
                   <Pressable key={String(contact.id)}
                     onPress={() => {
                       setContacts((prev) => prev.map((c) => (c.id === contact.id ? { ...c, unread_count: 0 } : c)));
-                      setActiveContact({ ...contact, unread_count: 0 }); setMessages([]); setReplyTo(null); setEditingMsg(null);
+                      setActiveContact({ ...contact, unread_count: 0 });
+                      setMessages([]);
+                      setInputText(draftsRef.current[String(contact.id)] || "");
+                      setReplyTo(null);
+                      setEditingMsg(null);
                       if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
                     }}
                     style={({ pressed }) => [styles.contactRowFull, { backgroundColor: pressed ? colors.card : "transparent", borderBottomColor: colors.border }]}
@@ -663,7 +677,16 @@ export default function EmployeeChatScreen() {
       >
         {/* Top Bar */}
         <View style={[styles.topBar, { paddingTop: insets.top + 8, backgroundColor: isDark ? "#09090b" : "#fff", borderBottomColor: colors.border }]}>
-          <Pressable onPress={() => { setActiveContact(null); setShowInChatSearch(false); setInChatSearchQuery(""); setShowEmojiPicker(false); }} style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]} hitSlop={8}>
+          <Pressable onPress={() => {
+            if (activeContact) draftsRef.current[String(activeContact.id)] = inputText;
+            setActiveContact(null);
+            setInputText("");
+            setReplyTo(null);
+            setEditingMsg(null);
+            setShowInChatSearch(false);
+            setInChatSearchQuery("");
+            setShowEmojiPicker(false);
+          }} style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]} hitSlop={8}>
             <Feather name="arrow-left" size={22} color={colors.foreground} />
           </Pressable>
 

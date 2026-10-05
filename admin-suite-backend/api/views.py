@@ -1,6 +1,10 @@
+import threading
+import logging
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.db import models
+
+logger = logging.getLogger(__name__)
 from django.db.models import Sum
 from rest_framework import viewsets, status
 from rest_framework.decorators import api_view, permission_classes, throttle_classes, action
@@ -2529,6 +2533,15 @@ def chat_send(request):
                     body=short_text,
                     data={'screen': 'chat', 'recipientId': str(request.user.id)}
                 )
+            elif chat_channel and chat_channel.group:
+                # Channel message — notify all channel group members except sender
+                for member in chat_channel.group.members.exclude(id=request.user.id):
+                    send_push_notification(
+                        user=member,
+                        title=f'💬 #{chat_channel.name}: {sender_name}',
+                        body=short_text,
+                        data={'screen': 'chat-group', 'groupId': str(chat_channel.group.id), 'channelId': str(chat_channel.id)}
+                    )
             elif chat_group:
                 # Custom group — notify all members except the sender
                 for member in chat_group.members.exclude(id=request.user.id):
@@ -2539,14 +2552,24 @@ def chat_send(request):
                         data={'screen': 'chat-group', 'groupId': str(chat_group.id)}
                     )
             else:
-                # General company group — notify the admin (company_user) if sender is not admin
+                # General company group (Team Chat) — notify all employees + admin (except sender)
                 if request.user != company_user:
                     send_push_notification(
                         user=company_user,
-                        title=f'💬 Group: {sender_name}',
+                        title=f'💬 Team Chat: {sender_name}',
                         body=short_text,
-                        data={'screen': 'chat'}
+                        data={'screen': 'chat', 'recipientId': 'group'}
                     )
+                # Notify all linked employee accounts
+                employees = Employee.objects.filter(user=company_user, is_archived=False).exclude(linked_user=request.user).select_related('linked_user')
+                for emp in employees:
+                    if emp.linked_user and emp.linked_user != request.user:
+                        send_push_notification(
+                            user=emp.linked_user,
+                            title=f'💬 Team Chat: {sender_name}',
+                            body=short_text,
+                            data={'screen': 'chat', 'recipientId': 'group'}
+                        )
         except Exception as push_err:
             logger.warning(f"[Chat Push Notification Error]: {push_err}")
 
@@ -3253,7 +3276,12 @@ def register_device(request):
     Registers or updates an Expo push token for the authenticated user.
     """
     token = request.data.get('expo_push_token', '').strip()
-    if not token or not token.startswith('ExponentPushToken['):
+    is_valid_token = bool(token and (
+        token.startswith('ExponentPushToken[') or
+        token.startswith('ExpoPushToken[') or
+        (len(token) > 15 and ' ' not in token)
+    ))
+    if not is_valid_token:
         return Response({'error': 'Invalid Expo push token format.'}, status=status.HTTP_400_BAD_REQUEST)
         
     device_name = request.data.get('device_name', '').strip()
@@ -3270,6 +3298,12 @@ def register_device(request):
             'is_active': True
         }
     )
+
+    # Enable notifications in user profile since user registered a device for push notifications
+    profile = getattr(request.user, 'profile', None)
+    if profile and not profile.notifications_enabled:
+        profile.notifications_enabled = True
+        profile.save(update_fields=['notifications_enabled'])
     
     return Response({
         'status': 'success',
@@ -3529,12 +3563,21 @@ def chat_calls(request):
         return Response({'error': 'callee_id or group_id required.'}, status=status.HTTP_400_BAD_REQUEST)
 
     # ── Create Daily.co Room ───────────────────────────────────────────────────
-    daily_api_key = os.environ.get('DAILY_API_KEY', '')
-    daily_domain = os.environ.get('DAILY_DOMAIN', 'adminsuite')
+    daily_api_key = (
+        getattr(settings, 'DAILY_API_KEY', None)
+        or os.environ.get('DAILY_API_KEY')
+        or '3f81d666c2e8c7a25967002c7a8d543aa39350f3ddc171cb97b4e7006958575f'
+    )
+    daily_domain = (
+        getattr(settings, 'DAILY_DOMAIN', None)
+        or os.environ.get('DAILY_DOMAIN')
+        or 'adminsuite'
+    )
     room_name = f"adminsuite-call-{request.user.id}-{int(django_tz.now().timestamp())}"
 
     daily_room_url = None
     daily_token = None
+    daily_err_msg = None
 
     if daily_api_key:
         try:
@@ -3578,10 +3621,20 @@ def chat_calls(request):
                 )
                 if token_resp.status_code == 200:
                     daily_token = token_resp.json().get('token')
+            else:
+                daily_err_msg = f"Daily API status {room_resp.status_code}: {room_resp.text}"
+                logger.error(f"[Daily.co Error] {daily_err_msg}")
         except Exception as e:
-            # Don't fail the call if Daily has an issue — fall back gracefully
-            import logging
-            logging.getLogger(__name__).error(f"Daily.co room creation failed: {e}")
+            daily_err_msg = str(e)
+            logger.error(f"[Daily.co Exception] {e}")
+    else:
+        daily_err_msg = "DAILY_API_KEY is not configured."
+
+    if not daily_room_url:
+        return Response(
+            {'error': f'Unable to start call: {daily_err_msg or "Failed to create meeting room."}'},
+            status=status.HTTP_502_BAD_GATEWAY
+        )
 
     # ── Create CallRecord in DB ────────────────────────────────────────────────
     call = CallRecord.objects.create(

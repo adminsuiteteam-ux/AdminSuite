@@ -150,7 +150,21 @@ class EmployeeSerializer(serializers.ModelSerializer):
         return getattr(obj, '_temp_password', None)
 
     def to_representation(self, instance):
-        ret = super().to_representation(instance)
+        is_new = getattr(instance, '_temp_password', None) is not None
+        if is_new:
+            # Newly created employee has zero related logs, queries, tasks, etc.
+            # Pop these fields before serialization to avoid 7 slow round-trip DB queries.
+            saved_fields = {}
+            for field_name in ['activity_logs', 'queries', 'tasks', 'leaves', 'messages', 'documents', 'salary_adjustments']:
+                if field_name in self.fields:
+                    saved_fields[field_name] = self.fields.pop(field_name)
+            ret = super().to_representation(instance)
+            for field_name, fld in saved_fields.items():
+                self.fields[field_name] = fld
+                ret[field_name] = []
+        else:
+            ret = super().to_representation(instance)
+
         if instance.avatar:
             request = self.context.get('request')
             if request is not None:

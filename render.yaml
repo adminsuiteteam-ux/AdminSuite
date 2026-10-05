@@ -66,6 +66,12 @@ services:
         sync: false
       - key: STRIPE_WEBHOOK_SECRET
         sync: false
+      # ── Daily.co Calling ─────────────────────────────────────────────────────
+      - key: DAILY_API_KEY
+        sync: false
+      - key: DAILY_DOMAIN
+        value: adminsuite
+
 
   - type: web
     name: adminsuite

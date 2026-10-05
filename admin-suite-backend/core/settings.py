@@ -358,3 +358,9 @@ ZEPTOMAIL_SEND_MAIL_TOKEN = os.environ.get('ZEPTOMAIL_SEND_MAIL_TOKEN')
 
 # Brevo HTTP Email API (Fallback)
 BREVO_API_KEY = os.environ.get('BREVO_API_KEY')
+
+# Daily.co Real-Time Calling
+DAILY_API_KEY = os.environ.get('DAILY_API_KEY') or '3f81d666c2e8c7a25967002c7a8d543aa39350f3ddc171cb97b4e7006958575f'
+DAILY_DOMAIN = os.environ.get('DAILY_DOMAIN') or 'adminsuite'
+
+

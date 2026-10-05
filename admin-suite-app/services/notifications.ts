@@ -34,27 +34,32 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
       return null;
     }
 
-    // Retrieve dynamically from Constants or check project config
-    const projectId = Constants.expoConfig?.extra?.eas?.projectId;
-    if (!projectId) {
-      console.warn('[Notification] projectId not found in expoConfig. Please verify app.json/eas.json config.');
-    }
-
-    const tokenData = await Notifications.getExpoPushTokenAsync({
-      projectId: projectId || undefined,
-    });
-    
-    const token = tokenData.data;
-    console.log('[Notification] Registered Token:', token);
-
+    // Ensure Android Notification Channel is set up with high priority and lockscreen visibility
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('default', {
         name: 'default',
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#FF231F7A',
+        sound: 'default',
+        enableVibrate: true,
+        showBadge: true,
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
       });
     }
+
+    // Retrieve EAS Project ID with robust fallbacks
+    const projectId =
+      Constants.expoConfig?.extra?.eas?.projectId ??
+      (Constants as any).easConfig?.projectId ??
+      '03fb612c-593e-40ea-a7be-871606c77a6a';
+
+    const tokenData = await Notifications.getExpoPushTokenAsync({
+      projectId,
+    });
+    
+    const token = tokenData.data;
+    console.log('[Notification] Registered Token:', token);
 
     // Register token with the backend
     await apiService.registerDeviceToken({

@@ -420,6 +420,8 @@ export default function AdminChatScreen() {
   // Keep a ref to activeContact so the background poll can access it without deps
   const activeContactRef = useRef<Contact | null>(null);
   useEffect(() => { activeContactRef.current = activeContact; }, [activeContact]);
+  // Draft text cached per contact ID so text never leaks between conversations
+  const draftsRef = useRef<Record<string, string>>({});
 
   // ─── Load contacts (always sorted: most recent first) ───────────────────────
   const loadContacts = useCallback(async (silent = false) => {
@@ -560,7 +562,13 @@ export default function AdminChatScreen() {
         lastMsgIdRef.current = newMsgs.at(-1)?.id || null;
       }
 
-      setMessages(newMsgs);
+      // Keep any pending optimistic message (id < 0) that hasn't appeared in fresh messages yet
+      setMessages((prev) => {
+        const pending = prev.filter(
+          (m) => m.id < 0 && !newMsgs.some((fresh) => fresh.text === m.text && fresh.sender_id === m.sender_id)
+        );
+        return [...newMsgs, ...pending];
+      });
     } catch {}
   }, [activeContact?.id, activeContact?.type, user?.id]);
 
@@ -577,9 +585,19 @@ export default function AdminChatScreen() {
     fetchMessages().finally(() => setLoadingMessages(false));
   }, [activeContact?.id, fetchMessages]);
 
+  // ── Poll messages inside the open conversation every 3.5s for real-time updates ──
+  useEffect(() => {
+    if (!activeContact) return;
+    const interval = setInterval(() => {
+      fetchMessages();
+    }, 3500);
+    return () => clearInterval(interval);
+  }, [activeContact?.id, fetchMessages]);
+
   const handleTextChange = (text: string) => {
     setInputText(text);
     if (!activeContact) return;
+    draftsRef.current[String(activeContact.id)] = text;
 
     const trimmed = text.trim();
     const now = Date.now();
@@ -839,16 +857,28 @@ export default function AdminChatScreen() {
     try {
       const res = await apiService.sendChatMessage(payload);
       if (res.data) {
+        // Clear draft for this contact upon successful send
+        if (activeContact) {
+          delete draftsRef.current[String(activeContact.id)];
+        }
         // Replace temporary ID with persisted message
         setMessages((prev) =>
           prev.map((m) => (m.id === tempId ? res.data : m))
         );
       }
-    } catch {
+    } catch (err: any) {
       // Revert optimistic message on failure
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
       setInputText(text);
-      showToast({ title: "Error", message: "Failed to send message.", type: "error" });
+      if (activeContact) {
+        draftsRef.current[String(activeContact.id)] = text;
+      }
+      const errMsg =
+        err?.response?.data?.error ||
+        err?.response?.data?.message ||
+        err?.message ||
+        "Failed to send message.";
+      showToast({ title: "Error", message: errMsg, type: "error" });
     }
   };
 
@@ -1172,20 +1202,23 @@ export default function AdminChatScreen() {
         callee_id: activeContact.id as number,
       });
       const { id: callId, room_url, room_name, token } = res.data;
-      // Auto-send a call link into the chat so the other party can also join
-      if (room_url) {
-        const icon = type === "voice" ? "📞" : "📹";
-        const msg = `${icon} [${type === "voice" ? "Voice" : "Video"} Call Started] Join here: ${room_url}`;
-        const payload: any = { text: msg, recipient_id: activeContact.id };
-        apiService.sendChatMessage(payload).catch(() => {});
+      if (!room_url) {
+        showToast({ title: "Call Failed", message: "Server did not provide a room URL. Please try again.", type: "error" });
+        return;
       }
+      // Auto-send a call link into the chat so the other party can also join
+      const icon = type === "voice" ? "📞" : "📹";
+      const msg = `${icon} [${type === "voice" ? "Voice" : "Video"} Call Started] Join here: ${room_url}`;
+      const payload: any = { text: msg, recipient_id: activeContact.id };
+      apiService.sendChatMessage(payload).catch(() => {});
+
       // Navigate to CallScreen
       router.push({
         pathname: "/call",
         params: {
           callId,
           callType: type,
-          roomUrl: room_url || "",
+          roomUrl: room_url,
           roomName: room_name || "",
           token: token || "",
           calleeName: activeContact.name,
@@ -1207,18 +1240,21 @@ export default function AdminChatScreen() {
         ...(groupId ? { group_id: groupId } : {}),
       });
       const { id: callId, room_url, room_name, token } = res.data;
-      if (room_url) {
-        const msg = `📹 [Group Conference Started] Join here: ${room_url}`;
-        const payload: any = { text: msg };
-        if (groupId) payload.group_id = groupId;
-        apiService.sendChatMessage(payload).catch(() => {});
+      if (!room_url) {
+        showToast({ title: "Group Call Failed", message: "Server did not provide a room URL. Please try again.", type: "error" });
+        return;
       }
+      const msg = `📹 [Group Conference Started] Join here: ${room_url}`;
+      const payload: any = { text: msg };
+      if (groupId) payload.group_id = groupId;
+      apiService.sendChatMessage(payload).catch(() => {});
+
       router.push({
         pathname: "/call",
         params: {
           callId,
           callType: "video",
-          roomUrl: room_url || "",
+          roomUrl: room_url,
           roomName: room_name || "",
           token: token || "",
           calleeName: activeContact.name,
@@ -1655,6 +1691,7 @@ export default function AdminChatScreen() {
                       );
                       setActiveContact({ ...contact, unread_count: 0 });
                       setMessages([]);
+                      setInputText(draftsRef.current[String(contact.id)] || "");
                       setReplyTo(null);
                       setEditingMsg(null);
                       if (Platform.OS !== "web")
@@ -1984,7 +2021,13 @@ export default function AdminChatScreen() {
       >
         <Pressable
           onPress={() => {
+            if (activeContact) {
+              draftsRef.current[String(activeContact.id)] = inputText;
+            }
             setActiveContact(null);
+            setInputText("");
+            setReplyTo(null);
+            setEditingMsg(null);
             setShowInChatSearch(false);
             setInChatSearchQuery("");
             setShowEmojiPicker(false);
@@ -3077,11 +3120,15 @@ export default function AdminChatScreen() {
                 <Pressable
                   onPress={() => {
                     // Clear unread for this contact too
+                    if (activeContact) {
+                      draftsRef.current[String(activeContact.id)] = inputText;
+                    }
                     setContacts((prev) =>
                       prev.map((c) => c.id === avatarPopupContact.id ? { ...c, unread_count: 0 } : c)
                     );
                     setActiveContact({ ...avatarPopupContact, unread_count: 0 });
                     setMessages([]);
+                    setInputText(draftsRef.current[String(avatarPopupContact.id)] || "");
                     setReplyTo(null);
                     setEditingMsg(null);
                     setAvatarPopupContact(null);

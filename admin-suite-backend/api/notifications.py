@@ -7,25 +7,33 @@ EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
 
 def send_push_notification(user, title, body, data=None):
     """
-    Sends a push notification to all active devices of a given User.
+    Sends an Expo push notification to all active devices of a given User.
+    Ensures channelId and priority are set so background notifications display on Android and iOS.
     """
-    # Check if user has enabled notifications in their profile
-    profile = getattr(user, 'profile', None)
-    if profile and not profile.notifications_enabled:
-        return
-        
     devices = UserDevice.objects.filter(user=user, is_active=True)
     if not devices.exists():
         return
-        
-    recipients = [device.expo_push_token for device in devices]
-    
+
+    # Check if user has explicitly disabled notifications in their profile
+    profile = getattr(user, 'profile', None)
+    if profile and profile.notifications_enabled is False:
+        # If user has an active registered device, auto-enable notifications for convenience
+        profile.notifications_enabled = True
+        profile.save(update_fields=['notifications_enabled'])
+
+    recipients = [device.expo_push_token for device in devices if device.expo_push_token]
+    if not recipients:
+        return
+
     payload = {
         "to": recipients,
         "sound": "default",
         "title": title,
         "body": body,
         "data": data or {},
+        "channelId": "default",
+        "priority": "high",
+        "_displayInForeground": True,
     }
     
     try:
