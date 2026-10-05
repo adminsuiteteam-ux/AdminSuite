@@ -162,7 +162,8 @@ export default function AppSettingsScreen() {
 
         <Group title={t("settings.account")}>
           <Row icon="help-circle" label={t("settings.helpSupport")} onPress={() => router.push("/settings/help" as any)} />
-          <Row icon="file-text" label={t("settings.privacyPolicy")} onPress={() => router.push("/settings/privacy" as any)} />
+          <Row icon="shield" label={t("settings.privacyPolicy")} onPress={() => router.push("/settings/privacy" as any)} />
+          <Row icon="file-text" label={t("settings.termsConditions") || "Terms & Conditions"} onPress={() => router.push("/settings/terms" as any)} />
           <Pressable onPress={onLogout}>
             <View
               style={[

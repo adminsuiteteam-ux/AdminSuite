@@ -68,8 +68,8 @@ const Footer2 = ({
   ],
   copyright = "© 2026 AdminSuite Workspace. All rights reserved.",
   bottomLinks = [
-    { text: "Terms and Conditions", url: "#" },
-    { text: "Privacy Policy", url: "#" },
+    { text: "Terms and Conditions", url: "/terms-and-conditions.html" },
+    { text: "Privacy Policy", url: "/privacy-policy.html" },
   ],
 }: Footer2Props) => {
   return (

@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Terms and Conditions - Admin Suite</title>
+  <meta name="description" content="Terms and Conditions for Admin Suite workspace and workforce management application.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --bg: #090a0f;
+      --surface: #12141c;
+      --surface-border: #1f2333;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --badge-bg: rgba(99, 102, 241, 0.12);
+      --badge-border: rgba(99, 102, 241, 0.25);
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: var(--bg);
+      color: var(--text-main);
+      line-height: 1.7;
+      padding: 0;
+      margin: 0;
+      -webkit-font-smoothing: antialiased;
+    }
+    header {
+      background: rgba(9, 10, 15, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--surface-border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      padding: 1rem 2rem;
+    }
+    .header-inner {
+      max-width: 900px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      text-decoration: none;
+      color: #fff;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-weight: 800;
+      font-size: 1.25rem;
+    }
+    .brand-icon {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+    }
+    .nav-links {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+    }
+    .nav-link {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+    .nav-link:hover {
+      color: var(--text-main);
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 3rem 1.5rem 6rem;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 0.85rem;
+      border-radius: 9999px;
+      background: var(--badge-bg);
+      border: 1px solid var(--badge-border);
+      color: #818cf8;
+      font-size: 0.825rem;
+      font-weight: 600;
+      margin-bottom: 1.25rem;
+    }
+    h1 {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: clamp(2.2rem, 5vw, 3.2rem);
+      font-weight: 800;
+      line-height: 1.15;
+      margin-bottom: 1rem;
+      background: linear-gradient(to right, #ffffff, #c7d2fe);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .meta-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+      padding-bottom: 2rem;
+      border-bottom: 1px solid var(--surface-border);
+      margin-bottom: 2.5rem;
+      font-size: 0.875rem;
+      color: var(--text-muted);
+    }
+    .meta-item strong {
+      color: var(--text-main);
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 16px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+    }
+    h2 {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #fff;
+      margin-top: 2.5rem;
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--surface-border);
+    }
+    h3 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: #e0e7ff;
+      margin-top: 1.5rem;
+      margin-bottom: 0.6rem;
+    }
+    p {
+      margin-bottom: 1.25rem;
+      color: #d1d5db;
+      font-size: 1rem;
+    }
+    ul, ol {
+      margin-bottom: 1.5rem;
+      padding-left: 1.5rem;
+      color: #d1d5db;
+    }
+    li {
+      margin-bottom: 0.5rem;
+    }
+    strong {
+      color: #fff;
+    }
+    a {
+      color: #818cf8;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+    a:hover {
+      color: #a5b4fc;
+    }
+    .code-badge {
+      display: inline-block;
+      padding: 0.15rem 0.45rem;
+      border-radius: 6px;
+      background: #1e2233;
+      color: #a5b4fc;
+      font-family: monospace;
+      font-size: 0.85rem;
+    }
+    .warning-box {
+      border-left: 4px solid #ef4444;
+      background: #1e1317;
+      padding: 1.25rem 1.5rem;
+      border-radius: 0 12px 12px 0;
+      margin: 1.75rem 0;
+    }
+    .warning-box p:last-child {
+      margin-bottom: 0;
+    }
+    footer {
+      border-top: 1px solid var(--surface-border);
+      padding: 3rem 1.5rem;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.875rem;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="header-inner">
+      <a href="/" class="brand">
+        <div class="brand-icon">⚡</div>
+        <span>Admin Suite</span>
+      </a>
+      <nav class="nav-links">
+        <a href="/" class="nav-link">Home</a>
+        <a href="/privacy-policy.html" class="nav-link">Privacy</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="hero-badge">Enterprise Agreement • Terms of Service</div>
+    <h1>Terms and Conditions</h1>
+    
+    <div class="meta-bar">
+      <div class="meta-item">Application: <strong>Admin Suite</strong></div>
+      <div class="meta-item">Owner: <strong>ThirdParti</strong></div>
+      <div class="meta-item">Effective Date: <strong>October 5, 2026</strong></div>
+      <div class="meta-item">Contact: <strong>support@adminsuite.com</strong></div>
+    </div>
+
+    <section>
+      <h2>1. Acceptance of Terms</h2>
+      <p>
+        These Terms and Conditions ("Terms", "Agreement") constitute a legally binding agreement between you (whether an individual user or representative of an enterprise, "User", "you") and <strong>Admin Suite</strong> ("we", "us", or "our"), governing your access to and use of the Admin Suite mobile applications, web platforms, and associated services (collectively, the "Services").
+      </p>
+      <p>
+        By downloading the app from the Google Play Store, creating an account, or using our Services, you agree to be bound by these Terms and our <a href="/privacy-policy.html">Privacy Policy</a>. If you do not agree to all terms, you must not use our Services.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Eligibility & Workspace Hierarchy</h2>
+      <h3>A. Age & Capacity</h3>
+      <p>You must be at least 18 years of age and legally authorized to enter into binding agreements in your jurisdiction to use Admin Suite.</p>
+
+      <h3>B. Workspace Administration & Roles</h3>
+      <ul>
+        <li><strong>Workspace Owners / Admins:</strong> Users who configure an organizational workspace have authority to invite staff, assign roles (Admin, Manager, Employee), approve leaves, adjust shifts, manage payroll metrics, and control workspace data.</li>
+        <li><strong>Employees & Members:</strong> Users joining via employer invitations acknowledge that their attendance, assigned tasks, and public workspace records are administered by their respective organization.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>3. Account Security & Responsibilities</h2>
+      <p>
+        You are responsible for maintaining the confidentiality of your login credentials (passwords, Google Sign-In session tokens). You agree to notify Admin Suite immediately of any unauthorized access to your account. You remain responsible for all activities occurring under your credentials.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Acceptable Use Policy</h2>
+      <p>You agree not to use the Services for any unlawful purpose or in violation of these Terms. Prohibited activities include:</p>
+      <ul>
+        <li>Transmitting unlawful, harassing, defamatory, or abusive content through chat or calls.</li>
+        <li>Using attendance or communication tools for unlawful surveillance in violation of labor laws.</li>
+        <li>Interfering with or disrupting application security, network servers, or backend services.</li>
+        <li>Attempting to reverse engineer, decompile, or extract the source code of Admin Suite.</li>
+        <li>Attempting unauthorized access to other workspaces or user accounts.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>5. Voice & Video Communications</h2>
+      <p>Admin Suite provides real-time WebRTC audio and video calling powered by Daily.co:</p>
+      <ul>
+        <li><strong>Zero Server Recording:</strong> Calls are not recorded or stored by Admin Suite. If you employ third-party recording software, you must obtain prior legal consent from all call participants in compliance with wiretapping laws.</li>
+      </ul>
+      <div class="warning-box">
+        <p><strong>⚠️ No Emergency Services:</strong> Admin Suite is an internal enterprise collaboration tool and cannot be used to contact emergency services (e.g., 911, 112, 999). Ensure standard telephone access is available for emergency situations.</p>
+      </div>
+    </section>
+
+    <section>
+      <h2>6. Intellectual Property & Customer Data</h2>
+      <h3>A. Our Intellectual Property</h3>
+      <p>The Admin Suite software, interface design, branding, logos, and backend architecture are the exclusive property of Admin Suite / ThirdParti and are protected by applicable intellectual property laws.</p>
+
+      <h3>B. Customer Data Ownership</h3>
+      <p>Your organization retains full ownership of all business data, employee profiles, tasks, attendance records, and messages entered into your workspace. You grant us a limited license to host and process such data solely to operate the Services.</p>
+    </section>
+
+    <section>
+      <h2>7. Disclaimer of Warranties</h2>
+      <p>
+        THE SERVICES ARE PROVIDED ON AN "AS IS" AND "AS AVAILABLE" BASIS WITHOUT WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED. ADMIN SUITE DISCLAIMS ALL WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. WE DO NOT WARRANT THAT CALL TRANSMISSIONS OR NOTIFICATIONS WILL BE UNINTERRUPTED OR ERROR-FREE.
+      </p>
+    </section>
+
+    <section>
+      <h2>8. Limitation of Liability</h2>
+      <p>
+        TO THE MAXIMUM EXTENT PERMITTED BY LAW, ADMIN SUITE AND ITS AFFILIATES SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, OR CONSEQUENTIAL DAMAGES (INCLUDING LOSS OF REVENUE, PROFITS, OR BUSINESS DISRUPTIONS). TOTAL LIABILITY SHALL NOT EXCEED THE AMOUNT PAID BY YOU TO ADMIN SUITE IN THE PAST TWELVE MONTHS OR $100 USD, WHICHEVER IS GREATER.
+      </p>
+    </section>
+
+    <section>
+      <h2>9. Termination</h2>
+      <p>
+        You may stop using the Services at any time. We reserve the right to suspend or terminate accounts that violate these Terms or threaten platform integrity.
+      </p>
+    </section>
+
+    <section>
+      <h2>10. Contact Us</h2>
+      <p>For questions regarding these Terms and Conditions, please contact us:</p>
+      <div class="card" style="margin-top: 1rem;">
+        <p><strong>Owner:</strong> ThirdParti / Admin Suite Team</p>
+        <p><strong>Support Email:</strong> <a href="mailto:support@adminsuite.com">support@adminsuite.com</a></p>
+        <p><strong>Legal Inquiries:</strong> <a href="mailto:legal@adminsuite.com">legal@adminsuite.com</a></p>
+        <p><strong>Website:</strong> <a href="https://adminsuite.onrender.com" target="_blank" rel="noopener">https://adminsuite.onrender.com</a></p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>&copy; 2026 Admin Suite / ThirdParti. All rights reserved.</p>
+    <p style="margin-top: 0.5rem;"><a href="/terms-and-conditions.html">Terms and Conditions</a> • <a href="/privacy-policy.html">Privacy Policy</a></p>
+  </footer>
+
+</body>
+</html>

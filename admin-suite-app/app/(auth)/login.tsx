@@ -447,7 +447,20 @@ export default function LoginScreen() {
 
           <View style={styles.footer}>
             <Text style={[styles.footerText, { fontFamily: "Inter_400Regular", color: colors.mutedForeground }]}>
-              By clicking "Continue", I have read and agree{"\n"}with the <Text style={{ textDecorationLine: "underline" }}>Term Sheet</Text>, <Text style={{ textDecorationLine: "underline" }}>Privacy Policy</Text>
+              By clicking "Continue", I have read and agree{"\n"}with the{" "}
+              <Text
+                style={{ textDecorationLine: "underline", color: colors.primary }}
+                onPress={() => router.push("/settings/terms" as any)}
+              >
+                Terms &amp; Conditions
+              </Text>{" "}
+              and{" "}
+              <Text
+                style={{ textDecorationLine: "underline", color: colors.primary }}
+                onPress={() => router.push("/settings/privacy" as any)}
+              >
+                Privacy Policy
+              </Text>
             </Text>
           </View>
         </View>

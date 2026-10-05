@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
 
-export default function PrivacyPolicyScreen() {
+export default function TermsConditionsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
 
@@ -26,7 +26,7 @@ export default function PrivacyPolicyScreen() {
           <Feather name="chevron-left" size={22} color={colors.foreground} />
         </Pressable>
         <Text style={[styles.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-          Privacy Policy
+          Terms &amp; Conditions
         </Text>
         <View style={{ width: 38 }} />
       </View>
@@ -34,112 +34,84 @@ export default function PrivacyPolicyScreen() {
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
         {/* Badge & Meta */}
         <View style={[styles.badge, { backgroundColor: colors.primary + "1A", borderColor: colors.primary + "33" }]}>
-          <Feather name="shield" size={14} color={colors.primary} />
+          <Feather name="file-text" size={14} color={colors.primary} />
           <Text style={[styles.badgeText, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
-            Google Play & GDPR Compliant
+            User Agreement &amp; Terms of Service
           </Text>
         </View>
 
         <Text style={[styles.metaText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          Application: Admin Suite (com.adminsuite.app){"\n"}
-          Last Updated: October 5, 2026
+          Application: Admin Suite{"\n"}
+          Owner: ThirdParti{"\n"}
+          Effective Date: October 5, 2026
         </Text>
 
         {/* Section 1 */}
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.heading, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-            1. Overview
+            1. Acceptance of Terms
           </Text>
           <Text style={[styles.paragraph, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-            Admin Suite is a unified workforce administration and communication platform. We take your privacy and workplace confidentiality seriously. This policy outlines what data we handle and how your rights are protected.
+            By downloading, registering, or accessing Admin Suite, you agree to be bound by these Terms and our Privacy Policy. If you do not agree, you must discontinue using our services.
           </Text>
         </View>
 
         {/* Section 2 */}
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.heading, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-            2. Data We Collect
-          </Text>
-          <Text style={[styles.subheading, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-            • Account & Identity
+            2. Workspace Roles &amp; Responsibilities
           </Text>
           <Text style={[styles.paragraph, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-            Name, email address, password hash, and profile avatar. When using Google Sign-In, we receive your Google ID, name, verified email, and avatar strictly for authentication.
-          </Text>
-
-          <Text style={[styles.subheading, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-            • Workplace Administration
-          </Text>
-          <Text style={[styles.paragraph, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-            Clock-in/out timestamps, attendance logs, shift rosters, assigned tasks, and administrative payroll metrics configured by your employer.
-          </Text>
-
-          <Text style={[styles.subheading, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-            • Real-Time Voice & Video Calls
-          </Text>
-          <Text style={[styles.paragraph, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-            Real-time calls are streamed via Daily.co WebRTC. Admin Suite does NOT record, store, or monitor audio or video streams on our servers.
+            • Workspace Administrators manage employee rosters, shift assignments, and organizational parameters.{"\n"}
+            • Employees and members agree that their attendance logs, assigned tasks, and public workspace records are administered by their organization.
           </Text>
         </View>
 
         {/* Section 3 */}
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.heading, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-            3. Device Permissions
+            3. Acceptable Use Policy
           </Text>
-          <View style={styles.permRow}>
-            <Feather name="mic" size={16} color={colors.primary} />
-            <Text style={[styles.permText, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>Microphone (RECORD_AUDIO):</Text>
-          </View>
-          <Text style={[styles.permDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-            Used exclusively for voice audio during workspace calls.
-          </Text>
-
-          <View style={styles.permRow}>
-            <Feather name="camera" size={16} color={colors.primary} />
-            <Text style={[styles.permText, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>Camera (CAMERA):</Text>
-          </View>
-          <Text style={[styles.permDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-            Used for live video conferencing and profile photo capture.
-          </Text>
-
-          <View style={styles.permRow}>
-            <Feather name="bell" size={16} color={colors.primary} />
-            <Text style={[styles.permText, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>Notifications (POST_NOTIFICATIONS):</Text>
-          </View>
-          <Text style={[styles.permDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-            Used to ring incoming calls, deliver messages, and alert urgent tasks.
+          <Text style={[styles.paragraph, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+            Users agree not to transmit abusive or unlawful content, disrupt platform security, conduct unauthorized surveillance, or attempt to reverse-engineer Admin Suite software.
           </Text>
         </View>
 
         {/* Section 4 */}
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.heading, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-            4. Third-Party Services
+            4. Voice &amp; Video Calling Disclaimer
           </Text>
           <Text style={[styles.paragraph, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-            We integrate with trusted providers for infrastructure: Google Identity (OAuth), Daily.co (WebRTC calls), Expo/FCM (Push Notifications), and Sentry (Crash Diagnostics).
-          </Text>
-          <Text style={[styles.paragraph, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-            We never sell or lease your data to advertising networks.
+            Real-time calls are provided for internal workplace collaboration. Admin Suite does NOT support emergency telephone calls (e.g., 911, 112). Traditional telephone access must be maintained for emergency services.
           </Text>
         </View>
 
         {/* Section 5 */}
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.heading, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-            5. Account & Data Deletion
+            5. Disclaimers &amp; Limitation of Liability
           </Text>
           <Text style={[styles.paragraph, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-            You have the right to request deletion of your account and personal records. You can submit an in-app request via Settings &gt; Help &amp; Support, or email our privacy team directly:
+            The Services are provided "as is" without warranty. Admin Suite is not liable for indirect, incidental, or consequential damages resulting from service interruptions or workplace administrative decisions.
+          </Text>
+        </View>
+
+        {/* Contact */}
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.heading, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+            6. Inquiries
+          </Text>
+          <Text style={[styles.paragraph, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+            For legal notices or questions regarding these terms, reach out to our legal and support team:
           </Text>
           <Pressable
-            onPress={() => handleOpenEmail("privacy@adminsuite.com")}
+            onPress={() => handleOpenEmail("support@adminsuite.com")}
             style={[styles.emailBtn, { backgroundColor: colors.primary }]}
           >
             <Feather name="mail" size={16} color="#fff" />
             <Text style={[styles.emailBtnText, { fontFamily: "Inter_600SemiBold" }]}>
-              Email privacy@adminsuite.com
+              Email support@adminsuite.com
             </Text>
           </Pressable>
         </View>
@@ -186,11 +158,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   heading: { fontSize: 16, marginBottom: 10 },
-  subheading: { fontSize: 14, marginTop: 10, marginBottom: 4 },
   paragraph: { fontSize: 13, lineHeight: 20, marginBottom: 8 },
-  permRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8, marginBottom: 2 },
-  permText: { fontSize: 13 },
-  permDesc: { fontSize: 12, lineHeight: 18, marginLeft: 24, marginBottom: 6 },
   emailBtn: {
     flexDirection: "row",
     alignItems: "center",
