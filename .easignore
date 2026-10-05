@@ -1,0 +1,29 @@
+# Root EAS Ignore file for AdminSuite monorepo
+# Tells EAS Build to ONLY include admin-suite-app and exclude everything else
+
+admin-suite-backend/
+admin-suite-landing/
+admin-suite-web/
+Admin-Dashboard/
+.agents/
+.claude/
+.idea/
+.vscode/
+
+# Ignore native & cache directories within app
+**/android/
+**/ios/
+**/node_modules/
+**/.expo/
+**/dist/
+**/web-build/
+**/.venv/
+**/__pycache__/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+npm-debug.*
+*.log
+IMG-*.jpg
