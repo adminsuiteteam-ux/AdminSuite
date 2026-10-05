@@ -207,15 +207,37 @@ class EmployeeSerializer(serializers.ModelSerializer):
             # Auto-create or link user account for the employee
             email = validated_data.get('email', '').strip().lower()
             name = validated_data.get('name', '').strip()
-            
+
+            creator_user = self.context['request'].user if 'request' in self.context else user
+
+            # Guard 1: Prevent creating an employee with the current Admin's email
+            if creator_user and creator_user.email and creator_user.email.strip().lower() == email:
+                raise serializers.ValidationError({
+                    "email": "You cannot create an employee record with your own Admin account email. As the Admin, you already have full company access."
+                })
+
             # Check if an Employee profile already exists for this email
             if Employee.objects.filter(email=email).exists():
                 raise serializers.ValidationError({"email": "An employee record with this email address already exists."})
-                
+
+            # Guard 2: Prevent overwriting any existing Admin or CEO account
+            emp_user = User.objects.filter(email=email).first()
+            if emp_user:
+                existing_profile = getattr(emp_user, 'profile', None)
+                existing_ext = getattr(emp_user, 'extension', None)
+                is_admin_account = (
+                    (existing_profile and existing_profile.role and existing_profile.role.upper() in ('ADMIN', 'CEO')) or
+                    (existing_ext and existing_ext.role and existing_ext.role.upper() in ('ADMIN', 'CEO')) or
+                    emp_user.is_superuser or emp_user.is_staff
+                )
+                if is_admin_account:
+                    raise serializers.ValidationError({
+                        "email": "This email belongs to an active Admin account and cannot be registered as an employee."
+                    })
+
             temp_password = "Temp#" + "".join(random.choices(string.ascii_letters + string.digits, k=8))
             
             # Reuse existing User if orphaned, or create a new Django User
-            emp_user = User.objects.filter(email=email).first()
             if emp_user:
                 emp_user.set_password(temp_password)
                 if name:
