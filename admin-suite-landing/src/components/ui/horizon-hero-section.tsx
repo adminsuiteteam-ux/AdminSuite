@@ -627,6 +627,14 @@ export const Component = () => {
             >
               Download APK
             </a>
+            <a
+              href="https://adminsuite-web.onrender.com"
+              target="_blank"
+              rel="noreferrer"
+              className="text-sm font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors hover:scale-105 active:scale-95 duration-200"
+            >
+              Web App ↗
+            </a>
           </div>
 
           {/* Mobile: Hamburger only */}
@@ -677,6 +685,14 @@ export const Component = () => {
             >
               Download APK
             </a>
+            <a
+              href="https://adminsuite-web.onrender.com"
+              target="_blank"
+              rel="noreferrer"
+              className="block px-4 py-3 rounded-xl text-sm font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-zinc-100 dark:hover:bg-white/5 transition-colors"
+            >
+              Launch Web App ↗
+            </a>
           </div>
         )}
       </div>
@@ -713,9 +729,14 @@ export const Component = () => {
 
               {/* Hero CTAs */}
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4 pointer-events-auto">
-                <a href="#about" onClick={(e) => { e.preventDefault(); document.getElementById('about-section')?.scrollIntoView({ behavior: 'smooth' }); }} className="pointer-events-auto">
+                <a
+                  href="https://adminsuite-web.onrender.com"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="pointer-events-auto"
+                >
                   <Button size="lg" className="rounded-full px-8 bg-zinc-900 text-white dark:bg-white dark:text-black hover:bg-zinc-850 dark:hover:bg-white/95 font-semibold flex items-center gap-2">
-                    <span>Explore Features</span>
+                    <span>Launch Web App</span>
                     <ArrowRight className="w-4 h-4" />
                   </Button>
                 </a>

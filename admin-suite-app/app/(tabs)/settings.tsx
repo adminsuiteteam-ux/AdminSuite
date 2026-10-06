@@ -65,45 +65,6 @@ export default function MoreHubScreen() {
           {t("settings.more")}
           </Text>
 
-          {/* ── Premium Upgrade Banner ── */}
-          <Pressable
-            onPress={() => router.push("/premium" as any)}
-            style={({ pressed }) => ({
-              opacity: pressed ? 0.88 : 1,
-              transform: [{ scale: pressed ? 0.98 : 1 }],
-              marginBottom: 8,
-            })}
-          >
-            <LinearGradient
-              colors={["#4f46e5", "#7c3aed", "#a855f7"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.premiumBanner}
-            >
-              {/* Decorative glow blobs */}
-              <View style={styles.premiumGlowA} />
-              <View style={styles.premiumGlowB} />
-
-              <View style={styles.premiumLeft}>
-                <View style={styles.premiumIconWrap}>
-                  <FontAwesome6 name="crown" size={20} color="#fbbf24" solid />
-                </View>
-                <View style={{ flex: 1, marginLeft: 14 }}>
-                  <Text style={{ color: "#fff", fontFamily: "Inter_700Bold", fontSize: 16, letterSpacing: -0.3 }}>
-                    Upgrade to Premium
-                  </Text>
-                  <Text style={{ color: "rgba(255,255,255,0.75)", fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 3 }}>
-                    Unlock unlimited records, analytics & more
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.premiumCta}>
-                <Text style={{ color: "#fff", fontFamily: "Inter_700Bold", fontSize: 12 }}>View Plans</Text>
-                <Feather name="chevron-right" size={14} color="rgba(255,255,255,0.8)" />
-              </View>
-            </LinearGradient>
-          </Pressable>
-
           {/* Workspace Settings */}
           <Group title={t("settings.workspace")}>
             <Row

@@ -32,8 +32,7 @@ export default function EmployeeFinanceScreen() {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  const currentPlan = subscriptionLimits?.plan || 'BASIC';
-  const canEditFinancials = ['PRO', 'PRO_YEARLY'].includes(currentPlan);
+  const canEditFinancials = true;
 
   const [editCurrentPay, setEditCurrentPay] = useState("");
   const [editEmployeeOwes, setEditEmployeeOwes] = useState("");
@@ -68,12 +67,6 @@ export default function EmployeeFinanceScreen() {
   const netBalance = companyOwes - employeeOwes;
 
   const startEditing = () => {
-    if (!canEditFinancials) {
-      return Alert.alert(
-        t("finance.featureGated"),
-        t("finance.featureGatedMessage")
-      );
-    }
     setEditCurrentPay(String(currentPay));
     setEditEmployeeOwes(String(employeeOwes));
     setEditCompanyOwes(String(companyOwes));

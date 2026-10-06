@@ -52,11 +52,20 @@ IMG-*.jpg
 
 # ── Environment Variables & Sensitive Credentials (CRITICAL) ─────────────────
 **/.env
+**/.env*
+**/.env.*
+!**/.env.example
 **/.env.local
 **/.env.development.local
 **/.env.test.local
 **/.env.production.local
 **/.env.sync.local
+**/*credentials*
+**/*secrets*
+**/*.key
+**/*.pem
+**/*.p12
+**/*.keystore
 
 # ── Django Static Assets ──────────────────────────────────────────────────────
 **/staticfiles/
