@@ -25,10 +25,20 @@ const TAB_ITEMS = [
 ];
 
 export default function TabLayout() {
+  const colors = useColors();
   return (
     <Tabs
       tabBar={(props) => <GlassTabBar state={props.state} navigation={props.navigation} />}
-      screenOptions={{ headerShown: false }}
+      screenOptions={{
+        headerShown: false,
+        sceneStyle: { backgroundColor: colors.background || "#09090b" },
+        tabBarStyle: {
+          position: "absolute",
+          backgroundColor: "transparent",
+          borderTopWidth: 0,
+          elevation: 0,
+        },
+      }}
     >
       {TAB_ITEMS.map((it) => (
         <Tabs.Screen key={it.name} name={it.name} options={{ title: it.label }} />

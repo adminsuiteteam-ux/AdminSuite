@@ -9,7 +9,7 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/icon.png",
+      "image": "./assets/images/splash-transparent.png",
       "resizeMode": "contain",
       "backgroundColor": "#09090b"
     },
@@ -39,7 +39,15 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.CAMERA",
         "android.permission.MODIFY_AUDIO_SETTINGS"
-      ]
+      ],
+      "navigationBar": {
+        "backgroundColor": "#09090b",
+        "barStyle": "light-content"
+      }
+    },
+    "androidNavigationBar": {
+      "backgroundColor": "#09090b",
+      "barStyle": "light-content"
     },
     "web": {
       "bundler": "metro",

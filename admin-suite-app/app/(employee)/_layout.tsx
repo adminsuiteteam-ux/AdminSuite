@@ -24,10 +24,20 @@ const TAB_ITEMS = [
 ];
 
 export default function EmployeeLayout() {
+  const colors = useColors();
   return (
     <Tabs
       tabBar={(props) => <GlassTabBar {...props} />}
-      screenOptions={{ headerShown: false }}
+      screenOptions={{
+        headerShown: false,
+        sceneStyle: { backgroundColor: colors.background || "#09090b" },
+        tabBarStyle: {
+          position: "absolute",
+          backgroundColor: "transparent",
+          borderTopWidth: 0,
+          elevation: 0,
+        },
+      }}
     >
       {TAB_ITEMS.map((it) => (
         <Tabs.Screen

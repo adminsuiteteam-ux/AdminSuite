@@ -47,6 +47,7 @@ export default function EmployeeProfileScreen() {
   const [photoUri, setPhotoUri] = useState<string | null>(user?.avatar ? getMediaUrl(user.avatar) : null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -195,6 +196,8 @@ export default function EmployeeProfileScreen() {
         type: "success",
       });
 
+      setIsEditing(false);
+
       // Offer biometric enrolment only after a password change and not already enabled
       if (didChangePassword && !biometricsEnabled) {
         setTimeout(promptBiometricEnrolment, 600);
@@ -210,6 +213,20 @@ export default function EmployeeProfileScreen() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const onCancel = () => {
+    if (user) {
+      setName(user.name || "");
+      setPhone(user.phone || "");
+      setLocation(user.location || "");
+      setBio(user.bio || "");
+      setPhotoUri(user.avatar ? getMediaUrl(user.avatar) : null);
+    }
+    setPassword("");
+    setConfirmPassword("");
+    setError("");
+    setIsEditing(false);
   };
 
   const getBorderColor = (anim: Animated.Value) => {
@@ -257,17 +274,44 @@ export default function EmployeeProfileScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-            My Profile
-          </Text>
-          <Text style={[styles.subtitle, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-            Edit your profile details or change password
-          </Text>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+                My Profile
+              </Text>
+              <Text style={[styles.subtitle, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                {isEditing ? "Edit your profile details or change password" : "View your profile details"}
+              </Text>
+            </View>
+            {!isEditing && (
+              <Pressable
+                onPress={() => {
+                  if (Platform.OS !== "web") {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                  }
+                  setIsEditing(true);
+                }}
+                style={({ pressed }) => [
+                  styles.editHeaderBtn,
+                  { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 },
+                ]}
+              >
+                <Feather name="edit-2" size={13} color={colors.primaryForeground} />
+                <Text style={{ color: colors.primaryForeground, fontFamily: "Inter_600SemiBold", fontSize: 13 }}>
+                  Edit
+                </Text>
+              </Pressable>
+            )}
+          </View>
         </View>
 
         {/* ── Avatar initials / image ── */}
         <View style={styles.avatarRow}>
-          <Pressable onPress={pickImage} style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1 })}>
+          <Pressable
+            disabled={!isEditing}
+            onPress={pickImage}
+            style={({ pressed }) => ({ opacity: pressed && isEditing ? 0.8 : 1 })}
+          >
             <View style={[styles.avatarCircle, { backgroundColor: colors.primary, overflow: "hidden", borderWidth: 1, borderColor: colors.border }]}>
               {photoUri || user?.avatar ? (
                 <Image
@@ -288,11 +332,13 @@ export default function EmployeeProfileScreen() {
             <Text style={[styles.avatarRole, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
               Employee
             </Text>
-            <Pressable onPress={pickImage} hitSlop={10}>
-              <Text style={{ color: colors.accent, fontFamily: "Inter_600SemiBold", fontSize: 13, marginTop: 4 }}>
-                Change Profile Photo
-              </Text>
-            </Pressable>
+            {isEditing && (
+              <Pressable onPress={pickImage} hitSlop={10}>
+                <Text style={{ color: colors.accent, fontFamily: "Inter_600SemiBold", fontSize: 13, marginTop: 4 }}>
+                  Change Profile Photo
+                </Text>
+              </Pressable>
+            )}
           </View>
         </View>
 
@@ -348,11 +394,11 @@ export default function EmployeeProfileScreen() {
             style={[
               styles.inputWrap,
               {
-                backgroundColor: colors.inputGlass,
-                borderColor: getBorderColor(nameGlow),
-                borderWidth: 1.5,
+                backgroundColor: isEditing ? colors.inputGlass : (colors.isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)"),
+                borderColor: isEditing ? getBorderColor(nameGlow) : colors.border,
+                borderWidth: isEditing ? 1.5 : 1,
                 shadowColor: colors.accent,
-                shadowOpacity: getShadowOpacity(nameGlow),
+                shadowOpacity: isEditing ? getShadowOpacity(nameGlow) : 0,
                 shadowRadius: 12,
               },
             ]}
@@ -360,13 +406,17 @@ export default function EmployeeProfileScreen() {
             <Feather name="user" size={14} color={colors.mutedForeground} />
             <TextInput
               value={name}
+              editable={isEditing}
               onChangeText={setName}
               onFocus={() => nameGlow.setValue(1)}
               onBlur={() => nameGlow.setValue(0)}
               placeholder="Full Name"
               placeholderTextColor={colors.mutedForeground}
-              style={[styles.input, { color: colors.text, fontFamily: "Inter_500Medium" }]}
+              style={[styles.input, { color: colors.text, fontFamily: "Inter_500Medium", opacity: isEditing ? 1 : 0.85 }]}
             />
+            {!isEditing && (
+              <Feather name="lock" size={12} color={colors.mutedForeground} style={{ opacity: 0.5 }} />
+            )}
           </Animated.View>
 
           {/* Phone Number */}
@@ -377,11 +427,11 @@ export default function EmployeeProfileScreen() {
             style={[
               styles.inputWrap,
               {
-                backgroundColor: colors.inputGlass,
-                borderColor: getBorderColor(phoneGlow),
-                borderWidth: 1.5,
+                backgroundColor: isEditing ? colors.inputGlass : (colors.isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)"),
+                borderColor: isEditing ? getBorderColor(phoneGlow) : colors.border,
+                borderWidth: isEditing ? 1.5 : 1,
                 shadowColor: colors.accent,
-                shadowOpacity: getShadowOpacity(phoneGlow),
+                shadowOpacity: isEditing ? getShadowOpacity(phoneGlow) : 0,
                 shadowRadius: 12,
               },
             ]}
@@ -389,14 +439,18 @@ export default function EmployeeProfileScreen() {
             <Feather name="phone" size={14} color={colors.mutedForeground} />
             <TextInput
               value={phone}
+              editable={isEditing}
               onChangeText={setPhone}
               onFocus={() => phoneGlow.setValue(1)}
               onBlur={() => phoneGlow.setValue(0)}
-              placeholder="Phone Number"
+              placeholder={isEditing ? "Phone Number" : "Not specified"}
               placeholderTextColor={colors.mutedForeground}
               keyboardType="phone-pad"
-              style={[styles.input, { color: colors.text, fontFamily: "Inter_500Medium" }]}
+              style={[styles.input, { color: colors.text, fontFamily: "Inter_500Medium", opacity: isEditing ? 1 : 0.85 }]}
             />
+            {!isEditing && (
+              <Feather name="lock" size={12} color={colors.mutedForeground} style={{ opacity: 0.5 }} />
+            )}
           </Animated.View>
 
           {/* Location */}
@@ -407,11 +461,11 @@ export default function EmployeeProfileScreen() {
             style={[
               styles.inputWrap,
               {
-                backgroundColor: colors.inputGlass,
-                borderColor: getBorderColor(locGlow),
-                borderWidth: 1.5,
+                backgroundColor: isEditing ? colors.inputGlass : (colors.isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)"),
+                borderColor: isEditing ? getBorderColor(locGlow) : colors.border,
+                borderWidth: isEditing ? 1.5 : 1,
                 shadowColor: colors.accent,
-                shadowOpacity: getShadowOpacity(locGlow),
+                shadowOpacity: isEditing ? getShadowOpacity(locGlow) : 0,
                 shadowRadius: 12,
               },
             ]}
@@ -419,13 +473,17 @@ export default function EmployeeProfileScreen() {
             <Feather name="map-pin" size={14} color={colors.mutedForeground} />
             <TextInput
               value={location}
+              editable={isEditing}
               onChangeText={setLocation}
               onFocus={() => locGlow.setValue(1)}
               onBlur={() => locGlow.setValue(0)}
-              placeholder="Office Location"
+              placeholder={isEditing ? "Office Location" : "Not specified"}
               placeholderTextColor={colors.mutedForeground}
-              style={[styles.input, { color: colors.text, fontFamily: "Inter_500Medium" }]}
+              style={[styles.input, { color: colors.text, fontFamily: "Inter_500Medium", opacity: isEditing ? 1 : 0.85 }]}
             />
+            {!isEditing && (
+              <Feather name="lock" size={12} color={colors.mutedForeground} style={{ opacity: 0.5 }} />
+            )}
           </Animated.View>
 
           {/* Bio */}
@@ -437,91 +495,95 @@ export default function EmployeeProfileScreen() {
               styles.inputWrap,
               styles.textArea,
               {
-                backgroundColor: colors.inputGlass,
-                borderColor: getBorderColor(bioGlow),
-                borderWidth: 1.5,
+                backgroundColor: isEditing ? colors.inputGlass : (colors.isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)"),
+                borderColor: isEditing ? getBorderColor(bioGlow) : colors.border,
+                borderWidth: isEditing ? 1.5 : 1,
                 shadowColor: colors.accent,
-                shadowOpacity: getShadowOpacity(bioGlow),
+                shadowOpacity: isEditing ? getShadowOpacity(bioGlow) : 0,
                 shadowRadius: 12,
               },
             ]}
           >
             <TextInput
               value={bio}
+              editable={isEditing}
               onChangeText={setBio}
               onFocus={() => bioGlow.setValue(1)}
               onBlur={() => bioGlow.setValue(0)}
-              placeholder="Write a brief bio about your role..."
+              placeholder={isEditing ? "Write a brief bio about your role..." : "No bio description"}
               placeholderTextColor={colors.mutedForeground}
               multiline
               numberOfLines={4}
-              style={[styles.input, { color: colors.text, fontFamily: "Inter_500Medium", height: 80 }]}
+              style={[styles.input, { color: colors.text, fontFamily: "Inter_500Medium", height: 80, opacity: isEditing ? 1 : 0.85 }]}
             />
           </Animated.View>
 
-          {/* Divider */}
-          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          {/* Password Updates (Only visible in edit mode) */}
+          {isEditing && (
+            <>
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
-          {/* Password Updates */}
-          <Text style={[styles.inputLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-            Change Password (Optional)
-          </Text>
-          <Animated.View
-            style={[
-              styles.inputWrap,
-              {
-                backgroundColor: colors.inputGlass,
-                borderColor: getBorderColor(passGlow),
-                borderWidth: 1.5,
-                shadowColor: colors.accent,
-                shadowOpacity: getShadowOpacity(passGlow),
-                shadowRadius: 12,
-              },
-            ]}
-          >
-            <Feather name="lock" size={14} color={colors.mutedForeground} />
-            <TextInput
-              value={password}
-              onChangeText={setPassword}
-              onFocus={() => passGlow.setValue(1)}
-              onBlur={() => passGlow.setValue(0)}
-              placeholder="New Password"
-              placeholderTextColor={colors.mutedForeground}
-              secureTextEntry={!showPass}
-              style={[styles.input, { color: colors.text, fontFamily: "Inter_500Medium" }]}
-            />
-            <Pressable onPress={() => setShowPass((v) => !v)} hitSlop={8}>
-              <Feather name={showPass ? "eye-off" : "eye"} size={14} color={colors.mutedForeground} />
-            </Pressable>
-          </Animated.View>
+              <Text style={[styles.inputLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+                Change Password (Optional)
+              </Text>
+              <Animated.View
+                style={[
+                  styles.inputWrap,
+                  {
+                    backgroundColor: colors.inputGlass,
+                    borderColor: getBorderColor(passGlow),
+                    borderWidth: 1.5,
+                    shadowColor: colors.accent,
+                    shadowOpacity: getShadowOpacity(passGlow),
+                    shadowRadius: 12,
+                  },
+                ]}
+              >
+                <Feather name="lock" size={14} color={colors.mutedForeground} />
+                <TextInput
+                  value={password}
+                  onChangeText={setPassword}
+                  onFocus={() => passGlow.setValue(1)}
+                  onBlur={() => passGlow.setValue(0)}
+                  placeholder="New Password"
+                  placeholderTextColor={colors.mutedForeground}
+                  secureTextEntry={!showPass}
+                  style={[styles.input, { color: colors.text, fontFamily: "Inter_500Medium" }]}
+                />
+                <Pressable onPress={() => setShowPass((v) => !v)} hitSlop={8}>
+                  <Feather name={showPass ? "eye-off" : "eye"} size={14} color={colors.mutedForeground} />
+                </Pressable>
+              </Animated.View>
 
-          <Animated.View
-            style={[
-              styles.inputWrap,
-              {
-                marginTop: 12,
-                backgroundColor: colors.inputGlass,
-                borderColor: getBorderColor(passGlow),
-                borderWidth: 1.5,
-                shadowColor: colors.accent,
-                shadowOpacity: getShadowOpacity(passGlow),
-                shadowRadius: 12,
-              },
-            ]}
-          >
-            <Feather name="lock" size={14} color={colors.mutedForeground} />
-            <TextInput
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              placeholder="Confirm New Password"
-              placeholderTextColor={colors.mutedForeground}
-              secureTextEntry={!showConfirmPass}
-              style={[styles.input, { color: colors.text, fontFamily: "Inter_500Medium" }]}
-            />
-            <Pressable onPress={() => setShowConfirmPass((v) => !v)} hitSlop={8}>
-              <Feather name={showConfirmPass ? "eye-off" : "eye"} size={14} color={colors.mutedForeground} />
-            </Pressable>
-          </Animated.View>
+              <Animated.View
+                style={[
+                  styles.inputWrap,
+                  {
+                    marginTop: 12,
+                    backgroundColor: colors.inputGlass,
+                    borderColor: getBorderColor(passGlow),
+                    borderWidth: 1.5,
+                    shadowColor: colors.accent,
+                    shadowOpacity: getShadowOpacity(passGlow),
+                    shadowRadius: 12,
+                  },
+                ]}
+              >
+                <Feather name="lock" size={14} color={colors.mutedForeground} />
+                <TextInput
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  placeholder="Confirm New Password"
+                  placeholderTextColor={colors.mutedForeground}
+                  secureTextEntry={!showConfirmPass}
+                  style={[styles.input, { color: colors.text, fontFamily: "Inter_500Medium" }]}
+                />
+                <Pressable onPress={() => setShowConfirmPass((v) => !v)} hitSlop={8}>
+                  <Feather name={showConfirmPass ? "eye-off" : "eye"} size={14} color={colors.mutedForeground} />
+                </Pressable>
+              </Animated.View>
+            </>
+          )}
 
           {/* Biometric status hint */}
           {biometricsEnabled && (
@@ -539,36 +601,88 @@ export default function EmployeeProfileScreen() {
             </Text>
           ) : null}
 
-          {/* Save Button */}
+          {/* Action Buttons */}
           <View style={styles.submitRow}>
-            <Pressable
-              onPress={() => {
-                if (Platform.OS !== "web") {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-                }
-                onSave();
-              }}
-              onPressIn={handleBtnPressIn}
-              onPressOut={handleBtnPressOut}
-              disabled={saving}
-              style={{ flex: 1 }}
-            >
-              <Animated.View
-                style={[
-                  styles.primaryBtn,
-                  {
-                    backgroundColor: colors.primary,
-                    opacity: saving ? 0.7 : 1,
-                    transform: [{ translateY: btnTranslateY }, { scale: btnScale }],
-                  },
-                  shadows.btnResting,
-                ]}
+            {!isEditing ? (
+              <Pressable
+                onPress={() => {
+                  if (Platform.OS !== "web") {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                  }
+                  setIsEditing(true);
+                }}
+                style={{ flex: 1 }}
               >
-                <Text style={[styles.primaryBtnText, { fontFamily: "Inter_600SemiBold", color: colors.primaryForeground }]}>
-                  {saving ? "Saving Changes..." : "Save Profile"}
-                </Text>
-              </Animated.View>
-            </Pressable>
+                <View
+                  style={[
+                    styles.primaryBtn,
+                    {
+                      backgroundColor: colors.primary,
+                      flexDirection: "row",
+                      gap: 8,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    },
+                    shadows.btnResting,
+                  ]}
+                >
+                  <Feather name="edit-3" size={16} color={colors.primaryForeground} />
+                  <Text style={[styles.primaryBtnText, { fontFamily: "Inter_600SemiBold", color: colors.primaryForeground }]}>
+                    Edit Profile
+                  </Text>
+                </View>
+              </Pressable>
+            ) : (
+              <View style={{ flex: 1, flexDirection: "row", gap: 12 }}>
+                <Pressable
+                  onPress={onCancel}
+                  disabled={saving}
+                  style={{ flex: 1 }}
+                >
+                  <View
+                    style={[
+                      styles.cancelBtn,
+                      {
+                        borderColor: colors.border,
+                        backgroundColor: colors.card,
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.cancelBtnText, { fontFamily: "Inter_600SemiBold", color: colors.foreground }]}>
+                      Cancel
+                    </Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    if (Platform.OS !== "web") {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                    }
+                    onSave();
+                  }}
+                  onPressIn={handleBtnPressIn}
+                  onPressOut={handleBtnPressOut}
+                  disabled={saving}
+                  style={{ flex: 1.5 }}
+                >
+                  <Animated.View
+                    style={[
+                      styles.primaryBtn,
+                      {
+                        backgroundColor: colors.primary,
+                        opacity: saving ? 0.7 : 1,
+                        transform: [{ translateY: btnTranslateY }, { scale: btnScale }],
+                      },
+                      shadows.btnResting,
+                    ]}
+                  >
+                    <Text style={[styles.primaryBtnText, { fontFamily: "Inter_600SemiBold", color: colors.primaryForeground }]}>
+                      {saving ? "Saving..." : "Save Changes"}
+                    </Text>
+                  </Animated.View>
+                </Pressable>
+              </View>
+            )}
           </View>
 
           {/* Sign Out Button */}
@@ -699,6 +813,24 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   primaryBtnText: { fontSize: 16 },
+  editHeaderBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  cancelBtn: {
+    height: 56,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cancelBtnText: {
+    fontSize: 15,
+  },
   logoutBtn: {
     height: 56,
     borderRadius: 16,
