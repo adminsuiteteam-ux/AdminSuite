@@ -16,9 +16,13 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
-import { Text, View, Pressable, Animated } from "react-native";
+import { Text, View, Pressable, Animated, LogBox } from "react-native";
 import { useTranslation } from "react-i18next";
 import React, { useEffect } from "react";
+
+LogBox.ignoreLogs([
+  "expo-notifications: Android Push notifications",
+]);
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/context/AuthContext";
