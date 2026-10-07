@@ -19,8 +19,7 @@ import { IncomeExpenseChart } from "@/components/IncomeExpenseChart";
 import { useData } from "@/context/DataContext";
 import { useCurrencyFmt } from "@/context/SettingsContext";
 import { useColors } from "@/hooks/useColors";
-import { AIInsightCard } from "@/components/AIInsightCard";
-import { aiService, AIFinanceForecast } from "@/services/aiService";
+
 import { AIReportModal } from "@/components/AIReportModal";
 
 export default function FinanceScreen() {
@@ -32,29 +31,7 @@ export default function FinanceScreen() {
   const [debtTab, setDebtTab] = useState("we_owe");
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
-  const [forecast, setForecast] = useState<AIFinanceForecast | null>(null);
-  const [forecastLoading, setForecastLoading] = useState(true);
 
-  React.useEffect(() => {
-    let active = true;
-    aiService.getFinanceForecast()
-      .then(res => {
-        if (active && res.data) {
-          setForecast(res.data);
-        }
-      })
-      .catch(() => {
-        // AI forecast endpoint not available — fail silently
-      })
-      .finally(() => {
-        if (active) {
-          setForecastLoading(false);
-        }
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
 
   const tabBarPad = (Platform.OS === "web" ? 96 : 100) + 24;
 
@@ -190,28 +167,7 @@ export default function FinanceScreen() {
             </View>
           </FloatInView>
 
-          {(!forecastLoading && forecast && !forecast.error) && (
-            <FloatInView delay={130}>
-              <AIInsightCard
-                title={`Finance Forecast (${forecast.profit_estimate})`}
-                summary={forecast.assessment}
-                riskLevel={
-                  forecast.profit_trend === 'down' ? 'high' :
-                  forecast.profit_trend === 'stable' ? 'medium' : 'low'
-                }
-                items={forecast.recommendations}
-              />
-            </FloatInView>
-          )}
-          {forecastLoading && (
-            <FloatInView delay={130}>
-              <AIInsightCard
-                title="Finance Forecast"
-                summary=""
-                loading={true}
-              />
-            </FloatInView>
-          )}
+
 
           <FloatInView delay={160}>
             <View style={styles.chartCard}>
