@@ -14,6 +14,7 @@ from rest_framework.throttling import AnonRateThrottle
 from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from .models import (
+    UserProfile,
     Employee, EmployeeFinance, PayHistory, Client, Project, Transaction,
     Notification, Debt, BudgetCategory, Savings, EmployeeActivityLog,
     EmployeeQuery, EmployeeTask, EmployeeLeave, EmployeeMessage,
@@ -367,7 +368,8 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 
             # Send live push notification and in-app Notification in background
             import threading
-            admin_name = self.request.user.get_full_name() or self.request.user.username
+            req_u = self.request.user
+            admin_name = getattr(req_u, 'get_full_name', lambda: '')() or getattr(req_u, 'username', '') or 'Administrator'
 
             def _send_employee_update_notif():
                 from .notifications import send_push_notification
@@ -3702,12 +3704,13 @@ def chat_calls(request):
     response_data['daily_domain'] = daily_domain
 
     # ── Notify callee via push ─────────────────────────────────────────────────
-    caller_name = request.user.get_full_name() or request.user.username
+    caller_u = request.user
+    caller_name = getattr(caller_u, 'get_full_name', lambda: '')() or getattr(caller_u, 'username', '') or 'Caller'
     icon = '📞' if call_type == 'voice' else '📹'
 
+    callee_token = None
     if callee:
         # Create a callee token too so they can join directly from the notification
-        callee_token = None
         if daily_api_key and room_name:
             try:
                 ct_resp = http_requests.post(
@@ -3716,7 +3719,7 @@ def chat_calls(request):
                     json={
                         'properties': {
                             'room_name': room_name,
-                            'user_name': callee.get_full_name() or callee.username,
+                            'user_name': getattr(callee, 'get_full_name', lambda: '')() or getattr(callee, 'username', '') or 'Guest',
                             'user_id': str(callee.id),
                         }
                     },
@@ -3746,7 +3749,7 @@ def chat_calls(request):
     # ── Broadcast real-time call signal via WebSocket ────────────────────────
     try:
         from asgiref.sync import async_to_sync
-        from channels.layers import get_channel_layer
+        from channels.layers import get_channel_layer  # type: ignore
         channel_layer = get_channel_layer()
         if channel_layer:
             async_to_sync(channel_layer.group_send)(
@@ -3814,7 +3817,7 @@ def chat_call_end(request, pk):
         # Broadcast answer to caller
         try:
             from asgiref.sync import async_to_sync
-            from channels.layers import get_channel_layer
+            from channels.layers import get_channel_layer  # type: ignore
             channel_layer = get_channel_layer()
             if channel_layer:
                 async_to_sync(channel_layer.group_send)(
@@ -3847,7 +3850,7 @@ def chat_call_end(request, pk):
     # Broadcast end/reject to peer
     try:
         from asgiref.sync import async_to_sync
-        from channels.layers import get_channel_layer
+        from channels.layers import get_channel_layer  # type: ignore
         channel_layer = get_channel_layer()
         if channel_layer:
             async_to_sync(channel_layer.group_send)(
