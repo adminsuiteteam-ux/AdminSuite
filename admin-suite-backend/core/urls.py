@@ -20,7 +20,7 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from django.http import JsonResponse
-from api.views import ThrottledObtainAuthToken
+from api.views import ThrottledObtainAuthToken, export_data
 
 # Secret token to protect the setup endpoint (set via env var)
 _SETUP_TOKEN = os.environ.get('SETUP_SECRET_TOKEN', 'adminsuite-setup-9x7k2p')
@@ -110,6 +110,7 @@ def setup_admin(request):
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('api.urls')),
+    path('export/', export_data, name='export-data-root'),
     path('api-token-auth/', ThrottledObtainAuthToken.as_view(), name='api_token_auth'),
     path('health/', health_check, name='health-check'),
     path('api/sentry-debug/', sentry_debug, name='sentry-debug'),

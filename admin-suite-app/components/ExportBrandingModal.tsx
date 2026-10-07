@@ -105,7 +105,8 @@ export default function ExportBrandingModal({ visible, onClose }: ExportBranding
       const resolvedApiBase = apiClient.defaults.baseURL ?? "http://localhost:8000/api/";
       const cleanApiBase = resolvedApiBase.endsWith("/") ? resolvedApiBase : `${resolvedApiBase}/`;
       const filename = `adminsuite_${exportType}_export.${exportFormat}`;
-      const downloadUrl = `${cleanApiBase}export/?format=${exportFormat}&type=${exportType}&time_filter=${exportTimeFilter}&id=${exportSelectedId}&skip_branding=${skipBranding}`;
+      const idParam = exportSelectedId ? `&id=${encodeURIComponent(exportSelectedId)}` : "";
+      const downloadUrl = `${cleanApiBase}export/?export_format=${exportFormat}&type=${exportType}&time_filter=${exportTimeFilter}${idParam}&skip_branding=${skipBranding}`;
 
       if (Platform.OS === "web") {
         const response = await fetch(downloadUrl, {

@@ -7,9 +7,10 @@ from django.db import models
 logger = logging.getLogger(__name__)
 from django.db.models import Sum
 from rest_framework import viewsets, status
-from rest_framework.decorators import api_view, permission_classes, throttle_classes, action
+from rest_framework.decorators import api_view, permission_classes, throttle_classes, action, renderer_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.renderers import BaseRenderer, JSONRenderer
 from rest_framework.throttling import AnonRateThrottle
 from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -1621,14 +1622,34 @@ def verify_email(request):
     return Response({'message': 'Email verified successfully.', 'email': email})
 
 
+class PDFRenderer(BaseRenderer):
+    media_type = 'application/pdf'
+    format = 'pdf'
+    charset = None
+    render_style = 'binary'
+
+    def render(self, data, accepted_media_type=None, renderer_context=None):
+        return data
+
+
+class CSVRenderer(BaseRenderer):
+    media_type = 'text/csv'
+    format = 'csv'
+    charset = 'utf-8'
+
+    def render(self, data, accepted_media_type=None, renderer_context=None):
+        return data
+
+
 @api_view(['GET'])
+@renderer_classes([PDFRenderer, CSVRenderer, JSONRenderer])
 @permission_classes([IsAuthenticated])
 def export_data(request):
     from .pdf_generator import build_pdf_report
     import csv
     from django.http import HttpResponse
 
-    export_format = request.GET.get('format', 'pdf').strip().lower()
+    export_format = (request.GET.get('export_format') or request.GET.get('file_format') or request.GET.get('format', 'pdf')).strip().lower()
     export_type = request.GET.get('type', 'general').strip().lower()
     time_filter = request.GET.get('time_filter')
     individual_id = request.GET.get('id')
