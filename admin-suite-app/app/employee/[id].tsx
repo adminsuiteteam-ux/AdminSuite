@@ -20,11 +20,13 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import * as ImagePicker from "expo-image-picker";
+
 import { FloatInView } from "@/components/FloatInView";
 import { useData } from "@/context/DataContext";
 import { useCurrencyFmt } from "@/context/SettingsContext";
 import { useColors } from "@/hooks/useColors";
-import { getMediaUrl, apiService } from "@/services/api";
+import { getMediaUrl, apiService, appendFileToFormData } from "@/services/api";
 
 
 const STATUS_COLOR: Record<string, string> = {
@@ -114,6 +116,22 @@ export default function EmployeeDetailScreen() {
   const [docName, setDocName] = useState("");
   const [docType, setDocType] = useState("cv");
   const [docFileSelected, setDocFileSelected] = useState<string | null>(null);
+
+  // Photo Lightbox & Avatar state
+  const [photoModalOpen, setPhotoModalOpen] = useState(false);
+  const [updatingAvatar, setUpdatingAvatar] = useState(false);
+
+  // Inline Direct Edit Profile state
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editRole, setEditRole] = useState("");
+  const [editDepartment, setEditDepartment] = useState("");
+  const [editOffice, setEditOffice] = useState("");
+  const [editLocation, setEditLocation] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editPersonalEmail, setEditPersonalEmail] = useState("");
+  const [editBio, setEditBio] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -452,8 +470,90 @@ export default function EmployeeDetailScreen() {
     Linking.openURL(url).catch(() => {});
   };
 
+  const handlePickAvatar = async (useCamera = false) => {
+    try {
+      let result;
+      if (useCamera) {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== "granted") {
+          Alert.alert("Permission Needed", "Camera permission is required to capture a photo.");
+          return;
+        }
+        result = await ImagePicker.launchCameraAsync({
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.7,
+        });
+      } else {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== "granted") {
+          Alert.alert("Permission Needed", "Media library permission is required to pick a photo.");
+          return;
+        }
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ["images"],
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.7,
+        });
+      }
+
+      if (!result.canceled && result.assets && result.assets[0]?.uri) {
+        setUpdatingAvatar(true);
+        const pickedUri = result.assets[0].uri;
+        const formData = new FormData();
+        await appendFileToFormData(formData, "avatar", pickedUri);
+        await apiService.patchEmployee(employee.id, formData);
+        await refreshData();
+        Alert.alert("Success", "Profile photo updated successfully!");
+        setPhotoModalOpen(false);
+      }
+    } catch (err) {
+      console.error("Failed to update avatar:", err);
+      Alert.alert("Error", "Failed to update profile photo.");
+    } finally {
+      setUpdatingAvatar(false);
+    }
+  };
+
   const onEdit = () => {
-    router.push(`/employee/create?editId=${employee.id}` as any);
+    setEditName(employee.name || "");
+    setEditRole(employee.role || "");
+    setEditDepartment(employee.department || "");
+    setEditOffice(employee.office || "");
+    setEditLocation(employee.location || "");
+    setEditPhone(employee.phone || "");
+    setEditPersonalEmail(employee.personal_email || "");
+    setEditBio(employee.bio || "");
+    setEditModalOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editName.trim()) {
+      return Alert.alert("Required", "Please enter the employee's name.");
+    }
+    try {
+      setSavingEdit(true);
+      const payload: Record<string, any> = {
+        name: editName.trim(),
+        role: editRole.trim(),
+        department: editDepartment.trim(),
+        office: editOffice.trim(),
+        location: editLocation.trim(),
+        phone: editPhone.trim(),
+        personal_email: editPersonalEmail.trim(),
+        bio: editBio.trim(),
+      };
+      await apiService.patchEmployee(employee.id, payload);
+      await refreshData();
+      setEditModalOpen(false);
+      Alert.alert("Success", "Employee profile updated successfully!");
+    } catch (err: any) {
+      console.error("Failed to update employee:", err);
+      Alert.alert("Error", err?.response?.data?.detail || "Failed to update employee profile.");
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   const socialButtons: { icon: string; onPress: () => void }[] = [];
@@ -502,9 +602,16 @@ export default function EmployeeDetailScreen() {
             {/* Top row: Avatar + Edit button */}
             <View style={styles.cardTopRow}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                <View style={styles.avatarRing}>
+                <Pressable
+                  onPress={() => setPhotoModalOpen(true)}
+                  style={({ pressed }) => [styles.avatarRing, { opacity: pressed ? 0.85 : 1 }]}
+                  hitSlop={8}
+                >
                   <Image source={{ uri: getMediaUrl(employee.avatar) }} style={styles.avatar} />
-                </View>
+                  <View style={styles.avatarCameraBadge}>
+                    <Feather name="camera" size={11} color="#fff" />
+                  </View>
+                </Pressable>
                 {employee.is_flagged && (
                   <View style={{ backgroundColor: "#ef4444", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, flexDirection: "row", alignItems: "center", gap: 4 }}>
                     <Feather name="flag" size={12} color="#fff" />
@@ -968,6 +1075,158 @@ export default function EmployeeDetailScreen() {
         </View>
         <ModalBtn label="Upload Document" color="#2563eb" loading={submitting} onPress={handleAddDocument} />
       </AdminModal>
+
+      {/* ── Photo Lightbox Modal ── */}
+      <Modal visible={photoModalOpen} animationType="fade" transparent onRequestClose={() => !updatingAvatar && setPhotoModalOpen(false)}>
+        <BlurView intensity={35} tint="dark" style={StyleSheet.absoluteFill}>
+          <View style={[styles.modalBackdrop, { backgroundColor: "rgba(0,0,0,0.7)" }]}>
+            <Pressable style={StyleSheet.absoluteFill} onPress={() => !updatingAvatar && setPhotoModalOpen(false)} />
+            <View style={[styles.photoModalCard, { backgroundColor: colors.isDark ? "#18181c" : "#ffffff", borderColor: colors.border }]}>
+              <View style={styles.photoModalHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.photoModalTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+                    Profile Photo
+                  </Text>
+                  <Text style={{ color: colors.mutedForeground, fontSize: 12, fontFamily: "Inter_500Medium" }}>
+                    {employee.name}
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={() => !updatingAvatar && setPhotoModalOpen(false)}
+                  hitSlop={10}
+                  style={styles.photoModalCloseBtn}
+                >
+                  <Feather name="x" size={20} color={colors.foreground} />
+                </Pressable>
+              </View>
+
+              {/* Square photo display */}
+              <View style={styles.photoPreviewWrapper}>
+                <Image
+                  source={{ uri: getMediaUrl(employee.avatar) }}
+                  style={styles.photoPreviewSquare}
+                  resizeMode="cover"
+                />
+                {updatingAvatar && (
+                  <View style={styles.photoUpdatingOverlay}>
+                    <ActivityIndicator size="large" color="#fff" />
+                    <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 13, marginTop: 8 }}>
+                      Updating photo...
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Action buttons */}
+              <View style={{ flexDirection: "row", gap: 10, marginTop: 18, width: "100%" }}>
+                <Pressable
+                  onPress={() => handlePickAvatar(false)}
+                  disabled={updatingAvatar}
+                  style={({ pressed }) => [
+                    styles.photoActionBtn,
+                    { backgroundColor: colors.primary, flex: 1, opacity: pressed || updatingAvatar ? 0.75 : 1 },
+                  ]}
+                >
+                  <Feather name="image" size={16} color="#fff" />
+                  <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 13 }}>
+                    Choose Photo
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => handlePickAvatar(true)}
+                  disabled={updatingAvatar}
+                  style={({ pressed }) => [
+                    styles.photoActionBtn,
+                    { backgroundColor: colors.accent, width: 48, opacity: pressed || updatingAvatar ? 0.75 : 1 },
+                  ]}
+                >
+                  <Feather name="camera" size={16} color="#fff" />
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </BlurView>
+      </Modal>
+
+      {/* ── Inline Direct Edit Employee Modal ── */}
+      <Modal visible={editModalOpen} animationType="fade" transparent onRequestClose={() => !savingEdit && setEditModalOpen(false)}>
+        <BlurView intensity={25} tint="dark" style={StyleSheet.absoluteFill}>
+          <View style={[styles.modalBackdrop, { backgroundColor: "rgba(0,0,0,0.4)" }]}>
+            <Pressable style={StyleSheet.absoluteFill} onPress={() => !savingEdit && setEditModalOpen(false)} />
+            <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ width: "90%", maxWidth: 440 }}>
+              <View style={[styles.modalContent, { backgroundColor: colors.isDark ? "#18181c" : "#ffffff", borderColor: colors.border, borderRadius: colors.radius }]}>
+                <View style={styles.modalHeader}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.modalTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+                      Edit Employee
+                    </Text>
+                    <Text style={{ color: colors.mutedForeground, fontSize: 11, fontFamily: "Inter_500Medium" }}>
+                      Update details without wizard steps
+                    </Text>
+                  </View>
+                  <Pressable onPress={() => !savingEdit && setEditModalOpen(false)} hitSlop={10}>
+                    <Feather name="x" size={20} color={colors.mutedForeground} />
+                  </Pressable>
+                </View>
+
+                <ScrollView style={{ maxHeight: 460 }} showsVerticalScrollIndicator={false}>
+                  {/* Section: Personal Information */}
+                  <View style={styles.editSectionHeader}>
+                    <Feather name="user" size={13} color={colors.primary} />
+                    <Text style={[styles.editSectionTitle, { color: colors.mutedForeground, fontFamily: "Inter_700Bold" }]}>
+                      Personal Information
+                    </Text>
+                  </View>
+                  <ModalLabel text="Full Name *" />
+                  <ModalInput value={editName} onChangeText={setEditName} placeholder="e.g. John Doe" />
+                  <ModalLabel text="Professional Bio" />
+                  <ModalInput
+                    value={editBio}
+                    onChangeText={setEditBio}
+                    placeholder="Short bio or summary of responsibilities"
+                    multiline
+                  />
+
+                  {/* Section: Role & Organization */}
+                  <View style={[styles.editSectionHeader, { marginTop: 14 }]}>
+                    <Feather name="briefcase" size={13} color={colors.primary} />
+                    <Text style={[styles.editSectionTitle, { color: colors.mutedForeground, fontFamily: "Inter_700Bold" }]}>
+                      Role & Organization
+                    </Text>
+                  </View>
+                  <ModalLabel text="Role / Title" />
+                  <ModalInput value={editRole} onChangeText={setEditRole} placeholder="e.g. HR Manager, Operations" />
+                  <ModalLabel text="Department" />
+                  <ModalInput value={editDepartment} onChangeText={setEditDepartment} placeholder="e.g. Human Resources" />
+                  <ModalLabel text="Office / Branch" />
+                  <ModalInput value={editOffice} onChangeText={setEditOffice} placeholder="e.g. Main Office" />
+                  <ModalLabel text="Location" />
+                  <ModalInput value={editLocation} onChangeText={setEditLocation} placeholder="e.g. Lagos, Nigeria" />
+
+                  {/* Section: Contact Information */}
+                  <View style={[styles.editSectionHeader, { marginTop: 14 }]}>
+                    <Feather name="phone" size={13} color={colors.primary} />
+                    <Text style={[styles.editSectionTitle, { color: colors.mutedForeground, fontFamily: "Inter_700Bold" }]}>
+                      Contact Information
+                    </Text>
+                  </View>
+                  <ModalLabel text="Phone Number" />
+                  <ModalInput value={editPhone} onChangeText={setEditPhone} placeholder="e.g. +234 801 234 5678" keyboardType="numeric" />
+                  <ModalLabel text="Personal Email" />
+                  <ModalInput value={editPersonalEmail} onChangeText={setEditPersonalEmail} placeholder="e.g. personal@gmail.com" />
+
+                  <ModalBtn
+                    label="Save Changes"
+                    color={colors.primary}
+                    loading={savingEdit}
+                    onPress={handleSaveEdit}
+                  />
+                </ScrollView>
+              </View>
+            </KeyboardAvoidingView>
+          </View>
+        </BlurView>
+      </Modal>
     </View>
   );
 }
@@ -1459,5 +1718,77 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
+  },
+  avatarCameraBadge: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    backgroundColor: "#2563eb",
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#fff",
+  },
+  photoModalCard: {
+    width: "88%",
+    maxWidth: 360,
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 1,
+    alignItems: "center",
+  },
+  photoModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    width: "100%",
+    marginBottom: 16,
+  },
+  photoModalTitle: {
+    fontSize: 18,
+  },
+  photoModalCloseBtn: {
+    padding: 6,
+  },
+  photoPreviewWrapper: {
+    width: 260,
+    height: 260,
+    borderRadius: 20,
+    overflow: "hidden",
+    position: "relative",
+    backgroundColor: "#000",
+  },
+  photoPreviewSquare: {
+    width: "100%",
+    height: "100%",
+  },
+  photoUpdatingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.65)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  photoActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    height: 46,
+    borderRadius: 14,
+  },
+  editSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 6,
+    marginTop: 4,
+  },
+  editSectionTitle: {
+    fontSize: 12,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
   },
 });

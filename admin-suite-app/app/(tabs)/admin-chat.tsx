@@ -538,6 +538,11 @@ export default function AdminChatScreen() {
       }
       const newMsgs: ChatMessage[] = res.data;
 
+      // Discard stale response if user switched conversation while in-flight
+      if (activeContactRef.current?.id !== cid) {
+        return;
+      }
+
       // Check for new incoming message → trigger in-app notification
       if (newMsgs.length > 0) {
         const latestMsg = newMsgs.at(-1);
@@ -562,8 +567,9 @@ export default function AdminChatScreen() {
         lastMsgIdRef.current = newMsgs.at(-1)?.id || null;
       }
 
-      // Keep any pending optimistic message (id < 0) that hasn't appeared in fresh messages yet
+      // Keep any pending optimistic message (id < 0) that belongs to this conversation
       setMessages((prev) => {
+        if (activeContactRef.current?.id !== cid) return prev;
         const pending = prev.filter(
           (m) => m.id < 0 && !newMsgs.some((fresh) => fresh.text === m.text && fresh.sender_id === m.sender_id)
         );
@@ -579,10 +585,21 @@ export default function AdminChatScreen() {
   }, [fetchMessages]);
 
   useEffect(() => {
-    if (!activeContact) return;
+    if (!activeContact) {
+      setMessages([]);
+      return;
+    }
+    setMessages([]);
+    setReplyTo(null);
+    setEditingMsg(null);
+    setSelectedMsg(null);
     setLoadingMessages(true);
     lastMsgIdRef.current = null;
-    fetchMessages().finally(() => setLoadingMessages(false));
+    fetchMessages().finally(() => {
+      if (activeContactRef.current?.id === activeContact.id) {
+        setLoadingMessages(false);
+      }
+    });
   }, [activeContact?.id, fetchMessages]);
 
   // ── Poll messages inside the open conversation every 3.5s for real-time updates ──
@@ -854,24 +871,29 @@ export default function AdminChatScreen() {
     }
     if (savedReply) payload.reply_to_id = savedReply.id;
 
+    const sentCid = activeContact?.id;
     try {
       const res = await apiService.sendChatMessage(payload);
       if (res.data) {
         // Clear draft for this contact upon successful send
-        if (activeContact) {
-          delete draftsRef.current[String(activeContact.id)];
+        if (sentCid) {
+          delete draftsRef.current[String(sentCid)];
         }
-        // Replace temporary ID with persisted message
-        setMessages((prev) =>
-          prev.map((m) => (m.id === tempId ? res.data : m))
-        );
+        // Replace temporary ID with persisted message only if still in this chat
+        if (activeContactRef.current?.id === sentCid) {
+          setMessages((prev) =>
+            prev.map((m) => (m.id === tempId ? res.data : m))
+          );
+        }
       }
     } catch (err: any) {
-      // Revert optimistic message on failure
-      setMessages((prev) => prev.filter((m) => m.id !== tempId));
-      setInputText(text);
-      if (activeContact) {
-        draftsRef.current[String(activeContact.id)] = text;
+      // Revert optimistic message on failure if still in this chat
+      if (activeContactRef.current?.id === sentCid) {
+        setMessages((prev) => prev.filter((m) => m.id !== tempId));
+        setInputText(text);
+      }
+      if (sentCid) {
+        draftsRef.current[String(sentCid)] = text;
       }
       const errMsg =
         err?.response?.data?.error ||
@@ -1017,7 +1039,7 @@ export default function AdminChatScreen() {
         if (forExisting) {
           setGroupAvatarUri(result.assets[0].uri);
           // Upload immediately if in group profile edit
-          if (activeContact && activeContact.type === "group" && activeContact.id !== "group") {
+          if (activeContact && activeContact.type === "group") {
             setUploadingGroupAvatar(true);
             try {
               const fd = new FormData();
@@ -1025,14 +1047,25 @@ export default function AdminChatScreen() {
               const filename = uri.split('/').pop() || 'group.jpg';
               const match = /\.(\w+)$/.exec(filename);
               const type = match ? `image/${match[1]}` : 'image/jpeg';
-              fd.append('avatar', { uri, name: filename, type } as any);
-              const res = await apiService.updateChatGroup(activeContact.id as number, fd as any);
-              const updated = res.data;
-              setContacts((prev) =>
-                prev.map((c) => c.id === activeContact.id ? { ...c, avatar: updated.avatar } : c)
-              );
-              setActiveContact((prev) => prev ? { ...prev, avatar: updated.avatar } : null);
-              showToast({ title: "Avatar Updated", message: "Group picture updated.", type: "success" });
+              if (activeContact.id === "group") {
+                fd.append('company_logo', { uri, name: filename, type } as any);
+                const res = await apiService.updateMe(fd as any);
+                const newLogo = res.data?.company_logo || uri;
+                setContacts((prev) =>
+                  prev.map((c) => (c.id === "group" ? { ...c, avatar: newLogo } : c))
+                );
+                setActiveContact((prev) => (prev ? { ...prev, avatar: newLogo } : null));
+                showToast({ title: "Logo Updated", message: "Team Chat business logo updated.", type: "success" });
+              } else {
+                fd.append('avatar', { uri, name: filename, type } as any);
+                const res = await apiService.updateChatGroup(activeContact.id as number, fd as any);
+                const updated = res.data;
+                setContacts((prev) =>
+                  prev.map((c) => (c.id === activeContact.id ? { ...c, avatar: updated.avatar } : c))
+                );
+                setActiveContact((prev) => (prev ? { ...prev, avatar: updated.avatar } : null));
+                showToast({ title: "Avatar Updated", message: "Group picture updated.", type: "success" });
+              }
             } catch {
               showToast({ title: "Error", message: "Could not upload group picture.", type: "error" });
             } finally {
@@ -2390,10 +2423,10 @@ export default function AdminChatScreen() {
           >
             <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
 
-            {/* Group avatar — tappable to change for custom groups */}
+            {/* Group avatar — tappable to change */}
             <View style={{ alignItems: "center", marginBottom: 16, gap: 8 }}>
               <Pressable
-                onPress={() => isCustomGroup && handlePickGroupAvatar(true)}
+                onPress={() => handlePickGroupAvatar(true)}
                 style={{ position: "relative" }}
               >
                 <View style={[
@@ -2409,18 +2442,16 @@ export default function AdminChatScreen() {
                     <Feather name="users" size={32} color="#fff" />
                   )}
                 </View>
-                {isCustomGroup && (
-                  <View style={[
-                    styles.avatarEditBadge,
-                    { backgroundColor: colors.primary },
-                  ]}>
-                    {uploadingGroupAvatar ? (
-                      <ActivityIndicator size={10} color="#fff" />
-                    ) : (
-                      <Feather name="camera" size={12} color="#fff" />
-                    )}
-                  </View>
-                )}
+                <View style={[
+                  styles.avatarEditBadge,
+                  { backgroundColor: colors.primary },
+                ]}>
+                  {uploadingGroupAvatar ? (
+                    <ActivityIndicator size={10} color="#fff" />
+                  ) : (
+                    <Feather name="camera" size={12} color="#fff" />
+                  )}
+                </View>
               </Pressable>
               {editingGroupName ? (
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16 }}>
@@ -2467,66 +2498,71 @@ export default function AdminChatScreen() {
             </View>
 
             {/* Members list header */}
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-              <Text style={[styles.groupProfileSection, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold", marginBottom: 0 }]}>
-                {t("chat.membersCount", {
-                  count: activeContact.id === "group"
-                    ? contacts.filter((c) => c.type === "private").length
-                    : (activeContact as any).members?.length || 0
-                })}
-              </Text>
-              {activeContact.id !== "group" && (
-                <Pressable
-                  onPress={() => setShowAddMember(true)}
-                  hitSlop={8}
-                  style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
-                >
-                  <Feather name="user-plus" size={13} color={colors.primary} />
-                  <Text style={{ color: colors.primary, fontSize: 13, fontFamily: "Inter_600SemiBold" }}>{t("chat.add")}</Text>
-                </Pressable>
-              )}
-            </View>
-
-            <ScrollView style={{ maxHeight: 160 }} showsVerticalScrollIndicator={false}>
-              {contacts
-                .filter((c) => {
-                  if (c.type !== "private") return false;
-                  if (activeContact.id === "group") return true;
-                  return (activeContact as any).members?.includes(c.id as number);
-                })
-                .map((c) => (
-                  <View
-                    key={String(c.id)}
-                    style={[styles.groupMemberRow, { borderBottomColor: colors.border }]}
-                  >
-                    <View style={[styles.groupMemberAvatar, { backgroundColor: colors.accent, overflow: "hidden" }]}>
-                      {c.avatar ? (
-                        <Image source={{ uri: getMediaUrl(c.avatar) }} style={{ width: "100%", height: "100%" }} />
-                      ) : (
-                        <Text style={{ color: "#fff", fontSize: 12, fontFamily: "Inter_700Bold" }}>{c.initials}</Text>
-                      )}
-                    </View>
-                    <Text style={[{ flex: 1, color: colors.foreground, fontSize: 14, fontFamily: "Inter_500Medium" }]}>
-                      {c.name}
+            {(() => {
+              const tcMembers: any[] = (activeContact as any).members_details || [];
+              const groupMembers = activeContact.id === "group"
+                ? (tcMembers.length > 0 ? tcMembers : contacts.filter((c) => c.type === "private").map(c => ({ id: c.id, name: c.name, avatar: c.avatar, role: c.role || "Employee" })))
+                : contacts.filter((c) => (activeContact as any).members?.includes(c.id as number)).map(c => ({ id: c.id, name: c.name, avatar: c.avatar, role: c.role || "Member" }));
+              return (
+                <>
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                    <Text style={[styles.groupProfileSection, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold", marginBottom: 0 }]}>
+                      {t("chat.membersCount", { count: groupMembers.length })}
                     </Text>
                     {activeContact.id !== "group" && (
                       <Pressable
-                        onPress={() => handleRemoveMember(c.id as number)}
+                        onPress={() => setShowAddMember(true)}
                         hitSlop={8}
-                        style={{ padding: 4 }}
+                        style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
                       >
-                        <Feather name="user-minus" size={14} color={colors.danger} />
+                        <Feather name="user-plus" size={13} color={colors.primary} />
+                        <Text style={{ color: colors.primary, fontSize: 13, fontFamily: "Inter_600SemiBold" }}>{t("chat.add")}</Text>
                       </Pressable>
                     )}
-                    {c.is_blocked_from_group && (
-                      <View style={[styles.lockBadge, { backgroundColor: colors.danger + "20" }]}>
-                        <Feather name="slash" size={10} color={colors.danger} />
-                        <Text style={[styles.lockBadgeTxt, { color: colors.danger }]}>{t("chat.blocked")}</Text>
-                      </View>
-                    )}
                   </View>
-                ))}
-            </ScrollView>
+
+                  <ScrollView style={{ maxHeight: 280 }} showsVerticalScrollIndicator={true}>
+                    {groupMembers.map((m: any) => (
+                      <View
+                        key={String(m.id)}
+                        style={[styles.groupMemberRow, { borderBottomColor: colors.border }]}
+                      >
+                        <View style={[styles.groupMemberAvatar, { backgroundColor: colors.accent, overflow: "hidden" }]}>
+                          {m.avatar ? (
+                            <Image source={{ uri: getMediaUrl(m.avatar) }} style={{ width: "100%", height: "100%" }} />
+                          ) : (
+                            <Text style={{ color: "#fff", fontSize: 12, fontFamily: "Inter_700Bold" }}>
+                              {((m.name || "U")[0]).toUpperCase()}
+                            </Text>
+                          )}
+                        </View>
+                        <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 8 }}>
+                          <Text style={[{ color: colors.foreground, fontSize: 14, fontFamily: "Inter_500Medium" }]}>
+                            {m.name}
+                          </Text>
+                          {m.role ? (
+                            <View style={{ backgroundColor: colors.border, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                              <Text style={{ color: colors.mutedForeground, fontSize: 10, fontFamily: "Inter_600SemiBold" }}>
+                                {m.role}
+                              </Text>
+                            </View>
+                          ) : null}
+                        </View>
+                        {activeContact.id !== "group" && (
+                          <Pressable
+                            onPress={() => handleRemoveMember(m.id as number)}
+                            hitSlop={8}
+                            style={{ padding: 4 }}
+                          >
+                            <Feather name="user-minus" size={14} color={colors.danger} />
+                          </Pressable>
+                        )}
+                      </View>
+                    ))}
+                  </ScrollView>
+                </>
+              );
+            })()}
 
             {/* Actions */}
             <View style={{ gap: 10, marginTop: 16 }}>

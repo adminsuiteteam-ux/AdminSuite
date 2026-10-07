@@ -175,9 +175,14 @@ def get_scoped_queryset(model, request, user_field='user', branch_field='branch'
             profile = user.profile
             role = profile.role.upper()
         except Exception:
-            role = 'EMPLOYEE'
+            role = ''
         org = None
         branch = None
+
+    is_linked_employee = getattr(user, 'employee_profile', None) is not None
+    # If not a linked employee, and role is CEO/Admin/Owner or unset, treat as CEO (company admin)
+    if not is_linked_employee and (not role or role in ('CEO', 'ADMIN', 'OWNER', 'EMPLOYER')):
+        role = 'CEO'
 
     if role == 'CEO':
         if org:
@@ -1355,6 +1360,12 @@ def google_login(request):
         # Set unusable password for social-auth users
         user.set_unusable_password()
         user.save()
+        UserProfile.objects.get_or_create(user=user, defaults={'role': 'CEO'})
+    else:
+        profile = getattr(user, 'profile', None)
+        if profile and not profile.role and getattr(user, 'employee_profile', None) is None:
+            profile.role = 'CEO'
+            profile.save(update_fields=['role'])
 
     token, _ = Token.objects.get_or_create(user=user)
     user_name = f"{user.first_name} {user.last_name}".strip() or user.username
@@ -2712,19 +2723,20 @@ def chat_contacts(request):
     tc_members = []
     tc_admin_profile = getattr(company_user, 'profile', None)
     tc_admin_avatar = request.build_absolute_uri(tc_admin_profile.avatar.url) if tc_admin_profile and tc_admin_profile.avatar else None
+    tc_company_logo = request.build_absolute_uri(tc_admin_profile.company_logo.url) if tc_admin_profile and tc_admin_profile.company_logo else None
     tc_admin_name = f"{company_user.first_name} {company_user.last_name}".strip() or company_user.username
     tc_members.append({'id': company_user.id, 'name': tc_admin_name, 'avatar': tc_admin_avatar, 'role': 'Admin'})
     for emp in employees:
-        if emp.linked_user:
-            emp_av = request.build_absolute_uri(emp.avatar.url) if emp.avatar else None
-            tc_members.append({'id': emp.linked_user.id, 'name': emp.name, 'avatar': emp_av, 'role': emp.role or 'Employee'})
+        emp_id = emp.linked_user.id if emp.linked_user else emp.id
+        emp_av = request.build_absolute_uri(emp.avatar.url) if emp.avatar else None
+        tc_members.append({'id': emp_id, 'name': emp.name, 'avatar': emp_av, 'role': emp.role or 'Employee'})
 
     contacts.append({
         'id': 'group',
         'type': 'group',
         'name': 'Team Chat',
         'initials': '#',
-        'avatar': None,
+        'avatar': tc_company_logo,
         'group_locked': settings_obj.group_locked,
         'is_blocked_from_group': request.user.id in (settings_obj.blocked_user_ids or []),
         'members_details': tc_members,
