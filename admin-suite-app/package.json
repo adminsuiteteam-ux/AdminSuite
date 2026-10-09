@@ -12,6 +12,7 @@
     "build:production": "eas build --platform android --profile production"
   },
   "dependencies": {
+    "@daily-co/config-plugin-rn-daily-js": "^0.0.11",
     "@daily-co/react-native-daily-js": "^0.87.1",
     "@daily-co/react-native-webrtc": "^124.0.6-daily.2",
     "@expo-google-fonts/inter": "0.4.0",

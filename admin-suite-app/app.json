@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "admin-suite",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/images/splash-transparent.png",
       "resizeMode": "contain",
@@ -38,7 +38,10 @@
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.RECORD_AUDIO",
         "android.permission.CAMERA",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MICROPHONE",
+        "android.permission.FOREGROUND_SERVICE_CAMERA"
       ],
       "navigationBar": {
         "backgroundColor": "#09090b",
@@ -58,6 +61,7 @@
       "expo-font",
       "expo-web-browser",
       "expo-secure-store",
+      "@daily-co/config-plugin-rn-daily-js",
       [
         "expo-notifications",
         {

@@ -4,6 +4,7 @@ import {
   Alert,
   Animated,
   Easing,
+  PermissionsAndroid,
   Platform,
   Pressable,
   StatusBar,
@@ -200,6 +201,35 @@ export default function CallScreen({ params }: { params: CallScreenParams }) {
     }
     try {
       setCallState("connecting");
+
+      // ── Runtime Permissions Check (Android) ──
+      if (Platform.OS === "android") {
+        const perms = [PermissionsAndroid.PERMISSIONS.RECORD_AUDIO];
+        if (callType === "video") {
+          perms.push(PermissionsAndroid.PERMISSIONS.CAMERA);
+        }
+        const granted = await PermissionsAndroid.requestMultiple(perms);
+        const micOk = granted[PermissionsAndroid.PERMISSIONS.RECORD_AUDIO] === PermissionsAndroid.RESULTS.GRANTED;
+        if (!micOk) {
+          setCallState("error");
+          setErrorMsg("Microphone permission is required to participate in calls. Please allow microphone access in device settings.");
+          return;
+        }
+        if (callType === "video" && granted[PermissionsAndroid.PERMISSIONS.CAMERA] !== PermissionsAndroid.RESULTS.GRANTED) {
+          setCallState("error");
+          setErrorMsg("Camera permission is required for video calls. Please allow camera access in device settings.");
+          return;
+        }
+      }
+
+      // Cleanup any pre-existing call instance before joining
+      if (callRef.current) {
+        try {
+          await callRef.current.destroy();
+        } catch {}
+        callRef.current = null;
+      }
+
       const call = DailyIframe.createCallObject();
       callRef.current = call;
 
@@ -227,8 +257,9 @@ export default function CallScreen({ params }: { params: CallScreenParams }) {
       });
 
       call.on("error", (e: any) => {
+        console.error("[CallScreen] Daily error event:", e);
         setCallState("error");
-        setErrorMsg(e?.errorMsg || "A call error occurred.");
+        setErrorMsg(e?.errorMsg || e?.msg || "A call error occurred.");
       });
 
       await call.join({
@@ -238,8 +269,9 @@ export default function CallScreen({ params }: { params: CallScreenParams }) {
         startAudioOff: false,
       });
     } catch (e: any) {
+      console.error("[CallScreen] Join failed exception:", e);
       setCallState("error");
-      setErrorMsg(e?.message || "Failed to join call.");
+      setErrorMsg(e?.message || e?.errorMsg || "Failed to join call.");
     }
   }, [roomUrl, token, callType]);
 

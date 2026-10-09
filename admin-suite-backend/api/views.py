@@ -188,29 +188,50 @@ def get_scoped_queryset(model, request, user_field='user', branch_field='branch'
 
     if role == 'CEO':
         if org:
-            if hasattr(model, 'organization'):
-                return model.objects.filter(organization=org)
-            elif hasattr(model, 'branch') or hasattr(model, branch_field):
-                return model.objects.filter(**{f"{branch_field}__organization": org})
-            else:
-                return model.objects.filter(**{f"{user_field}__extension__organization": org})
+            has_org = hasattr(model, 'organization')
+            has_branch = hasattr(model, 'branch') or hasattr(model, branch_field)
+            has_user = hasattr(model, 'user') or hasattr(model, user_field)
+
+            q_filter = models.Q()
+            if has_org:
+                q_filter |= models.Q(organization=org)
+            if has_branch:
+                q_filter |= models.Q(**{f"{branch_field}__organization": org})
+            if has_user:
+                # Include records owned directly by the CEO or by members of their org
+                q_filter |= models.Q(**{user_field: user})
+                q_filter |= models.Q(**{f"{user_field}__extension__organization": org})
+
+            if q_filter:
+                return model.objects.filter(q_filter).distinct()
+            return model.objects.filter(**{user_field: user})
         return model.objects.filter(**{user_field: user})
         
     elif role in ('BRANCH_ADMIN', 'HR', 'FINANCE', 'OPERATIONS', 'SECRETARY', 'DEPT_MANAGER'):
+        has_branch = hasattr(model, 'branch') or hasattr(model, branch_field)
+        has_org = hasattr(model, 'organization')
+        has_user = hasattr(model, 'user') or hasattr(model, user_field)
+
         if branch:
-            if hasattr(model, 'branch') or hasattr(model, branch_field):
-                return model.objects.filter(**{branch_field: branch})
-            elif hasattr(model, 'organization'):
-                return model.objects.filter(organization=branch.organization)
-            else:
-                return model.objects.filter(**{f"{user_field}__extension__branch": branch})
+            q_filter = models.Q()
+            if has_branch:
+                q_filter |= models.Q(**{branch_field: branch})
+            if has_org:
+                q_filter |= models.Q(organization=branch.organization)
+            if has_user:
+                q_filter |= models.Q(**{f"{user_field}__extension__branch": branch})
+            if q_filter:
+                return model.objects.filter(q_filter).distinct()
         elif org:
-            if hasattr(model, 'organization'):
-                return model.objects.filter(organization=org)
-            elif hasattr(model, 'branch') or hasattr(model, branch_field):
-                return model.objects.filter(**{f"{branch_field}__organization": org})
-            else:
-                return model.objects.filter(**{f"{user_field}__extension__organization": org})
+            q_filter = models.Q()
+            if has_org:
+                q_filter |= models.Q(organization=org)
+            if has_branch:
+                q_filter |= models.Q(**{f"{branch_field}__organization": org})
+            if has_user:
+                q_filter |= models.Q(**{f"{user_field}__extension__organization": org})
+            if q_filter:
+                return model.objects.filter(q_filter).distinct()
         return model.objects.filter(**{user_field: user})
         
     else: # EMPLOYEE
@@ -734,17 +755,31 @@ def me(request):
                 
                 # Retrieve or create Organization
                 org_name = request.data.get('business_name', profile.business_name) or f"{user.username}'s Corp"
-                org, _ = Organization.objects.get_or_create(
-                    name=org_name,
-                    defaults={'created_by': user}
-                )
+                existing_ext = getattr(user, 'extension', None)
+                if existing_ext and existing_ext.organization and (existing_ext.organization.created_by == user or not existing_ext.organization.created_by):
+                    org = existing_ext.organization
+                    if org.name != org_name:
+                        org.name = org_name
+                        org.save(update_fields=['name'])
+                else:
+                    org, _ = Organization.objects.get_or_create(
+                        name=org_name,
+                        defaults={'created_by': user}
+                    )
                 
                 # Retrieve or create Branch
-                branch, _ = Branch.objects.get_or_create(
-                    organization=org,
-                    name="Main HQ",
-                    defaults={'created_by': user, 'location': profile.location or 'Main HQ'}
-                )
+                branch = None
+                if existing_ext and existing_ext.branch:
+                    branch = existing_ext.branch
+                    if branch.organization != org:
+                        branch.organization = org
+                        branch.save(update_fields=['organization'])
+                if not branch:
+                    branch, _ = Branch.objects.get_or_create(
+                        organization=org,
+                        name="Main HQ",
+                        defaults={'created_by': user, 'location': profile.location or 'Main HQ'}
+                    )
                 
                 # Retrieve or create UserExtension
                 ext, created_ext = UserExtension.objects.get_or_create(
@@ -759,8 +794,7 @@ def me(request):
                     # Update fields if already exists
                     ext.role = system_role
                     ext.organization = org
-                    if not ext.branch:
-                        ext.branch = branch
+                    ext.branch = branch
                     ext.save(update_fields=['role', 'organization', 'branch'])
 
             # Sync to Employee profile if it exists (searching linked_user or email)
@@ -3661,13 +3695,14 @@ def chat_calls(request):
                 headers={'Authorization': f'Bearer {daily_api_key}', 'Content-Type': 'application/json'},
                 json={
                     'name': room_name,
-                    'privacy': 'private',
+                    'privacy': 'public',
                     'properties': {
                         'enable_chat': True,
                         'enable_screenshare': True,
                         'start_video_off': call_type == 'voice',
                         'start_audio_off': False,
                         'max_participants': 20 if group else 2,
+                        'exp': int(django_tz.now().timestamp()) + 7200,
                     }
                 },
                 timeout=10,
