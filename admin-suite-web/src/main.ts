@@ -925,10 +925,10 @@ async function apiRequest(endpoint: string, options: RequestInit = {}): Promise<
   return response.json();
 }
 
-// Sync app database with live endpoints
-async function syncAppData() {
+// Sync app database with live endpoints (resilient, non-blocking)
+async function syncAppData(): Promise<boolean> {
   try {
-    const [meRes, metricsRes, clientMetricsRes, payrollMetricsRes, debtsRes, empRes, cliRes, projRes, txRes, notifRes, budgRes, tasksRes, leavesRes] = await Promise.all([
+    const results = await Promise.allSettled([
       apiRequest('me/'),
       apiRequest('metrics/'),
       apiRequest('client-metrics/'),
@@ -944,45 +944,42 @@ async function syncAppData() {
       apiRequest('employee-leaves/')
     ]);
 
-    state.user = meRes;
-    state.metrics = metricsRes;
-    state.clientMetrics = clientMetricsRes;
-    state.payrollMetrics = payrollMetricsRes;
-    state.debtsGrouped = debtsRes;
-    state.employees = empRes;
-    state.clients = cliRes;
-    state.projects = projRes;
-    state.transactions = txRes;
-    state.notifications = notifRes;
-    state.budgets = budgRes;
-    state.tasks = tasksRes || [];
-    state.leaves = leavesRes || [];
-    state.isAuthenticated = true;
+    const [meRes, metricsRes, clientMetricsRes, payrollMetricsRes, debtsRes, empRes, cliRes, projRes, txRes, notifRes, budgRes, tasksRes, leavesRes] = results;
+
+    if (meRes.status === 'fulfilled' && meRes.value) state.user = meRes.value;
+    if (metricsRes.status === 'fulfilled' && metricsRes.value) state.metrics = metricsRes.value;
+    if (clientMetricsRes.status === 'fulfilled' && clientMetricsRes.value) state.clientMetrics = clientMetricsRes.value;
+    if (payrollMetricsRes.status === 'fulfilled' && payrollMetricsRes.value) state.payrollMetrics = payrollMetricsRes.value;
+    if (debtsRes.status === 'fulfilled' && debtsRes.value) state.debtsGrouped = debtsRes.value;
+    if (empRes.status === 'fulfilled' && Array.isArray(empRes.value)) state.employees = empRes.value;
+    if (cliRes.status === 'fulfilled' && Array.isArray(cliRes.value)) state.clients = cliRes.value;
+    if (projRes.status === 'fulfilled' && Array.isArray(projRes.value)) state.projects = projRes.value;
+    if (txRes.status === 'fulfilled' && Array.isArray(txRes.value)) state.transactions = txRes.value;
+    if (notifRes.status === 'fulfilled' && Array.isArray(notifRes.value)) state.notifications = notifRes.value;
+    if (budgRes.status === 'fulfilled' && Array.isArray(budgRes.value)) state.budgets = budgRes.value;
+    if (tasksRes.status === 'fulfilled' && Array.isArray(tasksRes.value)) state.tasks = tasksRes.value;
+    if (leavesRes.status === 'fulfilled' && Array.isArray(leavesRes.value)) state.leaves = leavesRes.value;
+
+    if (state.user) {
+      state.isAuthenticated = true;
+    }
 
     // Extended dashboard data — non-critical, fail silently
-    try {
-      const [branchRes, subRes, txCatRes, alertsRes] = await Promise.all([
-        apiRequest('branch-metrics/'),
-        apiRequest('subscription-limits/'),
-        apiRequest('transaction-categories/'),
-        apiRequest('dashboard-alerts/'),
-      ]);
-      state.branchMetrics = Array.isArray(branchRes) ? branchRes : [];
-      state.subscriptionLimits = subRes || null;
-      state.transactionCategories = txCatRes || null;
-      state.dashboardAlerts = alertsRes || null;
-    } catch (_e) {
-      // Extended metrics unavailable — dashboard degrades gracefully
-    }
+    Promise.allSettled([
+      apiRequest('branch-metrics/'),
+      apiRequest('subscription-limits/'),
+      apiRequest('transaction-categories/'),
+      apiRequest('dashboard-alerts/'),
+    ]).then(([branchRes, subRes, txCatRes, alertsRes]) => {
+      if (branchRes.status === 'fulfilled' && Array.isArray(branchRes.value)) state.branchMetrics = branchRes.value;
+      if (subRes.status === 'fulfilled' && subRes.value) state.subscriptionLimits = subRes.value;
+      if (txCatRes.status === 'fulfilled' && txCatRes.value) state.transactionCategories = txCatRes.value;
+      if (alertsRes.status === 'fulfilled' && alertsRes.value) state.dashboardAlerts = alertsRes.value;
+    }).catch(() => {});
 
     return true;
   } catch (err: any) {
-    console.error('Failed to sync backend:', err);
-    if (err.message && err.message.includes('Session expired')) {
-      return false;
-    }
-    state.view = 'offline';
-    renderApp();
+    console.warn('Sync background notice:', err);
     return false;
   }
 }
@@ -1374,8 +1371,8 @@ export function renderApp() {
       bindLockEvents();
       break;
     case 'offline':
-      root.innerHTML = DOMPurify.sanitize(drawOfflineScreen());
-      bindOfflineEvents();
+      state.view = 'app';
+      renderApp();
       break;
     case 'app':
 
@@ -1548,12 +1545,15 @@ function bindSplashEvents() {
 
     // Attempt token validation & data sync
     const ok = await syncAppData();
-    if (ok) {
+    if (ok || state.user) {
       if (state.user && !state.user.profile_complete) {
         state.view = 'complete-profile';
       } else {
         state.view = 'app';
       }
+      renderApp();
+    } else {
+      state.view = 'login';
       renderApp();
     }
   }, 1900);
@@ -2733,35 +2733,7 @@ function bindLockEvents() {
   }
 }
 
-// ------------------------------------------------------------
-// 7. OFFLINE WARNING BOUNDARY
-// ------------------------------------------------------------
 
-function drawOfflineScreen(): string {
-  return `
-    <div class="offline-gate">
-      <div class="offline-card">
-        <div class="offline-icon">
-          ${getIconSvg('wifi-off')}
-        </div>
-        <h2>Connection Lost</h2>
-        <p>
-          We've lost contact with the backend services. Please check your network connection or try again.
-        </p>
-        <button class="btn btn-primary" id="retry-sync-btn" style="width:100%;">Reconnect</button>
-      </div>
-    </div>
-  `;
-}
-
-function bindOfflineEvents() {
-  const retryBtn = document.getElementById('retry-sync-btn');
-  if (retryBtn) {
-    retryBtn.addEventListener('click', () => {
-      window.location.reload();
-    });
-  }
-}
 
 // ------------------------------------------------------------
 // 8. TABS VIEW: SIDEBAR, TOPBAR & BASE NAVIGATION
