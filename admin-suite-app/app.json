@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "admin-suite",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "splash": {
       "image": "./assets/images/splash-transparent.png",
       "resizeMode": "contain",
