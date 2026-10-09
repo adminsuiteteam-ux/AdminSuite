@@ -416,7 +416,7 @@ export const apiService = {
     }
     return apiClient.get(`chat/messages/?recipient_id=${recipientId}`);
   },
-  sendChatMessage: (data: { text: string; recipient_id?: number; group_id?: number; reply_to_id?: number }) =>
+  sendChatMessage: (data: FormData | { text: string; recipient_id?: number; group_id?: number; reply_to_id?: number; attachment_type?: string; attachment_name?: string }) =>
     apiClient.post('chat/send/', data),
   editChatMessage: (id: number, text: string) =>
     apiClient.put(`chat/messages/${id}/`, { text }),

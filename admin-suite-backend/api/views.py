@@ -2547,10 +2547,31 @@ def chat_send(request):
         return Response({'error': 'Company profile not found.'}, status=status.HTTP_404_NOT_FOUND)
 
     text = request.data.get('text', '').strip()
-    if not text:
-        return Response({'error': 'Message text is required.'}, status=status.HTTP_400_BAD_REQUEST)
+    attachment = request.FILES.get('attachment') or request.FILES.get('file')
+    attachment_type = request.data.get('attachment_type', '').strip().lower()
+    attachment_name = request.data.get('attachment_name', '').strip()
+
+    if not text and not attachment:
+        return Response({'error': 'Message text or attachment is required.'}, status=status.HTTP_400_BAD_REQUEST)
     if len(text) > 50000:
         return Response({'error': 'Message too long (max 50000 chars).'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if attachment and not attachment_name:
+        attachment_name = getattr(attachment, 'name', 'file')
+    if attachment and not attachment_type:
+        content_type = getattr(attachment, 'content_type', '')
+        ext = os.path.splitext(attachment_name)[1].lower()
+        if content_type.startswith('image/') or ext in ('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'):
+            attachment_type = 'image'
+        elif content_type.startswith('video/') or ext in ('.mp4', '.mov', '.avi', '.mkv', '.webm'):
+            attachment_type = 'video'
+        elif content_type.startswith('audio/') or ext in ('.m4a', '.mp3', '.wav', '.aac', '.ogg'):
+            attachment_type = 'audio'
+        else:
+            attachment_type = 'document'
+
+    if not text and attachment:
+        text = attachment_name or f"[{attachment_type.capitalize()}]"
 
     recipient_id = request.data.get('recipient_id')
     group_id = request.data.get('group_id')
@@ -2622,13 +2643,20 @@ def chat_send(request):
         group=chat_group,
         channel=chat_channel,
         text=text,
+        attachment=attachment,
+        attachment_type=attachment_type,
+        attachment_name=attachment_name,
+        attachment_size=attachment.size if attachment else 0,
         reply_to=reply_to,
     )
     msg.read_by.add(request.user)
 
     # ── Push Notifications (dispatched in background so HTTP response is instant) ──
     sender_name = request.user.get_full_name() or request.user.username
-    short_text = text[:80] + ('...' if len(text) > 80 else '')
+    if attachment:
+        short_text = f"📎 [{attachment_type.capitalize()}] {attachment_name or text}"
+    else:
+        short_text = text[:80] + ('...' if len(text) > 80 else '')
 
     def _async_chat_push():
         try:

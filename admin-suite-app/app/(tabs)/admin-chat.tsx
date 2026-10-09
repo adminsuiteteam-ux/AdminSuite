@@ -18,6 +18,7 @@ import {
   Linking,
   Modal,
   PanResponder,
+  PermissionsAndroid,
   Platform,
   Pressable,
   ScrollView,
@@ -30,6 +31,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
+import { Audio } from "expo-av";
+import * as Sharing from "expo-sharing";
 
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
@@ -78,6 +82,10 @@ type ChatMessage = {
   recipient_id: number | null;
   text: string;
   display_text: string;
+  attachment?: string | null;
+  attachment_type?: "image" | "video" | "audio" | "document" | null;
+  attachment_name?: string | null;
+  attachment_size?: number | null;
   is_pinned: boolean;
   is_edited: boolean;
   is_deleted: boolean;
@@ -343,6 +351,18 @@ export default function AdminChatScreen() {
 
   // Emoji picker
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+
+  // Voice note recording & playback
+  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const recordTimerRef = useRef<any>(null);
+  const [playingAudioId, setPlayingAudioId] = useState<number | null>(null);
+  const soundRef = useRef<Audio.Sound | null>(null);
+
+  // Attachment menu & full screen image preview
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const [selectedFullImage, setSelectedFullImage] = useState<string | null>(null);
 
   // Moderation & Reporting
   const [showReportModal, setShowReportModal] = useState(false);
@@ -903,6 +923,284 @@ export default function AdminChatScreen() {
       showToast({ title: "Error", message: errMsg, type: "error" });
     }
   };
+
+  // ─── Send Media / Document / Voice Attachment ────────────────────────────────
+  const sendMediaAttachment = async (
+    fileUri: string,
+    type: "image" | "video" | "audio" | "document",
+    fileName?: string,
+    fileSize?: number
+  ) => {
+    if (sending) return;
+    setSending(true);
+    try {
+      const formData = new FormData();
+      const fname =
+        fileName ||
+        (type === "image"
+          ? `photo_${Date.now()}.jpg`
+          : type === "video"
+          ? `video_${Date.now()}.mp4`
+          : type === "audio"
+          ? `voice_${Date.now()}.m4a`
+          : `file_${Date.now()}`);
+
+      const ext = fname.split(".").pop()?.toLowerCase();
+      let mimeType = "application/octet-stream";
+      if (type === "image") {
+        mimeType = ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
+      } else if (type === "video") {
+        mimeType = "video/mp4";
+      } else if (type === "audio") {
+        mimeType = "audio/m4a";
+      } else if (type === "document") {
+        if (ext === "pdf") mimeType = "application/pdf";
+        else if (ext === "doc" || ext === "docx") mimeType = "application/msword";
+        else if (ext === "xls" || ext === "xlsx") mimeType = "application/vnd.ms-excel";
+        else if (ext === "txt") mimeType = "text/plain";
+      }
+
+      if (Platform.OS === "web") {
+        const response = await fetch(fileUri);
+        const blob = await response.blob();
+        formData.append("attachment", blob, fname);
+      } else {
+        formData.append("attachment", {
+          uri: fileUri,
+          name: fname,
+          type: mimeType,
+        } as any);
+      }
+
+      formData.append("attachment_type", type);
+      formData.append("attachment_name", fname);
+      if (fileSize) formData.append("attachment_size", String(fileSize));
+      formData.append("text", "");
+
+      if (activeContact?.type === "group") {
+        if (activeContact.id !== "group") {
+          formData.append("group_id", String(activeContact.id));
+        }
+      } else if (activeContact?.id) {
+        formData.append("recipient_id", String(activeContact.id));
+      }
+      if (replyTo) formData.append("reply_to_id", String(replyTo.id));
+      setReplyTo(null);
+
+      const res = await apiService.sendChatMessage(formData);
+      if (res.data) {
+        setMessages((prev) => [...prev, res.data]);
+        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 60);
+      }
+    } catch (err: any) {
+      const errMsg =
+        err?.response?.data?.error ||
+        err?.response?.data?.message ||
+        err?.message ||
+        "Failed to send attachment.";
+      showToast({ title: "Error", message: errMsg, type: "error" });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  // ─── Camera Press Handler (Request permission on first use, photo/video capture) ───
+  const handleCameraPress = async () => {
+    try {
+      const camPerm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!camPerm.granted) {
+        Alert.alert(
+          "Camera Permission Required",
+          "AdminSuite requires camera access to let you capture and send photos or videos. Please allow camera permissions in your settings."
+        );
+        return;
+      }
+
+      // Request audio permission in case user records a video
+      await Audio.requestPermissionsAsync().catch(() => {});
+
+      Alert.alert("Camera", "Choose what to capture:", [
+        {
+          text: "Take Photo",
+          onPress: async () => {
+            try {
+              const res = await ImagePicker.launchCameraAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                quality: 0.8,
+                allowsEditing: false,
+              });
+              if (!res.canceled && res.assets && res.assets.length > 0) {
+                const asset = res.assets[0];
+                const fname = asset.fileName || `camera_${Date.now()}.jpg`;
+                await sendMediaAttachment(asset.uri, "image", fname, asset.fileSize);
+              }
+            } catch (e: any) {
+              Alert.alert("Camera Error", e.message || "Failed to capture photo.");
+            }
+          },
+        },
+        {
+          text: "Record Video",
+          onPress: async () => {
+            try {
+              const res = await ImagePicker.launchCameraAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+                quality: 0.8,
+                videoMaxDuration: 120,
+                allowsEditing: false,
+              });
+              if (!res.canceled && res.assets && res.assets.length > 0) {
+                const asset = res.assets[0];
+                const fname = asset.fileName || `video_${Date.now()}.mp4`;
+                await sendMediaAttachment(asset.uri, "video", fname, asset.fileSize);
+              }
+            } catch (e: any) {
+              Alert.alert("Camera Error", e.message || "Failed to record video.");
+            }
+          },
+        },
+        { text: "Cancel", style: "cancel" },
+      ]);
+    } catch (err: any) {
+      Alert.alert("Camera Error", err.message || "Failed to launch camera.");
+    }
+  };
+
+  // ─── Voice Note Recording & Playback ─────────────────────────────────────────
+  const startRecording = async () => {
+    try {
+      const perm = await Audio.requestPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert(
+          "Microphone Permission Required",
+          "Microphone access is needed to record voice notes. Please grant microphone permission in device settings."
+        );
+        return;
+      }
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+
+      if (recording) {
+        try {
+          await recording.stopAndUnloadAsync();
+        } catch {}
+      }
+
+      const { recording: newRecording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+      setRecording(newRecording);
+      setIsRecording(true);
+      setRecordingDuration(0);
+
+      if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+      recordTimerRef.current = setInterval(() => {
+        setRecordingDuration((prev) => prev + 1);
+      }, 1000);
+
+      if (Platform.OS !== "web") {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+      }
+    } catch (err: any) {
+      Alert.alert("Recording Error", err.message || "Could not start voice recording.");
+      setIsRecording(false);
+      setRecording(null);
+    }
+  };
+
+  const stopAndSendRecording = async () => {
+    if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+    if (!recording) {
+      setIsRecording(false);
+      return;
+    }
+
+    try {
+      await recording.stopAndUnloadAsync();
+      const uri = recording.getURI();
+      setRecording(null);
+      setIsRecording(false);
+      setRecordingDuration(0);
+
+      if (uri) {
+        const fname = `voice_${Date.now()}.m4a`;
+        await sendMediaAttachment(uri, "audio", fname);
+      }
+    } catch (err: any) {
+      Alert.alert("Recording Error", err.message || "Failed to finalize audio recording.");
+      setIsRecording(false);
+      setRecording(null);
+    }
+  };
+
+  const cancelRecording = async () => {
+    if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+    if (recording) {
+      try {
+        await recording.stopAndUnloadAsync();
+      } catch {}
+    }
+    setRecording(null);
+    setIsRecording(false);
+    setRecordingDuration(0);
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    }
+  };
+
+  const playVoiceNote = async (msgId: number, audioUrl: string) => {
+    try {
+      if (playingAudioId === msgId && soundRef.current) {
+        await soundRef.current.stopAsync();
+        await soundRef.current.unloadAsync();
+        soundRef.current = null;
+        setPlayingAudioId(null);
+        return;
+      }
+
+      if (soundRef.current) {
+        await soundRef.current.stopAsync();
+        await soundRef.current.unloadAsync();
+        soundRef.current = null;
+      }
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+      });
+
+      const fullUrl = getMediaUrl(audioUrl);
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: fullUrl },
+        { shouldPlay: true }
+      );
+      soundRef.current = sound;
+      setPlayingAudioId(msgId);
+
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          setPlayingAudioId(null);
+          sound.unloadAsync().catch(() => {});
+          soundRef.current = null;
+        }
+      });
+    } catch (err: any) {
+      Alert.alert("Audio Error", "Could not play voice note.");
+      setPlayingAudioId(null);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+      if (soundRef.current) {
+        soundRef.current.unloadAsync().catch(() => {});
+      }
+    };
+  }, []);
 
   // ─── Toggle group lock ──────────────────────────────────────────────────────
   const handleToggleLock = async () => {
@@ -1527,15 +1825,107 @@ export default function AdminChatScreen() {
                   backgroundColor: bubbleBg,
                   borderTopRightRadius: mine ? 4 : 18,
                   borderTopLeftRadius: mine ? 18 : 4,
+                  padding: msg.attachment && msg.attachment_type === "image" ? 4 : 10,
                 },
               ]}
             >
-              <ExpandableText
-                text={msg.display_text}
-                style={[styles.bubbleText, { fontFamily: "Inter_400Regular" }]}
-                textColor={textColor}
-                activeColor={mine ? textColor : colors.primary}
-              />
+              {/* Attachment rendering */}
+              {msg.attachment ? (
+                <View style={{ marginBottom: msg.display_text && msg.display_text !== msg.attachment_name ? 6 : 0 }}>
+                  {msg.attachment_type === "image" ? (
+                    <Pressable
+                      onPress={() => setSelectedFullImage(getMediaUrl(msg.attachment!))}
+                      style={styles.attachmentImgPressable}
+                    >
+                      <Image
+                        source={{ uri: getMediaUrl(msg.attachment) }}
+                        style={styles.attachmentImg}
+                        resizeMode="cover"
+                      />
+                    </Pressable>
+                  ) : msg.attachment_type === "video" ? (
+                    <Pressable
+                      onPress={() => Sharing.shareAsync(getMediaUrl(msg.attachment!)).catch(() => {})}
+                      style={[styles.attachmentVideoCard, { backgroundColor: mine ? "rgba(255,255,255,0.18)" : (isDark ? "#27272a" : "#f4f4f5") }]}
+                    >
+                      <View style={styles.videoPlayCircle}>
+                        <Feather name="play" size={18} color="#fff" style={{ marginLeft: 2 }} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.attachmentFileName, { color: textColor }]} numberOfLines={1}>
+                          {msg.attachment_name || "Video"}
+                        </Text>
+                        <Text style={[styles.attachmentMeta, { color: mine ? "rgba(255,255,255,0.7)" : colors.mutedForeground }]}>
+                          Video file • Tap to view
+                        </Text>
+                      </View>
+                    </Pressable>
+                  ) : msg.attachment_type === "audio" ? (
+                    <View style={[styles.voiceNoteBubble, { backgroundColor: mine ? "rgba(255,255,255,0.18)" : (isDark ? "#27272a" : "#f4f4f5") }]}>
+                      <Pressable
+                        onPress={() => playVoiceNote(msg.id, msg.attachment!)}
+                        style={[styles.voicePlayBtn, { backgroundColor: mine ? "#fff" : colors.primary }]}
+                      >
+                        <Feather
+                          name={playingAudioId === msg.id ? "pause" : "play"}
+                          size={16}
+                          color={mine ? colors.primary : "#fff"}
+                          style={{ marginLeft: playingAudioId === msg.id ? 0 : 2 }}
+                        />
+                      </Pressable>
+                      <View style={styles.voiceWaveformContainer}>
+                        <View style={styles.waveformBars}>
+                          {[6, 12, 18, 10, 16, 22, 14, 8, 16, 20, 12, 18, 10, 6].map((h, i) => (
+                            <View
+                              key={i}
+                              style={[
+                                styles.waveformBar,
+                                {
+                                  height: h,
+                                  backgroundColor: playingAudioId === msg.id && i % 2 === 0
+                                    ? (mine ? "#fff" : colors.primary)
+                                    : (mine ? "rgba(255,255,255,0.6)" : (isDark ? "#71717a" : "#a1a1aa")),
+                                },
+                              ]}
+                            />
+                          ))}
+                        </View>
+                        <Text style={[styles.voiceDuration, { color: mine ? "rgba(255,255,255,0.8)" : colors.mutedForeground }]}>
+                          Voice Note
+                        </Text>
+                      </View>
+                      <Feather name="mic" size={14} color={mine ? "rgba(255,255,255,0.75)" : colors.mutedForeground} style={{ alignSelf: "flex-end", marginBottom: 4 }} />
+                    </View>
+                  ) : (
+                    /* Document */
+                    <Pressable
+                      onPress={() => Sharing.shareAsync(getMediaUrl(msg.attachment!)).catch(() => {})}
+                      style={[styles.attachmentDocCard, { backgroundColor: mine ? "rgba(255,255,255,0.18)" : (isDark ? "#27272a" : "#f4f4f5") }]}
+                    >
+                      <View style={[styles.docIconWrap, { backgroundColor: mine ? "rgba(255,255,255,0.25)" : colors.primary + "20" }]}>
+                        <Feather name="file-text" size={20} color={mine ? "#fff" : colors.primary} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.attachmentFileName, { color: textColor }]} numberOfLines={1}>
+                          {msg.attachment_name || "Document"}
+                        </Text>
+                        <Text style={[styles.attachmentMeta, { color: mine ? "rgba(255,255,255,0.7)" : colors.mutedForeground }]}>
+                          Document • Tap to open
+                        </Text>
+                      </View>
+                    </Pressable>
+                  )}
+                </View>
+              ) : null}
+
+              {(!msg.attachment || (msg.display_text && msg.display_text !== msg.attachment_name && !msg.display_text.startsWith("["))) && (
+                <ExpandableText
+                  text={msg.display_text}
+                  style={[styles.bubbleText, { fontFamily: "Inter_400Regular" }]}
+                  textColor={textColor}
+                  activeColor={mine ? textColor : colors.primary}
+                />
+              )}
             </View>
             <View style={[styles.metaRow, mine ? { justifyContent: "flex-end" } : {}]}>
               {msg.is_pinned && <Feather name="bookmark" size={10} color={colors.accent} style={{ marginRight: 4 }} />}
@@ -2269,62 +2659,113 @@ export default function AdminChatScreen() {
           </View>
         )}
 
-        {/* Input bar */}
+        {/* Input bar (WhatsApp style) */}
         <View
           style={[
-            styles.inputBar,
+            styles.inputBarContainer,
             {
               paddingBottom: isKeyboardOpen ? 8 : Math.max(insets.bottom, 10),
-              backgroundColor: isDark ? "#09090b" : "#fff",
-              borderTopColor: colors.border,
+              backgroundColor: isDark ? "#0c1317" : "#efeae2",
             },
           ]}
         >
-          {/* Emoji button */}
-          <Pressable
-            onPress={() => setShowEmojiPicker((v) => !v)}
-            style={({ pressed }) => [styles.emojiToggleBtn, { opacity: pressed ? 0.7 : 1 }]}
-            hitSlop={6}
-          >
-            <Feather name="smile" size={22} color={showEmojiPicker ? colors.accent : colors.mutedForeground} />
-          </Pressable>
+          {isRecording ? (
+            /* Voice Note Recording State */
+            <View style={[styles.recordingPill, { backgroundColor: isDark ? "#1f2c34" : "#ffffff" }]}>
+              <View style={styles.recordingLeft}>
+                <View style={styles.recordingDot} />
+                <Text style={[styles.recordingTimer, { color: isDark ? "#e9edef" : "#111b21" }]}>
+                  {Math.floor(recordingDuration / 60)}:{String(recordingDuration % 60).padStart(2, "0")}
+                </Text>
+                <Text style={[styles.recordingNotice, { color: colors.mutedForeground }]}>
+                  Recording voice note...
+                </Text>
+              </View>
+              <Pressable
+                onPress={cancelRecording}
+                style={({ pressed }) => [styles.cancelRecordBtn, { opacity: pressed ? 0.6 : 1 }]}
+                hitSlop={8}
+              >
+                <Feather name="trash-2" size={20} color="#ef4444" />
+              </Pressable>
+            </View>
+          ) : (
+            /* WhatsApp Pill Input Bar */
+            <View style={[styles.pillInputContainer, { backgroundColor: isDark ? "#1f2c34" : "#ffffff" }]}>
+              {/* Emoji icon on far left inside pill */}
+              <Pressable
+                onPress={() => setShowEmojiPicker((v) => !v)}
+                style={({ pressed }) => [styles.pillIconBtn, { opacity: pressed ? 0.7 : 1 }]}
+                hitSlop={6}
+              >
+                <Feather name="smile" size={24} color={showEmojiPicker ? colors.accent : (isDark ? "#8696a0" : "#54656f")} />
+              </Pressable>
 
-          <View style={[styles.inputWrap, { backgroundColor: isDark ? "#27272a" : "#f4f4f5", borderColor: colors.border }]}>
-            <TextInput
-              value={inputText}
-              onChangeText={handleTextChange}
-              placeholder={editingMsg ? t("chat.editPlaceholder") : t("chat.typePlaceholder")}
-              placeholderTextColor={colors.mutedForeground}
-              multiline
-              onFocus={() => {
-                setShowEmojiPicker(false);
-                setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 80);
-              }}
-              style={[styles.input, { color: colors.text, fontFamily: "Inter_400Regular" }]}
-              onSubmitEditing={handleSend}
-            />
-            <Pressable
-              onPress={handleSend}
-              disabled={!inputText.trim() || sending}
-              style={({ pressed }) => [
-                styles.sendBtn,
-                {
-                  backgroundColor: inputText.trim() ? colors.primary : (isDark ? "#27272a" : "#e4e4e7"),
-                  opacity: pressed ? 0.8 : 1,
-                },
-              ]}
-            >
-              {sending ? (
-                <ActivityIndicator size={14} color={inputText.trim() ? (colors.primaryForeground || "#fff") : (isDark ? "#52525b" : "#a1a1aa")} />
-              ) : (
-                <Feather
-                  name={editingMsg ? "check" : "send"}
-                  size={16}
-                  color={inputText.trim() ? (colors.primaryForeground || "#fff") : (isDark ? "#52525b" : "#a1a1aa")}
-                />
-              )}
-            </Pressable>
-          </View>
+              {/* Message text input with green cursor */}
+              <TextInput
+                value={inputText}
+                onChangeText={handleTextChange}
+                placeholder="Message"
+                placeholderTextColor={isDark ? "#8696a0" : "#667781"}
+                cursorColor="#25d366"
+                selectionColor="#25d366"
+                multiline
+                onFocus={() => {
+                  setShowEmojiPicker(false);
+                  setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 80);
+                }}
+                style={[
+                  styles.pillTextInput,
+                  {
+                    color: isDark ? "#e9edef" : "#111b21",
+                    fontFamily: "Inter_400Regular",
+                  },
+                ]}
+              />
+
+              {/* Link / Paperclip icon inside pill */}
+              <Pressable
+                onPress={() => setShowAttachMenu(true)}
+                style={({ pressed }) => [styles.pillIconBtn, { opacity: pressed ? 0.7 : 1 }]}
+                hitSlop={6}
+              >
+                <Feather name="paperclip" size={22} color={isDark ? "#8696a0" : "#54656f"} />
+              </Pressable>
+
+              {/* Camera icon inside pill */}
+              <Pressable
+                onPress={handleCameraPress}
+                style={({ pressed }) => [styles.pillIconBtn, { opacity: pressed ? 0.7 : 1, marginLeft: 4 }]}
+                hitSlop={6}
+              >
+                <Feather name="camera" size={22} color={isDark ? "#8696a0" : "#54656f"} />
+              </Pressable>
+            </View>
+          )}
+
+          {/* Right Floating Action Circle Button */}
+          <Pressable
+            onPress={isRecording ? stopAndSendRecording : (inputText.trim() ? handleSend : startRecording)}
+            disabled={sending}
+            style={({ pressed }) => [
+              styles.actionCircleBtn,
+              {
+                backgroundColor: isRecording ? "#ef4444" : "#00a884",
+                transform: [{ scale: pressed ? 0.94 : 1 }],
+                opacity: sending ? 0.7 : 1,
+              },
+            ]}
+          >
+            {sending ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : isRecording ? (
+              <Feather name="send" size={20} color="#fff" />
+            ) : inputText.trim() ? (
+              <Feather name="send" size={20} color="#fff" />
+            ) : (
+              <Feather name="mic" size={22} color="#fff" />
+            )}
+          </Pressable>
         </View>
       </View>
 
@@ -3258,6 +3699,118 @@ export default function AdminChatScreen() {
           </View>
         </Pressable>
       </Modal>
+
+      {/* ── Attachment Options Bottom Sheet ── */}
+      <Modal
+        visible={showAttachMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowAttachMenu(false)}
+      >
+        <Pressable style={styles.attachBackdrop} onPress={() => setShowAttachMenu(false)}>
+          <View style={[styles.attachSheetContainer, { backgroundColor: isDark ? "#1f2c34" : "#ffffff" }]}>
+            <View style={styles.attachSheetGrid}>
+              {/* Document Option */}
+              <Pressable
+                onPress={async () => {
+                  setShowAttachMenu(false);
+                  try {
+                    const res = await DocumentPicker.getDocumentAsync({
+                      type: "*/*",
+                      copyToCacheDirectory: true,
+                    });
+                    if (!res.canceled && res.assets && res.assets.length > 0) {
+                      const doc = res.assets[0];
+                      await sendMediaAttachment(doc.uri, "document", doc.name, doc.size);
+                    }
+                  } catch (e: any) {
+                    Alert.alert("File Error", e.message || "Failed to pick document.");
+                  }
+                }}
+                style={({ pressed }) => [styles.attachGridItem, { opacity: pressed ? 0.7 : 1 }]}
+              >
+                <View style={[styles.attachCircle, { backgroundColor: "#5f66cd" }]}>
+                  <Feather name="file-text" size={22} color="#fff" />
+                </View>
+                <Text style={[styles.attachLabel, { color: isDark ? "#e9edef" : "#111b21" }]}>Document</Text>
+              </Pressable>
+
+              {/* Gallery (Photos & Videos) */}
+              <Pressable
+                onPress={async () => {
+                  setShowAttachMenu(false);
+                  try {
+                    const res = await ImagePicker.launchImageLibraryAsync({
+                      mediaTypes: ImagePicker.MediaTypeOptions.All,
+                      quality: 0.8,
+                      allowsEditing: false,
+                    });
+                    if (!res.canceled && res.assets && res.assets.length > 0) {
+                      const asset = res.assets[0];
+                      const isVideo = asset.type === "video";
+                      const fname = asset.fileName || (isVideo ? `video_${Date.now()}.mp4` : `photo_${Date.now()}.jpg`);
+                      await sendMediaAttachment(asset.uri, isVideo ? "video" : "image", fname, asset.fileSize);
+                    }
+                  } catch (e: any) {
+                    Alert.alert("Gallery Error", e.message || "Failed to select media.");
+                  }
+                }}
+                style={({ pressed }) => [styles.attachGridItem, { opacity: pressed ? 0.7 : 1 }]}
+              >
+                <View style={[styles.attachCircle, { backgroundColor: "#c13584" }]}>
+                  <Feather name="image" size={22} color="#fff" />
+                </View>
+                <Text style={[styles.attachLabel, { color: isDark ? "#e9edef" : "#111b21" }]}>Gallery</Text>
+              </Pressable>
+
+              {/* Camera */}
+              <Pressable
+                onPress={() => {
+                  setShowAttachMenu(false);
+                  handleCameraPress();
+                }}
+                style={({ pressed }) => [styles.attachGridItem, { opacity: pressed ? 0.7 : 1 }]}
+              >
+                <View style={[styles.attachCircle, { backgroundColor: "#059669" }]}>
+                  <Feather name="camera" size={22} color="#fff" />
+                </View>
+                <Text style={[styles.attachLabel, { color: isDark ? "#e9edef" : "#111b21" }]}>Camera</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* ── Full-Screen Image Viewer Modal ── */}
+      <Modal
+        visible={!!selectedFullImage}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSelectedFullImage(null)}
+      >
+        <View style={styles.fullImgBackdrop}>
+          <Pressable style={styles.fullImgCloseBtn} onPress={() => setSelectedFullImage(null)}>
+            <Feather name="x" size={24} color="#fff" />
+          </Pressable>
+          {selectedFullImage && (
+            <Image
+              source={{ uri: selectedFullImage }}
+              style={styles.fullImg}
+              resizeMode="contain"
+            />
+          )}
+          <Pressable
+            style={styles.fullImgShareBtn}
+            onPress={() => {
+              if (selectedFullImage) {
+                Sharing.shareAsync(selectedFullImage).catch(() => {});
+              }
+            }}
+          >
+            <Feather name="share-2" size={20} color="#fff" />
+          </Pressable>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
     </View>
   );
@@ -3637,34 +4190,243 @@ const styles = StyleSheet.create({
   replyBarLabel: { fontSize: 12 },
   replyBarText: { fontSize: 12, marginTop: 2 },
 
-  // ── Input ──
-  inputBar: {
-    paddingHorizontal: 12,
-    paddingTop: 10,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  inputWrap: {
+  // ── Input Container (WhatsApp style) ──
+  inputBarContainer: {
     flexDirection: "row",
     alignItems: "flex-end",
-    borderRadius: 26,
-    borderWidth: 1,
-    paddingLeft: 14,
-    paddingRight: 6,
+    paddingHorizontal: 8,
+    paddingTop: 8,
+    gap: 6,
+  },
+  pillInputContainer: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 25,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    minHeight: 48,
+    maxHeight: 120,
+  },
+  pillIconBtn: {
+    padding: 6,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  pillTextInput: {
+    flex: 1,
+    fontSize: 16,
     paddingVertical: 6,
+    paddingHorizontal: 8,
+    maxHeight: 100,
+  },
+  actionCircleBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+  },
+  recordingPill: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderRadius: 25,
+    paddingHorizontal: 16,
+    height: 48,
+  },
+  recordingLeft: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
-  input: {
-    flex: 1,
-    fontSize: 15,
-    maxHeight: 120,
-    paddingVertical: Platform.OS === "ios" ? 6 : 4,
+  recordingDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#ef4444",
   },
-  sendBtn: {
+  recordingTimer: {
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+  },
+  recordingNotice: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+  },
+  cancelRecordBtn: {
+    padding: 6,
+  },
+
+  // ── Attachment Menu Sheet ──
+  attachBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+    paddingBottom: 72,
+    paddingHorizontal: 12,
+  },
+  attachSheetContainer: {
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 10,
+  },
+  attachSheetGrid: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
+  },
+  attachGridItem: {
+    alignItems: "center",
+    gap: 8,
+  },
+  attachCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  attachLabel: {
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+  },
+
+  // ── Message Attachments ──
+  attachmentImgPressable: {
+    borderRadius: 14,
+    overflow: "hidden",
+  },
+  attachmentImg: {
+    width: 240,
+    height: 180,
+    borderRadius: 14,
+  },
+  attachmentVideoCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 10,
+    borderRadius: 12,
+    width: 220,
+  },
+  videoPlayCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  attachmentDocCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 10,
+    borderRadius: 12,
+    width: 220,
+  },
+  docIconWrap: {
     width: 38,
     height: 38,
     borderRadius: 19,
     alignItems: "center",
     justifyContent: "center",
+  },
+  attachmentFileName: {
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+  },
+  attachmentMeta: {
+    fontSize: 11,
+    marginTop: 2,
+    fontFamily: "Inter_400Regular",
+  },
+
+  // ── Voice Note Bubble ──
+  voiceNoteBubble: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    width: 220,
+  },
+  voicePlayBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  voiceWaveformContainer: {
+    flex: 1,
+    gap: 4,
+  },
+  waveformBars: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2.5,
+    height: 24,
+  },
+  waveformBar: {
+    width: 3,
+    borderRadius: 1.5,
+  },
+  voiceDuration: {
+    fontSize: 11,
+    fontFamily: "Inter_500Medium",
+  },
+
+  // ── Full-Screen Image ──
+  fullImgBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.92)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  fullImgCloseBtn: {
+    position: "absolute",
+    top: 50,
+    right: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 10,
+  },
+  fullImgShareBtn: {
+    position: "absolute",
+    bottom: 50,
+    right: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 10,
+  },
+  fullImg: {
+    width: "100%",
+    height: "80%",
   },
 
   // ── Action Sheet ──

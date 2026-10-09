@@ -709,6 +709,10 @@ class ChatMessageSerializer(serializers.ModelSerializer):
     reply_to_text = serializers.SerializerMethodField()
     reply_to_sender = serializers.SerializerMethodField()
     display_text = serializers.SerializerMethodField()
+    attachment = serializers.SerializerMethodField()
+    attachment_type = serializers.CharField(read_only=True)
+    attachment_name = serializers.CharField(read_only=True)
+    attachment_size = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = ChatMessage
@@ -716,6 +720,7 @@ class ChatMessageSerializer(serializers.ModelSerializer):
             'id', 'sender_id', 'sender_name', 'sender_initials', 'sender_avatar',
             'recipient_id', 'group_id', 'text', 'display_text', 'is_pinned', 'is_edited', 'is_deleted',
             'reply_to_id', 'reply_to_text', 'reply_to_sender',
+            'attachment', 'attachment_type', 'attachment_name', 'attachment_size',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['sender_id', 'sender_name', 'sender_initials', 'sender_avatar',
@@ -767,6 +772,15 @@ class ChatMessageSerializer(serializers.ModelSerializer):
         if obj.is_deleted:
             return "This message was deleted"
         return obj.text
+
+    def get_attachment(self, obj):
+        if not obj.attachment:
+            return None
+        request = self.context.get('request')
+        url = obj.attachment.url
+        if request and not url.startswith('http'):
+            return request.build_absolute_uri(url)
+        return url
 
 
 class ChatSettingsSerializer(serializers.ModelSerializer):

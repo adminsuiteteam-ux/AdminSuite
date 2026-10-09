@@ -426,6 +426,10 @@ class ChatMessage(models.Model):
         related_name='channel_messages'
     )
     text = models.TextField(blank=True, default='')
+    attachment = models.FileField(upload_to='chat_attachments/', blank=True, null=True)
+    attachment_type = models.CharField(max_length=20, blank=True, default='')  # 'image' | 'video' | 'audio' | 'document'
+    attachment_name = models.CharField(max_length=255, blank=True, default='')
+    attachment_size = models.IntegerField(default=0, blank=True, null=True)
     is_pinned = models.BooleanField(default=False)
     is_edited = models.BooleanField(default=False)
     is_deleted = models.BooleanField(default=False)
