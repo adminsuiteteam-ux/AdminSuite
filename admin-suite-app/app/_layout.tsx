@@ -29,6 +29,7 @@ import { AuthProvider } from "@/context/AuthContext";
 import { DataProvider } from "@/context/DataContext";
 import { SettingsProvider } from "@/context/SettingsContext";
 import { ToastProvider } from "@/context/ToastContext";
+import { AlertProvider } from "@/context/AlertContext";
 import "../i18n";
 
 // Configure how notifications are displayed when the app is in the foreground
@@ -156,23 +157,25 @@ function RootLayout() {
   return (
     <SafeAreaProvider style={{ flex: 1, backgroundColor: "#09090b" }}>
       <ToastProvider>
-        <ErrorBoundary>
-          <QueryClientProvider client={queryClient}>
-            <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#09090b" }}>
-              <KeyboardProvider>
-                <AuthProvider>
-                  <DataProvider>
-                    <SettingsProvider>
-                      <StatusBar style="auto" />
-                      <RootLayoutNav />
-                      <ConnectionBanner />
-                    </SettingsProvider>
-                  </DataProvider>
-                </AuthProvider>
-              </KeyboardProvider>
-            </GestureHandlerRootView>
-          </QueryClientProvider>
-        </ErrorBoundary>
+        <AlertProvider>
+          <ErrorBoundary>
+            <QueryClientProvider client={queryClient}>
+              <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#09090b" }}>
+                <KeyboardProvider>
+                  <AuthProvider>
+                    <DataProvider>
+                      <SettingsProvider>
+                        <StatusBar style="auto" />
+                        <RootLayoutNav />
+                        <ConnectionBanner />
+                      </SettingsProvider>
+                    </DataProvider>
+                  </AuthProvider>
+                </KeyboardProvider>
+              </GestureHandlerRootView>
+            </QueryClientProvider>
+          </ErrorBoundary>
+        </AlertProvider>
       </ToastProvider>
     </SafeAreaProvider>
   );

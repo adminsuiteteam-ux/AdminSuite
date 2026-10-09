@@ -50,14 +50,64 @@ export default function ProjectDetailScreen() {
 
   const [actionsOpen, setActionsOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [remoteProject, setRemoteProject] = useState<any>(null);
+  const [fetchingRemote, setFetchingRemote] = useState(!projects.some((p: any) => String(p.id) === String(id)));
 
-  const project = projects.find((p: any) => String(p.id) === String(id));
+  const cachedProject = projects.find((p: any) => String(p.id) === String(id));
+  const project = cachedProject || remoteProject;
   const client = project ? clients.find((c: any) => c.id === project.client) : null;
+
+  React.useEffect(() => {
+    if (!cachedProject && id) {
+      setFetchingRemote(true);
+      apiService
+        .getProject(String(id))
+        .then((res) => {
+          setRemoteProject(res.data);
+          refresh();
+        })
+        .catch((err) => {
+          console.warn("[ProjectDetail] Direct lookup failed:", err);
+        })
+        .finally(() => {
+          setFetchingRemote(false);
+        });
+    } else if (cachedProject) {
+      setFetchingRemote(false);
+    }
+  }, [id, cachedProject]);
+
+  if (fetchingRemote && !project) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background }}>
+        <Text style={{ color: colors.mutedForeground, marginTop: 12, fontFamily: "Inter_500Medium" }}>
+          Loading project details...
+        </Text>
+      </View>
+    );
+  }
 
   if (!project) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background }}>
-        <Text style={{ color: colors.foreground }}>{t("project.notFound")}</Text>
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background, padding: 24 }}>
+        <Feather name="folder-minus" size={48} color={colors.mutedForeground} style={{ marginBottom: 12, opacity: 0.6 }} />
+        <Text style={{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 17, marginBottom: 8 }}>
+          {t("project.notFound")}
+        </Text>
+        <Pressable
+          onPress={() => router.back()}
+          style={{
+            marginTop: 12,
+            paddingHorizontal: 20,
+            paddingVertical: 10,
+            backgroundColor: colors.card,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: colors.border,
+          }}
+        >
+          <Text style={{ color: colors.foreground, fontFamily: "Inter_500Medium" }}>Go Back</Text>
+        </Pressable>
       </View>
     );
   }

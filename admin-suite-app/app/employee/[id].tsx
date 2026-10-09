@@ -63,7 +63,6 @@ export default function EmployeeDetailScreen() {
   // Modals visibility state
   const [flagModalOpen, setFlagModalOpen] = useState(false);
   const [queryModalOpen, setQueryModalOpen] = useState(false);
-  const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [promoteModalOpen, setPromoteModalOpen] = useState(false);
   const [salaryModalOpen, setSalaryModalOpen] = useState(false);
   const [leaveModalOpen, setLeaveModalOpen] = useState(false);
@@ -82,13 +81,6 @@ export default function EmployeeDetailScreen() {
   const [queryType, setQueryType] = useState("Document Verification");
   const [queryMsg, setQueryMsg] = useState("");
   const [queryAttachment, setQueryAttachment] = useState<string | null>(null);
-
-  // Task state
-  const [taskTitle, setTaskTitle] = useState("");
-  const [taskDesc, setTaskDesc] = useState("");
-  const [taskPriority, setTaskPriority] = useState("medium");
-  const [taskDue, setTaskDue] = useState("");
-  const [taskAttachment, setTaskAttachment] = useState<string | null>(null);
 
   // Promotion state
   const [promoRole, setPromoRole] = useState("");
@@ -187,40 +179,6 @@ export default function EmployeeDetailScreen() {
     } catch (err) {
       console.warn(err);
       Alert.alert("Error", "Failed to raise query.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleTaskSubmit = async () => {
-    if (!taskTitle.trim() || !taskDesc.trim() || !taskDue.trim()) {
-      return Alert.alert("Error", "Please fill in all fields.");
-    }
-    // Simple date validator
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(taskDue)) {
-      return Alert.alert("Error", "Due date must be in YYYY-MM-DD format.");
-    }
-    try {
-      setSubmitting(true);
-      const data = {
-        employee: employee.id,
-        title: taskTitle,
-        description: taskDesc,
-        priority: taskPriority,
-        due_date: taskDue,
-        status: "assigned",
-      };
-      await apiService.createTask(data);
-      await refreshData();
-      setTaskModalOpen(false);
-      setTaskTitle("");
-      setTaskDesc("");
-      setTaskDue("");
-      setTaskAttachment(null);
-      Alert.alert("Success", "Task assigned successfully.");
-    } catch (err) {
-      console.warn(err);
-      Alert.alert("Error", "Failed to assign task.");
     } finally {
       setSubmitting(false);
     }
@@ -723,7 +681,21 @@ export default function EmployeeDetailScreen() {
             <View style={styles.manageGrid}>
               <ManageBtn icon="flag" label={employee.is_flagged ? "Unflag" : "Flag"} onPress={() => setFlagModalOpen(true)} />
               <ManageBtn icon="alert-circle" label="Query" onPress={() => setQueryModalOpen(true)} />
-              <ManageBtn icon="check-square" label="Give task" onPress={() => setTaskModalOpen(true)} />
+              <ManageBtn
+                icon="check-square"
+                label="Give task"
+                onPress={() =>
+                  router.push({
+                    pathname: "/employee/assign-task" as any,
+                    params: {
+                      employeeId: String(employee.id),
+                      employeeName: employee.name,
+                      employeeRole: employee.role,
+                      employeeAvatar: employee.avatar || "",
+                    },
+                  })
+                }
+              />
               <ManageBtn icon="edit-3" label="Edit" onPress={onEdit} />
               <ManageBtn icon="trash-2" label="Delete" onPress={() => {
                 Alert.alert("Confirm Delete", `Are you sure you want to delete ${employee.name}?`, [
@@ -961,23 +933,6 @@ export default function EmployeeDetailScreen() {
         <ModalLabel text="Message" />
         <ModalInput value={queryMsg} onChangeText={setQueryMsg} placeholder="Describe the query..." multiline />
         <ModalBtn label="Submit Query" color="#eab308" loading={submitting} onPress={handleQuerySubmit} />
-      </AdminModal>
-
-      {/* ── Give Task Modal ──────────────────────────────── */}
-      <AdminModal visible={taskModalOpen} onClose={() => setTaskModalOpen(false)} title="Assign Task">
-        <ModalLabel text="Title" />
-        <ModalInput value={taskTitle} onChangeText={setTaskTitle} placeholder="Task title" />
-        <ModalLabel text="Description" />
-        <ModalInput value={taskDesc} onChangeText={setTaskDesc} placeholder="Describe the task..." multiline />
-        <ModalLabel text="Priority" />
-        <ModalPicker
-          options={["low", "medium", "high", "urgent"]}
-          value={taskPriority}
-          onChange={setTaskPriority}
-        />
-        <ModalLabel text="Due Date (YYYY-MM-DD)" />
-        <ModalInput value={taskDue} onChangeText={setTaskDue} placeholder="2026-01-15" />
-        <ModalBtn label="Assign Task" color="#22c55e" loading={submitting} onPress={handleTaskSubmit} />
       </AdminModal>
 
       {/* ── Promote Modal ────────────────────────────────── */}

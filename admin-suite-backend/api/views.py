@@ -202,9 +202,18 @@ def get_scoped_queryset(model, request, user_field='user', branch_field='branch'
                 q_filter |= models.Q(**{user_field: user})
                 q_filter |= models.Q(**{f"{user_field}__extension__organization": org})
 
+            if hasattr(model, 'client'):
+                q_filter |= models.Q(client__user=user)
+                if org:
+                    q_filter |= models.Q(client__user__extension__organization=org)
+
             if q_filter:
                 return model.objects.filter(q_filter).distinct()
+            if hasattr(model, 'client'):
+                return model.objects.filter(models.Q(**{user_field: user}) | models.Q(client__user=user)).distinct()
             return model.objects.filter(**{user_field: user})
+        if hasattr(model, 'client'):
+            return model.objects.filter(models.Q(**{user_field: user}) | models.Q(client__user=user)).distinct()
         return model.objects.filter(**{user_field: user})
         
     elif role in ('BRANCH_ADMIN', 'HR', 'FINANCE', 'OPERATIONS', 'SECRETARY', 'DEPT_MANAGER'):
@@ -220,6 +229,8 @@ def get_scoped_queryset(model, request, user_field='user', branch_field='branch'
                 q_filter |= models.Q(organization=branch.organization)
             if has_user:
                 q_filter |= models.Q(**{f"{user_field}__extension__branch": branch})
+            if hasattr(model, 'client'):
+                q_filter |= models.Q(client__user__extension__branch=branch)
             if q_filter:
                 return model.objects.filter(q_filter).distinct()
         elif org:
@@ -230,6 +241,8 @@ def get_scoped_queryset(model, request, user_field='user', branch_field='branch'
                 q_filter |= models.Q(**{f"{branch_field}__organization": org})
             if has_user:
                 q_filter |= models.Q(**{f"{user_field}__extension__organization": org})
+            if hasattr(model, 'client'):
+                q_filter |= models.Q(client__user__extension__organization=org)
             if q_filter:
                 return model.objects.filter(q_filter).distinct()
         return model.objects.filter(**{user_field: user})
@@ -245,6 +258,18 @@ def get_scoped_queryset(model, request, user_field='user', branch_field='branch'
             return model.objects.filter(employee__linked_user=user)
         elif model.__name__ == 'EmployeeDocument':
             return model.objects.filter(employee__linked_user=user)
+        elif model.__name__ == 'Project':
+            emp = getattr(user, 'employee_profile', None)
+            if emp:
+                comp_user = emp.user
+                q = models.Q(user=comp_user) | models.Q(client__user=comp_user) | models.Q(user=user)
+                if emp.branch:
+                    q |= models.Q(branch=emp.branch)
+                return model.objects.filter(q).distinct()
+        elif model.__name__ == 'Client':
+            emp = getattr(user, 'employee_profile', None)
+            if emp:
+                return model.objects.filter(models.Q(user=emp.user) | models.Q(user=user)).distinct()
         
         if hasattr(model, 'user') or hasattr(model, user_field):
             return model.objects.filter(**{user_field: user})
@@ -582,18 +607,36 @@ class ProjectViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return get_scoped_queryset(Project, self.request)
+        qs = get_scoped_queryset(Project, self.request)
+        try:
+            comp_user = _get_company_user(self.request)
+            fallback_q = (
+                models.Q(user=comp_user) |
+                models.Q(client__user=comp_user) |
+                models.Q(user=self.request.user) |
+                models.Q(client__user=self.request.user)
+            )
+            return (qs | Project.objects.filter(fallback_q)).distinct()
+        except Exception:
+            return qs
 
     def perform_create(self, serializer):
         try:
             # pyrefly: ignore [missing-attribute]
             ext = self.request.user.extension
             org = ext.organization
+            branch = getattr(ext, 'branch', None)
         except Exception:
             org = None
+            branch = None
         if org:
             check_subscription_limit(org, 'projects')
-        serializer.save(user=self.request.user)
+        
+        comp_user = _get_company_user(self.request)
+        client = serializer.validated_data.get('client')
+        if not branch and client and getattr(client, 'branch', None):
+            branch = client.branch
+        serializer.save(user=comp_user or self.request.user, branch=branch)
 
     def perform_update(self, serializer):
         old_status = serializer.instance.status

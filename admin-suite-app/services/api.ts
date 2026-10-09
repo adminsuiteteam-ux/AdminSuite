@@ -365,6 +365,7 @@ export const apiService = {
 
   // Projects
   getProjects: () => apiClient.get('projects/'),
+  getProject: (id: string | number) => apiClient.get(`projects/${id}/`),
   createProject: (data: any) => apiClient.post('projects/', data, { timeout: 45000 }),
   updateProject: (id: string, data: any) =>
     apiClient.put(`projects/${id}/`, data, { timeout: 45000 }),
