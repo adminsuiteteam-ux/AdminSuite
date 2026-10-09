@@ -14,6 +14,8 @@ if "%choice%"=="1" (
     echo.
     echo Launching EAS Cloud APK Build...
     cd /d "%~dp0admin-suite-app"
+    set EAS_SKIP_AUTO_FINGERPRINT=1
+    set NODE_OPTIONS=--dns-result-order=ipv4first
     npx eas build --platform android --profile preview
 ) else if "%choice%"=="2" (
     echo.
