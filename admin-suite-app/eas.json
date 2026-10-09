@@ -16,7 +16,6 @@
       },
       "prebuildCommand": "npx expo prebuild --clean",
       "env": {
-        "NODE_ENV": "production",
         "EXPO_PUBLIC_API_URL": "https://adminsuite-api.onrender.com",
         "EXPO_PUBLIC_GOOGLE_CLIENT_ID": "423529031276-mujj55b0vk708a311iguoeo13mkjrhvj.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID": "423529031276-mujj55b0vk708a311iguoeo13mkjrhvj.apps.googleusercontent.com",
@@ -29,7 +28,6 @@
     "production": {
       "prebuildCommand": "npx expo prebuild --clean",
       "env": {
-        "NODE_ENV": "production",
         "EXPO_PUBLIC_API_URL": "https://adminsuite-api.onrender.com",
         "EXPO_PUBLIC_GOOGLE_CLIENT_ID": "423529031276-mujj55b0vk708a311iguoeo13mkjrhvj.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID": "423529031276-mujj55b0vk708a311iguoeo13mkjrhvj.apps.googleusercontent.com",
