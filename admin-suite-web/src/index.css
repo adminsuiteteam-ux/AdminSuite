@@ -3490,4 +3490,612 @@ input, select, textarea { font-family: inherit; }
   line-height: 1.45;
 }
 
+/* ============================================================
+   EXECUTIVE CORPORATE FINANCE & TREASURY SUITE
+   ============================================================ */
+
+.finance-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.finance-page-title {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.finance-title-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--primary);
+  background: var(--secondary);
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  width: fit-content;
+  border: 1px solid var(--border);
+}
+
+.finance-header-row h2 {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  color: var(--foreground);
+}
+
+.finance-page-subtitle {
+  font-size: 13px;
+  color: var(--muted-foreground);
+  margin-top: 2px;
+}
+
+.finance-action-buttons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ── KPI Stat Cards ── */
+.finance-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 1200px) {
+  .finance-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .finance-stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.finance-stat-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: transform var(--transition), border-color var(--transition), box-shadow var(--transition);
+}
+
+.finance-stat-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--primary);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+}
+
+.finance-stat-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--card-accent, var(--primary));
+  opacity: 0.85;
+}
+
+.finance-stat-card.profit { --card-accent: #3b82f6; }
+.finance-stat-card.income { --card-accent: #10b981; }
+.finance-stat-card.expense { --card-accent: #ef4444; }
+.finance-stat-card.debt { --card-accent: #f59e0b; }
+
+.finance-stat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.finance-stat-icon-wrap {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.finance-stat-icon-wrap.blue {
+  background: rgba(59, 130, 246, 0.12);
+  color: #3b82f6;
+}
+
+.finance-stat-icon-wrap.green {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+}
+
+.finance-stat-icon-wrap.red {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+}
+
+.finance-stat-icon-wrap.amber {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+}
+
+.finance-stat-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.finance-stat-badge.positive {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+}
+
+.finance-stat-badge.negative {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+}
+
+.finance-stat-badge.neutral {
+  background: var(--secondary);
+  color: var(--muted-foreground);
+}
+
+.finance-stat-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted-foreground);
+  margin-bottom: 4px;
+}
+
+.finance-stat-value {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.6px;
+  color: var(--foreground);
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 8px;
+  line-height: 1.15;
+}
+
+.finance-stat-footnote {
+  font-size: 11.5px;
+  color: var(--muted-foreground);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── Financial Split Ratio Bar ── */
+.finance-ratio-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px 20px;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.finance-ratio-labels {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.finance-ratio-bar-wrap {
+  flex: 1;
+  min-width: 220px;
+  height: 10px;
+  background: rgba(239, 68, 68, 0.18);
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+}
+
+.finance-ratio-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981, #059669);
+  border-radius: 999px;
+  transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ── Budgets Widget ── */
+.budget-summary-strip {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: var(--secondary);
+  border-radius: 10px;
+  margin-bottom: 16px;
+  font-size: 12px;
+}
+
+.budget-item-card {
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  margin-bottom: 12px;
+  transition: border-color var(--transition), background var(--transition);
+}
+
+.budget-item-card:hover {
+  border-color: var(--primary);
+  background: var(--secondary);
+}
+
+.budget-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.budget-item-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.budget-color-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  box-shadow: 0 0 6px currentColor;
+}
+
+.budget-progress-track {
+  width: 100%;
+  height: 8px;
+  background: var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 8px 0;
+}
+
+.budget-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.5s ease-out;
+}
+
+.budget-item-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11.5px;
+  color: var(--muted-foreground);
+}
+
+/* ── Liabilities / Debts Widget ── */
+.debt-tabs-nav {
+  display: flex;
+  background: var(--secondary);
+  padding: 3px;
+  border-radius: 10px;
+  gap: 2px;
+  margin-bottom: 14px;
+}
+
+.debt-tab-btn {
+  flex: 1;
+  padding: 6px 10px;
+  font-size: 11.5px;
+  font-weight: 700;
+  border: none;
+  background: transparent;
+  color: var(--muted-foreground);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all var(--transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.debt-tab-btn:hover {
+  color: var(--foreground);
+}
+
+.debt-tab-btn.active {
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: var(--shadow-sm);
+}
+
+.debt-tab-count {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  background: var(--border);
+  color: var(--foreground);
+}
+
+.debt-row-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  margin-bottom: 8px;
+  transition: all var(--transition);
+}
+
+.debt-row-card:hover {
+  border-color: var(--primary);
+  background: var(--secondary);
+}
+
+.debt-party-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--foreground);
+}
+
+/* ── Corporate Ledger Section ── */
+.ledger-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+
+.ledger-search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 14px;
+  min-width: 260px;
+  flex: 1;
+  max-width: 420px;
+  transition: border-color var(--transition);
+}
+
+.ledger-search-box:focus-within {
+  border-color: var(--primary);
+}
+
+.ledger-search-input {
+  border: none;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 13px;
+  width: 100%;
+  outline: none;
+}
+
+.ledger-search-input::placeholder {
+  color: var(--muted-foreground);
+}
+
+.ledger-filter-pills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ledger-pill-btn {
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  background: var(--background);
+  color: var(--muted-foreground);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.ledger-pill-btn:hover {
+  color: var(--foreground);
+  border-color: var(--foreground);
+}
+
+.ledger-pill-btn.active {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
+}
+
+.ledger-item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  transition: background var(--transition);
+}
+
+.ledger-item-row:last-child {
+  border-bottom: none;
+}
+
+.ledger-item-row:hover {
+  background: var(--secondary);
+}
+
+.ledger-item-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.ledger-type-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.ledger-type-icon.income {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.ledger-type-icon.expense {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.ledger-desc {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--foreground);
+  margin-bottom: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ledger-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--muted-foreground);
+  flex-wrap: wrap;
+}
+
+.ledger-category-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  color: var(--foreground);
+  text-transform: capitalize;
+}
+
+.ledger-item-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.ledger-amount-value {
+  font-size: 16px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.3px;
+}
+
+.ledger-amount-value.income {
+  color: #10b981;
+}
+
+.ledger-amount-value.expense {
+  color: #ef4444;
+}
+
+.ledger-cleared-tag {
+  font-size: 10.5px;
+  color: var(--muted-foreground);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ── Modern Empty State ── */
+.finance-empty-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 42px 24px;
+  text-align: center;
+}
+
+.finance-empty-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted-foreground);
+  font-size: 22px;
+  margin-bottom: 14px;
+}
+
+.finance-empty-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--foreground);
+  margin-bottom: 6px;
+}
+
+.finance-empty-desc {
+  font-size: 12.5px;
+  color: var(--muted-foreground);
+  max-width: 360px;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
 

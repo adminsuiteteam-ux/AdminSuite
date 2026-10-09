@@ -6521,130 +6521,531 @@ function openAddClientModal() {
 }
 
 // ------------------------------------------------------------
-// 8D. FINANCE TAB VIEW
+// 8D. FINANCE TAB VIEW — EXECUTIVE CORPORATE TREASURY SUITE
 // ------------------------------------------------------------
 
-function drawFinanceTab(): string {
-  // Budget Category bars
-  const budgetsHtml = state.budgets.map(b => {
-    const allocated = parseFloat(b.allocated as any) || 1;
-    const spent = parseFloat(b.spent as any) || 0;
-    const pct = Math.min(100, Math.round((spent / allocated) * 100));
-    
-    return `
-      <div style="margin-bottom: 20px;">
-        <div style="display:flex; justify-content:space-between; font-size:13px; font-weight:600; margin-bottom:6px;">
-          <span>${sanitizeHtml(b.name)}</span>
-          <span style="font-variant-numeric: tabular-nums">${formatCurrency(spent)} / ${formatCurrency(allocated)} (${pct}%)</span>
-        </div>
-        <div class="progress-bar">
-          <div class="progress-fill ${b.color || 'blue'}" style="width: ${pct}%;"></div>
-        </div>
-      </div>
+let financeTxFilter: 'all' | 'income' | 'expense' = 'all';
+let financeTxSearch: string = '';
+let financeDebtTab: 'all' | 'weOwe' | 'owedToUs' = 'all';
 
+function renderFinanceLedgerRows(txList: Transaction[]): string {
+  if (txList.length === 0) {
+    return `
+      <div class="finance-empty-box">
+        <div class="finance-empty-icon">${getIconSvg('clipboard')}</div>
+        <div class="finance-empty-title">No Ledger Entries Found</div>
+        <p class="finance-empty-desc">
+          ${financeTxSearch ? 'No transactions match your search query.' : 'Record company revenue or operational expenditures to populate your corporate ledger.'}
+        </p>
+        <button class="btn btn-primary btn-sm" id="empty-add-tx-btn" style="gap:6px;">
+          ${getIconSvg('plus')} Log Transaction
+        </button>
+      </div>
     `;
-  }).join('');
+  }
 
-  // Debts List
-  const debts = state.debtsGrouped || { weOwe: [], owedToUs: [] };
-  const weOweHtml = debts.weOwe.map(d => `
-    <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid var(--border);">
-      <div>
-        <div style="font-weight:600; font-size:13px;">${sanitizeHtml(d.party)}</div>
-        <div style="font-size:11px; color:var(--muted-foreground); margin-top:2px;">Due: ${sanitizeHtml(d.due || 'N/A')}</div>
-      </div>
-      <div style="display:flex; align-items:center; gap:12px;">
-        <span class="status-badge pending">We Owe</span>
-        <span style="font-weight:700; font-size:14px; font-variant-numeric: tabular-nums;">${formatCurrency(d.amount)}</span>
-      </div>
-    </div>
-  `).join('');
-
-  const owedToUsHtml = debts.owedToUs.map(d => `
-    <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid var(--border);">
-      <div>
-        <div style="font-weight:600; font-size:13px;">${sanitizeHtml(d.party)}</div>
-        <div style="font-size:11px; color:var(--muted-foreground); margin-top:2px;">Due: ${sanitizeHtml(d.due || 'N/A')}</div>
-      </div>
-      <div style="display:flex; align-items:center; gap:12px;">
-        <span class="status-badge active">Owed To Us</span>
-        <span style="font-weight:700; font-size:14px; font-variant-numeric: tabular-nums;">${formatCurrency(d.amount)}</span>
-      </div>
-    </div>
-  `).join('');
-
-  // Transactions logs list
-  const transactionsHtml = state.transactions.map(t => {
+  return txList.map(t => {
     const isIncome = t.type === 'income';
+    const txDate = t.date ? new Date(t.date) : new Date();
+    const formattedDate = !isNaN(txDate.getTime())
+      ? txDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+      : 'Recent';
+
     return `
-      <div class="transaction-item" style="padding:10px 0;">
-        <div class="transaction-info">
-          <div class="transaction-icon ${isIncome ? 'income' : 'expense'}">${isIncome ? '↓' : '↑'}</div>
-          <div>
-            <div class="transaction-name">${t.description}</div>
-            <div class="transaction-date">${t.category} · ${new Date(t.date).toLocaleDateString()}</div>
+      <div class="ledger-item-row">
+        <div class="ledger-item-left">
+          <div class="ledger-type-icon ${isIncome ? 'income' : 'expense'}" title="${isIncome ? 'Credit / Income' : 'Debit / Expense'}">
+            ${isIncome ? '↓' : '↑'}
+          </div>
+          <div style="min-width:0;">
+            <div class="ledger-desc" title="${sanitizeHtml(t.description)}">${sanitizeHtml(t.description || 'Corporate Transaction')}</div>
+            <div class="ledger-meta">
+              <span class="ledger-category-badge">${sanitizeHtml(t.category || (isIncome ? 'Sales' : 'Expense'))}</span>
+              <span>•</span>
+              <span>${getIconSvg('calendar')} ${formattedDate}</span>
+            </div>
           </div>
         </div>
-        <div class="transaction-amount ${isIncome ? 'income' : 'expense'}">
-          ${isIncome ? '+' : '-'}${formatCurrency(t.amount)}
+        <div class="ledger-item-right">
+          <div class="ledger-amount-value ${isIncome ? 'income' : 'expense'}">
+            ${isIncome ? '+' : '-'}${formatCurrency(t.amount)}
+          </div>
+          <div class="ledger-cleared-tag">
+            <span style="width:6px; height:6px; border-radius:50%; background:${isIncome ? '#10b981' : '#6b7280'}; display:inline-block;"></span>
+            ${isIncome ? 'Settled Inflow' : 'Completed Outflow'}
+          </div>
         </div>
       </div>
     `;
   }).join('');
+}
 
-  return `
-    <div style="display:flex; justify-content:flex-end; margin-bottom:24px;">
-      <button class="btn btn-primary" id="add-transaction-btn">
-        ${getIconSvg('plus')} Log Transaction
-      </button>
-    </div>
-    
-    <div class="content-grid">
-      <!-- Budget Trackers -->
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title">Expense Budgets</div>
+function renderFinanceDebtRows(debts: { weOwe: Debt[]; owedToUs: Debt[] }, tab: string): string {
+  let list: Array<{ debt: Debt; type: 'weOwe' | 'owedToUs' }> = [];
+  if (tab === 'all' || tab === 'weOwe') {
+    (debts.weOwe || []).forEach(d => list.push({ debt: d, type: 'weOwe' }));
+  }
+  if (tab === 'all' || tab === 'owedToUs') {
+    (debts.owedToUs || []).forEach(d => list.push({ debt: d, type: 'owedToUs' }));
+  }
+
+  if (list.length === 0) {
+    return `
+      <div class="finance-empty-box" style="padding:28px 16px;">
+        <div class="finance-empty-icon" style="width:44px; height:44px; font-size:18px; margin-bottom:10px;">${getIconSvg('shield')}</div>
+        <div class="finance-empty-title" style="font-size:13.5px;">No Outstanding Liabilities</div>
+        <p class="finance-empty-desc" style="font-size:12px; margin-bottom:0;">
+          All client receivables and company debt obligations are fully balanced.
+        </p>
+      </div>
+    `;
+  }
+
+  return list.map(({ debt: d, type }) => {
+    const isWeOwe = type === 'weOwe';
+    const initials = (d.party || '??').slice(0, 2).toUpperCase();
+
+    return `
+      <div class="debt-row-card">
+        <div style="display:flex; align-items:center; gap:12px; min-width:0;">
+          <div class="debt-party-avatar">${sanitizeHtml(initials)}</div>
+          <div style="min-width:0;">
+            <div style="font-weight:700; font-size:13px; color:var(--foreground); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+              ${sanitizeHtml(d.party)}
+            </div>
+            <div style="font-size:11px; color:var(--muted-foreground); display:flex; align-items:center; gap:4px; margin-top:2px;">
+              ${getIconSvg('calendar')} Due: ${sanitizeHtml(d.due || 'On Demand')}
+            </div>
+          </div>
         </div>
-        <div class="card-body">
-          ${budgetsHtml || '<div style="text-align:center; padding:20px; color:var(--muted-foreground)">No budgets configured.</div>'}
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px; flex-shrink:0;">
+          <span style="font-weight:800; font-size:13.5px; font-variant-numeric:tabular-nums; color:var(--foreground);">
+            ${formatCurrency(d.amount)}
+          </span>
+          <span class="finance-stat-badge ${isWeOwe ? 'negative' : 'positive'}" style="font-size:10px; padding:1px 6px;">
+            ${isWeOwe ? 'We Owe' : 'Owed To Us'}
+          </span>
         </div>
       </div>
-      
+    `;
+  }).join('');
+}
+
+function updateFinanceLedgerUI() {
+  const container = document.getElementById('ledger-items-container');
+  const countBadge = document.getElementById('ledger-count-badge');
+  if (!container) return;
+
+  const filtered = state.transactions.filter(t => {
+    if (financeTxFilter === 'income' && t.type !== 'income') return false;
+    if (financeTxFilter === 'expense' && t.type !== 'expense') return false;
+    if (financeTxSearch) {
+      const q = financeTxSearch.toLowerCase();
+      const matchDesc = (t.description || '').toLowerCase().includes(q);
+      const matchCat = (t.category || '').toLowerCase().includes(q);
+      if (!matchDesc && !matchCat) return false;
+    }
+    return true;
+  });
+
+  if (countBadge) {
+    countBadge.textContent = `${filtered.length} of ${state.transactions.length}`;
+  }
+
+  container.innerHTML = DOMPurify.sanitize(renderFinanceLedgerRows(filtered));
+  document.getElementById('empty-add-tx-btn')?.addEventListener('click', () => openAddTransactionModal());
+}
+
+function drawFinanceTab(): string {
+  const m = state.metrics || {
+    employees: 0,
+    activeProjects: 0,
+    clients: 0,
+    netProfit: 0,
+    totalIncome: 0,
+    totalExpense: 0,
+  };
+
+  const totalIncome = m.totalIncome || state.transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + (parseFloat(t.amount as any) || 0), 0);
+  const totalExpense = m.totalExpense || state.transactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + (parseFloat(t.amount as any) || 0), 0);
+  const netProfit = (m.netProfit !== undefined && m.netProfit !== null) ? m.netProfit : (totalIncome - totalExpense);
+
+  const debts = state.debtsGrouped || { weOwe: [], owedToUs: [] };
+  const totalWeOwe = (debts.weOwe || []).reduce((s, d) => s + (parseFloat(d.amount as any) || 0), 0);
+  const totalOwedToUs = (debts.owedToUs || []).reduce((s, d) => s + (parseFloat(d.amount as any) || 0), 0);
+  const netDebtBalance = totalOwedToUs - totalWeOwe;
+
+  const totalBudgetAllocated = state.budgets.reduce((s, b) => s + (parseFloat(b.allocated as any) || 0), 0);
+  const totalBudgetSpent = state.budgets.reduce((s, b) => s + (parseFloat(b.spent as any) || 0), 0);
+  const overallBudgetPct = totalBudgetAllocated > 0 ? Math.min(100, Math.round((totalBudgetSpent / totalBudgetAllocated) * 100)) : 0;
+
+  const totalVolume = totalIncome + totalExpense;
+  const incomePct = totalVolume > 0 ? Math.round((totalIncome / totalVolume) * 100) : 50;
+
+  const filteredTx = state.transactions.filter(t => {
+    if (financeTxFilter === 'income' && t.type !== 'income') return false;
+    if (financeTxFilter === 'expense' && t.type !== 'expense') return false;
+    if (financeTxSearch) {
+      const q = financeTxSearch.toLowerCase();
+      const matchDesc = (t.description || '').toLowerCase().includes(q);
+      const matchCat = (t.category || '').toLowerCase().includes(q);
+      if (!matchDesc && !matchCat) return false;
+    }
+    return true;
+  });
+
+  const incomeTxCount = state.transactions.filter(t => t.type === 'income').length;
+  const expenseTxCount = state.transactions.filter(t => t.type === 'expense').length;
+
+  let budgetsHtml = '';
+  if (state.budgets.length === 0) {
+    budgetsHtml = `
+      <div class="finance-empty-box">
+        <div class="finance-empty-icon">${getIconSvg('shield')}</div>
+        <div class="finance-empty-title">No Budgets Configured</div>
+        <p class="finance-empty-desc">
+          Set monthly expense caps across your operations to monitor spend velocity and prevent budget overruns.
+        </p>
+        <button class="btn btn-outline btn-sm" id="empty-add-budget-btn" style="gap:6px;">
+          ${getIconSvg('plus')} Set First Budget
+        </button>
+      </div>
+    `;
+  } else {
+    budgetsHtml = `
+      <div class="budget-summary-strip">
+        <div>Total Limit: <strong>${formatCurrency(totalBudgetAllocated)}</strong></div>
+        <div>Used: <strong style="color:${overallBudgetPct >= 90 ? '#ef4444' : 'var(--foreground)'}">${formatCurrency(totalBudgetSpent)} (${overallBudgetPct}%)</strong></div>
+      </div>
+      <div>
+        ${state.budgets.map(b => {
+          const allocated = parseFloat(b.allocated as any) || 1;
+          const spent = parseFloat(b.spent as any) || 0;
+          const pct = Math.min(100, Math.round((spent / allocated) * 100));
+          const remaining = Math.max(0, allocated - spent);
+          const color = b.color || '#2563eb';
+          const isWarning = pct >= 80 && pct < 100;
+          const isDanger = pct >= 100;
+
+          return `
+            <div class="budget-item-card">
+              <div class="budget-item-header">
+                <div class="budget-item-title">
+                  <span class="budget-color-dot" style="background:${color}; color:${color};"></span>
+                  <span>${sanitizeHtml(b.name)}</span>
+                </div>
+                <span class="finance-stat-badge ${isDanger ? 'negative' : isWarning ? 'neutral' : 'positive'}" style="font-size:10px;">
+                  ${isDanger ? 'Limit Exceeded' : isWarning ? 'Near Limit' : 'On Track'}
+                </span>
+              </div>
+              <div class="budget-progress-track">
+                <div class="budget-progress-fill" style="width:${pct}%; background:${color};"></div>
+              </div>
+              <div class="budget-item-footer">
+                <span style="font-variant-numeric:tabular-nums;">${formatCurrency(spent)} of ${formatCurrency(allocated)} (${pct}%)</span>
+                <span>${formatCurrency(remaining)} remaining</span>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  const debtsHtml = renderFinanceDebtRows(debts, financeDebtTab);
+  const ledgerHtml = renderFinanceLedgerRows(filteredTx);
+
+  return `
+    <!-- Top Action Banner -->
+    <div class="finance-header-row">
+      <div class="finance-page-title">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="finance-title-badge">${getIconSvg('trending-up')} TREASURY & LEDGER</span>
+          <span style="font-size:11px; color:var(--muted-foreground);">• Real-Time Corporate Liquidity</span>
+        </div>
+        <h2>Financial Operations & Treasury</h2>
+        <p class="finance-page-subtitle">Unified oversight of cash liquidity, budget limits, accounts payable/receivable, and transactional records.</p>
+      </div>
+      <div class="finance-action-buttons">
+        <button class="btn btn-outline" id="finance-export-btn" style="gap:6px;">
+          ${getIconSvg('download')} Export CSV
+        </button>
+        <button class="btn btn-outline" id="finance-add-budget-btn" style="gap:6px;">
+          ${getIconSvg('shield')} + Add Budget
+        </button>
+        <button class="btn btn-primary" id="add-transaction-btn" style="gap:6px;">
+          ${getIconSvg('plus')} Log Transaction
+        </button>
+      </div>
+    </div>
+
+    <!-- 4 Executive KPI Stat Cards -->
+    <div class="finance-stats-grid">
+      <!-- Net Cashflow Card -->
+      <div class="finance-stat-card profit">
+        <div class="finance-stat-header">
+          <div class="finance-stat-icon-wrap blue">
+            ${getIconSvg('trending-up')}
+          </div>
+          <span class="finance-stat-badge ${netProfit >= 0 ? 'positive' : 'negative'}">
+            ${netProfit >= 0 ? 'Surplus' : 'Deficit'}
+          </span>
+        </div>
+        <div>
+          <div class="finance-stat-label">Net Operating Cashflow</div>
+          <div class="finance-stat-value" style="color:${netProfit >= 0 ? '#10b981' : '#ef4444'};">${formatCurrency(netProfit)}</div>
+          <div class="finance-stat-footnote">
+            <span>Operating liquidity buffer</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Inflow Card -->
+      <div class="finance-stat-card income">
+        <div class="finance-stat-header">
+          <div class="finance-stat-icon-wrap green">
+            ${getIconSvg('arrow-down-left')}
+          </div>
+          <span class="finance-stat-badge positive">
+            ${incomeTxCount} credits
+          </span>
+        </div>
+        <div>
+          <div class="finance-stat-label">Total Revenue Inflow</div>
+          <div class="finance-stat-value" style="color:#10b981;">${formatCurrency(totalIncome)}</div>
+          <div class="finance-stat-footnote">
+            <span>Gross corporate earnings</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Outflow Card -->
+      <div class="finance-stat-card expense">
+        <div class="finance-stat-header">
+          <div class="finance-stat-icon-wrap red">
+            ${getIconSvg('arrow-up-right')}
+          </div>
+          <span class="finance-stat-badge negative">
+            ${expenseTxCount} debits
+          </span>
+        </div>
+        <div>
+          <div class="finance-stat-label">Total Expenditure Outflow</div>
+          <div class="finance-stat-value" style="color:#ef4444;">${formatCurrency(totalExpense)}</div>
+          <div class="finance-stat-footnote">
+            <span>Operational & payroll spend</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Liabilities & Receivables Card -->
+      <div class="finance-stat-card debt">
+        <div class="finance-stat-header">
+          <div class="finance-stat-icon-wrap amber">
+            ${getIconSvg('briefcase')}
+          </div>
+          <span class="finance-stat-badge neutral">
+            ${(debts.weOwe.length + debts.owedToUs.length)} obligations
+          </span>
+        </div>
+        <div>
+          <div class="finance-stat-label">Net Debt Position</div>
+          <div class="finance-stat-value">${formatCurrency(netDebtBalance)}</div>
+          <div class="finance-stat-footnote">
+            <span style="color:#10b981;">+${formatCurrency(totalOwedToUs)} in</span>
+            <span>•</span>
+            <span style="color:#ef4444;">-${formatCurrency(totalWeOwe)} out</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cashflow Ratio Strip -->
+    <div class="finance-ratio-card">
+      <div class="finance-ratio-labels">
+        <span>Cashflow Balance</span>
+        <span style="color:#10b981;">Revenue: ${incomePct}%</span>
+        <span style="color:#ef4444;">Expenses: ${100 - incomePct}%</span>
+      </div>
+      <div class="finance-ratio-bar-wrap" title="${incomePct}% Income / ${100 - incomePct}% Expense">
+        <div class="finance-ratio-bar-fill" style="width: ${incomePct}%;"></div>
+      </div>
+    </div>
+
+    <!-- Mid Tier Grid: Budgets & Debts -->
+    <div class="content-grid" style="margin-bottom:24px;">
+      <!-- Expense Budgets Tracker -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">
+            ${getIconSvg('shield')} Expense Budgets
+            <span style="font-size:11px; padding:2px 8px; border-radius:999px; background:var(--secondary); color:var(--muted-foreground);">${state.budgets.length}</span>
+          </div>
+          <button class="card-action" id="card-action-add-budget" style="cursor:pointer; display:flex; align-items:center; gap:4px;">
+            ${getIconSvg('plus')} New Limit
+          </button>
+        </div>
+        <div class="card-body">
+          ${budgetsHtml}
+        </div>
+      </div>
+
       <!-- Receivables & Liabilities -->
       <div class="card">
         <div class="card-header">
-          <div class="card-title">Receivables & Liabilities</div>
+          <div class="card-title">
+            ${getIconSvg('briefcase')} Receivables & Liabilities
+          </div>
+          <div style="font-size:11px; color:var(--muted-foreground); font-variant-numeric:tabular-nums;">
+            Net: <strong style="color:${netDebtBalance >= 0 ? '#10b981' : '#ef4444'};">${formatCurrency(netDebtBalance)}</strong>
+          </div>
         </div>
-        <div class="card-body" style="display:flex; flex-direction:column; gap:4px; max-height: 300px; overflow-y: auto;">
-          ${weOweHtml}
-          ${owedToUsHtml}
-          ${(!weOweHtml && !owedToUsHtml) ? '<div style="text-align:center; padding:20px; color:var(--muted-foreground)">No liabilities recorded.</div>' : ''}
+        <div class="card-body">
+          <div class="debt-tabs-nav">
+            <button class="debt-tab-btn ${financeDebtTab === 'all' ? 'active' : ''}" data-debt-tab="all">
+              All <span class="debt-tab-count">${debts.weOwe.length + debts.owedToUs.length}</span>
+            </button>
+            <button class="debt-tab-btn ${financeDebtTab === 'weOwe' ? 'active' : ''}" data-debt-tab="weOwe">
+              We Owe <span class="debt-tab-count">${debts.weOwe.length}</span>
+            </button>
+            <button class="debt-tab-btn ${financeDebtTab === 'owedToUs' ? 'active' : ''}" data-debt-tab="owedToUs">
+              Owed to Us <span class="debt-tab-count">${debts.owedToUs.length}</span>
+            </button>
+          </div>
+          <div id="debt-items-container" style="max-height:320px; overflow-y:auto; padding-right:2px;">
+            ${debtsHtml}
+          </div>
         </div>
       </div>
     </div>
-    
-    <!-- Ledger Sheet -->
-    <div class="card" style="margin-bottom:28px;">
+
+    <!-- Corporate Financial Ledger -->
+    <div class="card" style="margin-bottom:32px;">
       <div class="card-header">
-        <div class="card-title">Corporate Financial Ledger</div>
+        <div class="card-title">
+          ${getIconSvg('clipboard')} Corporate Financial Ledger
+          <span id="ledger-count-badge" style="font-size:11px; padding:2px 8px; border-radius:999px; background:var(--secondary); color:var(--muted-foreground);">
+            ${filteredTx.length} of ${state.transactions.length}
+          </span>
+        </div>
       </div>
-      <div class="card-body" style="padding: 10px 20px;">
-        ${transactionsHtml || '<div style="text-align:center; padding:32px; color:var(--muted-foreground)">No ledger entries committed.</div>'}
+
+      <!-- Ledger Toolbar -->
+      <div class="ledger-toolbar">
+        <div class="ledger-search-box">
+          ${getIconSvg('search')}
+          <input 
+            type="text" 
+            class="ledger-search-input" 
+            id="finance-search-input" 
+            placeholder="Search transactions by title or category..." 
+            value="${sanitizeHtml(financeTxSearch)}"
+          />
+        </div>
+        <div class="ledger-filter-pills">
+          <button class="ledger-pill-btn ${financeTxFilter === 'all' ? 'active' : ''}" data-tx-filter="all">
+            All (${state.transactions.length})
+          </button>
+          <button class="ledger-pill-btn ${financeTxFilter === 'income' ? 'active' : ''}" data-tx-filter="income">
+            Inflow (${incomeTxCount})
+          </button>
+          <button class="ledger-pill-btn ${financeTxFilter === 'expense' ? 'active' : ''}" data-tx-filter="expense">
+            Outflow (${expenseTxCount})
+          </button>
+        </div>
+      </div>
+
+      <!-- Ledger Rows -->
+      <div class="card-body" style="padding:0;" id="ledger-items-container">
+        ${ledgerHtml}
       </div>
     </div>
   `;
 }
 
 function bindFinanceEvents() {
-  document.getElementById('add-transaction-btn')?.addEventListener('click', openAddTransactionModal);
+  document.getElementById('add-transaction-btn')?.addEventListener('click', () => openAddTransactionModal());
+  document.getElementById('finance-add-budget-btn')?.addEventListener('click', () => openAddTransactionModal('budget'));
+  document.getElementById('card-action-add-budget')?.addEventListener('click', () => openAddTransactionModal('budget'));
+  document.getElementById('empty-add-budget-btn')?.addEventListener('click', () => openAddTransactionModal('budget'));
+  document.getElementById('empty-add-tx-btn')?.addEventListener('click', () => openAddTransactionModal());
+
+  // Export CSV
+  document.getElementById('finance-export-btn')?.addEventListener('click', () => {
+    if (state.transactions.length === 0) {
+      showToast('No ledger transactions to export.', 'info');
+      return;
+    }
+    const headers = ['Date', 'Type', 'Description', 'Category', 'Amount'];
+    const rows = state.transactions.map(t => [
+      new Date(t.date).toLocaleDateString(),
+      t.type.toUpperCase(),
+      `"${(t.description || '').replace(/"/g, '""')}"`,
+      `"${(t.category || '').replace(/"/g, '""')}"`,
+      t.amount
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `Corporate_Financial_Ledger_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('Corporate ledger exported successfully', 'success');
+  });
+
+  // Dynamic search input
+  const searchInput = document.getElementById('finance-search-input') as HTMLInputElement | null;
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      financeTxSearch = (e.target as HTMLInputElement).value;
+      updateFinanceLedgerUI();
+    });
+  }
+
+  // Transaction filter pills
+  document.querySelectorAll('.ledger-pill-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const target = e.currentTarget as HTMLElement;
+      const filter = target.getAttribute('data-tx-filter') as 'all' | 'income' | 'expense';
+      if (filter) {
+        financeTxFilter = filter;
+        document.querySelectorAll('.ledger-pill-btn').forEach(b => b.classList.remove('active'));
+        target.classList.add('active');
+        updateFinanceLedgerUI();
+      }
+    });
+  });
+
+  // Debt tab switcher
+  document.querySelectorAll('.debt-tab-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const target = e.currentTarget as HTMLElement;
+      const tab = target.getAttribute('data-debt-tab') as 'all' | 'weOwe' | 'owedToUs';
+      if (tab) {
+        financeDebtTab = tab;
+        document.querySelectorAll('.debt-tab-btn').forEach(b => b.classList.remove('active'));
+        target.classList.add('active');
+        const debtContainer = document.getElementById('debt-items-container');
+        if (debtContainer) {
+          const debts = state.debtsGrouped || { weOwe: [], owedToUs: [] };
+          debtContainer.innerHTML = DOMPurify.sanitize(renderFinanceDebtRows(debts, financeDebtTab));
+        }
+      }
+    });
+  });
 }
 
-function openAddTransactionModal() {
+function openAddTransactionModal(initialType?: string | MouseEvent) {
   const modalContainer = document.getElementById('modal-container');
   if (!modalContainer) return;
 
-  let step = 0;
-  let selectedType = ''; // 'income', 'expense', 'savings', 'budget'
+  const validTypes = ['income', 'expense', 'savings', 'budget'];
+  const preselected = (typeof initialType === 'string' && validTypes.includes(initialType)) ? initialType : '';
+
+  let step = preselected ? 1 : 0;
+  let selectedType = preselected; // 'income', 'expense', 'savings', 'budget'
 
   // Common/Transaction Form State
   let amount = '';
