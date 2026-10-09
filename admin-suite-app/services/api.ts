@@ -317,6 +317,7 @@ export const apiService = {
   archiveEmployee: (id: string) => apiClient.post(`employees/${id}/archive/`),
   restoreEmployee: (id: string) => apiClient.post(`employees/${id}/restore/`),
 
+  getTasks: () => apiClient.get('employee-tasks/'),
   createTask: (data: any) => {
     const isFormData = data instanceof FormData;
     return apiClient.post('employee-tasks/', data, {
@@ -326,6 +327,8 @@ export const apiService = {
       transformRequest: isFormData ? [(d: any) => d] : undefined,
     });
   },
+  updateTask: (id: string | number, data: any) => apiClient.patch(`employee-tasks/${id}/`, data),
+  deleteTask: (id: string | number) => apiClient.delete(`employee-tasks/${id}/`),
   createQuery: (data: any) => {
     const isFormData = data instanceof FormData;
     return apiClient.post('employee-queries/', data, {

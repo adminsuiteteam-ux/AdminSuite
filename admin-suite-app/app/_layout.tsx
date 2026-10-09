@@ -166,6 +166,9 @@ function RootLayoutNav() {
       <Stack.Screen name="tour" options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="(tabs)" options={{ animation: "fade" }} />
       <Stack.Screen name="(employee)" options={{ animation: "fade" }} />
+      <Stack.Screen name="tasks/index" options={{ animation: "slide_from_right" }} />
+      <Stack.Screen name="attendance/index" options={{ animation: "slide_from_right" }} />
+      <Stack.Screen name="notebook/index" options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="lock" options={{ animation: "fade" }} />
       <Stack.Screen name="call" options={{ animation: "fade_from_bottom", presentation: "fullScreenModal", gestureEnabled: false }} />
     </Stack>

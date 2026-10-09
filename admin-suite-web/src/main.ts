@@ -4666,24 +4666,42 @@ function drawDashboardSvgChart(): string {
     return Math.round(val).toString();
   }
 
+  function parseTxDate(rawDate: any): Date | null {
+    if (!rawDate) return null;
+    if (rawDate instanceof Date && !isNaN(rawDate.getTime())) return rawDate;
+    const str = String(rawDate).trim();
+    // 1. Direct parse (handles ISO strings like "2026-10-09T...", "2026-10-09")
+    let d = new Date(str);
+    if (!isNaN(d.getTime())) return d;
+    // 2. Format like "Oct 09" or "Apr 28"
+    d = new Date(`${str}, ${new Date().getFullYear()}`);
+    if (!isNaN(d.getTime())) return d;
+    // 3. Fallback timestamp parse
+    const ts = Date.parse(str);
+    if (!isNaN(ts)) return new Date(ts);
+    return null;
+  }
+
   const res = {
     labels: [] as string[],
     income: [] as number[],
     expense: [] as number[],
   };
 
+  const txList = Array.isArray(state.transactions) ? state.transactions : [];
+
   if (state.chartRange === "7D") {
     res.labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
     res.income = [0, 0, 0, 0, 0, 0, 0];
     res.expense = [0, 0, 0, 0, 0, 0, 0];
 
-    state.transactions.forEach((tx: any) => {
+    txList.forEach((tx: any) => {
       try {
         const amt = parseFloat(tx.amount) || 0;
-        const d = new Date(Date.parse(tx.date + ", " + new Date().getFullYear()));
-        if (!isNaN(d.getTime())) {
+        const d = parseTxDate(tx.date);
+        if (d) {
           const diffDays = (new Date().getTime() - d.getTime()) / (1000 * 60 * 60 * 24);
-          if (diffDays >= 0 && diffDays < 7) {
+          if (diffDays >= -1 && diffDays < 7) {
             const dayIdx = (d.getDay() + 6) % 7; // Sunday=0 -> 6, Monday=1 -> 0
             if (tx.type === "income") {
               res.income[dayIdx] += amt;
@@ -4699,14 +4717,14 @@ function drawDashboardSvgChart(): string {
     res.income = [0, 0, 0, 0];
     res.expense = [0, 0, 0, 0];
 
-    state.transactions.forEach((tx: any) => {
+    txList.forEach((tx: any) => {
       try {
         const amt = parseFloat(tx.amount) || 0;
-        const d = new Date(Date.parse(tx.date + ", " + new Date().getFullYear()));
-        if (!isNaN(d.getTime())) {
+        const d = parseTxDate(tx.date);
+        if (d) {
           const diffDays = (new Date().getTime() - d.getTime()) / (1000 * 60 * 60 * 24);
-          if (diffDays >= 0 && diffDays < 30) {
-            const weekIdx = Math.min(3, Math.floor(diffDays / 7.5));
+          if (diffDays >= -1 && diffDays < 31) {
+            const weekIdx = Math.min(3, Math.max(0, Math.floor(diffDays / 7.5)));
             const mappedIdx = 3 - weekIdx;
             if (tx.type === "income") {
               res.income[mappedIdx] += amt;
@@ -4723,16 +4741,20 @@ function drawDashboardSvgChart(): string {
     res.income = Array(12).fill(0);
     res.expense = Array(12).fill(0);
 
-    state.transactions.forEach((tx: any) => {
+    txList.forEach((tx: any) => {
       try {
         const amt = parseFloat(tx.amount) || 0;
-        const d = new Date(Date.parse(tx.date + ", " + new Date().getFullYear()));
-        if (!isNaN(d.getTime())) {
-          const monthIdx = d.getMonth();
-          if (tx.type === "income") {
-            res.income[monthIdx] += amt;
-          } else {
-            res.expense[monthIdx] += amt;
+        const d = parseTxDate(tx.date);
+        if (d) {
+          const currentYear = new Date().getFullYear();
+          const txYear = d.getFullYear();
+          if (txYear === currentYear || isNaN(txYear)) {
+            const monthIdx = d.getMonth();
+            if (tx.type === "income") {
+              res.income[monthIdx] += amt;
+            } else {
+              res.expense[monthIdx] += amt;
+            }
           }
         }
       } catch (e) {}
@@ -4772,9 +4794,17 @@ function drawDashboardSvgChart(): string {
     ` L ${(incomePts.at(-1) || {x:0}).x.toFixed(2)} ${(PADDING.top + innerH).toFixed(2)} L ${(incomePts.at(0) || {x:0}).x.toFixed(2)} ${(PADDING.top + innerH).toFixed(2)} Z`
   ) : "";
 
-  const totalIncome = res.income.reduce((s: number, v: number) => s + v, 0);
-  const totalExpense = res.expense.reduce((s: number, v: number) => s + v, 0);
-  const netProfit = totalIncome - totalExpense;
+  let totalIncome = res.income.reduce((s: number, v: number) => s + v, 0);
+  let totalExpense = res.expense.reduce((s: number, v: number) => s + v, 0);
+  let netProfit = totalIncome - totalExpense;
+
+  if (totalIncome === 0 && totalExpense === 0 && state.metrics) {
+    if (state.metrics.totalIncome || state.metrics.totalExpense || state.metrics.netProfit) {
+      totalIncome = state.metrics.totalIncome || 0;
+      totalExpense = state.metrics.totalExpense || 0;
+      netProfit = state.metrics.netProfit !== undefined ? state.metrics.netProfit : (totalIncome - totalExpense);
+    }
+  }
 
   const yTicks = [0, 0.33, 0.66, 1].map((t) => yMin + (yMax - yMin) * (1 - t));
 

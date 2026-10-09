@@ -1079,7 +1079,7 @@ export default function EmployeeDetailScreen() {
                   disabled={updatingAvatar}
                   style={({ pressed }) => [
                     styles.photoActionBtn,
-                    { backgroundColor: colors.primary, flex: 1, opacity: pressed || updatingAvatar ? 0.75 : 1 },
+                    { backgroundColor: colors.accent, flex: 1, opacity: pressed || updatingAvatar ? 0.75 : 1 },
                   ]}
                 >
                   <Feather name="image" size={16} color="#fff" />

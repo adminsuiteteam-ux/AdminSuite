@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
 import { apiService } from "@/services/api";
+import * as Haptics from "expo-haptics";
 
 const TAB_ITEMS = [
   { name: "index", label: "Dashboard", icon: "grid" },
@@ -165,10 +166,18 @@ function GlassTabBar({ state, navigation }: { state: any; navigation: any }) {
 // PremiumFAB removed — now lives in the Settings (More) page
 
 // ─── Floating Chat FAB ────────────────────────────────────────────────────────────
+const SPEED_DIAL_ITEMS = [
+  { id: "tasks", label: "Tasks", icon: "check-square" as const, color: "#10b981", route: "/tasks" },
+  { id: "attendance", label: "Attendance", icon: "clock" as const, color: "#f59e0b", route: "/attendance" },
+  { id: "notebook", label: "Notebook", icon: "book-open" as const, color: "#8b5cf6", route: "/notebook" },
+];
+
 function ChatFAB({ bottomOffset, unreadCount, shakeAnim }: { bottomOffset: number; unreadCount: number; shakeAnim: Animated.Value }) {
   const colors = useColors();
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const pulseOpacity = useRef(new Animated.Value(0.6)).current;
+  const [isOpen, setIsOpen] = useState(false);
+  const speedDialAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const pulse = Animated.loop(
@@ -206,11 +215,95 @@ function ChatFAB({ bottomOffset, unreadCount, shakeAnim }: { bottomOffset: numbe
     return () => pulse.stop();
   }, []);
 
+  const toggleMenu = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const toValue = isOpen ? 0 : 1;
+    Animated.spring(speedDialAnim, {
+      toValue,
+      tension: 70,
+      friction: 8,
+      useNativeDriver: true,
+    }).start();
+    setIsOpen(!isOpen);
+  };
+
+  const closeMenu = () => {
+    if (!isOpen) return;
+    Haptics.selectionAsync();
+    Animated.spring(speedDialAnim, {
+      toValue: 0,
+      tension: 70,
+      friction: 8,
+      useNativeDriver: true,
+    }).start();
+    setIsOpen(false);
+  };
+
+  const plusRotate = speedDialAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "45deg"],
+  });
+
   return (
     <View
       pointerEvents="box-none"
       style={[styles.fabWrap, { bottom: bottomOffset + 16 }]}
     >
+      {/* Tap backdrop to dismiss when speed-dial is open */}
+      {isOpen && (
+        <Pressable
+          onPress={closeMenu}
+          style={styles.speedDialBackdrop}
+        />
+      )}
+
+      {/* Speed Dial Menu Items */}
+      {SPEED_DIAL_ITEMS.map((item, idx) => {
+        const itemY = speedDialAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, -(58 + idx * 50)],
+        });
+        const itemScale = speedDialAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0.35, 1],
+        });
+
+        return (
+          <Animated.View
+            key={item.id}
+            pointerEvents={isOpen ? "auto" : "none"}
+            style={[
+              styles.speedDialItem,
+              {
+                opacity: speedDialAnim,
+                transform: [{ translateY: itemY }, { scale: itemScale }],
+              },
+            ]}
+          >
+            <Pressable
+              onPress={() => {
+                closeMenu();
+                router.push(item.route as any);
+              }}
+              style={({ pressed }) => [
+                styles.speedDialBtn,
+                {
+                  backgroundColor: colors.isDark ? "rgba(24, 24, 27, 0.95)" : "rgba(255, 255, 255, 0.95)",
+                  borderColor: colors.isDark ? "rgba(255, 255, 255, 0.16)" : "rgba(0, 0, 0, 0.1)",
+                  opacity: pressed ? 0.85 : 1,
+                  transform: [{ scale: pressed ? 0.94 : 1 }],
+                },
+              ]}
+            >
+              <View style={[styles.speedDialIcon, { backgroundColor: item.color + "22" }]}>
+                <Feather name={item.icon} size={15} color={item.color} />
+              </View>
+              <Text style={[styles.speedDialLabel, { color: colors.text }]}>{item.label}</Text>
+            </Pressable>
+          </Animated.View>
+        );
+      })}
+
       {/* Pulse ring */}
       <Animated.View
         style={[
@@ -226,7 +319,10 @@ function ChatFAB({ bottomOffset, unreadCount, shakeAnim }: { bottomOffset: numbe
       {/* Main FAB button */}
       <Animated.View style={{ transform: [{ translateX: shakeAnim }] }}>
         <Pressable
-          onPress={() => router.push("/(tabs)/admin-chat")}
+          onPress={() => {
+            if (isOpen) closeMenu();
+            router.push("/(tabs)/admin-chat");
+          }}
           style={({ pressed }) => [
             styles.fab,
             {
@@ -238,8 +334,6 @@ function ChatFAB({ bottomOffset, unreadCount, shakeAnim }: { bottomOffset: numbe
             },
           ]}
         >
-          {/* We wrap the glass elements in an absoluteFill View with overflow hidden to clip the BlurView,
-              leaving the parent Pressable with overflow visible so the shadow displays correctly. */}
           <View style={[StyleSheet.absoluteFill, { borderRadius: 26, overflow: "hidden" }]}>
             <BlurView
               intensity={Platform.OS === "web" ? 20 : 50}
@@ -251,6 +345,24 @@ function ChatFAB({ bottomOffset, unreadCount, shakeAnim }: { bottomOffset: numbe
           <Feather name="message-circle" size={22} color={colors.primaryForeground} />
         </Pressable>
       </Animated.View>
+
+      {/* Floating Plus Button on the chat icon that holds them */}
+      <Pressable
+        onPress={toggleMenu}
+        hitSlop={8}
+        style={({ pressed }) => [
+          styles.fabPlusBtn,
+          {
+            backgroundColor: colors.accent,
+            borderColor: colors.isDark ? "#18181b" : "#fff",
+            transform: [{ scale: pressed ? 0.88 : 1 }],
+          },
+        ]}
+      >
+        <Animated.View style={{ transform: [{ rotate: plusRotate }] }}>
+          <Feather name="plus" size={13} color="#fff" />
+        </Animated.View>
+      </Pressable>
 
       {/* Unread badge */}
       {unreadCount > 0 && (
@@ -422,5 +534,64 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 9,
     fontFamily: "Inter_700Bold",
+  },
+  fabPlusBtn: {
+    position: "absolute",
+    top: -4,
+    left: -4,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    zIndex: 1000,
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  speedDialBackdrop: {
+    position: "absolute",
+    top: -1200,
+    bottom: -300,
+    left: -1200,
+    right: -300,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    zIndex: 900,
+  },
+  speedDialItem: {
+    position: "absolute",
+    right: 0,
+    bottom: 0,
+    zIndex: 998,
+    alignItems: "flex-end",
+  },
+  speedDialBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    borderWidth: 1,
+    gap: 8,
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 10,
+  },
+  speedDialIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  speedDialLabel: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+    paddingRight: 2,
   },
 });
