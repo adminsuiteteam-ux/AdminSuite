@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import { apiService } from '@/services/api';
 import { useAuth } from './AuthContext';
 import { useWorkspaceSocket, WorkspaceSyncEvent } from '@/hooks/useWorkspaceSocket';
+import { triggerGlobalToast } from './ToastContext';
 
 interface Metrics {
   employees: number;
@@ -253,12 +254,22 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       case "transaction.created":
         if (event.data) {
           setTransactions(prev => [event.data, ...prev.filter(t => t.id !== event.data.id)]);
+          triggerGlobalToast({
+            title: "New Transaction",
+            message: `${event.data.type === 'income' ? 'Income' : 'Expense'}: ${event.data.description || 'Recorded in workspace'}`,
+            type: "success",
+          });
         }
         break;
       case "client.created":
         if (event.data) {
           setClients(prev => [event.data, ...prev.filter(c => c.id !== event.data.id)]);
           setMetrics(prev => ({ ...prev, clients: prev.clients + 1 }));
+          triggerGlobalToast({
+            title: "New Client Added",
+            message: `${event.data.company || 'A new client'} was added to the workspace.`,
+            type: "info",
+          });
         }
         break;
       case "client.updated":

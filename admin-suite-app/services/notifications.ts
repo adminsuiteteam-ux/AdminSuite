@@ -37,10 +37,10 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
     // Ensure Android Notification Channels are set up with high priority and lockscreen visibility
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('default', {
-        name: 'default',
-        importance: Notifications.AndroidImportance.HIGH,
+        name: 'General Notifications',
+        importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#FF231F7A',
+        lightColor: '#7C3AED',
         sound: 'default',
         enableVibrate: true,
         showBadge: true,

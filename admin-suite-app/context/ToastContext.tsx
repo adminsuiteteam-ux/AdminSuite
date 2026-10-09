@@ -3,19 +3,31 @@ import { Animated, StyleSheet, Text, View, Pressable } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import * as Haptics from 'expo-haptics';
+
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
-interface ToastOptions {
+export interface ToastOptions {
   title: string;
   message: string;
   type?: ToastType;
+  onPress?: () => void;
+  duration?: number;
 }
 
 interface ToastContextType {
   showToast: (options: ToastOptions) => void;
+  hideToast: () => void;
 }
 
 const ToastContext = createContext<ToastContextType | null>(null);
+
+let _globalShowToast: ((options: ToastOptions) => void) | null = null;
+export const triggerGlobalToast = (options: ToastOptions) => {
+  if (_globalShowToast) {
+    _globalShowToast(options);
+  }
+};
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toast, setToast] = useState<ToastOptions | null>(null);
@@ -25,12 +37,16 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const progressAnim = useRef(new Animated.Value(1)).current;
   const timeoutRef = useRef<any>(null);
 
-  const showToast = ({ title, message, type = 'success' }: ToastOptions) => {
+  const showToast = ({ title, message, type = 'success', onPress, duration = 4500 }: ToastOptions) => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
 
-    setToast({ title, message, type });
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    } catch {}
+
+    setToast({ title, message, type, onPress, duration });
 
     // Reset animations
     slideAnim.setValue(-150);
@@ -51,14 +67,14 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       }),
       Animated.timing(progressAnim, {
         toValue: 0,
-        duration: 4500,
+        duration,
         useNativeDriver: true,
       }),
     ]).start();
 
     timeoutRef.current = setTimeout(() => {
       hideToast();
-    }, 4500);
+    }, duration);
   };
 
   const hideToast = () => {
@@ -79,7 +95,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
+    _globalShowToast = showToast;
     return () => {
+      _globalShowToast = null;
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
   }, []);
@@ -135,7 +153,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const toastStyle = toast ? getToastColors(toast.type) : null;
 
   return (
-    <ToastContext.Provider value={{ showToast }}>
+    <ToastContext.Provider value={{ showToast, hideToast }}>
       {children}
       {toast && toastStyle && (
         <Animated.View
@@ -150,7 +168,16 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             },
           ]}
         >
-          <Pressable onPress={hideToast} style={styles.pressable}>
+          <Pressable
+            onPress={() => {
+              const action = toast.onPress;
+              hideToast();
+              if (action) {
+                setTimeout(action, 80);
+              }
+            }}
+            style={styles.pressable}
+          >
             <View style={[styles.iconCircle, { backgroundColor: toastStyle.iconBg }]}>
               <Feather name={getIconName(toast.type)} size={18} color={toastStyle.iconColor} />
             </View>
@@ -158,7 +185,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               <Text style={styles.title}>{toast.title}</Text>
               <Text style={styles.message}>{toast.message}</Text>
             </View>
-            <Feather name="x" size={14} color="#71717a" style={styles.closeIcon} />
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation();
+                hideToast();
+              }}
+              hitSlop={8}
+            >
+              <Feather name="x" size={16} color="#71717a" style={styles.closeIcon} />
+            </Pressable>
           </Pressable>
           <Animated.View
             style={[

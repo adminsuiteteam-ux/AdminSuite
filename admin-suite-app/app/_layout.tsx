@@ -16,7 +16,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
-import { Text, View, Pressable, Animated, LogBox } from "react-native";
+import { Text, View, Pressable, Animated, LogBox, Alert } from "react-native";
 import { useTranslation } from "react-i18next";
 import React, { useEffect } from "react";
 
@@ -28,17 +28,18 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/context/AuthContext";
 import { DataProvider } from "@/context/DataContext";
 import { SettingsProvider } from "@/context/SettingsContext";
-import { ToastProvider } from "@/context/ToastContext";
+import { ToastProvider, triggerGlobalToast } from "@/context/ToastContext";
 import { AlertProvider } from "@/context/AlertContext";
 import "../i18n";
 
 // Configure how notifications are displayed when the app is in the foreground
+// Disable system heads-up in foreground since our custom in-app banner/modal displays instead!
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    shouldShowAlert: false,
     shouldPlaySound: true,
     shouldSetBadge: false,
-    shouldShowBanner: true,
+    shouldShowBanner: false,
     shouldShowList: true,
   }),
 });
@@ -57,59 +58,92 @@ if (_sentryDsn && _sentryDsn !== 'YOUR_SENTRY_DSN_HERE') {
 
 const queryClient = new QueryClient();
 
+function handleNotificationRouting(data: any) {
+  if (!data) return;
+  if (data.screen === 'tasks') {
+    router.push('/(employee)/tasks' as any);
+  } else if (data.screen === 'admin-tasks') {
+    router.push('/(tabs)/tasks' as any);
+  } else if (data.screen === 'chat' || data.screen === 'chat-group') {
+    router.push('/(tabs)/admin-chat' as any);
+  } else if (data.screen === 'leave') {
+    router.push('/(tabs)/employees' as any);
+  } else if (data.screen === 'projects') {
+    if (data.projectId) {
+      router.push(`/project/${data.projectId}` as any);
+    } else {
+      router.push('/(tabs)/projects' as any);
+    }
+  } else if (data.screen === 'finance') {
+    router.push('/(employee)/finance' as any);
+  } else if (data.screen === 'queries') {
+    router.push('/(tabs)/employees' as any);
+  } else if (data.screen === 'call') {
+    router.push({
+      pathname: '/call',
+      params: {
+        callId: data.callId,
+        callType: data.callType || 'voice',
+        roomUrl: data.roomUrl || '',
+        roomName: data.roomName || '',
+        token: data.token || '',
+        calleeName: data.callerName || data.calleeName || 'Incoming Caller',
+        calleeInitials: data.callerInitials || data.calleeInitials || '??',
+        isIncoming: 'true',
+      },
+    } as any);
+  }
+}
+
 function RootLayoutNav() {
   useEffect(() => {
-    // Listen for notification taps to redirect to correct screens
+    // 1. Listen for background/lockscreen notification clicks to wake app and deep link
     const subscription = Notifications.addNotificationResponseReceivedListener(response => {
       const data = response.notification.request.content.data;
       if (data) {
-        console.log('[Notification Click] Payload data:', data);
-        if (data.screen === 'tasks') {
-          router.push('/(employee)/tasks' as any);
-        } else if (data.screen === 'admin-tasks') {
-          router.push('/(tabs)/tasks' as any);
-        } else if (data.screen === 'chat' || data.screen === 'chat-group') {
-          // Deep-link to the admin chat tab
-          router.push('/(tabs)/admin-chat' as any);
-        } else if (data.screen === 'leave') {
-          // Deep-link to the employees tab (leave management is there)
-          router.push('/(tabs)/employees' as any);
-        } else if (data.screen === 'call') {
-          router.push({
-            pathname: '/call',
-            params: {
-              callId: data.callId,
-              callType: data.callType || 'voice',
-              roomUrl: data.roomUrl || '',
-              roomName: data.roomName || '',
-              token: data.token || '',
-              calleeName: data.calleeName || 'Incoming Caller',
-              calleeInitials: data.calleeInitials || '??',
-              isIncoming: 'true',
-            },
-          } as any);
-        }
+        console.log('[Notification Click] Response data:', data);
+        handleNotificationRouting(data);
       }
     });
 
-    // Listen for incoming notifications while app is in foreground (e.g. background call alert)
+    // 2. Hybrid Foreground In-App Alert System
     const foregroundSubscription = Notifications.addNotificationReceivedListener(notification => {
-      const data = notification.request.content.data;
+      const { title, body, data } = notification.request.content;
       if (data && data.screen === 'call') {
-        console.log('[Foreground Call Notification] Triggering incoming call screen:', data);
-        router.push({
-          pathname: '/call',
-          params: {
-            callId: data.callId,
-            callType: data.callType || 'voice',
-            roomUrl: data.roomUrl || '',
-            roomName: data.roomName || '',
-            token: data.token || '',
-            calleeName: data.callerName || data.calleeName || 'Incoming Caller',
-            calleeInitials: data.callerInitials || data.calleeInitials || '??',
-            isIncoming: 'true',
-          },
-        } as any);
+        handleNotificationRouting(data);
+        return;
+      }
+
+      const isUrgent =
+        Boolean(data?.is_urgent) ||
+        data?.priority === 'urgent' ||
+        (title && title.toLowerCase().includes('urgent')) ||
+        (title && title.toLowerCase().includes('critical'));
+
+      if (isUrgent) {
+        // High priority / urgent modal dialog
+        Alert.alert(
+          title || 'Urgent Notification',
+          body || 'You have received an urgent alert.',
+          [
+            {
+              text: 'View Now',
+              onPress: () => handleNotificationRouting(data),
+            },
+            {
+              text: 'Dismiss',
+              style: 'cancel',
+            },
+          ]
+        );
+      } else {
+        // Standard in-app floating banner toast with tap navigation
+        triggerGlobalToast({
+          title: title || 'New Notification',
+          message: body || '',
+          type: (data?.type as any) || 'info',
+          onPress: () => handleNotificationRouting(data),
+        });
       }
     });
 
