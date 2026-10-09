@@ -3,6 +3,7 @@ import { router } from "expo-router";
 import React, {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -536,7 +537,7 @@ export default function AdminChatScreen() {
         const group = sorted.find((c) => c.id === "group");
         if (group?.group_locked !== undefined) setGroupLocked(group.group_locked);
       } catch {}
-    }, 5000); // Poll every 5 seconds for real-time badge updates
+    }, 10000); // Poll every 10 seconds to reduce network and CPU congestion
     return () => clearInterval(contactPollRef.current);
   }, []);
 
@@ -578,7 +579,6 @@ export default function AdminChatScreen() {
             senderInitials: latestMsg.sender_initials,
             senderAvatar: latestMsg.sender_avatar,
           });
-          // Simulate typing that resolves
         }
         if (latestMsg) {
           lastMsgIdRef.current = latestMsg.id;
@@ -593,7 +593,19 @@ export default function AdminChatScreen() {
         const pending = prev.filter(
           (m) => m.id < 0 && !newMsgs.some((fresh) => fresh.text === m.text && fresh.sender_id === m.sender_id)
         );
-        return [...newMsgs, ...pending];
+        const combined = [...newMsgs, ...pending];
+
+        // Bail out if identical to preserve referential equality and prevent re-rendering list
+        if (
+          prev.length === combined.length &&
+          prev.length > 0 &&
+          prev[prev.length - 1]?.id === combined[combined.length - 1]?.id &&
+          prev[prev.length - 1]?.updated_at === combined[combined.length - 1]?.updated_at &&
+          prev[prev.length - 1]?.display_text === combined[combined.length - 1]?.display_text
+        ) {
+          return prev;
+        }
+        return combined;
       });
     } catch {}
   }, [activeContact?.id, activeContact?.type, user?.id]);
@@ -622,12 +634,12 @@ export default function AdminChatScreen() {
     });
   }, [activeContact?.id, fetchMessages]);
 
-  // ── Poll messages inside the open conversation every 3.5s for real-time updates ──
+  // ── Poll messages inside the open conversation every 4s for real-time updates ──
   useEffect(() => {
     if (!activeContact) return;
     const interval = setInterval(() => {
       fetchMessages();
-    }, 3500);
+    }, 4000);
     return () => clearInterval(interval);
   }, [activeContact?.id, fetchMessages]);
 
@@ -702,7 +714,7 @@ export default function AdminChatScreen() {
       }
     };
 
-    const interval = setInterval(checkTyping, 3000);
+    const interval = setInterval(checkTyping, 5000);
     checkTyping();
 
     return () => {
@@ -722,7 +734,7 @@ export default function AdminChatScreen() {
       }
     };
 
-    const interval = setInterval(checkAllTyping, 3000);
+    const interval = setInterval(checkAllTyping, 5000);
     checkAllTyping();
 
     return () => clearInterval(interval);
@@ -767,27 +779,30 @@ export default function AdminChatScreen() {
   // ─── Messages with date separators ─────────────────────────────────────────
   type ListItem = { type: "date"; label: string; key: string } | { type: "msg"; msg: ChatMessage; key: string };
 
-  const displayedMessages = inChatSearchQuery.trim()
-    ? messages.filter((m) => {
-        const q = inChatSearchQuery.trim().toLowerCase();
-        return (
-          m.text.toLowerCase().includes(q) ||
-          m.sender_name.toLowerCase().includes(q) ||
-          (m.reply_to_text && m.reply_to_text.toLowerCase().includes(q))
-        );
-      })
-    : messages;
+  const displayedMessages = useMemo(() => {
+    if (!inChatSearchQuery.trim()) return messages;
+    const q = inChatSearchQuery.trim().toLowerCase();
+    return messages.filter(
+      (m) =>
+        m.text.toLowerCase().includes(q) ||
+        m.sender_name.toLowerCase().includes(q) ||
+        (m.reply_to_text && m.reply_to_text.toLowerCase().includes(q))
+    );
+  }, [messages, inChatSearchQuery]);
 
-  const listItems: ListItem[] = [];
-  let lastDateLabel = "";
-  for (const msg of displayedMessages) {
-    const label = getDateLabel(msg.created_at);
-    if (label !== lastDateLabel) {
-      listItems.push({ type: "date", label, key: `date-${msg.id}` });
-      lastDateLabel = label;
+  const listItems = useMemo(() => {
+    const items: ListItem[] = [];
+    let lastDateLabel = "";
+    for (const msg of displayedMessages) {
+      const label = getDateLabel(msg.created_at);
+      if (label !== lastDateLabel) {
+        items.push({ type: "date", label, key: `date-${msg.id}` });
+        lastDateLabel = label;
+      }
+      items.push({ type: "msg", msg, key: `msg-${msg.id}` });
     }
-    listItems.push({ type: "msg", msg, key: `msg-${msg.id}` });
-  }
+    return items;
+  }, [displayedMessages]);
 
   // ─── Send / Edit message ────────────────────────────────────────────────────
   const handleSend = async () => {
@@ -2603,6 +2618,11 @@ export default function AdminChatScreen() {
             data={listItems}
             keyExtractor={(item) => item.key}
             renderItem={renderListItem}
+            initialNumToRender={20}
+            maxToRenderPerBatch={12}
+            windowSize={9}
+            removeClippedSubviews={Platform.OS !== "web"}
+            updateCellsBatchingPeriod={30}
             contentContainerStyle={[styles.listContent, { paddingBottom: 16 }]}
             onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
             showsVerticalScrollIndicator={false}

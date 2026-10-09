@@ -2479,25 +2479,38 @@ def chat_messages(request):
     profile = getattr(request.user, 'profile', None)
     is_employee = profile and profile.role == 'employee'
 
+    chat_select = (
+        'sender',
+        'sender__employee_profile',
+        'sender__profile',
+        'recipient',
+        'recipient__employee_profile',
+        'recipient__profile',
+        'reply_to',
+        'reply_to__sender',
+        'reply_to__sender__employee_profile',
+        'reply_to__sender__profile',
+    )
+
     if channel_id:
         try:
             chat_channel = ChatChannel.objects.get(id=channel_id, company_user=company_user)
         except ChatChannel.DoesNotExist:
             return Response({'error': 'Channel not found.'}, status=status.HTTP_404_NOT_FOUND)
-        msgs = ChatMessage.objects.filter(
+        msgs_qs = ChatMessage.objects.filter(
             company_user=company_user,
             channel=chat_channel
-        ).select_related('sender', 'reply_to', 'reply_to__sender')
+        )
     elif group_id:
         try:
             chat_group = ChatGroup.objects.get(id=group_id, company_user=company_user)
         except ChatGroup.DoesNotExist:
             return Response({'error': 'Chat group not found.'}, status=status.HTTP_404_NOT_FOUND)
-        msgs = ChatMessage.objects.filter(
+        msgs_qs = ChatMessage.objects.filter(
             company_user=company_user,
             group=chat_group,
             channel__isnull=True
-        ).select_related('sender', 'reply_to', 'reply_to__sender')
+        )
     elif recipient_id:
         try:
             recipient = User.objects.get(id=recipient_id)
@@ -2505,32 +2518,42 @@ def chat_messages(request):
             return Response({'error': 'Recipient not found.'}, status=status.HTTP_404_NOT_FOUND)
 
         # Private messages between the two users in this company workspace
-        msgs = ChatMessage.objects.filter(
+        msgs_qs = ChatMessage.objects.filter(
             company_user=company_user,
             recipient__isnull=False
         ).filter(
             models.Q(sender=request.user, recipient=recipient) |
             models.Q(sender=recipient, recipient=request.user)
-        ).select_related('sender', 'recipient', 'reply_to', 'reply_to__sender')
+        )
     else:
         # Group messages (recipient=None, group=None)
-        msgs = ChatMessage.objects.filter(
+        msgs_qs = ChatMessage.objects.filter(
             company_user=company_user,
             recipient__isnull=True,
             group__isnull=True
-        ).select_related('sender', 'reply_to', 'reply_to__sender')
+        )
 
-    # Mark messages as read by adding the current user to read_by relationship
-    unread_msgs = msgs.exclude(sender=request.user).exclude(read_by=request.user)
-    through_model = ChatMessage.read_by.through
-    through_objs = [
-        through_model(chatmessage_id=m.id, user_id=request.user.id)
-        for m in unread_msgs
-    ]
-    if through_objs:
-        through_model.objects.bulk_create(through_objs, ignore_conflicts=True)
+    # Fetch latest 120 messages in reverse order with all relations joined in 1 query
+    msgs_list = list(
+        msgs_qs.order_by('-created_at')[:120].select_related(*chat_select)
+    )
+    msgs_list.reverse()
 
-    serializer = ChatMessageSerializer(msgs, many=True, context={'request': request})
+    # Fast mark-as-read without evaluating heavy model instances
+    unread_ids = [m.id for m in msgs_list if m.sender_id != request.user.id]
+    if unread_ids:
+        through_model = ChatMessage.read_by.through
+        already_read = set(through_model.objects.filter(
+            chatmessage_id__in=unread_ids, user_id=request.user.id
+        ).values_list('chatmessage_id', flat=True))
+        needed_objs = [
+            through_model(chatmessage_id=mid, user_id=request.user.id)
+            for mid in unread_ids if mid not in already_read
+        ]
+        if needed_objs:
+            through_model.objects.bulk_create(needed_objs, ignore_conflicts=True)
+
+    serializer = ChatMessageSerializer(msgs_list, many=True, context={'request': request})
     return Response(serializer.data)
 
 
@@ -2788,21 +2811,75 @@ def chat_contacts(request):
 
     contacts = []
 
-    # Always include general team chat group
-    tc_latest = ChatMessage.objects.filter(
-        company_user=company_user,
-        recipient__isnull=True,
-        group__isnull=True
-    ).order_by('-created_at').first()
-    
+    # 1. Pre-aggregate unread counts for all conversations in single fast queries
+    unread_dm_counts = dict(
+        ChatMessage.objects.filter(
+            company_user=company_user,
+            recipient=request.user
+        ).exclude(read_by=request.user)
+        .values('sender_id')
+        .annotate(cnt=models.Count('id'))
+        .values_list('sender_id', 'cnt')
+    )
+
+    unread_group_counts = dict(
+        ChatMessage.objects.filter(
+            company_user=company_user,
+            group__isnull=False
+        ).exclude(sender=request.user).exclude(read_by=request.user)
+        .values('group_id')
+        .annotate(cnt=models.Count('id'))
+        .values_list('group_id', 'cnt')
+    )
+
     tc_unread = ChatMessage.objects.filter(
         company_user=company_user,
         recipient__isnull=True,
         group__isnull=True
     ).exclude(sender=request.user).exclude(read_by=request.user).count()
 
-    # Get all employees in organization
-    employees = Employee.objects.filter(user=company_user, is_archived=False).select_related('linked_user')
+    # 2. Pre-fetch recent messages to resolve latest message per chat without DB queries inside loops
+    recent_msgs = list(
+        ChatMessage.objects.filter(company_user=company_user)
+        .order_by('-created_at')[:250]
+    )
+
+    tc_latest = next((m for m in recent_msgs if m.recipient_id is None and m.group_id is None), None)
+
+    latest_by_group = {}
+    for m in recent_msgs:
+        if m.group_id and m.group_id not in latest_by_group:
+            latest_by_group[m.group_id] = m
+
+    latest_by_dm_user = {}
+    my_uid = request.user.id
+    for m in recent_msgs:
+        if m.recipient_id is not None:
+            other_uid = m.recipient_id if m.sender_id == my_uid else (m.sender_id if m.recipient_id == my_uid else None)
+            if other_uid and other_uid not in latest_by_dm_user:
+                latest_by_dm_user[other_uid] = m
+
+    def msg_preview(m):
+        if not m:
+            return None
+        if m.is_deleted:
+            return "This message was deleted"
+        if getattr(m, 'attachment_type', None) == "image":
+            return "📷 Photo"
+        if getattr(m, 'attachment_type', None) == "video":
+            return "📹 Video"
+        if getattr(m, 'attachment_type', None) == "audio":
+            return "🎤 Voice note"
+        if getattr(m, 'attachment_type', None) == "document":
+            return f"📄 {getattr(m, 'attachment_name', None) or 'Document'}"
+        return m.text or ""
+
+    # 3. Employees in organization
+    employees = list(
+        Employee.objects.filter(user=company_user, is_archived=False)
+        .select_related('linked_user', 'linked_user__profile')
+    )
+    employees_by_user_id = {emp.linked_user.id: emp for emp in employees if emp.linked_user}
 
     # Build members list for Team Chat (all employees + admin)
     tc_members = []
@@ -2825,7 +2902,7 @@ def chat_contacts(request):
         'group_locked': settings_obj.group_locked,
         'is_blocked_from_group': request.user.id in (settings_obj.blocked_user_ids or []),
         'members_details': tc_members,
-        'last_message': tc_latest.text if tc_latest and not tc_latest.is_deleted else ("This message was deleted" if tc_latest and tc_latest.is_deleted else None),
+        'last_message': msg_preview(tc_latest),
         'last_message_time': tc_latest.created_at.isoformat() if tc_latest else None,
         'unread_count': tc_unread,
     })
@@ -2835,27 +2912,18 @@ def chat_contacts(request):
         custom_groups = ChatGroup.objects.filter(company_user=company_user, members=request.user, is_archived=False)
     else:
         custom_groups = ChatGroup.objects.filter(company_user=company_user, is_archived=False)
+    custom_groups = custom_groups.prefetch_related('members', 'members__profile', 'admins')
 
     for g in custom_groups:
-        g_avatar = None
-        if g.avatar:
-            g_avatar = request.build_absolute_uri(g.avatar.url)
-        
-        g_latest = ChatMessage.objects.filter(
-            company_user=company_user,
-            group=g
-        ).order_by('-created_at').first()
-
-        g_unread = ChatMessage.objects.filter(
-            company_user=company_user,
-            group=g
-        ).exclude(sender=request.user).exclude(read_by=request.user).count()
+        g_avatar = request.build_absolute_uri(g.avatar.url) if g.avatar else None
+        g_latest = latest_by_group.get(g.id)
+        g_unread = unread_group_counts.get(g.id, 0)
 
         g_members = []
-        for mu in g.members.select_related('profile').all():
+        for mu in g.members.all():
             mu_profile = getattr(mu, 'profile', None)
             mu_avatar = request.build_absolute_uri(mu_profile.avatar.url) if mu_profile and mu_profile.avatar else None
-            mu_emp = employees.filter(linked_user=mu).first()
+            mu_emp = employees_by_user_id.get(mu.id)
             mu_role = mu_emp.role if mu_emp else ('Admin' if mu == company_user else 'Member')
             mu_name = f"{mu.first_name} {mu.last_name}".strip() or mu.username
             g_members.append({'id': mu.id, 'name': mu_name, 'avatar': mu_avatar, 'role': mu_role})
@@ -2871,34 +2939,17 @@ def chat_contacts(request):
             'members': list(g.members.values_list('id', flat=True)),
             'members_details': g_members,
             'admins': list(g.admins.values_list('id', flat=True)),
-            'last_message': g_latest.text if g_latest and not g_latest.is_deleted else ("This message was deleted" if g_latest and g_latest.is_deleted else None),
+            'last_message': msg_preview(g_latest),
             'last_message_time': g_latest.created_at.isoformat() if g_latest else None,
             'unread_count': g_unread,
         })
 
-
     if is_employee and company_user != request.user:
-        # Employee can DM the admin
         admin_name = f"{company_user.first_name} {company_user.last_name}".strip() or company_user.username
         admin_profile = getattr(company_user, 'profile', None)
-        admin_avatar = None
-        if admin_profile and admin_profile.avatar:
-            admin_avatar = request.build_absolute_uri(admin_profile.avatar.url)
-
-        # DM between request.user and company_user
-        dm_latest = ChatMessage.objects.filter(
-            company_user=company_user,
-            recipient__isnull=False
-        ).filter(
-            (models.Q(sender=request.user) & models.Q(recipient=company_user)) |
-            (models.Q(sender=company_user) & models.Q(recipient=request.user))
-        ).order_by('-created_at').first()
-
-        dm_unread = ChatMessage.objects.filter(
-            company_user=company_user,
-            recipient=request.user,
-            sender=company_user
-        ).exclude(read_by=request.user).count()
+        admin_avatar = request.build_absolute_uri(admin_profile.avatar.url) if admin_profile and admin_profile.avatar else None
+        dm_latest = latest_by_dm_user.get(company_user.id)
+        dm_unread = unread_dm_counts.get(company_user.id, 0)
 
         contacts.append({
             'id': company_user.id,
@@ -2909,7 +2960,7 @@ def chat_contacts(request):
             'email': company_user.email or '',
             'group_locked': False,
             'is_blocked_from_group': False,
-            'last_message': dm_latest.text if dm_latest and not dm_latest.is_deleted else ("This message was deleted" if dm_latest and dm_latest.is_deleted else None),
+            'last_message': msg_preview(dm_latest),
             'last_message_time': dm_latest.created_at.isoformat() if dm_latest else None,
             'unread_count': dm_unread,
         })
@@ -2918,24 +2969,9 @@ def chat_contacts(request):
     for emp in employees:
         if emp.linked_user and emp.linked_user != request.user:
             is_blocked = emp.linked_user.id in (settings_obj.blocked_user_ids or [])
-            emp_avatar = None
-            if emp.avatar:
-                emp_avatar = request.build_absolute_uri(emp.avatar.url)
-
-            # DM between request.user and emp.linked_user
-            dm_latest = ChatMessage.objects.filter(
-                company_user=company_user,
-                recipient__isnull=False
-            ).filter(
-                (models.Q(sender=request.user) & models.Q(recipient=emp.linked_user)) |
-                (models.Q(sender=emp.linked_user) & models.Q(recipient=request.user))
-            ).order_by('-created_at').first()
-
-            dm_unread = ChatMessage.objects.filter(
-                company_user=company_user,
-                recipient=request.user,
-                sender=emp.linked_user
-            ).exclude(read_by=request.user).count()
+            emp_avatar = request.build_absolute_uri(emp.avatar.url) if emp.avatar else None
+            dm_latest = latest_by_dm_user.get(emp.linked_user.id)
+            dm_unread = unread_dm_counts.get(emp.linked_user.id, 0)
 
             contacts.append({
                 'id': emp.linked_user.id,
@@ -2948,7 +2984,7 @@ def chat_contacts(request):
                 'role': emp.role or '',
                 'group_locked': False,
                 'is_blocked_from_group': is_blocked,
-                'last_message': dm_latest.text if dm_latest and not dm_latest.is_deleted else ("This message was deleted" if dm_latest and dm_latest.is_deleted else None),
+                'last_message': msg_preview(dm_latest),
                 'last_message_time': dm_latest.created_at.isoformat() if dm_latest else None,
                 'unread_count': dm_unread,
             })
