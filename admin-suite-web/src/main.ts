@@ -6767,9 +6767,6 @@ function drawFinanceTab(): string {
         <p class="finance-page-subtitle">Unified oversight of cash liquidity, budget limits, accounts payable/receivable, and transactional records.</p>
       </div>
       <div class="finance-action-buttons">
-        <button class="btn btn-outline" id="finance-export-btn" style="gap:6px;">
-          ${getIconSvg('download')} Export CSV
-        </button>
         <button class="btn btn-outline" id="finance-add-budget-btn" style="gap:6px;">
           ${getIconSvg('shield')} + Add Budget
         </button>
@@ -6970,30 +6967,6 @@ function bindFinanceEvents() {
   document.getElementById('empty-add-budget-btn')?.addEventListener('click', () => openAddTransactionModal('budget'));
   document.getElementById('empty-add-tx-btn')?.addEventListener('click', () => openAddTransactionModal());
 
-  // Export CSV
-  document.getElementById('finance-export-btn')?.addEventListener('click', () => {
-    if (state.transactions.length === 0) {
-      showToast('No ledger transactions to export.', 'info');
-      return;
-    }
-    const headers = ['Date', 'Type', 'Description', 'Category', 'Amount'];
-    const rows = state.transactions.map(t => [
-      new Date(t.date).toLocaleDateString(),
-      t.type.toUpperCase(),
-      `"${(t.description || '').replace(/"/g, '""')}"`,
-      `"${(t.category || '').replace(/"/g, '""')}"`,
-      t.amount
-    ]);
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Corporate_Financial_Ledger_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    showToast('Corporate ledger exported successfully', 'success');
-  });
 
   // Dynamic search input
   const searchInput = document.getElementById('finance-search-input') as HTMLInputElement | null;
@@ -7650,21 +7623,17 @@ function drawSettingsTab(): string {
 
           <!-- Document Compiler (Exporter) Card embedded directly here -->
           <div style="border-top:1px solid var(--border); padding-top:16px; margin-top:8px;">
-            <span style="font-size:12px; font-weight:700; display:block; margin-bottom:8px; text-transform:uppercase; color:var(--muted-foreground); letter-spacing:0.5px;">Export Workspace Sheet</span>
+            <span style="font-size:12px; font-weight:700; display:block; margin-bottom:8px; text-transform:uppercase; color:var(--muted-foreground); letter-spacing:0.5px;">Export PDF Report</span>
             <div style="display:flex; gap:10px; margin-bottom:12px;">
-              <select class="form-input" id="export-type-select" style="font-size:12px; background:var(--background);">
-                <option value="general">General Audit Report</option>
-                <option value="employee">Employee Roster Only</option>
-                <option value="client">Client Roster Only</option>
-                <option value="financials">Financial Ledgers Sheet</option>
-              </select>
-              <select class="form-input" id="export-format-select" style="font-size:12px; background:var(--background); width:80px;">
-                <option value="csv">CSV</option>
-                <option value="pdf">PDF</option>
+              <select class="form-input" id="export-type-select" style="font-size:12px; background:var(--background); flex:1;">
+                <option value="general">General Audit Report (PDF)</option>
+                <option value="employee">Employee Roster (PDF)</option>
+                <option value="client">Client Roster (PDF)</option>
+                <option value="financials">Financial Ledgers Sheet (PDF)</option>
               </select>
             </div>
             <button class="btn btn-outline btn-sm" id="real-export-btn" style="width:100%; gap:6px; justify-content:center;">
-              ${getIconSvg('download')} Trigger Remote Export
+              ${getIconSvg('download')} Download PDF Report
             </button>
           </div>
         </div>
@@ -8049,205 +8018,48 @@ function bindSettingsEvents() {
     });
   }
 
-  // Caching mechanism for web organization profile completeness (valid for 5 minutes)
-  let _profileCheckCache: { timestamp: number; isValid: boolean } | null = null;
 
-  async function checkWebProfileCompleteness(): Promise<boolean> {
-    const now = Date.now();
-    const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-    if (_profileCheckCache && (now - _profileCheckCache.timestamp) < CACHE_DURATION) {
-      return _profileCheckCache.isValid;
-    }
-
-    try {
-      const res = await apiRequest('me/');
-      state.user = res;
-      const isValid = !!(res.business_name && res.company_logo);
-      _profileCheckCache = { timestamp: now, isValid };
-      return isValid;
-    } catch (err) {
-      console.warn('Failed to refresh profile in web pre-check:', err);
-      const isValid = !!(state.user?.business_name && state.user?.company_logo);
-      return isValid;
-    }
-  }
-
-  function showBrandingWarningModal(onConfigure: () => void, onExportStandard: () => void) {
-    const backdrop = document.createElement('div');
-    backdrop.style.position = 'fixed';
-    backdrop.style.top = '0';
-    backdrop.style.left = '0';
-    backdrop.style.width = '100vw';
-    backdrop.style.height = '100vh';
-    backdrop.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-    backdrop.style.display = 'flex';
-    backdrop.style.alignItems = 'center';
-    backdrop.style.justifyContent = 'center';
-    backdrop.style.zIndex = '9999';
-    backdrop.style.backdropFilter = 'blur(4px)';
-
-    const container = document.createElement('div');
-    container.className = 'card';
-    container.style.width = '400px';
-    container.style.maxWidth = '90%';
-    container.style.padding = '24px';
-    container.style.borderRadius = '12px';
-    container.style.boxShadow = '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)';
-    container.style.backgroundColor = 'var(--card)';
-    container.style.border = '1px solid var(--border)';
-    container.style.display = 'flex';
-    container.style.flexDirection = 'column';
-    container.style.alignItems = 'center';
-    container.style.gap = '16px';
-
-    const iconWrap = document.createElement('div');
-    iconWrap.style.width = '64px';
-    iconWrap.style.height = '64px';
-    iconWrap.style.borderRadius = '50%';
-    iconWrap.style.backgroundColor = 'rgba(79, 70, 229, 0.1)';
-    iconWrap.style.display = 'flex';
-    iconWrap.style.alignItems = 'center';
-    iconWrap.style.justifyContent = 'center';
-    
-    const iconSvg = document.createElement('div');
-    iconSvg.innerHTML = DOMPurify.sanitize(getIconSvg('alert'));
-    iconSvg.style.width = '28px';
-    iconSvg.style.height = '28px';
-    iconSvg.style.color = 'var(--primary)';
-    iconWrap.appendChild(iconSvg);
-
-    const title = document.createElement('h3');
-    title.textContent = 'Branding Incomplete';
-    title.style.fontSize = '18px';
-    title.style.fontWeight = '700';
-    title.style.color = 'var(--foreground)';
-    title.style.margin = '0';
-
-    const desc = document.createElement('p');
-    desc.textContent = 'Your organization profile is missing a name or logo. To export branded PDF reports, please complete your profile setup.';
-    desc.style.fontSize = '13px';
-    desc.style.color = 'var(--muted-foreground)';
-    desc.style.textAlign = 'center';
-    desc.style.lineHeight = '1.5';
-    desc.style.margin = '0';
-
-    const btnCol = document.createElement('div');
-    btnCol.style.display = 'flex';
-    btnCol.style.flexDirection = 'column';
-    btnCol.style.gap = '10px';
-    btnCol.style.width = '100%';
-    btnCol.style.marginTop = '8px';
-
-    const btnConfigure = document.createElement('button');
-    btnConfigure.className = 'btn btn-primary';
-    btnConfigure.style.width = '100%';
-    btnConfigure.style.justifyContent = 'center';
-    btnConfigure.textContent = 'Configure Branding';
-    btnConfigure.addEventListener('click', () => {
-      backdrop.remove();
-      onConfigure();
-    });
-
-    const btnExportStandard = document.createElement('button');
-    btnExportStandard.className = 'btn btn-outline';
-    btnExportStandard.style.width = '100%';
-    btnExportStandard.style.justifyContent = 'center';
-    btnExportStandard.textContent = 'Export Standard (No Branding)';
-    btnExportStandard.addEventListener('click', () => {
-      backdrop.remove();
-      onExportStandard();
-    });
-
-    const btnCancel = document.createElement('button');
-    btnCancel.className = 'btn btn-ghost';
-    btnCancel.style.width = '100%';
-    btnCancel.style.justifyContent = 'center';
-    btnCancel.textContent = 'Cancel';
-    btnCancel.addEventListener('click', () => {
-      backdrop.remove();
-    });
-
-    btnCol.appendChild(btnConfigure);
-    btnCol.appendChild(btnExportStandard);
-    btnCol.appendChild(btnCancel);
-
-    container.appendChild(iconWrap);
-    container.appendChild(title);
-    container.appendChild(desc);
-    container.appendChild(btnCol);
-
-    backdrop.appendChild(container);
-    document.body.appendChild(backdrop);
-  }
-
-  // Real REST Trigger Export
+  // Real REST Trigger Export (PDF Only)
   const exportBtn = document.getElementById('real-export-btn');
   if (exportBtn) {
     exportBtn.addEventListener('click', async () => {
-      const format = (document.getElementById('export-format-select') as HTMLSelectElement).value;
-      const type = (document.getElementById('export-type-select') as HTMLSelectElement).value;
+      const type = ((document.getElementById('export-type-select') as HTMLSelectElement)?.value) || 'general';
       
       exportBtn.setAttribute('disabled', 'true');
-      exportBtn.innerHTML = DOMPurify.sanitize('Checking profile...');
+      exportBtn.innerHTML = DOMPurify.sanitize('Compiling PDF...');
 
       try {
-        const isProfileComplete = await checkWebProfileCompleteness();
+        const token = localStorage.getItem('admin-suite.token');
+        const hasBranding = !!(state.user?.business_name && state.user?.company_logo);
+        const url = `${API_BASE}export/?export_format=pdf&type=${type}&time_filter=all&id=&skip_branding=${!hasBranding}`;
         
-        const executeExport = async (skipBranding: boolean) => {
-          exportBtn.setAttribute('disabled', 'true');
-          exportBtn.innerHTML = DOMPurify.sanitize('Compiling File...');
-          try {
-            const token = localStorage.getItem('admin-suite.token');
-            const url = `${API_BASE}export/?format=${format}&type=${type}&time_filter=all&id=&skip_branding=${skipBranding}`;
-            
-            const response = await fetch(url, {
-              headers: {
-                'Authorization': `Token ${token}`
-              }
-            });
-
-            if (!response.ok) {
-              throw new Error(`Export compile failed: ${response.status}`);
-            }
-
-            const blob = await response.blob();
-            const blobUrl = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = blobUrl;
-            a.download = `adminsuite_${type}_report.${format}`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(blobUrl);
-
-            showToast('Report downloaded successfully!', 'success');
-          } catch (err: any) {
-            showToast(err.message || 'Trigger export failed', 'error');
-          } finally {
-            exportBtn.removeAttribute('disabled');
-            exportBtn.innerHTML = DOMPurify.sanitize(`${getIconSvg('download')} Trigger Remote Export`);
+        const response = await fetch(url, {
+          headers: {
+            'Authorization': `Token ${token}`
           }
-        };
+        });
 
-        if (isProfileComplete) {
-          await executeExport(false);
-        } else {
-          exportBtn.removeAttribute('disabled');
-          exportBtn.innerHTML = DOMPurify.sanitize(`${getIconSvg('download')} Trigger Remote Export`);
-          showBrandingWarningModal(
-            () => {
-              openEditProfileModal('org');
-            },
-            async () => {
-              await executeExport(true);
-            }
-          );
+        if (!response.ok) {
+          throw new Error(`Export compile failed: ${response.status}`);
         }
+
+        const blob = await response.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = `adminsuite_${type}_report.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(blobUrl);
+
+        showToast('PDF report downloaded successfully!', 'success');
       } catch (err: any) {
-        showToast(err.message || 'Verification check failed', 'error');
+        showToast(err.message || 'Trigger export failed', 'error');
+      } finally {
         exportBtn.removeAttribute('disabled');
-        exportBtn.innerHTML = DOMPurify.sanitize(`${getIconSvg('download')} Trigger Remote Export`);
+        exportBtn.innerHTML = DOMPurify.sanitize(`${getIconSvg('download')} Download PDF Report`);
       }
     });
   }

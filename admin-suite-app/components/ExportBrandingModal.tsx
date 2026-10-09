@@ -15,83 +15,33 @@ import * as SecureStore from "@/services/storage";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import * as IntentLauncher from "expo-intent-launcher";
-import { router } from "expo-router";
 
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
-import { apiService } from "@/services/api";
-import apiClient from "@/services/api";
+import { getActiveBaseUrl } from "@/services/api";
 
 interface ExportBrandingModalProps {
   visible: boolean;
   onClose: () => void;
 }
 
-// Module-level cache for 5-minute profile validity check
-let profileCheckCache: {
-  timestamp: number;
-  isValid: boolean;
-} | null = null;
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-
 export default function ExportBrandingModal({ visible, onClose }: ExportBrandingModalProps) {
   const colors = useColors();
-  const { user, setUser } = useAuth();
-
-  // Dialog stage: "warning" | "options"
-  const [stage, setStage] = useState<"warning" | "options">("options");
-  const [checking, setChecking] = useState(false);
+  const { user } = useAuth();
 
   // Export parameters
-  const [exportFormat, setExportFormat] = useState<"pdf" | "csv">("pdf");
   const [exportType, setExportType] = useState<"general" | "client" | "employee" | "financials">("general");
   const [exportTimeFilter, setExportTimeFilter] = useState("all");
-  const [exportSelectedId, setExportSelectedId] = useState<string>("");
-  const [skipBranding, setSkipBranding] = useState(false);
+  const [exportSelectedId] = useState<string>("");
 
   const [exportLoading, setExportLoading] = useState(false);
   const [exportError, setExportError] = useState("");
 
-  // When visibility opens, check profile status and determine the initial stage
+  // Reset temporary state when modal opens
   useEffect(() => {
     if (!visible) return;
-
-    // Reset temporary states
     setExportError("");
-    setStage("options");
-
-    const checkProfileStatus = async () => {
-      setChecking(true);
-      const now = Date.now();
-      let isValid = !!(user?.business_name && user?.company_logo);
-
-      // Check cache first
-      if (profileCheckCache && (now - profileCheckCache.timestamp) < CACHE_DURATION) {
-        isValid = profileCheckCache.isValid;
-      } else {
-        try {
-          const res = await apiService.getMe();
-          const refreshedUser = res.data;
-          if (refreshedUser) {
-            setUser(refreshedUser);
-            isValid = !!(refreshedUser.business_name && refreshedUser.company_logo);
-          }
-        } catch (err) {
-          console.warn("Failed to check profile status on export, using existing context:", err);
-        }
-        profileCheckCache = { timestamp: now, isValid };
-      }
-
-      setSkipBranding(!isValid);
-      if (isValid) {
-        setStage("options");
-      } else {
-        setStage("warning");
-      }
-      setChecking(false);
-    };
-
-    checkProfileStatus();
+    setExportLoading(false);
   }, [visible]);
 
   const handleTriggerExport = async () => {
@@ -100,13 +50,12 @@ export default function ExportBrandingModal({ visible, onClose }: ExportBranding
 
     try {
       const token = await SecureStore.getItemAsync("admin-suite.token");
-      // Use apiClient.defaults.baseURL which is dynamically resolved to the
-      // correct host by resolveBackendUrl() — avoids the stale compile-time IP.
-      const resolvedApiBase = apiClient.defaults.baseURL ?? "http://localhost:8000/api/";
-      const cleanApiBase = resolvedApiBase.endsWith("/") ? resolvedApiBase : `${resolvedApiBase}/`;
-      const filename = `adminsuite_${exportType}_export.${exportFormat}`;
+      const base = getActiveBaseUrl();
+      const cleanApiBase = base.endsWith("/") ? `${base}api/` : `${base}/api/`;
+      const filename = `adminsuite_${exportType}_report.pdf`;
       const idParam = exportSelectedId ? `&id=${encodeURIComponent(exportSelectedId)}` : "";
-      const downloadUrl = `${cleanApiBase}export/?export_format=${exportFormat}&type=${exportType}&time_filter=${exportTimeFilter}${idParam}&skip_branding=${skipBranding}`;
+      const hasBranding = !!(user?.business_name && user?.company_logo);
+      const downloadUrl = `${cleanApiBase}export/?export_format=pdf&type=${exportType}&time_filter=${exportTimeFilter}${idParam}&skip_branding=${!hasBranding}`;
 
       if (Platform.OS === "web") {
         const response = await fetch(downloadUrl, {
@@ -145,7 +94,7 @@ export default function ExportBrandingModal({ visible, onClose }: ExportBranding
         setExportLoading(false);
         onClose();
 
-        if (Platform.OS === "android" && exportFormat === "pdf") {
+        if (Platform.OS === "android") {
           try {
             const contentUri = await FileSystem.getContentUriAsync(result.uri);
             await IntentLauncher.startActivityAsync("android.intent.action.VIEW", {
@@ -159,30 +108,30 @@ export default function ExportBrandingModal({ visible, onClose }: ExportBranding
             if (await Sharing.isAvailableAsync()) {
               await Sharing.shareAsync(result.uri, {
                 mimeType: "application/pdf",
-                dialogTitle: `Export Admin ${exportType.toUpperCase()} Data`,
+                dialogTitle: `Export Admin ${exportType.toUpperCase()} Report`,
                 UTI: "com.adobe.pdf",
               });
             } else {
-              Alert.alert("Success", "File downloaded successfully.");
+              Alert.alert("Success", "PDF report downloaded successfully.");
             }
           }
         } else {
           if (await Sharing.isAvailableAsync()) {
             await Sharing.shareAsync(result.uri, {
-              mimeType: exportFormat === "pdf" ? "application/pdf" : "text/csv",
-              dialogTitle: `Export Admin ${exportType.toUpperCase()} Data`,
-              UTI: exportFormat === "pdf" ? "com.adobe.pdf" : "public.comma-separated-values-text",
+              mimeType: "application/pdf",
+              dialogTitle: `Export Admin ${exportType.toUpperCase()} Report`,
+              UTI: "com.adobe.pdf",
             });
           } else {
-            Alert.alert("Success", "File downloaded successfully but sharing is not supported on this device.");
+            Alert.alert("Success", "PDF report downloaded successfully.");
           }
         }
       } else {
-        throw new Error(`Failed to download file from server. Status: ${result.status}`);
+        throw new Error(`Failed to download report from server. Status: ${result.status}`);
       }
     } catch (err: any) {
       console.error("Export failed:", err);
-      setExportError(err.message || "Failed to export data.");
+      setExportError(err.message || "Failed to export PDF report.");
       Alert.alert("Export Error", err.message || "Could not complete report generation.");
     } finally {
       setExportLoading(false);
@@ -190,87 +139,6 @@ export default function ExportBrandingModal({ visible, onClose }: ExportBranding
   };
 
   const renderContent = () => {
-    if (checking) {
-      return (
-        <View style={modalStyles.loaderContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[modalStyles.loaderText, { color: colors.mutedForeground }]}>
-            Verifying organization profile...
-          </Text>
-        </View>
-      );
-    }
-
-    if (stage === "warning") {
-      return (
-        <View style={{ alignItems: "center" }}>
-          <View style={{
-            width: 64, height: 64, borderRadius: 32,
-            backgroundColor: colors.primary + "1A",
-            alignItems: "center", justifyContent: "center",
-            marginBottom: 16,
-          }}>
-            <Feather name="award" size={28} color={colors.primary} />
-          </View>
-          <Text style={{ color: colors.foreground, fontSize: 20, fontFamily: "Inter_700Bold", marginBottom: 8, textAlign: "center" }}>
-            Branding Incomplete
-          </Text>
-          <Text style={{ color: colors.mutedForeground, fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20, paddingHorizontal: 12 }}>
-            Your organization profile is missing a name or logo. To export branded PDF reports, please complete your profile setup.
-          </Text>
-
-          <View style={{ marginTop: 24, gap: 10, width: "100%" }}>
-            <Pressable
-              style={({ pressed }) => [
-                modalStyles.saveBtn,
-                {
-                  backgroundColor: colors.primary,
-                  transform: [{ scale: pressed ? 0.98 : 1 }],
-                }
-              ]}
-              onPress={() => {
-                onClose();
-                router.push("/settings/organisation");
-              }}
-            >
-              <Feather name="settings" size={16} color={colors.primaryForeground} />
-              <Text style={[modalStyles.saveBtnText, { color: colors.primaryForeground }]}>Configure Branding</Text>
-            </Pressable>
-            
-            <Pressable
-              style={({ pressed }) => [
-                modalStyles.saveBtn,
-                {
-                  backgroundColor: colors.isDark ? "#2e2e33" : "#f1f5f9",
-                  transform: [{ scale: pressed ? 0.98 : 1 }],
-                }
-              ]}
-              onPress={() => {
-                setSkipBranding(true);
-                setStage("options");
-              }}
-            >
-              <Feather name="file-text" size={16} color={colors.foreground} />
-              <Text style={[modalStyles.saveBtnText, { color: colors.foreground }]}>Export Standard (No Branding)</Text>
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                modalStyles.cancelBtn,
-                {
-                  borderColor: colors.border,
-                  transform: [{ scale: pressed ? 0.98 : 1 }],
-                }
-              ]}
-              onPress={onClose}
-            >
-              <Text style={[modalStyles.cancelText, { color: colors.foreground }]}>Cancel</Text>
-            </Pressable>
-          </View>
-        </View>
-      );
-    }
-
     return (
       <View>
         <View style={modalStyles.header}>
@@ -278,7 +146,7 @@ export default function ExportBrandingModal({ visible, onClose }: ExportBranding
             <View style={[modalStyles.headerIconWrap, { backgroundColor: "#10b9811A" }]}>
               <Feather name="download" size={18} color="#10b981" />
             </View>
-            <Text style={[modalStyles.headerTitle, { color: colors.foreground }]}>Export Data</Text>
+            <Text style={[modalStyles.headerTitle, { color: colors.foreground }]}>Export Report</Text>
           </View>
           <Pressable onPress={onClose} style={[modalStyles.closeBtn, { backgroundColor: colors.muted }]}>
             <Feather name="x" size={18} color={colors.mutedForeground} />
@@ -287,34 +155,14 @@ export default function ExportBrandingModal({ visible, onClose }: ExportBranding
 
         <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
           <View style={{ gap: 18, paddingVertical: 4 }}>
-            {/* FORMAT */}
+            {/* FORMAT (LOCKED TO PDF) */}
             <View>
               <Text style={[modalStyles.sectionLabel, { color: colors.mutedForeground }]}>FORMAT</Text>
-              <View style={modalStyles.chipRow}>
-                {(["pdf", "csv"] as const).map((f) => (
-                  <Pressable
-                    key={f}
-                    style={({ pressed }) => [
-                      modalStyles.chip,
-                      {
-                        borderColor: exportFormat === f ? colors.primary : colors.border,
-                        backgroundColor: exportFormat === f ? colors.primary + "1A" : "transparent",
-                        transform: [{ scale: pressed ? 0.94 : 1 }],
-                        opacity: pressed ? 0.9 : 1,
-                      },
-                    ]}
-                    onPress={() => setExportFormat(f)}
-                  >
-                    <Feather
-                      name={f === "pdf" ? "file-text" : "file"}
-                      size={14}
-                      color={exportFormat === f ? colors.primary : colors.mutedForeground}
-                    />
-                    <Text style={{ color: exportFormat === f ? colors.primary : colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 13 }}>
-                      {f.toUpperCase()}
-                    </Text>
-                  </Pressable>
-                ))}
+              <View style={[modalStyles.chip, { borderColor: colors.primary, backgroundColor: colors.primary + "1A", alignSelf: "flex-start" }]}>
+                <Feather name="file-text" size={14} color={colors.primary} />
+                <Text style={{ color: colors.primary, fontFamily: "Inter_600SemiBold", fontSize: 13 }}>
+                  PDF Document
+                </Text>
               </View>
             </View>
 
@@ -378,6 +226,16 @@ export default function ExportBrandingModal({ visible, onClose }: ExportBranding
                 ))}
               </View>
             </View>
+
+            {/* BRANDING NOTICE */}
+            {user?.business_name && user?.company_logo ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 2 }}>
+                <Feather name="check-circle" size={13} color="#10b981" />
+                <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>
+                  Export branded with {user.business_name} logo
+                </Text>
+              </View>
+            ) : null}
           </View>
         </ScrollView>
 
@@ -420,7 +278,7 @@ export default function ExportBrandingModal({ visible, onClose }: ExportBranding
             ) : (
               <>
                 <Feather name="download" size={16} color="#fff" />
-                <Text style={modalStyles.saveBtnText}>Download</Text>
+                <Text style={modalStyles.saveBtnText}>Download PDF</Text>
               </>
             )}
           </Pressable>
@@ -462,16 +320,6 @@ const modalStyles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 24,
     elevation: 16,
-  },
-  loaderContainer: {
-    paddingVertical: 32,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  loaderText: {
-    marginTop: 16,
-    fontSize: 14,
-    fontFamily: "Inter_500Medium",
   },
   header: {
     flexDirection: "row",

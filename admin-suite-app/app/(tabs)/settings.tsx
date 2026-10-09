@@ -239,7 +239,7 @@ function Row({ icon, label, hint, onPress }: { icon: keyof typeof Feather.glyphM
                   {
                     color: colors.mutedForeground,
                     fontFamily: "Inter_400Regular",
-                    fontVariant: hint.includes("companies") || hint.includes("CSV") ? ["tabular-nums"] : undefined,
+                    fontVariant: hint.includes("companies") ? ["tabular-nums"] : undefined,
                   },
                 ]}
               >

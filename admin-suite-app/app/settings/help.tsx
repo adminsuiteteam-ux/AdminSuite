@@ -30,7 +30,7 @@ const FAQS = [
   },
   {
     q: "Where is my financial history stored?",
-    a: "All financial income and expenses are stored securely on the Django database. You can search, filter, and review details in the 'Finance' tab, or export your financial reports to CSV or PDF via the 'Export Data' action in settings.",
+    a: "All financial income and expenses are stored securely on the Django database. You can search, filter, and review details in the 'Finance' tab, or export your financial reports to PDF via the 'Export Data' action in settings.",
     category: "finance",
   },
   {
