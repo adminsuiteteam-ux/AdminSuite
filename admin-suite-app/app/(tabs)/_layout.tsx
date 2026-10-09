@@ -167,9 +167,8 @@ function GlassTabBar({ state, navigation }: { state: any; navigation: any }) {
 
 // ─── Floating Chat FAB ────────────────────────────────────────────────────────────
 const SPEED_DIAL_ITEMS = [
-  { id: "tasks", label: "Tasks", icon: "check-square" as const, color: "#10b981", route: "/tasks" },
-  { id: "attendance", label: "Attendance", icon: "clock" as const, color: "#f59e0b", route: "/attendance" },
-  { id: "notebook", label: "Notebook", icon: "book-open" as const, color: "#8b5cf6", route: "/notebook" },
+  { id: "tasks", label: "Tasks", icon: "check-square" as const, route: "/tasks" },
+  { id: "notebook", label: "Notebook", icon: "book-open" as const, route: "/notebook" },
 ];
 
 function ChatFAB({ bottomOffset, unreadCount, shakeAnim }: { bottomOffset: number; unreadCount: number; shakeAnim: Animated.Value }) {
@@ -295,8 +294,8 @@ function ChatFAB({ bottomOffset, unreadCount, shakeAnim }: { bottomOffset: numbe
                 },
               ]}
             >
-              <View style={[styles.speedDialIcon, { backgroundColor: item.color + "22" }]}>
-                <Feather name={item.icon} size={15} color={item.color} />
+              <View style={[styles.speedDialIcon, { backgroundColor: colors.isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.05)" }]}>
+                <Feather name={item.icon} size={15} color={colors.text} />
               </View>
               <Text style={[styles.speedDialLabel, { color: colors.text }]}>{item.label}</Text>
             </Pressable>

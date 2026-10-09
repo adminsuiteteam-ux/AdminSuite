@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { useColors } from "@/hooks/useColors";
 import { useData } from "@/context/DataContext";
@@ -38,16 +39,18 @@ interface TaskItem {
   employee: number | { id: number; name: string; avatar?: string; role?: string };
 }
 
+const TASKS_CACHE_KEY = "@adminsuite_tasks_cache_v1";
+
 const PRIORITY_CONFIG: Record<Priority, { label: string; color: string; bg: string }> = {
-  urgent: { label: "Urgent", color: "#ef4444", bg: "rgba(239, 68, 68, 0.15)" },
-  high: { label: "High", color: "#f59e0b", bg: "rgba(245, 158, 11, 0.15)" },
-  medium: { label: "Medium", color: "#3b82f6", bg: "rgba(59, 130, 246, 0.15)" },
-  low: { label: "Low", color: "#10b981", bg: "rgba(16, 185, 129, 0.15)" },
+  urgent: { label: "Urgent", color: "#f43f5e", bg: "rgba(244, 63, 94, 0.12)" },
+  high: { label: "High", color: "#eab308", bg: "rgba(234, 179, 8, 0.12)" },
+  medium: { label: "Medium", color: "#6366f1", bg: "rgba(99, 102, 241, 0.12)" },
+  low: { label: "Low", color: "#71717a", bg: "rgba(113, 113, 122, 0.12)" },
 };
 
 const STATUS_CONFIG: Record<Status, { label: string; color: string; icon: keyof typeof Feather.glyphMap }> = {
-  assigned: { label: "Assigned", color: "#a855f7", icon: "clock" },
-  in_progress: { label: "In Progress", color: "#3b82f6", icon: "activity" },
+  assigned: { label: "Assigned", color: "#71717a", icon: "clock" },
+  in_progress: { label: "In Progress", color: "#6366f1", icon: "activity" },
   completed: { label: "Completed", color: "#10b981", icon: "check-circle" },
 };
 
@@ -78,22 +81,36 @@ export default function TasksScreen() {
   const [submitting, setSubmitting] = useState(false);
 
   const fetchTasks = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
+    if (!silent && tasks.length === 0) setLoading(true);
     try {
       const res = await apiService.getTasks();
       const list = Array.isArray(res.data) ? res.data : (res.data?.results || []);
       setTasks(list);
+      AsyncStorage.setItem(TASKS_CACHE_KEY, JSON.stringify(list)).catch(() => {});
     } catch (err: any) {
       console.warn("[TasksScreen] Error loading tasks:", err);
-      // Fallback: If network issue or no tasks created yet, keep existing
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [tasks.length]);
 
   useEffect(() => {
-    fetchTasks();
+    let mounted = true;
+    (async () => {
+      try {
+        const cached = await AsyncStorage.getItem(TASKS_CACHE_KEY);
+        if (cached && mounted) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setTasks(parsed);
+            setLoading(false);
+          }
+        }
+      } catch {}
+      if (mounted) fetchTasks(true);
+    })();
+    return () => { mounted = false; };
   }, [fetchTasks]);
 
   const onRefresh = () => {
@@ -101,7 +118,15 @@ export default function TasksScreen() {
     fetchTasks(true);
   };
 
-  const getEmployeeInfo = (employeeField: any) => {
+  const employeeMap = useMemo(() => {
+    const map = new Map<number, any>();
+    (employees || []).forEach((e: any) => {
+      map.set(Number(e.id), e);
+    });
+    return map;
+  }, [employees]);
+
+  const getEmployeeInfo = useCallback((employeeField: any) => {
     if (typeof employeeField === "object" && employeeField !== null) {
       return {
         id: employeeField.id,
@@ -111,7 +136,7 @@ export default function TasksScreen() {
       };
     }
     const empId = Number(employeeField);
-    const found = employees.find((e) => Number(e.id) === empId);
+    const found = employeeMap.get(empId);
     if (found) {
       return {
         id: found.id,
@@ -126,7 +151,7 @@ export default function TasksScreen() {
       avatar: null,
       role: "Team Member",
     };
-  };
+  }, [employeeMap]);
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((t) => {
@@ -306,34 +331,34 @@ export default function TasksScreen() {
         {/* Metric Cards Row */}
         <View style={styles.metricsGrid}>
           <View style={[styles.metricCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={[styles.metricIconWrap, { backgroundColor: "rgba(59, 130, 246, 0.12)" }]}>
-              <Feather name="clipboard" size={16} color="#3b82f6" />
+            <View style={[styles.metricIconWrap, { backgroundColor: colors.isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.04)" }]}>
+              <Feather name="clipboard" size={16} color={colors.text} />
             </View>
             <Text style={[styles.metricVal, { color: colors.text }]}>{stats.total}</Text>
             <Text style={[styles.metricLabel, { color: colors.textMuted }]}>Total Tasks</Text>
           </View>
 
           <View style={[styles.metricCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={[styles.metricIconWrap, { backgroundColor: "rgba(59, 130, 246, 0.12)" }]}>
-              <Feather name="loader" size={16} color="#3b82f6" />
+            <View style={[styles.metricIconWrap, { backgroundColor: colors.isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.04)" }]}>
+              <Feather name="loader" size={16} color={colors.text} />
             </View>
-            <Text style={[styles.metricVal, { color: "#3b82f6" }]}>{stats.inProgress}</Text>
+            <Text style={[styles.metricVal, { color: colors.text }]}>{stats.inProgress}</Text>
             <Text style={[styles.metricLabel, { color: colors.textMuted }]}>In Progress</Text>
           </View>
 
           <View style={[styles.metricCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={[styles.metricIconWrap, { backgroundColor: "rgba(16, 185, 129, 0.12)" }]}>
-              <Feather name="check-circle" size={16} color="#10b981" />
+            <View style={[styles.metricIconWrap, { backgroundColor: colors.isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.04)" }]}>
+              <Feather name="check-circle" size={16} color={colors.text} />
             </View>
-            <Text style={[styles.metricVal, { color: "#10b981" }]}>{stats.completed}</Text>
+            <Text style={[styles.metricVal, { color: colors.text }]}>{stats.completed}</Text>
             <Text style={[styles.metricLabel, { color: colors.textMuted }]}>Completed</Text>
           </View>
 
           <View style={[styles.metricCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={[styles.metricIconWrap, { backgroundColor: "rgba(239, 68, 68, 0.12)" }]}>
-              <Feather name="alert-triangle" size={16} color="#ef4444" />
+            <View style={[styles.metricIconWrap, { backgroundColor: colors.isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.04)" }]}>
+              <Feather name="clock" size={16} color={colors.text} />
             </View>
-            <Text style={[styles.metricVal, { color: "#ef4444" }]}>{stats.urgent}</Text>
+            <Text style={[styles.metricVal, { color: colors.text }]}>{stats.urgent}</Text>
             <Text style={[styles.metricLabel, { color: colors.textMuted }]}>Urgent</Text>
           </View>
         </View>
@@ -411,8 +436,8 @@ export default function TasksScreen() {
                 style={[
                   styles.filterChip,
                   {
-                    backgroundColor: active ? (p.id === "urgent" ? "#ef4444" : colors.cardSelected) : colors.card,
-                    borderColor: active ? (p.id === "urgent" ? "#ef4444" : colors.accent) : colors.border,
+                    backgroundColor: active ? colors.accent : colors.card,
+                    borderColor: active ? colors.accent : colors.border,
                   },
                 ]}
               >
@@ -490,7 +515,7 @@ export default function TasksScreen() {
                     </View>
 
                     <Pressable onPress={() => handleDeleteTask(task)} hitSlop={10}>
-                      <Feather name="trash-2" size={16} color={colors.textMuted} />
+                      <Feather name="trash-2" size={16} color="#ef4444" />
                     </Pressable>
                   </View>
 

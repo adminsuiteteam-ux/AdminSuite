@@ -37,14 +37,7 @@ const CATEGORIES: { id: Note["category"]; label: string; icon: keyof typeof Feat
   { id: "finance", label: "Finance", icon: "dollar-sign" },
 ];
 
-const COLOR_TAGS = [
-  { id: "#6366f1", label: "Indigo" },
-  { id: "#10b981", label: "Emerald" },
-  { id: "#f59e0b", label: "Amber" },
-  { id: "#ef4444", label: "Rose" },
-  { id: "#8b5cf6", label: "Purple" },
-  { id: "#0ea5e9", label: "Sky" },
-];
+
 
 const STORAGE_KEY_NOTES = "@adminsuite_notebook_notes_v1";
 
@@ -378,19 +371,16 @@ export default function NotebookScreen() {
                     styles.noteCard,
                     {
                       backgroundColor: colors.card,
-                      borderColor: note.isPinned ? note.colorTag : colors.border,
+                      borderColor: note.isPinned ? colors.accent : colors.border,
                       opacity: pressed ? 0.9 : 1,
                     },
                   ]}
                 >
-                  {/* Accent tag strip */}
-                  <View style={[styles.noteAccentBar, { backgroundColor: note.colorTag }]} />
-
                   <View style={styles.noteContentWrap}>
                     <View style={styles.noteHeader}>
-                      <View style={styles.noteCategoryPill}>
-                        <Feather name={catObj.icon} size={11} color={note.colorTag} />
-                        <Text style={[styles.noteCategoryText, { color: note.colorTag }]}>
+                      <View style={[styles.noteCategoryPill, { backgroundColor: colors.isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.05)" }]}>
+                        <Feather name={catObj.icon} size={11} color={colors.textMuted} />
+                        <Text style={[styles.noteCategoryText, { color: colors.textMuted }]}>
                           {catObj.label}
                         </Text>
                       </View>
@@ -400,11 +390,11 @@ export default function NotebookScreen() {
                           <Feather
                             name="bookmark"
                             size={16}
-                            color={note.isPinned ? note.colorTag : colors.textMuted}
+                            color={note.isPinned ? colors.accent : colors.textMuted}
                           />
                         </Pressable>
                         <Pressable onPress={() => handleDeleteNote(note)} hitSlop={10}>
-                          <Feather name="trash-2" size={16} color={colors.textMuted} />
+                          <Feather name="trash-2" size={16} color="#ef4444" />
                         </Pressable>
                       </View>
                     </View>
@@ -501,31 +491,6 @@ export default function NotebookScreen() {
                 })}
               </ScrollView>
 
-              {/* Color Tag Picker */}
-              <Text style={[styles.inputLabel, { color: colors.text }]}>Color Theme</Text>
-              <View style={styles.colorTagRow}>
-                {COLOR_TAGS.map((c) => {
-                  const isSelected = inputColorTag === c.id;
-                  return (
-                    <Pressable
-                      key={c.id}
-                      onPress={() => {
-                        Haptics.selectionAsync();
-                        setInputColorTag(c.id);
-                      }}
-                      style={[
-                        styles.colorTagCircle,
-                        {
-                          backgroundColor: c.id,
-                          borderColor: isSelected ? "#fff" : "transparent",
-                          borderWidth: isSelected ? 3 : 0,
-                        },
-                      ]}
-                    />
-                  );
-                })}
-              </View>
-
               {/* Pin to top Toggle */}
               <Pressable
                 onPress={() => {
@@ -535,13 +500,13 @@ export default function NotebookScreen() {
                 style={[styles.pinToggleRow, { backgroundColor: colors.background, borderColor: colors.border }]}
               >
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <Feather name="bookmark" size={16} color={inputIsPinned ? inputColorTag : colors.textMuted} />
+                  <Feather name="bookmark" size={16} color={inputIsPinned ? colors.accent : colors.textMuted} />
                   <Text style={[styles.pinToggleText, { color: colors.text }]}>Pin to Top</Text>
                 </View>
                 <Feather
                   name={inputIsPinned ? "check-circle" : "circle"}
                   size={18}
-                  color={inputIsPinned ? inputColorTag : colors.textMuted}
+                  color={inputIsPinned ? colors.accent : colors.textMuted}
                 />
               </Pressable>
 

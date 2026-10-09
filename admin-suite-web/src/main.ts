@@ -618,6 +618,7 @@ interface AppState {
   wsReconnectAttempts: number;
   activeCallRecord: any | null;     // current outgoing/incoming call
   callTimerInterval: any | null;    // call duration ticker
+  isSidebarCollapsed: boolean;
 }
 
 // ============================================================
@@ -632,6 +633,7 @@ const state: AppState = {
   activeTab: 'dashboard',
   activeProfile: null,
   theme: (localStorage.getItem('theme') as 'light' | 'dark') || 'dark',
+  isSidebarCollapsed: localStorage.getItem('admin_sidebar_collapsed') === 'true',
   isMobileSidebarOpen: false,
   isNotificationsOpen: false,
   toast: null,
@@ -1132,6 +1134,8 @@ const FA_ICONS: Record<string, string> = {
   'check': 'fa-solid fa-circle-check',
   'info': 'fa-solid fa-circle-info',
   'chevron': 'fa-solid fa-chevron-right',
+  'chevron-left': 'fa-solid fa-chevron-left',
+  'chevron-right': 'fa-solid fa-chevron-right',
   'lock': 'fa-solid fa-lock',
   'mail': 'fa-solid fa-envelope',
   'eye': 'fa-solid fa-eye',
@@ -1380,7 +1384,7 @@ export function renderApp() {
         <div class="app-layout">
           <div id="sidebar-overlay" class="sidebar-overlay ${state.isMobileSidebarOpen ? 'open' : ''}"></div>
           ${drawSidebar()}
-          <div class="main-content">
+          <div class="main-content ${state.isSidebarCollapsed ? 'sidebar-collapsed' : ''}">
             ${drawTopbar()}
             <main class="page-content page-content-animate">
               ${drawTabContent()}
@@ -1459,7 +1463,7 @@ function _patchAppView() {
     }
   }
 
-  // 4. Update sidebar mobile open/close
+  // 4. Update sidebar mobile open/close and collapse state
   const sidebar = document.querySelector('.sidebar');
   if (sidebar) {
     if (state.isMobileSidebarOpen) {
@@ -1467,6 +1471,11 @@ function _patchAppView() {
     } else {
       sidebar.classList.remove('open');
     }
+    sidebar.classList.toggle('collapsed', Boolean(state.isSidebarCollapsed));
+  }
+  const mainContent = document.querySelector('.main-content');
+  if (mainContent) {
+    mainContent.classList.toggle('sidebar-collapsed', Boolean(state.isSidebarCollapsed));
   }
 
   // 5. Update notification dropdown
@@ -2772,7 +2781,7 @@ function drawSidebar(): string {
   ];
 
   const drawItems = (items: typeof menuItems) => items.map(item => `
-    <button class="nav-item ${state.activeTab === item.id ? 'active' : ''}" data-tab="${item.id}">
+    <button class="nav-item ${state.activeTab === item.id ? 'active' : ''}" data-tab="${item.id}" title="${item.label}">
       ${getIconSvg(item.icon)}
       <span>${item.label}</span>
       ${item.badge ? `<span class="nav-badge">${item.badge}</span>` : ''}
@@ -2780,7 +2789,7 @@ function drawSidebar(): string {
   `).join('');
 
   return `
-    <aside class="sidebar ${state.isMobileSidebarOpen ? 'open' : ''}">
+    <aside class="sidebar ${state.isMobileSidebarOpen ? 'open' : ''} ${state.isSidebarCollapsed ? 'collapsed' : ''}">
       <div class="sidebar-header">
         <div class="sidebar-logo" style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; background: none; border: none;">
           ${getLogoMarkSvg(36, 'var(--accent)')}
@@ -2789,6 +2798,9 @@ function drawSidebar(): string {
           Admin Suite
           <span>ORGANIZATION VIEW</span>
         </div>
+        <button class="sidebar-collapse-btn" id="sidebar-collapse-toggle" type="button" title="${state.isSidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}">
+          ${getIconSvg(state.isSidebarCollapsed ? 'chevron-right' : 'chevron-left')}
+        </button>
       </div>
       
       <nav class="sidebar-nav">
@@ -2915,6 +2927,22 @@ function bindNavigationEvents() {
     overlay.addEventListener('click', () => {
       state.isMobileSidebarOpen = false;
       renderApp();
+    });
+  }
+
+  // Sidebar expand / collapse toggle
+  const collapseBtn = document.getElementById('sidebar-collapse-toggle');
+  if (collapseBtn) {
+    collapseBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      state.isSidebarCollapsed = !state.isSidebarCollapsed;
+      localStorage.setItem('admin_sidebar_collapsed', String(state.isSidebarCollapsed));
+      const sidebar = document.querySelector('.sidebar');
+      const mainContent = document.querySelector('.main-content');
+      if (sidebar) sidebar.classList.toggle('collapsed', state.isSidebarCollapsed);
+      if (mainContent) mainContent.classList.toggle('sidebar-collapsed', state.isSidebarCollapsed);
+      collapseBtn.setAttribute('title', state.isSidebarCollapsed ? 'Expand navigation' : 'Collapse navigation');
+      collapseBtn.innerHTML = getIconSvg(state.isSidebarCollapsed ? 'chevron-right' : 'chevron-left');
     });
   }
 

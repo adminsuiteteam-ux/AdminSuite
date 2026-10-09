@@ -119,8 +119,13 @@ const apiClient = axios.create({
 apiClient.interceptors.request.use((config) => {
   if (config.data instanceof FormData) {
     if (config.headers) {
-      delete (config.headers as any)['Content-Type'];
-      (config.headers as any)['Content-Type'] = 'multipart/form-data';
+      if (typeof (config.headers as any).delete === 'function') {
+        (config.headers as any).delete('Content-Type');
+        (config.headers as any).delete('content-type');
+      } else {
+        delete (config.headers as any)['Content-Type'];
+        delete (config.headers as any)['content-type'];
+      }
     }
     config.transformRequest = [(data) => data];
   }

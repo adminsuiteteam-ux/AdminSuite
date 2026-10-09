@@ -16,6 +16,12 @@ export function useColors() {
     themeMode === "dark" || (themeMode === "system" && scheme === "dark");
 
   const palette = isDark && "dark" in colors ? (colors as any).dark : colors.light;
-  return { ...palette, radius: colors.radius, isDark };
+  return {
+    ...palette,
+    textMuted: palette.mutedForeground || (isDark ? "#8A8F98" : "#6b7280"),
+    cardSelected: isDark ? "rgba(255, 255, 255, 0.10)" : "rgba(0, 0, 0, 0.05)",
+    radius: colors.radius,
+    isDark,
+  };
 }
 

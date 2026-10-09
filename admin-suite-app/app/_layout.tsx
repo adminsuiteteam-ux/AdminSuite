@@ -225,22 +225,50 @@ export default (_sentryDsn && _sentryDsn !== 'YOUR_SENTRY_DSN_HERE')
 
 
 import { useData } from "@/context/DataContext";
+import { useColors } from "@/hooks/useColors";
 import { StyleSheet } from "react-native";
 
 function ConnectionBanner() {
   const { fetchError, refresh } = useData();
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
+  const colors = useColors();
   
   if (!fetchError) return null;
 
   return (
-    <View style={[styles.banner, { top: insets.top + 60 }]}>
-      <View style={styles.bannerInner}>
-        <Feather name="wifi-off" size={16} color="#fff" />
-        <Text style={styles.bannerText}>{t("common.offline")}{fetchError}</Text>
-        <Pressable onPress={refresh} style={styles.retryBtn}>
-          <Text style={styles.retryText}>{t("common.retry")}</Text>
+    <View style={[styles.banner, { top: insets.top + 16 }]}>
+      <View
+        style={[
+          styles.bannerInner,
+          {
+            backgroundColor: colors.isDark ? "rgba(24, 24, 27, 0.96)" : "rgba(255, 255, 255, 0.97)",
+            borderColor: colors.isDark ? "rgba(239, 68, 68, 0.35)" : "rgba(239, 68, 68, 0.25)",
+          },
+        ]}
+      >
+        <View style={styles.iconContainer}>
+          <Feather name="wifi-off" size={18} color="#ef4444" />
+        </View>
+        <View style={styles.textContainer}>
+          <Text style={[styles.headline, { color: colors.text }]}>
+            Offline · Unable to connect to the server.
+          </Text>
+          <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
+            Please check your internet connection or try again later.
+          </Text>
+        </View>
+        <Pressable
+          onPress={refresh}
+          style={({ pressed }) => [
+            styles.retryBtn,
+            {
+              backgroundColor: colors.isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.06)",
+              opacity: pressed ? 0.7 : 1,
+            },
+          ]}
+        >
+          <Text style={[styles.retryText, { color: colors.text }]}>{t("common.retry") || "Retry"}</Text>
         </Pressable>
       </View>
     </View>
@@ -250,39 +278,53 @@ function ConnectionBanner() {
 const styles = StyleSheet.create({
   banner: {
     position: "absolute",
-    left: 20,
-    right: 20,
+    left: 16,
+    right: 16,
     zIndex: 9999,
   },
   bannerInner: {
-    backgroundColor: "#ef4444",
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
-    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 18,
+    borderWidth: 1,
     shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 5,
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
   },
-  bannerText: {
-    color: "#fff",
-    fontSize: 12,
-    fontFamily: "Inter_600SemiBold",
+  iconContainer: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "rgba(239, 68, 68, 0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  textContainer: {
     flex: 1,
+    marginHorizontal: 10,
+  },
+  headline: {
+    fontSize: 12,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: -0.1,
+  },
+  subtitle: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    marginTop: 2,
+    lineHeight: 14,
   },
   retryBtn: {
-    backgroundColor: "rgba(255,255,255,0.2)",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
   },
   retryText: {
-    color: "#fff",
-    fontSize: 11,
-    fontFamily: "Inter_700Bold",
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
   },
 });

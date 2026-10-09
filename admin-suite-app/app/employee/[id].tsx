@@ -2,7 +2,7 @@ import { FontAwesome6, Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import {
   Alert,
   Image,
@@ -19,6 +19,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import * as ImagePicker from "expo-image-picker";
 
@@ -69,6 +70,58 @@ export default function EmployeeDetailScreen() {
   const [messageModalOpen, setMessageModalOpen] = useState(false);
   const [archiveModalOpen, setArchiveModalOpen] = useState(false);
   const [docManagerOpen, setDocManagerOpen] = useState(false);
+  const [noteModalOpen, setNoteModalOpen] = useState(false);
+  const [newNoteTitle, setNewNoteTitle] = useState("");
+  const [newNoteContent, setNewNoteContent] = useState("");
+  const [employeeNotes, setEmployeeNotes] = useState<Array<{ id: string; title: string; content: string; date: string }>>([]);
+
+  useEffect(() => {
+    if (id) {
+      AsyncStorage.getItem(`@adminsuite_emp_notes_${id}`)
+        .then((res) => {
+          if (res) setEmployeeNotes(JSON.parse(res));
+        })
+        .catch(() => {});
+    }
+  }, [id]);
+
+  const handleSaveEmpNote = async () => {
+    if (!newNoteTitle.trim() && !newNoteContent.trim()) {
+      Alert.alert("Error", "Please provide a note title or content.");
+      return;
+    }
+    const newNote = {
+      id: `emp-note-${Date.now()}`,
+      title: newNoteTitle.trim() || "Staff Note",
+      content: newNoteContent.trim(),
+      date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+    };
+    const updated = [newNote, ...employeeNotes];
+    setEmployeeNotes(updated);
+    if (id) {
+      await AsyncStorage.setItem(`@adminsuite_emp_notes_${id}`, JSON.stringify(updated)).catch(() => {});
+    }
+    setNewNoteTitle("");
+    setNewNoteContent("");
+    setNoteModalOpen(false);
+  };
+
+  const handleDeleteEmpNote = async (noteId: string) => {
+    Alert.alert("Delete Note", "Are you sure you want to delete this employee note?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          const updated = employeeNotes.filter((n) => n.id !== noteId);
+          setEmployeeNotes(updated);
+          if (id) {
+            await AsyncStorage.setItem(`@adminsuite_emp_notes_${id}`, JSON.stringify(updated)).catch(() => {});
+          }
+        },
+      },
+    ]);
+  };
 
   // Form input states
   const [submitting, setSubmitting] = useState(false);
@@ -793,7 +846,7 @@ export default function EmployeeDetailScreen() {
             {/* Tab bar */}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
               <View style={{ flexDirection: "row", gap: 6 }}>
-                {(["tasks", "queries", "leaves", "messages", "activity"] as const).map((tab) => (
+                {(["tasks", "notebook", "queries", "leaves", "messages", "activity"] as const).map((tab) => (
                   <Pressable
                     key={tab}
                     onPress={() => setActiveTab(tab)}
@@ -826,6 +879,67 @@ export default function EmployeeDetailScreen() {
                     </View>
                   </View>
                 )) : <EmptyLog label="No tasks assigned" />
+              )}
+
+              {activeTab === "notebook" && (
+                <View style={{ padding: 4 }}>
+                  <Pressable
+                    onPress={() => setNoteModalOpen(true)}
+                    style={({ pressed }) => [
+                      styles.financeLink,
+                      {
+                        backgroundColor: colors.card,
+                        borderColor: colors.border,
+                        borderRadius: colors.radius,
+                        marginBottom: 10,
+                        opacity: pressed ? 0.7 : 1,
+                      },
+                    ]}
+                  >
+                    <Feather name="plus" size={16} color={colors.accent} />
+                    <Text style={{ color: colors.accent, fontFamily: "Inter_600SemiBold", fontSize: 13, flex: 1 }}>
+                      Add note for {employee.name?.split(" ")[0]}
+                    </Text>
+                    <Feather name="chevron-right" size={16} color={colors.accent} />
+                  </Pressable>
+
+                  {employeeNotes.length > 0 ? (
+                    employeeNotes.map((n, i) => (
+                      <View
+                        key={n.id}
+                        style={[
+                          styles.logRow,
+                          i < employeeNotes.length - 1 && {
+                            borderBottomWidth: StyleSheet.hairlineWidth,
+                            borderBottomColor: colors.border,
+                          },
+                        ]}
+                      >
+                        <View style={[styles.logIcon, { backgroundColor: colors.isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)" }]}>
+                          <Feather name="book-open" size={14} color={colors.accent} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 13 }}>
+                            {n.title}
+                          </Text>
+                          {n.content ? (
+                            <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 2 }}>
+                              {n.content}
+                            </Text>
+                          ) : null}
+                          <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 10, marginTop: 4 }}>
+                            {n.date}
+                          </Text>
+                        </View>
+                        <Pressable onPress={() => handleDeleteEmpNote(n.id)} hitSlop={10}>
+                          <Feather name="trash-2" size={15} color="#ef4444" />
+                        </Pressable>
+                      </View>
+                    ))
+                  ) : (
+                    <EmptyLog label="No employee notes recorded yet" />
+                  )}
+                </View>
               )}
 
               {activeTab === "queries" && (
@@ -896,6 +1010,15 @@ export default function EmployeeDetailScreen() {
       {/* ═══════════════════════════════════════════════════
           MODALS
          ═══════════════════════════════════════════════════ */}
+
+      {/* ── Employee Note Modal ──────────────────────────── */}
+      <AdminModal visible={noteModalOpen} onClose={() => setNoteModalOpen(false)} title={`Staff Note · ${employee.name?.split(" ")[0] || "Employee"}`}>
+        <ModalLabel text="Title / Subject" />
+        <ModalInput value={newNoteTitle} onChangeText={setNewNoteTitle} placeholder="e.g. 1-on-1 Review, Goals, Observation" />
+        <ModalLabel text="Notes / Discussion Details" />
+        <ModalInput value={newNoteContent} onChangeText={setNewNoteContent} placeholder="Write confidential notes or feedback..." multiline />
+        <ModalBtn label="Save to Notebook" color={colors.accent} loading={false} onPress={handleSaveEmpNote} />
+      </AdminModal>
 
       {/* ── Flag / Unflag Modal ──────────────────────────── */}
       <AdminModal visible={flagModalOpen} onClose={() => setFlagModalOpen(false)} title={employee.is_flagged ? "Unflag Employee" : "Flag Employee"}>

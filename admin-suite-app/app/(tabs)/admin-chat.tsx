@@ -987,10 +987,16 @@ export default function AdminChatScreen() {
         } as any);
       }
 
-      formData.append("attachment_type", type);
-      formData.append("attachment_name", fname);
-      if (fileSize) formData.append("attachment_size", String(fileSize));
-      formData.append("text", "");
+      const fallbackText =
+        fname ||
+        (type === "audio"
+          ? "[Voice Note]"
+          : type === "image"
+          ? "[Photo]"
+          : type === "video"
+          ? "[Video]"
+          : "[Document]");
+      formData.append("text", fallbackText);
 
       if (activeContact?.type === "group") {
         if (activeContact.id !== "group") {

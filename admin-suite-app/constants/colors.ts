@@ -25,6 +25,8 @@ const colors = {
 
     muted: "#eef1f5",
     mutedForeground: "#6b7280",
+    textMuted: "#6b7280",
+    cardSelected: "rgba(0, 0, 0, 0.05)",
 
     accent: "#5E6AD2",
     accentForeground: "#ffffff",
@@ -74,6 +76,8 @@ const colors = {
 
     muted: "#1a1a1f",
     mutedForeground: "#8A8F98",
+    textMuted: "#8A8F98",
+    cardSelected: "rgba(255, 255, 255, 0.10)",
 
     accent: "#5E6AD2",
     accentForeground: "#ffffff",
