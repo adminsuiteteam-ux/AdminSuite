@@ -26,7 +26,7 @@ import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import * as Sharing from "expo-sharing";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import { Audio } from "expo-av";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -535,7 +535,7 @@ export default function EmployeeChatScreen() {
         if (Platform.OS !== "web" && fileUri) {
           try {
             const base64Data = await FileSystem.readAsStringAsync(fileUri, {
-              encoding: "base64",
+              encoding: FileSystem.EncodingType.Base64,
             });
             const fallbackPayload: any = {
               text: fallbackText,
@@ -570,9 +570,11 @@ export default function EmployeeChatScreen() {
       const errMsg =
         err?.response?.data?.error ||
         err?.response?.data?.message ||
-        err?.message ||
+        (err?.message === "Network Error"
+          ? "Unable to connect to server. Please check your internet connection."
+          : err?.message) ||
         "Failed to send attachment.";
-      showToast({ title: "Error", message: errMsg, type: "error" });
+      showToast({ title: "Upload Failed", message: errMsg, type: "error" });
     } finally {
       setSending(false);
     }

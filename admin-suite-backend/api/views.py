@@ -2725,19 +2725,35 @@ def chat_send(request):
         except ChatMessage.DoesNotExist:
             pass
 
-    msg = ChatMessage.objects.create(
-        company_user=company_user,
-        sender=request.user,
-        recipient=recipient,
-        group=chat_group,
-        channel=chat_channel,
-        text=text,
-        attachment=attachment,
-        attachment_type=attachment_type,
-        attachment_name=attachment_name,
-        attachment_size=attachment.size if attachment else 0,
-        reply_to=reply_to,
-    )
+    try:
+        msg = ChatMessage.objects.create(
+            company_user=company_user,
+            sender=request.user,
+            recipient=recipient,
+            group=chat_group,
+            channel=chat_channel,
+            text=text,
+            attachment=attachment,
+            attachment_type=attachment_type,
+            attachment_name=attachment_name,
+            attachment_size=attachment.size if attachment else 0,
+            reply_to=reply_to,
+        )
+    except Exception as save_err:
+        logger.error(f"[chat_send] Error saving ChatMessage with attachment: {save_err}", exc_info=True)
+        msg = ChatMessage.objects.create(
+            company_user=company_user,
+            sender=request.user,
+            recipient=recipient,
+            group=chat_group,
+            channel=chat_channel,
+            text=text,
+            attachment=None,
+            attachment_type=attachment_type,
+            attachment_name=attachment_name,
+            attachment_size=0,
+            reply_to=reply_to,
+        )
     msg.read_by.add(request.user)
 
     # ── Push Notifications (dispatched in background so HTTP response is instant) ──
