@@ -20,6 +20,7 @@ from .views import (
     chat_presence, chat_react, chat_forward, chat_attach,
     chat_calls, chat_call_end, chat_channels, chat_channel_detail,
     chat_report_user, chat_reports_list,
+    note_list_create, note_detail,
 )
 from payments.stripe_helper import stripe_webhook
 
@@ -97,6 +98,9 @@ urlpatterns = [
     path('export/', export_data, name='export-data'),
     path('devices/register/', register_device, name='register-device'),
     path('devices/unregister/', unregister_device, name='unregister-device'),
+    # Notes / Notebook
+    path('notes/', note_list_create, name='note-list-create'),
+    path('notes/<int:pk>/', note_detail, name='note-detail'),
     # Stripe Webhook
     path('payments/stripe-webhook/', stripe_webhook, name='stripe-webhook'),
 ]

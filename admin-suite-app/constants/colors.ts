@@ -14,7 +14,7 @@ const colors = {
     background: "#f4f5f7",
     foreground: "#0c0c0e",
 
-    card: "rgba(255, 255, 255, 0.72)",
+    card: "#ffffff",
     cardForeground: "#0c0c0e",
 
     primary: "#0c0c0e",
@@ -65,7 +65,7 @@ const colors = {
     background: "#050506",
     foreground: "#EDEDEF",
 
-    card: "rgba(255, 255, 255, 0.05)",
+    card: "#161619",
     cardForeground: "#EDEDEF",
 
     primary: "#EDEDEF",

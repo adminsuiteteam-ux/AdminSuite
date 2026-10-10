@@ -55,6 +55,15 @@ def get_dominant_color(image_source, default_color=(79, 70, 229)): # Indigo-600 
         pass
     return default_color
 
+def format_ngn(val):
+    if val is None or val == "":
+        return "NGN 0.00"
+    try:
+        num = float(val)
+        return f"NGN {num:,.2f}"
+    except (ValueError, TypeError):
+        return f"NGN {val}"
+
 class ExportPDF(FPDF):
     def __init__(self, business_name="", org_location="", org_email="", logo_img=None, skip_branding=False, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -268,28 +277,28 @@ def build_pdf_report(user, export_type, time_filter=None, individual_id=None, sk
         emps = Employee.objects.filter(user=user)
         emp_headers = ["Name", "Role", "Department", "Salary", "Status"]
         emp_widths = [40, 40, 35, 30, 25]
-        emp_rows = [[e.name, e.role, e.department, f"${e.salary}", e.status] for e in emps]
+        emp_rows = [[e.name, e.role, e.department, format_ngn(e.salary), e.status] for e in emps]
         render_pdf_table(pdf, "Active Staff & Team Members", emp_headers, emp_rows, emp_widths)
         
         # 2. Clients Table
         clients = Client.objects.filter(user=user)
         client_headers = ["Company", "Contact Person", "Email Address", "LTV", "Status"]
         client_widths = [45, 40, 45, 20, 20]
-        client_rows = [[c.company, c.contact, c.email, f"${c.lifetime_value}", c.status] for c in clients]
+        client_rows = [[c.company, c.contact, c.email, format_ngn(c.lifetime_value), c.status] for c in clients]
         render_pdf_table(pdf, "Corporate Clients & Delivarebles", client_headers, client_rows, client_widths)
         
         # 3. Budgets Table
         budgets = BudgetCategory.objects.filter(user=user)
         budget_headers = ["Budget Category", "Allocated Amount", "Spent Amount", "Remaining"]
         budget_widths = [50, 40, 40, 40]
-        budget_rows = [[b.name, f"${b.allocated}", f"${b.spent}", f"${b.allocated - b.spent}"] for b in budgets]
+        budget_rows = [[b.name, format_ngn(b.allocated), format_ngn(b.spent), format_ngn(b.allocated - b.spent)] for b in budgets]
         render_pdf_table(pdf, "Company Operating Budgets", budget_headers, budget_rows, budget_widths)
         
         # 4. Savings Table
         savings = Savings.objects.filter(user=user)
         saving_headers = ["Savings Goal", "Purpose", "Target Amount", "Amount Saved"]
         saving_widths = [45, 45, 40, 40]
-        saving_rows = [[s.name, s.purpose, f"${s.target}", f"${s.saved}"] for s in savings]
+        saving_rows = [[s.name, s.purpose, format_ngn(s.target), format_ngn(s.saved)] for s in savings]
         render_pdf_table(pdf, "Savings & Future Reserves", saving_headers, saving_rows, saving_widths)
         
     elif export_type == "client":
@@ -311,11 +320,11 @@ def build_pdf_report(user, export_type, time_filter=None, individual_id=None, sk
                     ["Location", c.location],
                     ["Website", c.website or "N/A"],
                     ["Status", c.status.upper()],
-                    ["Total Paid", f"${c.paid}"],
-                    ["Lifetime Value (LTV)", f"${c.lifetime_value}"],
-                    ["Pending Payments", f"${c.pending_payments}"],
-                    ["Client Owes", f"${c.client_owes_company}"],
-                    ["Company Owes", f"${c.company_owes_client}"],
+                    ["Total Paid", format_ngn(c.paid)],
+                    ["Lifetime Value (LTV)", format_ngn(c.lifetime_value)],
+                    ["Pending Payments", format_ngn(c.pending_payments)],
+                    ["Client Owes", format_ngn(c.client_owes_company)],
+                    ["Company Owes", format_ngn(c.company_owes_client)],
                     ["Description", c.description or "No description provided."],
                     ["Internal Remark", c.remark or "None."]
                 ]
@@ -325,7 +334,7 @@ def build_pdf_report(user, export_type, time_filter=None, individual_id=None, sk
                 projs = Project.objects.filter(client=c)
                 proj_headers = ["Project Name", "Contract Value", "Completion Progress", "Status"]
                 proj_widths = [60, 35, 45, 30]
-                proj_rows = [[p.name, f"${p.value}", f"{p.progress}% completed", p.status] for p in projs]
+                proj_rows = [[p.name, format_ngn(p.value), f"{p.progress}% completed", p.status] for p in projs]
                 render_pdf_table(pdf, "Associated Deliverables & Contracts", proj_headers, proj_rows, proj_widths)
             except Client.DoesNotExist:
                 pdf.cell(0, 10, "Client record not found.", ln=True)
@@ -337,7 +346,7 @@ def build_pdf_report(user, export_type, time_filter=None, individual_id=None, sk
             clients = Client.objects.filter(user=user)
             headers = ["Company", "Contact", "Corporate Email", "LTV", "Status"]
             widths = [45, 35, 45, 25, 20]
-            rows = [[c.company, c.contact, c.email, f"${c.lifetime_value}", c.status] for c in clients]
+            rows = [[c.company, c.contact, c.email, format_ngn(c.lifetime_value), c.status] for c in clients]
             render_pdf_table(pdf, "Active Clients Portfolio", headers, rows, widths)
             
     elif export_type == "employee":
@@ -360,7 +369,7 @@ def build_pdf_report(user, export_type, time_filter=None, individual_id=None, sk
                     ["Official Email", e.email],
                     ["Phone Number", e.phone or "N/A"],
                     ["Location", e.location or "N/A"],
-                    ["Contract Salary", f"${e.salary}"],
+                    ["Contract Salary", format_ngn(e.salary)],
                     ["Performance Index", f"{e.performance}% rating"],
                     ["Employment Status", e.status.upper()],
                     ["Biographical Summary", e.bio or "No bio provided."]
@@ -372,12 +381,12 @@ def build_pdf_report(user, export_type, time_filter=None, individual_id=None, sk
                 fin_headers = ["Financial Param", "Amount"]
                 fin_widths = [60, 110]
                 fin_rows = [
-                    ["Current Payroll", f"${f.current_pay}"],
-                    ["Employee Owes Company", f"${f.employee_owes_company}"],
-                    ["Company Owes Employee", f"${f.company_owes_employee}"],
+                    ["Current Payroll", format_ngn(f.current_pay)],
+                    ["Employee Owes Company", format_ngn(f.employee_owes_company)],
+                    ["Company Owes Employee", format_ngn(f.company_owes_employee)],
                     ["Equity Shares (%)", f"{f.shares}% shares"],
-                    ["Cumulative Bonuses", f"${f.bonuses}"],
-                    ["Deductions (Tax/Benefit)", f"${f.deductions}"]
+                    ["Cumulative Bonuses", format_ngn(f.bonuses)],
+                    ["Deductions (Tax/Benefit)", format_ngn(f.deductions)]
                 ]
                 render_pdf_table(pdf, "Compensation & Finance Ledger", fin_headers, fin_rows, fin_widths)
                 
@@ -385,7 +394,7 @@ def build_pdf_report(user, export_type, time_filter=None, individual_id=None, sk
                 phs = getattr(f, 'pay_history').all()
                 ph_headers = ["Calendar Month", "Pay Amount", "Payout Status"]
                 ph_widths = [60, 50, 60]
-                ph_rows = [[ph.month, f"${ph.amount}", "PAID" if ph.paid else "UNPAID"] for ph in phs]
+                ph_rows = [[ph.month, format_ngn(ph.amount), "PAID" if ph.paid else "UNPAID"] for ph in phs]
                 render_pdf_table(pdf, "Historical Payout Logs", ph_headers, ph_rows, ph_widths)
             except Employee.DoesNotExist:
                 pdf.cell(0, 10, "Employee record not found.", ln=True)
@@ -397,7 +406,7 @@ def build_pdf_report(user, export_type, time_filter=None, individual_id=None, sk
             emps = Employee.objects.filter(user=user)
             headers = ["Staff Name", "Role", "Department", "Salary", "Status"]
             widths = [45, 40, 35, 25, 25]
-            rows = [[e.name, e.role, e.department, f"${e.salary}", e.status] for e in emps]
+            rows = [[e.name, e.role, e.department, format_ngn(e.salary), e.status] for e in emps]
             render_pdf_table(pdf, "Active Workspace Staff", headers, rows, widths)
             
     elif export_type == "financials":
@@ -445,13 +454,13 @@ def build_pdf_report(user, export_type, time_filter=None, individual_id=None, sk
         
         summary_headers = ["Total Income", "Total Expenses", "Net Cash Flow"]
         summary_widths = [55, 55, 60]
-        summary_rows = [[f"${income}", f"${expense}", f"${net}"]]
+        summary_rows = [[format_ngn(income), format_ngn(expense), format_ngn(net)]]
         render_pdf_table(pdf, "Financial Consolidation", summary_headers, summary_rows, summary_widths)
         
         # Transaction rows
         tx_headers = ["Date", "Description", "Category", "Amount", "Type"]
         tx_widths = [30, 55, 35, 25, 25]
-        tx_rows = [[t.date, t.description, t.category, f"${t.amount}", t.type.upper()] for t in txs]
+        tx_rows = [[t.date, t.description, t.category, format_ngn(t.amount), t.type.upper()] for t in txs]
         render_pdf_table(pdf, "Detailed Transaction Ledger", tx_headers, tx_rows, tx_widths)
         
     return bytes(pdf.output())

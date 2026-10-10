@@ -73,40 +73,91 @@ export default function EmployeeDetailScreen() {
   const [noteModalOpen, setNoteModalOpen] = useState(false);
   const [newNoteTitle, setNewNoteTitle] = useState("");
   const [newNoteContent, setNewNoteContent] = useState("");
-  const [employeeNotes, setEmployeeNotes] = useState<Array<{ id: string; title: string; content: string; date: string }>>([]);
+  const [employeeNotes, setEmployeeNotes] = useState<Array<{ id: string | number; title: string; content: string; date: string }>>([]);
 
-  useEffect(() => {
-    if (id) {
-      AsyncStorage.getItem(`@adminsuite_emp_notes_${id}`)
-        .then((res) => {
-          if (res) setEmployeeNotes(JSON.parse(res));
-        })
-        .catch(() => {});
+  const fetchEmployeeNotes = useCallback(async () => {
+    if (!id) return;
+    try {
+      const res = await apiService.getNotes({ employee_id: Number(id) });
+      if (res.data && Array.isArray(res.data)) {
+        const formatted = res.data.map((n: any) => ({
+          id: n.id,
+          title: n.title,
+          content: n.content || "",
+          date: n.created_at
+            ? new Date(n.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+            : "Recently",
+        }));
+        setEmployeeNotes(formatted);
+        await AsyncStorage.setItem(`@adminsuite_emp_notes_${id}`, JSON.stringify(formatted)).catch(() => {});
+      }
+    } catch {
+      const cached = await AsyncStorage.getItem(`@adminsuite_emp_notes_${id}`).catch(() => null);
+      if (cached) {
+        setEmployeeNotes(JSON.parse(cached));
+      }
     }
   }, [id]);
+
+  useEffect(() => {
+    fetchEmployeeNotes();
+  }, [fetchEmployeeNotes]);
 
   const handleSaveEmpNote = async () => {
     if (!newNoteTitle.trim() && !newNoteContent.trim()) {
       Alert.alert("Error", "Please provide a note title or content.");
       return;
     }
-    const newNote = {
-      id: `emp-note-${Date.now()}`,
-      title: newNoteTitle.trim() || "Staff Note",
-      content: newNoteContent.trim(),
+    const title = newNoteTitle.trim() || "Staff Note";
+    const content = newNoteContent.trim();
+    const tempId = `temp-${Date.now()}`;
+    const tempNote = {
+      id: tempId,
+      title,
+      content,
       date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
     };
-    const updated = [newNote, ...employeeNotes];
+    const updated = [tempNote, ...employeeNotes];
     setEmployeeNotes(updated);
-    if (id) {
-      await AsyncStorage.setItem(`@adminsuite_emp_notes_${id}`, JSON.stringify(updated)).catch(() => {});
-    }
     setNewNoteTitle("");
     setNewNoteContent("");
     setNoteModalOpen(false);
+
+    try {
+      const res = await apiService.createNote({
+        title,
+        content,
+        employee_id: Number(id),
+        category: "Staff Observation",
+      });
+      if (res.data) {
+        setEmployeeNotes((prev) => {
+          const synced = prev.map((n) =>
+            n.id === tempId
+              ? {
+                  id: res.data.id,
+                  title: res.data.title,
+                  content: res.data.content || "",
+                  date: res.data.created_at
+                    ? new Date(res.data.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                    : tempNote.date,
+                }
+              : n
+          );
+          if (id) {
+            AsyncStorage.setItem(`@adminsuite_emp_notes_${id}`, JSON.stringify(synced)).catch(() => {});
+          }
+          return synced;
+        });
+      }
+    } catch {
+      if (id) {
+        await AsyncStorage.setItem(`@adminsuite_emp_notes_${id}`, JSON.stringify(updated)).catch(() => {});
+      }
+    }
   };
 
-  const handleDeleteEmpNote = async (noteId: string) => {
+  const handleDeleteEmpNote = async (noteId: string | number) => {
     Alert.alert("Delete Note", "Are you sure you want to delete this employee note?", [
       { text: "Cancel", style: "cancel" },
       {
@@ -117,6 +168,9 @@ export default function EmployeeDetailScreen() {
           setEmployeeNotes(updated);
           if (id) {
             await AsyncStorage.setItem(`@adminsuite_emp_notes_${id}`, JSON.stringify(updated)).catch(() => {});
+          }
+          if (typeof noteId === "number" || (!String(noteId).startsWith("temp-") && !String(noteId).startsWith("emp-note-"))) {
+            await apiService.deleteNote(noteId).catch(() => {});
           }
         },
       },

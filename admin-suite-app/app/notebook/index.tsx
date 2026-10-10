@@ -18,6 +18,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { useColors } from "@/hooks/useColors";
 import { useToast } from "@/context/ToastContext";
+import { apiService } from "@/services/api";
 
 interface Note {
   id: string;
@@ -93,15 +94,33 @@ export default function NotebookScreen() {
   // Load Notes
   const loadNotes = useCallback(async () => {
     try {
+      // 1. Instant load from local cache
       const stored = await AsyncStorage.getItem(STORAGE_KEY_NOTES);
       if (stored) {
         setNotes(JSON.parse(stored));
       } else {
         setNotes(DEFAULT_SAMPLE_NOTES);
-        await AsyncStorage.setItem(STORAGE_KEY_NOTES, JSON.stringify(DEFAULT_SAMPLE_NOTES));
+      }
+
+      // 2. Fetch fresh from backend database
+      const res = await apiService.getNotes({ general: true });
+      if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+        const mapped: Note[] = res.data.map((n: any) => ({
+          id: String(n.id),
+          title: n.title,
+          content: n.content || "",
+          category: (n.category?.toLowerCase() || "work") as any,
+          colorTag: n.color_tag || "#6366f1",
+          isPinned: !!n.pinned,
+          updatedAt: n.updated_at
+            ? "Updated " + new Date(n.updated_at).toLocaleDateString([], { month: "short", day: "numeric" })
+            : "Recently",
+        }));
+        setNotes(mapped);
+        await AsyncStorage.setItem(STORAGE_KEY_NOTES, JSON.stringify(mapped));
       }
     } catch (e) {
-      console.warn("Failed to load notebook notes:", e);
+      console.warn("Failed to load notebook notes from backend:", e);
     }
   }, []);
 
@@ -151,45 +170,79 @@ export default function NotebookScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     const timeLabel = "Today, " + new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
-    let updated: Note[];
-    if (editingNoteId) {
-      updated = notes.map((n) =>
-        n.id === editingNoteId
-          ? {
-              ...n,
-              title: inputTitle.trim(),
-              content: inputContent.trim(),
-              category: inputCategory,
-              colorTag: inputColorTag,
-              isPinned: inputIsPinned,
-              updatedAt: timeLabel,
-            }
-          : n
-      );
-      showToast({ title: "Note Updated", message: "Your changes have been saved.", type: "success" });
-    } else {
-      const newNote: Note = {
-        id: "note-" + Date.now(),
-        title: inputTitle.trim(),
-        content: inputContent.trim(),
-        category: inputCategory,
-        colorTag: inputColorTag,
-        isPinned: inputIsPinned,
-        updatedAt: timeLabel,
-      };
-      updated = [newNote, ...notes];
-      showToast({ title: "Note Created", message: "New note saved to notebook.", type: "success" });
+    try {
+      if (editingNoteId) {
+        // Update on backend
+        if (!editingNoteId.startsWith("note-")) {
+          await apiService.updateNote(editingNoteId, {
+            title: inputTitle.trim(),
+            content: inputContent.trim(),
+            category: inputCategory,
+            pinned: inputIsPinned,
+            color_tag: inputColorTag,
+          });
+        }
+        const updated = notes.map((n) =>
+          n.id === editingNoteId
+            ? {
+                ...n,
+                title: inputTitle.trim(),
+                content: inputContent.trim(),
+                category: inputCategory,
+                colorTag: inputColorTag,
+                isPinned: inputIsPinned,
+                updatedAt: timeLabel,
+              }
+            : n
+        );
+        await saveNotesToStorage(updated);
+        showToast({ title: "Note Updated", message: "Your changes have been saved.", type: "success" });
+      } else {
+        // Create on backend
+        let newId = "note-" + Date.now();
+        try {
+          const res = await apiService.createNote({
+            title: inputTitle.trim(),
+            content: inputContent.trim(),
+            category: inputCategory,
+            pinned: inputIsPinned,
+            color_tag: inputColorTag,
+          });
+          if (res.data?.id) newId = String(res.data.id);
+        } catch (err) {
+          console.warn("Offline or backend create note failed, saving locally:", err);
+        }
+
+        const newNote: Note = {
+          id: newId,
+          title: inputTitle.trim(),
+          content: inputContent.trim(),
+          category: inputCategory,
+          colorTag: inputColorTag,
+          isPinned: inputIsPinned,
+          updatedAt: timeLabel,
+        };
+        const updated = [newNote, ...notes];
+        await saveNotesToStorage(updated);
+        showToast({ title: "Note Created", message: "New note saved to notebook.", type: "success" });
+      }
+    } catch (e: any) {
+      showToast({ title: "Save Error", message: e?.message || "Could not save note.", type: "error" });
     }
 
-    await saveNotesToStorage(updated);
     setModalVisible(false);
   };
 
   // Toggle Pin
   const handleTogglePin = async (noteId: string) => {
     Haptics.selectionAsync();
-    const updated = notes.map((n) => (n.id === noteId ? { ...n, isPinned: !n.isPinned } : n));
+    const target = notes.find((n) => n.id === noteId);
+    const newPinned = target ? !target.isPinned : true;
+    const updated = notes.map((n) => (n.id === noteId ? { ...n, isPinned: newPinned } : n));
     await saveNotesToStorage(updated);
+    if (!noteId.startsWith("note-")) {
+      apiService.updateNote(noteId, { pinned: newPinned }).catch(() => {});
+    }
   };
 
   // Delete Note
@@ -203,6 +256,9 @@ export default function NotebookScreen() {
         onPress: async () => {
           const updated = notes.filter((n) => n.id !== note.id);
           await saveNotesToStorage(updated);
+          if (!note.id.startsWith("note-")) {
+            apiService.deleteNote(note.id).catch(() => {});
+          }
           showToast({ title: "Note Deleted", message: "Note removed from notebook.", type: "info" });
         },
       },
@@ -428,7 +484,7 @@ export default function NotebookScreen() {
       {/* Note Editor Modal */}
       <Modal visible={modalVisible} transparent animationType="slide" onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.isDark ? "#18181b" : "#ffffff", borderColor: colors.border }]}>
             <View style={styles.modalHeader}>
               <View>
                 <Text style={[styles.modalTitle, { color: colors.text }]}>

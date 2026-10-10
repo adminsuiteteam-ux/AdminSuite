@@ -50,7 +50,7 @@ export default function OrganisationSettingsScreen() {
   const pickLogo = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
@@ -339,7 +339,7 @@ export default function OrganisationSettingsScreen() {
             value={averageRevenue}
             onChangeText={setAverageRevenue}
             icon="dollar-sign"
-            placeholder="e.g. $45,000"
+            placeholder="e.g. ₦45,000,000"
             colors={colors}
           />
         </View>

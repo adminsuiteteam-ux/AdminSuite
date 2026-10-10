@@ -195,7 +195,7 @@ export default function CompleteProfileScreen() {
   // Pick Avatar with crop
   const pickAvatar = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
@@ -208,7 +208,7 @@ export default function CompleteProfileScreen() {
   // Pick Company Logo with crop
   const pickCompanyLogo = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
@@ -745,7 +745,7 @@ export default function CompleteProfileScreen() {
               Average Revenue (Annual)
             </Text>
             <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
-              {["< $50k", "$50k-$250k", "$250k-$1M", "$1M+"].map((rev) => {
+              {["< ₦5M", "₦5M - ₦25M", "₦25M - ₦100M", "₦100M+"].map((rev) => {
                 const isSel = averageRevenue === rev;
                 return (
                   <Pressable

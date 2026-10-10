@@ -10,7 +10,7 @@ from .models import (
     EmployeeLeave, EmployeeMessage, EmployeeDocument, SalaryAdjustment,
     ChatMessage, ChatSettings, ChatGroup,
     MessageAttachment, MessageReaction, UserPresence, ChatChannel, CallRecord,
-    ReportedAccount, BlockedAccount,
+    ReportedAccount, BlockedAccount, Note,
 )
 from .extended_models import Organization, Branch, Subscription, UserExtension  # multi‑branch models
 
@@ -713,18 +713,29 @@ class ChatMessageSerializer(serializers.ModelSerializer):
     attachment_type = serializers.CharField(read_only=True)
     attachment_name = serializers.CharField(read_only=True)
     attachment_size = serializers.IntegerField(read_only=True)
+    delivery_status = serializers.SerializerMethodField()
 
     class Meta:
         model = ChatMessage
         fields = [
             'id', 'sender_id', 'sender_name', 'sender_initials', 'sender_avatar',
             'recipient_id', 'group_id', 'text', 'display_text', 'is_pinned', 'is_edited', 'is_deleted',
+            'delivery_status',
             'reply_to_id', 'reply_to_text', 'reply_to_sender',
             'attachment', 'attachment_type', 'attachment_name', 'attachment_size',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['sender_id', 'sender_name', 'sender_initials', 'sender_avatar',
-                            'recipient_id', 'is_edited', 'is_deleted', 'created_at', 'updated_at']
+                            'recipient_id', 'delivery_status', 'is_edited', 'is_deleted', 'created_at', 'updated_at']
+
+    def get_delivery_status(self, obj):
+        if obj.delivery_status == 'read':
+            return 'read'
+        if obj.recipient_id and obj.read_by.filter(id=obj.recipient_id).exists():
+            return 'read'
+        if obj.read_by.exclude(id=obj.sender_id).exists():
+            return 'read'
+        return obj.delivery_status or 'sent'
 
     def get_sender_name(self, obj):
         emp = getattr(obj.sender, 'employee_profile', None)
@@ -885,13 +896,16 @@ class ChatChannelSerializer(serializers.ModelSerializer):
 
 class CallRecordSerializer(serializers.ModelSerializer):
     caller_name = serializers.SerializerMethodField()
+    caller_avatar = serializers.SerializerMethodField()
     callee_name = serializers.SerializerMethodField()
+    callee_avatar = serializers.SerializerMethodField()
     duration_label = serializers.SerializerMethodField()
 
     class Meta:
         model = CallRecord
         fields = [
-            'id', 'caller', 'caller_name', 'callee', 'callee_name',
+            'id', 'caller', 'caller_name', 'caller_avatar',
+            'callee', 'callee_name', 'callee_avatar',
             'call_type', 'status', 'started_at', 'accepted_at', 'ended_at',
             'duration_seconds', 'duration_label',
         ]
@@ -900,9 +914,29 @@ class CallRecordSerializer(serializers.ModelSerializer):
     def get_caller_name(self, obj):
         return obj.caller.get_full_name() or obj.caller.username
 
+    def get_caller_avatar(self, obj):
+        emp = getattr(obj.caller, 'employee_profile', None)
+        if emp and emp.photo:
+            return emp.photo.url
+        profile = getattr(obj.caller, 'profile', None)
+        if profile and profile.avatar:
+            return profile.avatar.url
+        return None
+
     def get_callee_name(self, obj):
         if obj.callee:
             return obj.callee.get_full_name() or obj.callee.username
+        return None
+
+    def get_callee_avatar(self, obj):
+        if not obj.callee:
+            return None
+        emp = getattr(obj.callee, 'employee_profile', None)
+        if emp and emp.photo:
+            return emp.photo.url
+        profile = getattr(obj.callee, 'profile', None)
+        if profile and profile.avatar:
+            return profile.avatar.url
         return None
 
     def get_duration_label(self, obj):
@@ -963,4 +997,25 @@ class BlockedAccountSerializer(serializers.ModelSerializer):
     def get_blocked_by_name(self, obj):
         emp = getattr(obj.blocked_by, 'employee_profile', None)
         return emp.name if emp else (obj.blocked_by.get_full_name() or obj.blocked_by.username)
+
+
+class NoteSerializer(serializers.ModelSerializer):
+    user_name = serializers.SerializerMethodField()
+    employee_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Note
+        fields = [
+            'id', 'user', 'user_name', 'employee', 'employee_name',
+            'title', 'content', 'category', 'pinned', 'color_tag',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'user', 'created_at', 'updated_at']
+
+    def get_user_name(self, obj):
+        return obj.user.get_full_name() or obj.user.username
+
+    def get_employee_name(self, obj):
+        return obj.employee.name if obj.employee else None
+
 

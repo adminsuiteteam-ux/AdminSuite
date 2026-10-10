@@ -3,7 +3,7 @@ from .models import (
     Employee, EmployeeFinance, PayHistory, Client, Project,
     Transaction, Notification, Debt, BudgetCategory, Savings,
     UserProfile, PhoneOTP, EmailVerificationCode, PasswordResetCode, PayrollStatus, UserDevice,
-    ReportedAccount, BlockedAccount, ChatMessage, ChatGroup, ChatSettings
+    ReportedAccount, BlockedAccount, ChatMessage, ChatGroup, ChatSettings, Note
 )
 
 
@@ -180,3 +180,11 @@ class ChatSettingsAdmin(admin.ModelAdmin):
 
     def blocked_user_count(self, obj):
         return len(obj.blocked_user_ids or [])
+
+
+@admin.register(Note)
+class NoteAdmin(admin.ModelAdmin):
+    list_display = ('id', 'title', 'category', 'user', 'employee', 'pinned', 'created_at', 'updated_at')
+    list_filter = ('category', 'pinned', 'created_at')
+    search_fields = ('title', 'content', 'user__username', 'employee__name')
+    readonly_fields = ('created_at', 'updated_at')

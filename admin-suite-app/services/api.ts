@@ -105,6 +105,18 @@ export const appendFileToFormData = async (
 };
 
 
+// ─── FormData Detection Helper ────────────────────────────────────────────────
+export const isFormData = (val: any): boolean => {
+  return !!(
+    val &&
+    (val instanceof FormData ||
+      typeof val.append === 'function' ||
+      typeof val.getParts === 'function' ||
+      (val._parts && Array.isArray(val._parts)) ||
+      Object.prototype.toString.call(val) === '[object FormData]')
+  );
+};
+
 // ─── Axios client ─────────────────────────────────────────────────────────────
 let unauthorizedCallback: (() => void) | null = null;
 
@@ -117,7 +129,16 @@ const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use((config) => {
-  if (config.data instanceof FormData) {
+  if (isFormData(config.data)) {
+    // Prevent Axios from stringifying FormData into "{}"
+    config.transformRequest = [(data) => data];
+
+    // Delete Content-Type completely on BOTH Web and Native.
+    // Letting the environment (Browser XHR / React Native RCTNetworking) set
+    // 'multipart/form-data; boundary=...' automatically with the actual boundary.
+    // If 'Content-Type' is manually set to 'multipart/form-data', it lacks the
+    // required boundary parameter, causing Django MultiPartParser to fail with
+    // a network/parsing error ("Invalid boundary in multipart: None").
     if (config.headers) {
       if (typeof (config.headers as any).delete === 'function') {
         (config.headers as any).delete('Content-Type');
@@ -127,7 +148,6 @@ apiClient.interceptors.request.use((config) => {
         delete (config.headers as any)['content-type'];
       }
     }
-    config.transformRequest = [(data) => data];
   }
   return config;
 });
@@ -234,13 +254,13 @@ export const apiService = {
   signup: (data: any) => apiClient.post('register/', data),
   getMe: () => apiClient.get('me/'),
   updateMe: (data: any) => {
-    const isFormData = data instanceof FormData;
+    const isFD = isFormData(data);
     return apiClient.patch('me/', data, {
-      headers: isFormData
-        ? { 'Content-Type': 'multipart/form-data' }
+      headers: isFD
+        ? undefined
         : { 'Content-Type': 'application/json' },
-      transformRequest: isFormData ? [(d: any) => d] : undefined,
-      timeout: isFormData ? 120000 : 30000,
+      transformRequest: isFD ? [(d: any) => d] : undefined,
+      timeout: isFD ? 120000 : 30000,
     });
   },
 
@@ -284,33 +304,33 @@ export const apiService = {
   getEmployees: () => apiClient.get('employees/'),
   getEmployee: (id: string) => apiClient.get(`employees/${id}/`),
   createEmployee: (data: any) => {
-    const isFormData = data instanceof FormData;
+    const isFD = isFormData(data);
     return apiClient.post('employees/', data, {
-      headers: isFormData
-        ? { 'Content-Type': 'multipart/form-data' }
+      headers: isFD
+        ? undefined
         : { 'Content-Type': 'application/json' },
-      transformRequest: isFormData ? [(d: any) => d] : undefined,
-      timeout: isFormData ? 120000 : 30000,
+      transformRequest: isFD ? [(d: any) => d] : undefined,
+      timeout: isFD ? 120000 : 30000,
     });
   },
   updateEmployee: (id: string, data: any) => {
-    const isFormData = data instanceof FormData;
+    const isFD = isFormData(data);
     return apiClient.put(`employees/${id}/`, data, {
-      headers: isFormData
-        ? { 'Content-Type': 'multipart/form-data' }
+      headers: isFD
+        ? undefined
         : { 'Content-Type': 'application/json' },
-      transformRequest: isFormData ? [(d: any) => d] : undefined,
-      timeout: isFormData ? 120000 : 30000,
+      transformRequest: isFD ? [(d: any) => d] : undefined,
+      timeout: isFD ? 120000 : 30000,
     });
   },
   patchEmployee: (id: string, data: any) => {
-    const isFormData = data instanceof FormData;
+    const isFD = isFormData(data);
     return apiClient.patch(`employees/${id}/`, data, {
-      headers: isFormData
-        ? { 'Content-Type': 'multipart/form-data' }
+      headers: isFD
+        ? undefined
         : { 'Content-Type': 'application/json' },
-      transformRequest: isFormData ? [(d: any) => d] : undefined,
-      timeout: isFormData ? 120000 : 30000,
+      transformRequest: isFD ? [(d: any) => d] : undefined,
+      timeout: isFD ? 120000 : 30000,
     });
   },
   deleteEmployee: (id: string) => apiClient.delete(`employees/${id}/`),
@@ -324,33 +344,33 @@ export const apiService = {
 
   getTasks: () => apiClient.get('employee-tasks/'),
   createTask: (data: any) => {
-    const isFormData = data instanceof FormData;
+    const isFD = isFormData(data);
     return apiClient.post('employee-tasks/', data, {
-      headers: isFormData
-        ? { 'Content-Type': 'multipart/form-data' }
+      headers: isFD
+        ? undefined
         : { 'Content-Type': 'application/json' },
-      transformRequest: isFormData ? [(d: any) => d] : undefined,
+      transformRequest: isFD ? [(d: any) => d] : undefined,
     });
   },
   updateTask: (id: string | number, data: any) => apiClient.patch(`employee-tasks/${id}/`, data),
   deleteTask: (id: string | number) => apiClient.delete(`employee-tasks/${id}/`),
   createQuery: (data: any) => {
-    const isFormData = data instanceof FormData;
+    const isFD = isFormData(data);
     return apiClient.post('employee-queries/', data, {
-      headers: isFormData
-        ? { 'Content-Type': 'multipart/form-data' }
+      headers: isFD
+        ? undefined
         : { 'Content-Type': 'application/json' },
-      transformRequest: isFormData ? [(d: any) => d] : undefined,
+      transformRequest: isFD ? [(d: any) => d] : undefined,
     });
   },
   createLeave: (data: any) => apiClient.post('employee-leaves/', data),
   createMessage: (data: any) => {
-    const isFormData = data instanceof FormData;
+    const isFD = isFormData(data);
     return apiClient.post('employee-messages/', data, {
-      headers: isFormData
-        ? { 'Content-Type': 'multipart/form-data' }
+      headers: isFD
+        ? undefined
         : { 'Content-Type': 'application/json' },
-      transformRequest: isFormData ? [(d: any) => d] : undefined,
+      transformRequest: isFD ? [(d: any) => d] : undefined,
     });
   },
   createDocument: (data: any) =>
@@ -425,8 +445,24 @@ export const apiService = {
     }
     return apiClient.get(`chat/messages/?recipient_id=${recipientId}`);
   },
-  sendChatMessage: (data: FormData | { text: string; recipient_id?: number; group_id?: number; reply_to_id?: number; attachment_type?: string; attachment_name?: string }) =>
-    apiClient.post('chat/send/', data),
+  sendChatMessage: (data: FormData | {
+    text: string;
+    recipient_id?: number;
+    group_id?: number;
+    reply_to_id?: number;
+    attachment_type?: string;
+    attachment_name?: string;
+    attachment_base64?: string;
+  }) => {
+    const isFD = isFormData(data);
+    return apiClient.post('chat/send/', data, {
+      headers: isFD
+        ? undefined
+        : { 'Content-Type': 'application/json' },
+      transformRequest: isFD ? [(d: any) => d] : undefined,
+      timeout: isFD ? 120000 : 30000,
+    });
+  },
   editChatMessage: (id: number, text: string) =>
     apiClient.put(`chat/messages/${id}/`, { text }),
   deleteChatMessage: (id: number) =>
@@ -481,6 +517,20 @@ export const apiService = {
     apiClient.post(`chat/calls/${callId}/end/`, { status: callStatus }),
   getCallHistory: () =>
     apiClient.get('chat/calls/'),
+
+  // ── Notebook / Employee Notes ──────────────────────────────────────────────
+  getNotes: (params?: { employee_id?: number | string; general?: boolean }) => {
+    const q: string[] = [];
+    if (params?.employee_id) q.push(`employee_id=${params.employee_id}`);
+    if (params?.general) q.push('general=true');
+    return apiClient.get(`notes/${q.length ? `?${q.join('&')}` : ''}`);
+  },
+  createNote: (data: { title: string; content?: string; category?: string; pinned?: boolean; color_tag?: string; employee_id?: number | string }) =>
+    apiClient.post('notes/', data),
+  updateNote: (id: number | string, data: { title?: string; content?: string; category?: string; pinned?: boolean; color_tag?: string }) =>
+    apiClient.patch(`notes/${id}/`, data),
+  deleteNote: (id: number | string) =>
+    apiClient.delete(`notes/${id}/`),
 };
 
 export default apiClient;

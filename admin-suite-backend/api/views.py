@@ -7,10 +7,11 @@ from django.db import models
 logger = logging.getLogger(__name__)
 from django.db.models import Sum
 from rest_framework import viewsets, status
-from rest_framework.decorators import api_view, permission_classes, throttle_classes, action, renderer_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes, action, renderer_classes, parser_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.renderers import BaseRenderer, JSONRenderer
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.throttling import AnonRateThrottle
 from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -22,7 +23,7 @@ from .models import (
     EmployeeDocument, SalaryAdjustment, PayrollStatus, ChatMessage, ChatSettings,
     ChatGroup, ChatTypingStatus, UserDevice,
     MessageAttachment, MessageReaction, UserPresence, ChatChannel, CallRecord,
-    ReportedAccount, BlockedAccount,
+    ReportedAccount, BlockedAccount, Note,
 )
 from .serializers import (
     EmployeeSerializer, ClientSerializer, ProjectSerializer,
@@ -35,7 +36,7 @@ from .serializers import (
     ChatSettingsSerializer, ChatGroupSerializer,
     MessageAttachmentSerializer, MessageReactionSerializer, UserPresenceSerializer,
     ChatChannelSerializer, CallRecordSerializer,
-    ReportedAccountSerializer, BlockedAccountSerializer,
+    ReportedAccountSerializer, BlockedAccountSerializer, NoteSerializer,
 )
 from .notifications import send_push_notification
 
@@ -2595,6 +2596,11 @@ def chat_messages(request):
         ]
         if needed_objs:
             through_model.objects.bulk_create(needed_objs, ignore_conflicts=True)
+            read_mids = [o.chatmessage_id for o in needed_objs]
+            ChatMessage.objects.filter(id__in=read_mids).update(delivery_status='read')
+            for m in msgs_list:
+                if m.id in read_mids:
+                    m.delivery_status = 'read'
 
     serializer = ChatMessageSerializer(msgs_list, many=True, context={'request': request})
     return Response(serializer.data)
@@ -2602,6 +2608,7 @@ def chat_messages(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@parser_classes([MultiPartParser, FormParser, JSONParser])
 def chat_send(request):
     """
     POST /api/chat/send/
@@ -2616,6 +2623,22 @@ def chat_send(request):
     attachment = request.FILES.get('attachment') or request.FILES.get('file')
     attachment_type = request.data.get('attachment_type', '').strip().lower()
     attachment_name = request.data.get('attachment_name', '').strip()
+
+    # Fallback: check for base64 attachment if not in request.FILES
+    if not attachment:
+        b64_data = request.data.get('attachment_base64') or request.data.get('file_base64')
+        if b64_data and isinstance(b64_data, str):
+            import base64
+            import time
+            from django.core.files.base import ContentFile
+            try:
+                if ';base64,' in b64_data:
+                    _, b64_data = b64_data.split(';base64,', 1)
+                decoded_file = base64.b64decode(b64_data)
+                fname = attachment_name or f"file_{int(time.time())}.bin"
+                attachment = ContentFile(decoded_file, name=fname)
+            except Exception as e:
+                logger.error(f"Failed to decode base64 chat attachment: {e}")
 
     if not text and not attachment:
         return Response({'error': 'Message text or attachment is required.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -2851,6 +2874,11 @@ def chat_contacts(request):
 
     # Get chat settings for blocked user awareness
     settings_obj, _ = ChatSettings.objects.get_or_create(company_user=company_user)
+
+    # Mark any DMs addressed to this user as delivered (2 gray ticks) once their app syncs
+    ChatMessage.objects.filter(
+        company_user=company_user, recipient=request.user, delivery_status='sent'
+    ).update(delivery_status='delivered')
 
     contacts = []
 
@@ -4118,4 +4146,105 @@ def chat_channel_detail(request, pk):
         return Response({'error': 'Only admin can delete channels.'}, status=status.HTTP_403_FORBIDDEN)
     channel.delete()
     return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# ---------------------------------------------------------------------------
+# Workspace Notebook & Employee Notes API
+# ---------------------------------------------------------------------------
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def note_list_create(request):
+    """
+    GET  /api/notes/?employee_id=<id>&category=<cat>&pinned=<bool>
+    POST /api/notes/  body: { title, content?, category?, pinned?, color_tag?, employee_id? }
+    """
+    company_user = _get_company_user(request)
+    if not company_user:
+        return Response({'error': 'Company profile not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        qs = Note.objects.filter(models.Q(company_user=company_user) | models.Q(user=request.user))
+        emp_id = request.query_params.get('employee_id')
+        if emp_id:
+            qs = qs.filter(employee_id=emp_id)
+        elif request.query_params.get('general') == 'true':
+            qs = qs.filter(employee__isnull=True)
+
+        category = request.query_params.get('category')
+        if category and category.lower() != 'all':
+            qs = qs.filter(category__iexact=category)
+
+        pinned = request.query_params.get('pinned')
+        if pinned is not None:
+            qs = qs.filter(pinned=(pinned.lower() in ('true', '1')))
+
+        serializer = NoteSerializer(qs, many=True)
+        return Response(serializer.data)
+
+    elif request.method == 'POST':
+        title = request.data.get('title', '').strip()
+        if not title:
+            return Response({'error': 'Title is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        emp_id = request.data.get('employee_id')
+        employee = None
+        if emp_id:
+            try:
+                employee = Employee.objects.get(id=emp_id, user=company_user)
+            except Employee.DoesNotExist:
+                return Response({'error': 'Employee record not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        note = Note.objects.create(
+            company_user=company_user,
+            user=request.user,
+            employee=employee,
+            title=title,
+            content=request.data.get('content', '').strip(),
+            category=request.data.get('category', 'General').strip() or 'General',
+            pinned=str(request.data.get('pinned', False)).lower() in ('true', '1'),
+            color_tag=request.data.get('color_tag', ''),
+        )
+        return Response(NoteSerializer(note).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET', 'PUT', 'PATCH', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def note_detail(request, pk):
+    """
+    GET       /api/notes/<pk>/
+    PUT/PATCH /api/notes/<pk>/
+    DELETE    /api/notes/<pk>/
+    """
+    company_user = _get_company_user(request)
+    try:
+        note = Note.objects.get(pk=pk)
+        if note.company_user != company_user and note.user != request.user:
+            return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+    except Note.DoesNotExist:
+        return Response({'error': 'Note not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        return Response(NoteSerializer(note).data)
+
+    elif request.method in ('PUT', 'PATCH'):
+        if 'title' in request.data:
+            t = request.data.get('title', '').strip()
+            if t:
+                note.title = t
+        if 'content' in request.data:
+            note.content = request.data.get('content', '').strip()
+        if 'category' in request.data:
+            note.category = request.data.get('category', '').strip() or 'General'
+        if 'pinned' in request.data:
+            note.pinned = str(request.data.get('pinned')).lower() in ('true', '1')
+        if 'color_tag' in request.data:
+            note.color_tag = request.data.get('color_tag', '')
+        note.save()
+        return Response(NoteSerializer(note).data)
+
+    elif request.method == 'DELETE':
+        note.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
 

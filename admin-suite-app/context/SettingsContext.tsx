@@ -12,15 +12,6 @@ export type Currency = {
 
 export const CURRENCIES: Currency[] = [
   { code: "NGN", symbol: "₦", name: "Nigerian Naira" },
-  { code: "USD", symbol: "$", name: "US Dollar" },
-  { code: "EUR", symbol: "€", name: "Euro" },
-  { code: "GBP", symbol: "£", name: "British Pound" },
-  { code: "KES", symbol: "KSh", name: "Kenyan Shilling" },
-  { code: "GHS", symbol: "₵", name: "Ghanaian Cedi" },
-  { code: "ZAR", symbol: "R", name: "South African Rand" },
-  { code: "INR", symbol: "₹", name: "Indian Rupee" },
-  { code: "CAD", symbol: "C$", name: "Canadian Dollar" },
-  { code: "AUD", symbol: "A$", name: "Australian Dollar" },
 ];
 
 export type ThemeMode = "light" | "dark" | "system";
@@ -39,7 +30,7 @@ const Ctx = createContext<SettingsContextType | null>(null);
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const [currencyCode, setCurrencyCode] = useState("USD");
+  const [currencyCode, setCurrencyCode] = useState("NGN");
   const [themeMode, setThemeMode] = useState<ThemeMode>("system");
   const [biometricsEnabled, setBiometricsEnabledState] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -51,7 +42,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         const raw = await AsyncStorage.getItem(KEY);
         if (raw) {
           const s = JSON.parse(raw);
-          if (s.currencyCode) setCurrencyCode(s.currencyCode);
+          if (s.currencyCode && s.currencyCode === "NGN") setCurrencyCode("NGN");
           if (s.theme) setThemeMode(s.theme);
         }
       } catch {}

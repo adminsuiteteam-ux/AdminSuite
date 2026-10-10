@@ -566,7 +566,7 @@ export default function TasksScreen() {
       {/* Create Task Modal */}
       <Modal visible={modalVisible} transparent animationType="slide" onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.isDark ? "#18181b" : "#ffffff", borderColor: colors.border }]}>
             <View style={styles.modalHeader}>
               <View>
                 <Text style={[styles.modalTitle, { color: colors.text }]}>Assign New Task</Text>

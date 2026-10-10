@@ -169,7 +169,11 @@ export default function ExportBrandingModal({ visible, onClose }: ExportBranding
             {/* DATA TYPE */}
             <View>
               <Text style={[modalStyles.sectionLabel, { color: colors.mutedForeground }]}>DATA TYPE</Text>
-              <View style={modalStyles.chipRow}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
+              >
                 {(["general", "client", "employee", "financials"] as const).map((t) => (
                   <Pressable
                     key={t}
@@ -189,7 +193,7 @@ export default function ExportBrandingModal({ visible, onClose }: ExportBranding
                     </Text>
                   </Pressable>
                 ))}
-              </View>
+              </ScrollView>
             </View>
 
             {/* TIME RANGE */}

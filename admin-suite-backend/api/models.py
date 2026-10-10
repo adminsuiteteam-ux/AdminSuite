@@ -772,3 +772,37 @@ class BlockedAccount(models.Model):
         return f"{self.blocked_by.username} blocked {self.blocked_user.username} ({self.scope}) [Active={self.is_active}]"
 
 
+class Note(models.Model):
+    """
+    Stores workspace notebooks, manager observation logs, and employee-specific notes.
+    """
+    company_user = models.ForeignKey(
+        'auth.User', on_delete=models.CASCADE, null=True, blank=True,
+        related_name='company_notes'
+    )
+    user = models.ForeignKey(
+        'auth.User', on_delete=models.CASCADE, related_name='notes'
+    )
+    employee = models.ForeignKey(
+        'Employee', on_delete=models.CASCADE, null=True, blank=True,
+        related_name='employee_notes'
+    )
+    title = models.CharField(max_length=255)
+    content = models.TextField(blank=True, default='')
+    category = models.CharField(max_length=50, default='General')
+    pinned = models.BooleanField(default=False)
+    color_tag = models.CharField(max_length=50, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-pinned', '-updated_at']
+        verbose_name = 'Note'
+        verbose_name_plural = 'Notes'
+
+    def __str__(self):
+        dest = f" [Employee: {self.employee.name}]" if self.employee else ""
+        return f"{self.title}{dest} ({self.user.username})"
+
+
+
