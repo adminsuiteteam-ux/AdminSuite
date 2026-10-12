@@ -52,7 +52,20 @@ export async function playChatVoiceNote({
       playThroughEarpieceAndroid: false,
     });
 
-    const fullUrl = getMediaUrl(audioUrl);
+    let fullUrl = getMediaUrl(audioUrl);
+    // Sanitize any legacy Cloudinary raw URL for voice notes
+    if (
+      fullUrl.includes('cloudinary.com') &&
+      fullUrl.includes('/raw/upload/') &&
+      (fullUrl.includes('voice_') || fullUrl.includes('audio_') || fullUrl.includes('video_'))
+    ) {
+      fullUrl = fullUrl.replace('/raw/upload/', '/video/upload/');
+      const cleanPathNoQuery = fullUrl.split('?')[0];
+      if (!cleanPathNoQuery.match(/\.(mp4|m4a|mp3|wav|aac|ogg)$/i)) {
+        fullUrl = `${fullUrl}.mp4`;
+      }
+    }
+
     let playbackUri = fullUrl;
 
     // On native devices, pre-cache remote URLs to local cache directory to prevent
@@ -60,17 +73,32 @@ export async function playChatVoiceNote({
     if (Platform.OS !== "web" && (fullUrl.startsWith("http://") || fullUrl.startsWith("https://"))) {
       try {
         const cleanName = fullUrl.split("?")[0].split("/").pop() || `voice_${msgId}.m4a`;
-        const fname = cleanName.endsWith(".m4a") || cleanName.endsWith(".mp3") || cleanName.endsWith(".wav") || cleanName.endsWith(".aac")
+        const fname = cleanName.match(/\.(m4a|mp3|wav|aac|ogg|mp4)$/i)
           ? cleanName
-          : `${cleanName}.m4a`;
+          : `${cleanName}.mp4`;
         const localTarget = `${FileSystem.cacheDirectory}${msgId}_${fname}`;
         const fileInfo = await FileSystem.getInfoAsync(localTarget);
 
-        if (fileInfo.exists && (fileInfo as any).size > 0) {
+        // Valid cache file must exist and be larger than 1000 bytes (real audio is >10KB, 404 responses are tiny)
+        if (fileInfo.exists && (fileInfo as any).size > 1000) {
           playbackUri = localTarget;
         } else {
+          if (fileInfo.exists) {
+            await FileSystem.deleteAsync(localTarget, { idempotent: true }).catch(() => {});
+          }
           const downloadRes = await FileSystem.downloadAsync(fullUrl, localTarget);
-          playbackUri = downloadRes.uri;
+          if (downloadRes.status >= 200 && downloadRes.status < 300) {
+            const downloadedInfo = await FileSystem.getInfoAsync(localTarget);
+            if (downloadedInfo.exists && (downloadedInfo as any).size > 1000) {
+              playbackUri = localTarget;
+            } else {
+              playbackUri = fullUrl;
+            }
+          } else {
+            console.warn(`[chatMedia] Audio download returned HTTP ${downloadRes.status}`);
+            await FileSystem.deleteAsync(localTarget, { idempotent: true }).catch(() => {});
+            playbackUri = fullUrl;
+          }
         }
       } catch (cacheErr) {
         console.warn("[chatMedia] Audio pre-cache failed, trying direct playback:", cacheErr);
@@ -96,10 +124,31 @@ export async function playChatVoiceNote({
   } catch (err: any) {
     console.error("[chatMedia] Failed to play voice note:", err);
     setPlayingAudioId(null);
+
+    // If ExoPlayer failed to parse, clean up cache target so next attempt fetches freshly
+    if (Platform.OS !== "web") {
+      try {
+        const cleanName = audioUrl.split("?")[0].split("/").pop() || `voice_${msgId}`;
+        const candidates = [
+          `${FileSystem.cacheDirectory}${msgId}_${cleanName}`,
+          `${FileSystem.cacheDirectory}${msgId}_${cleanName}.m4a`,
+          `${FileSystem.cacheDirectory}${msgId}_${cleanName}.mp4`,
+        ];
+        for (const c of candidates) {
+          FileSystem.deleteAsync(c, { idempotent: true }).catch(() => {});
+        }
+      } catch {}
+    }
+
+    const friendlyMsg =
+      err?.message && (err.message.includes("UnrecognizedInputFormatException") || err.message.includes("extractors"))
+        ? "Could not play voice note. The audio stream could not be loaded."
+        : err?.message || "Could not play voice note.";
+
     if (onError) {
-      onError(err);
+      onError({ ...err, message: friendlyMsg });
     } else {
-      Alert.alert("Audio Error", err?.message || "Could not play voice note.");
+      Alert.alert("Audio Error", friendlyMsg);
     }
   }
 }

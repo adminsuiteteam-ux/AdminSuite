@@ -54,8 +54,23 @@ export const getMediaUrl = (path: string | null): string => {
       // Replace local host with active base URL
       return `${activeBaseUrl}${localMatch[3]}`;
     }
+
+    // Auto-fix Cloudinary URLs that incorrectly use /raw/upload/ for audio/video voice notes
+    let fixedUrl = path;
+    if (
+      fixedUrl.includes('cloudinary.com') &&
+      fixedUrl.includes('/raw/upload/') &&
+      (fixedUrl.includes('voice_') || fixedUrl.includes('audio_') || fixedUrl.includes('video_'))
+    ) {
+      fixedUrl = fixedUrl.replace('/raw/upload/', '/video/upload/');
+      const cleanPathNoQuery = fixedUrl.split('?')[0];
+      if (!cleanPathNoQuery.match(/\.(mp4|m4a|mp3|wav|aac|ogg)$/i)) {
+        fixedUrl = `${fixedUrl}.mp4`;
+      }
+    }
+
     // Any other absolute URL (Cloudinary, Render, etc.) — use as-is
-    return path;
+    return fixedUrl;
   }
 
   // Relative path — build from active base URL
