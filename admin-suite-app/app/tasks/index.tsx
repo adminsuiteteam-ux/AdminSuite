@@ -24,6 +24,7 @@ import { useColors } from "@/hooks/useColors";
 import { useData } from "@/context/DataContext";
 import { useToast } from "@/context/ToastContext";
 import { apiService, getMediaUrl } from "@/services/api";
+import { AvatarImage } from "@/components/AvatarImage";
 
 type Priority = "low" | "medium" | "high" | "urgent";
 type Status = "assigned" | "in_progress" | "completed";
@@ -530,15 +531,12 @@ export default function TasksScreen() {
                   {/* Footer: Assignee & Due Date */}
                   <View style={[styles.taskFooter, { borderTopColor: colors.border }]}>
                     <View style={styles.assigneeWrap}>
-                      {emp.avatar ? (
-                        <Image source={{ uri: getMediaUrl(emp.avatar) }} style={styles.assigneeAvatar} />
-                      ) : (
-                        <View style={[styles.assigneeAvatarFallback, { backgroundColor: colors.accent }]}>
-                          <Text style={styles.assigneeInitials}>
-                            {emp.name.slice(0, 2).toUpperCase()}
-                          </Text>
-                        </View>
-                      )}
+                      <AvatarImage
+                        uri={emp.avatar}
+                        name={emp.name}
+                        size={32}
+                        fallbackBg={colors.accent}
+                      />
                       <View>
                         <Text style={[styles.assigneeName, { color: colors.text }]} numberOfLines={1}>
                           {emp.name}

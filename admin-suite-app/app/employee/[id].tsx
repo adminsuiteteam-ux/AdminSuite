@@ -24,6 +24,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 
 import { FloatInView } from "@/components/FloatInView";
+import { AvatarImage } from "@/components/AvatarImage";
 import { useData } from "@/context/DataContext";
 import { useCurrencyFmt } from "@/context/SettingsContext";
 import { useColors } from "@/hooks/useColors";
@@ -672,7 +673,15 @@ export default function EmployeeDetailScreen() {
                   style={({ pressed }) => [styles.avatarRing, { opacity: pressed ? 0.85 : 1 }]}
                   hitSlop={8}
                 >
-                  <Image source={{ uri: getMediaUrl(employee.avatar) }} style={styles.avatar} />
+                  <AvatarImage
+                    uri={employee.avatar}
+                    name={employee.name}
+                    initials={employee.initials}
+                    size={82}
+                    fallbackBg="rgba(255,255,255,0.2)"
+                    fallbackTextColor="#fff"
+                    priority="high"
+                  />
                   <View style={styles.avatarCameraBadge}>
                     <Feather name="camera" size={11} color="#fff" />
                   </View>

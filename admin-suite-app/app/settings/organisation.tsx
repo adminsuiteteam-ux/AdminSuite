@@ -21,6 +21,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { useToast } from "@/context/ToastContext";
 import { apiService, getMediaUrl, appendFileToFormData } from "@/services/api";
+import { Image as ExpoImage } from "expo-image";
 
 export default function OrganisationSettingsScreen() {
   const colors = useColors();
@@ -144,7 +145,13 @@ export default function OrganisationSettingsScreen() {
           <View style={[profileStyles.heroCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={[profileStyles.logoContainer, { borderColor: colors.primary }]}>
               {user?.company_logo ? (
-                <Image source={{ uri: getMediaUrl(user.company_logo) }} style={profileStyles.logoImg} />
+                <ExpoImage
+                  source={{ uri: getMediaUrl(user.company_logo) }}
+                  style={profileStyles.logoImg}
+                  contentFit="contain"
+                  cachePolicy="memory-disk"
+                  transition={120}
+                />
               ) : (
                 <View style={[profileStyles.logoPlaceholder, { backgroundColor: colors.muted }]}>
                   <Feather name="briefcase" size={36} color={colors.mutedForeground} />

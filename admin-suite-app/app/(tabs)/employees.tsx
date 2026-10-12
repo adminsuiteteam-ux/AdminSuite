@@ -17,6 +17,7 @@ import { useTranslation } from "react-i18next";
 import { BlurView } from "expo-blur";
 
 import { FloatInView } from "@/components/FloatInView";
+import { AvatarImage } from "@/components/AvatarImage";
 import { useData } from "@/context/DataContext";
 import { useCurrencyFmt } from "@/context/SettingsContext";
 import { useColors } from "@/hooks/useColors";
@@ -268,9 +269,11 @@ export default function EmployeesScreen() {
                     ]}
                   >
                     <View style={styles.avatarWrap}>
-                      <Image
-                        source={{ uri: getMediaUrl(e.avatar) }}
-                        style={styles.avatar}
+                      <AvatarImage
+                        uri={e.avatar}
+                        name={e.name}
+                        initials={e.initials}
+                        size={52}
                       />
                       <View
                         style={[

@@ -27,6 +27,7 @@ import { useData } from "@/context/DataContext";
 import { useColors } from "@/hooks/useColors";
 import { useToast } from "@/context/ToastContext";
 import { apiService, BASE_URL, appendFileToFormData, getMediaUrl } from "@/services/api";
+import { AvatarImage } from "@/components/AvatarImage";
 import ExportBrandingModal from "@/components/ExportBrandingModal";
 import { useTranslation } from "react-i18next";
 
@@ -151,13 +152,15 @@ export default function UserProfileDetailScreen() {
             />
             <View style={styles.profileHeaderRow}>
               <View style={[styles.avatarWrap, { backgroundColor: "rgba(255,255,255,0.2)", justifyContent: "center", alignItems: "center" }]}>
-                {user?.avatar ? (
-                  <Image source={{ uri: getMediaUrl(user.avatar) }} style={styles.avatarImg} />
-                ) : (
-                  <Text style={{ color: "#fff", fontSize: 24, fontFamily: "Inter_700Bold" }}>
-                    {user?.initials || "US"}
-                  </Text>
-                )}
+                <AvatarImage
+                  uri={user?.avatar}
+                  initials={user?.initials}
+                  name={user?.name || user?.username}
+                  size={72}
+                  fallbackBg="rgba(255,255,255,0.2)"
+                  fallbackTextColor="#fff"
+                  priority="high"
+                />
               </View>
               <Pressable
                 style={({ pressed }) => [

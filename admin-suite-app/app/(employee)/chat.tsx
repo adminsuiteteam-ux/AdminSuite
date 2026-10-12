@@ -35,6 +35,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { useToast } from "@/context/ToastContext";
 import { apiService, getMediaUrl } from "@/services/api";
+import { AvatarImage } from "@/components/AvatarImage";
 import { useTranslation } from "react-i18next";
 import { ExpandableText } from "@/components/ExpandableText";
 import { WhatsAppEmojiPicker } from "@/components/WhatsAppEmojiPicker";
@@ -971,7 +972,14 @@ export default function EmployeeChatScreen() {
         <Pressable onLongPress={() => !msg.is_deleted && openMessageActions(msg)} delayLongPress={350} style={[styles.msgRow, mine ? styles.msgRight : styles.msgLeft]}>
           {!mine && (
             <View style={[styles.avatar, { backgroundColor: colors.primary + "30", overflow: "hidden", borderWidth: 1.5, borderColor: colors.primary + "40" }]}>
-              {msg.sender_avatar ? (<Image source={{ uri: getMediaUrl(msg.sender_avatar) }} style={{ width: "100%", height: "100%" }} />) : (<Text style={[styles.avatarTxt, { color: colors.primary, fontFamily: "Inter_700Bold" }]}>{msg.sender_initials}</Text>)}
+              <AvatarImage
+                uri={msg.sender_avatar}
+                initials={msg.sender_initials}
+                name={msg.sender_name}
+                size={32}
+                fallbackBg={colors.primary + "30"}
+                fallbackTextColor={colors.primary}
+              />
             </View>
           )}
           <View style={[styles.msgContent, { maxWidth: "75%" }]}>
@@ -1213,13 +1221,14 @@ export default function EmployeeChatScreen() {
                     })}
                   >
                     <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: isDark ? "#27272a" : "#e4e4e7", alignItems: "center", justifyContent: "center", overflow: "hidden", marginRight: 12 }}>
-                      {otherAvatar ? (
-                        <Image source={{ uri: getMediaUrl(otherAvatar) }} style={{ width: "100%", height: "100%" }} />
-                      ) : (
-                        <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: isMissed ? "#ef4444" : colors.primary }}>
-                          {otherName.slice(0, 2).toUpperCase()}
-                        </Text>
-                      )}
+                      <AvatarImage
+                        uri={otherAvatar}
+                        initials={otherName.slice(0, 2).toUpperCase()}
+                        name={otherName}
+                        size={48}
+                        fallbackBg={isMissed ? "#fee2e2" : (isDark ? "#27272a" : "#e4e4e7")}
+                        fallbackTextColor={isMissed ? "#ef4444" : colors.primary}
+                      />
                     </View>
                     <View style={{ flex: 1, justifyContent: "center", gap: 3 }}>
                       <Text numberOfLines={1} style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: isMissed ? "#ef4444" : colors.foreground }}>
@@ -1320,7 +1329,14 @@ export default function EmployeeChatScreen() {
                     style={({ pressed }) => [styles.contactRowFull, { backgroundColor: pressed ? colors.card : "transparent", borderBottomColor: colors.border }]}
                   >
                     <View style={[styles.contactAvatarLarge, { backgroundColor: isGroupContact ? colors.primary : colors.accent, overflow: "hidden" }]}>
-                      {contact.avatar ? (<Image source={{ uri: getMediaUrl(contact.avatar) }} style={{ width: "100%", height: "100%" }} />) : (<Text style={[styles.contactAvatarTxtLarge, { color: isGroupContact ? colors.primaryForeground : (colors.accentForeground || "#fff"), fontFamily: "Inter_700Bold" }]}>{contact.initials}</Text>)}
+                      <AvatarImage
+                        uri={contact.avatar}
+                        initials={contact.initials}
+                        name={contact.name}
+                        size={48}
+                        fallbackBg={isGroupContact ? colors.primary : colors.accent}
+                        fallbackTextColor={isGroupContact ? colors.primaryForeground : (colors.accentForeground || "#fff")}
+                      />
                     </View>
                     <View style={{ flex: 1, gap: 2 }}>
                       <Text numberOfLines={1} style={[styles.contactNameLarge, { color: colors.foreground, fontFamily: unread > 0 ? "Inter_700Bold" : "Inter_600SemiBold" }]}>{contact.name}</Text>
@@ -1371,7 +1387,15 @@ export default function EmployeeChatScreen() {
           {/* Tappable header → contact profile */}
           <Pressable onPress={() => { if (!isGroup) setShowContactProfile(true); }} style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
             <View style={[styles.headerAvatar, { backgroundColor: activeContact.type === "group" ? colors.primary : colors.accent, overflow: "hidden" }]}>
-              {activeContact.avatar ? (<Image source={{ uri: getMediaUrl(activeContact.avatar) }} style={{ width: "100%", height: "100%" }} />) : (<Text style={[styles.headerAvatarTxt, { color: activeContact.type === "group" ? colors.primaryForeground : (colors.accentForeground || "#fff"), fontFamily: "Inter_700Bold" }]}>{activeContact.initials}</Text>)}
+              <AvatarImage
+                uri={activeContact.avatar}
+                initials={activeContact.initials}
+                name={activeContact.name}
+                size={38}
+                fallbackBg={activeContact.type === "group" ? colors.primary : colors.accent}
+                fallbackTextColor={activeContact.type === "group" ? colors.primaryForeground : (colors.accentForeground || "#fff")}
+                priority="high"
+              />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.headerName, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>{activeContact.name}</Text>
@@ -1785,7 +1809,14 @@ export default function EmployeeChatScreen() {
                 <View style={{ alignItems: "center", marginBottom: 16, gap: 8 }}>
                   <View style={{ position: "relative" }}>
                     <View style={[styles.fullProfileAvatar, { backgroundColor: colors.accent, overflow: "hidden" }]}>
-                      {activeContact.avatar ? (<Image source={{ uri: getMediaUrl(activeContact.avatar) }} style={{ width: "100%", height: "100%" }} />) : (<Text style={{ color: "#fff", fontSize: 32, fontFamily: "Inter_700Bold" }}>{activeContact.initials}</Text>)}
+                      <AvatarImage
+                        uri={activeContact.avatar}
+                        initials={activeContact.initials}
+                        name={activeContact.name}
+                        size={80}
+                        fallbackBg={colors.accent}
+                        fallbackTextColor="#fff"
+                      />
                     </View>
                     <View style={[styles.onlineDotLarge, { backgroundColor: "#22c55e", borderColor: isDark ? "#18181b" : "#fff" }]} />
                   </View>

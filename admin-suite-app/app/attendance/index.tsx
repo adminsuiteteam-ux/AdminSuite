@@ -21,6 +21,7 @@ import { useColors } from "@/hooks/useColors";
 import { useData } from "@/context/DataContext";
 import { useToast } from "@/context/ToastContext";
 import { getMediaUrl } from "@/services/api";
+import { AvatarImage } from "@/components/AvatarImage";
 
 type AttendanceStatus = "present" | "late" | "on_leave" | "absent";
 
@@ -418,13 +419,12 @@ export default function AttendanceScreen() {
               >
                 <View style={styles.rosterCardTop}>
                   <View style={styles.empInfo}>
-                    {emp.avatar ? (
-                      <Image source={{ uri: getMediaUrl(emp.avatar) }} style={styles.empAvatar} />
-                    ) : (
-                      <View style={[styles.empAvatarFallback, { backgroundColor: colors.accent }]}>
-                        <Text style={styles.empInitials}>{emp.name.slice(0, 2).toUpperCase()}</Text>
-                      </View>
-                    )}
+                    <AvatarImage
+                      uri={emp.avatar}
+                      name={emp.name}
+                      size={44}
+                      fallbackBg={colors.accent}
+                    />
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.empName, { color: colors.text }]} numberOfLines={1}>
                         {emp.name}

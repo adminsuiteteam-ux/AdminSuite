@@ -20,6 +20,7 @@ import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { useData } from "@/context/DataContext";
 import { apiService } from "@/services/api";
+import { AvatarImage } from "@/components/AvatarImage";
 
 type Priority = "low" | "medium" | "high" | "urgent";
 
@@ -234,13 +235,13 @@ export default function AssignTaskScreen() {
         {/* ── Assignee Card ─────────────────────────────────── */}
         <View style={[styles.assigneeCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.avatarWrap}>
-            {empAvatar ? (
-              <Image source={{ uri: empAvatar }} style={styles.avatarImg} />
-            ) : (
-              <View style={[styles.avatarFallback, { backgroundColor: colors.accent }]}>
-                <Text style={styles.avatarText}>{empInitials}</Text>
-              </View>
-            )}
+            <AvatarImage
+              uri={empAvatar}
+              name={employee?.name}
+              initials={empInitials}
+              size={48}
+              fallbackBg={colors.accent}
+            />
             <View style={styles.activeDot} />
           </View>
 

@@ -30,52 +30,96 @@ let activeBaseUrl = BASE_URL;
 export const getActiveBaseUrl = () => activeBaseUrl;
 const API_URL = `${activeBaseUrl}api/`;
 
+export interface MediaUrlOptions {
+  width?: number;
+  height?: number;
+  crop?: 'limit' | 'fill' | 'fit' | 'thumb' | 'scale';
+  quality?: string;
+}
+
 // ─── Media URL helper ─────────────────────────────────────────────────────────
-export const getMediaUrl = (path: string | null): string => {
-  if (!path) return 'https://i.pravatar.cc/300';
+export const getMediaUrl = (
+  path: string | null | undefined,
+  options?: MediaUrlOptions
+): string => {
+  if (!path || typeof path !== 'string' || !path.trim()) {
+    return '';
+  }
+
+  const trimmed = path.trim();
 
   // Already a local device path — return as-is
   if (
-    path.startsWith('file://') ||
-    path.startsWith('content://') ||
-    path.startsWith('ph://') ||
-    path.startsWith('assets-library://') ||
-    path.startsWith('blob:') ||
-    path.startsWith('data:')
+    trimmed.startsWith('file://') ||
+    trimmed.startsWith('content://') ||
+    trimmed.startsWith('ph://') ||
+    trimmed.startsWith('assets-library://') ||
+    trimmed.startsWith('blob:') ||
+    trimmed.startsWith('data:')
   ) {
-    return path;
+    return trimmed;
   }
 
-  // Already an absolute URL (e.g., from Cloudinary or production media)
-  if (path.startsWith('http')) {
-    // Rewrite localhost:8000 → production URL for when stored URLs are from local dev
-    const localMatch = path.match(/^https?:\/\/(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?\/(.*)$/);
+  // Rewrite localhost:8000 → active base URL
+  let fixedUrl = trimmed;
+  if (fixedUrl.startsWith('http://') || fixedUrl.startsWith('https://')) {
+    const localMatch = fixedUrl.match(/^https?:\/\/(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?\/(.*)$/);
     if (localMatch) {
-      // Replace local host with active base URL
-      return `${activeBaseUrl}${localMatch[3]}`;
+      fixedUrl = `${activeBaseUrl}${localMatch[3]}`;
     }
+  } else {
+    const cleanPath = fixedUrl.startsWith('/') ? fixedUrl.slice(1) : fixedUrl;
+    fixedUrl = `${activeBaseUrl}${cleanPath}`;
+  }
 
-    // Auto-fix Cloudinary URLs that incorrectly use /raw/upload/ for audio/video voice notes
-    let fixedUrl = path;
+  // Cloudinary URL Optimization:
+  if (fixedUrl.includes('cloudinary.com')) {
+    // 1. Audio/Video voice notes: Ensure /video/upload/ with valid extension
     if (
-      fixedUrl.includes('cloudinary.com') &&
       fixedUrl.includes('/raw/upload/') &&
-      (fixedUrl.includes('voice_') || fixedUrl.includes('audio_') || fixedUrl.includes('video_'))
+      (fixedUrl.includes('voice_') ||
+        fixedUrl.includes('audio_') ||
+        fixedUrl.includes('video_') ||
+        fixedUrl.match(/\.(mp4|m4a|mp3|wav|aac|ogg)/i))
     ) {
       fixedUrl = fixedUrl.replace('/raw/upload/', '/video/upload/');
       const cleanPathNoQuery = fixedUrl.split('?')[0];
       if (!cleanPathNoQuery.match(/\.(mp4|m4a|mp3|wav|aac|ogg)$/i)) {
         fixedUrl = `${fixedUrl}.mp4`;
       }
+      return fixedUrl;
     }
 
-    // Any other absolute URL (Cloudinary, Render, etc.) — use as-is
-    return fixedUrl;
+    // 2. Images (avatars, logos, profiles, photos):
+    // Fix legacy /raw/upload/ to /image/upload/ for image assets
+    const isImageResource =
+      fixedUrl.includes('avatar') ||
+      fixedUrl.includes('profile') ||
+      fixedUrl.includes('logo') ||
+      fixedUrl.includes('photo') ||
+      fixedUrl.includes('image') ||
+      fixedUrl.match(/\.(jpg|jpeg|png|webp|gif|svg)/i) ||
+      (!fixedUrl.includes('voice_') && !fixedUrl.includes('audio_') && !fixedUrl.includes('.pdf') && !fixedUrl.includes('.docx'));
+
+    if (fixedUrl.includes('/raw/upload/') && isImageResource) {
+      fixedUrl = fixedUrl.replace('/raw/upload/', '/image/upload/');
+    }
+
+    // 3. Inject Cloudinary high-speed transformations (auto quality + auto format + responsive sizing)
+    if (fixedUrl.includes('/image/upload/')) {
+      const hasTransform = /\/image\/upload\/(c_|w_|h_|f_|q_)/.test(fixedUrl);
+      if (!hasTransform) {
+        const crop = options?.crop || (options?.width && options?.height ? 'fill' : 'limit');
+        const w = options?.width || 360;
+        const h = options?.height || 360;
+        const gravity = crop === 'fill' ? ',g_face' : '';
+        const transform = `c_${crop},w_${w},h_${h}${gravity},f_auto,q_auto`;
+        fixedUrl = fixedUrl.replace('/image/upload/', `/image/upload/${transform}/`);
+      }
+    }
   }
 
-  // Relative path — build from active base URL
-  const cleanPath = path.startsWith('/') ? path.slice(1) : path;
-  return `${activeBaseUrl}${cleanPath}`;
+  return fixedUrl;
 };
 
 // ─── File attachment helper ───────────────────────────────────────────────────

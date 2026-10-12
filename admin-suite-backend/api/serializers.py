@@ -817,6 +817,11 @@ class ChatMessageSerializer(serializers.ModelSerializer):
             if not any(clean.endswith(ext) for ext in ('.mp4', '.m4a', '.mp3', '.wav', '.aac', '.ogg')):
                 url = f"{url}.mp4"
 
+        # Guard: if image attachment URL has Cloudinary /raw/upload/, redirect to /image/upload/
+        if getattr(obj, 'attachment_type', None) == 'image' and 'cloudinary.com' in url:
+            if '/raw/upload/' in url:
+                url = url.replace('/raw/upload/', '/image/upload/f_auto,q_auto/')
+
         if request and not url.startswith('http'):
             return request.build_absolute_uri(url)
         return url

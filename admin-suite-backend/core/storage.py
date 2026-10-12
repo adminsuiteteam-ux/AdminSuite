@@ -22,6 +22,7 @@ class UniversalMediaCloudinaryStorage(MediaCloudinaryStorage):
     """
 
     def _get_resource_type(self, name):
+        name_lower = (name or "").lower()
         ext = os.path.splitext(name)[1].lower()
         if ext in ('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.ico', '.tiff'):
             return 'image'
@@ -34,9 +35,15 @@ class UniversalMediaCloudinaryStorage(MediaCloudinaryStorage):
             return 'raw'
         # Heuristic if extension was stripped in legacy records
         base = os.path.basename(name).lower()
-        if 'voice_' in base or 'audio_' in base or 'video_' in base:
+        if any(k in base for k in ('voice_', 'audio_', 'video_')):
             return 'video'
-        if 'photo_' in base or 'image_' in base or 'img_' in base:
+        if any(k in base for k in ('photo_', 'image_', 'img_')):
+            return 'image'
+        # Recognize avatar, profile, logo, and image folders / filenames
+        if any(k in name_lower for k in (
+            'avatar', 'avatars', 'profile', 'profiles', 'logo', 'logos',
+            'image', 'images', 'photo', 'photos', 'picture', 'pictures', 'icon', 'icons'
+        )):
             return 'image'
         return 'raw'
 
@@ -61,6 +68,14 @@ class UniversalMediaCloudinaryStorage(MediaCloudinaryStorage):
         # For Cloudinary video/audio, if extension is missing, append format
         if not ext and res_type == 'video':
             name = f"{name}.mp4"
+        if res_type == 'image':
+            # Generate optimized URL with automatic format and quality compression over HTTPS
+            cloudinary_resource = cloudinary.CloudinaryImage(name)
+            return cloudinary_resource.build_url(
+                secure=True,
+                quality='auto',
+                fetch_format='auto',
+            )
         cloudinary_resource = cloudinary.CloudinaryResource(name, default_resource_type=res_type)
         return cloudinary_resource.url
 
