@@ -714,19 +714,25 @@ class ChatMessageSerializer(serializers.ModelSerializer):
     attachment_name = serializers.CharField(read_only=True)
     attachment_size = serializers.IntegerField(read_only=True)
     delivery_status = serializers.SerializerMethodField()
+    is_played = serializers.SerializerMethodField()
 
     class Meta:
         model = ChatMessage
         fields = [
             'id', 'sender_id', 'sender_name', 'sender_initials', 'sender_avatar',
             'recipient_id', 'group_id', 'text', 'display_text', 'is_pinned', 'is_edited', 'is_deleted',
-            'delivery_status',
+            'delivery_status', 'is_played',
             'reply_to_id', 'reply_to_text', 'reply_to_sender',
             'attachment', 'attachment_type', 'attachment_name', 'attachment_size',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['sender_id', 'sender_name', 'sender_initials', 'sender_avatar',
                             'recipient_id', 'delivery_status', 'is_edited', 'is_deleted', 'created_at', 'updated_at']
+
+    def get_is_played(self, obj):
+        if obj.attachment_type != 'audio':
+            return False
+        return obj.played_by.exclude(id=obj.sender_id).exists()
 
     def get_delivery_status(self, obj):
         if obj.delivery_status == 'read':

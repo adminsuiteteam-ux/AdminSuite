@@ -469,6 +469,8 @@ export const apiService = {
     apiClient.delete(`chat/messages/${id}/`),
   pinChatMessage: (id: number) =>
     apiClient.post(`chat/messages/${id}/pin/`),
+  markChatMessagePlayed: (id: number) =>
+    apiClient.post(`chat/messages/${id}/played/`),
   createChatGroup: (data: { name: string; only_admins_can_chat?: boolean; members?: number[] }) =>
     apiClient.post('chat/groups/', data),
   updateChatGroup: (id: number, data: { name?: string; only_admins_can_chat?: boolean; members?: number[] }) =>

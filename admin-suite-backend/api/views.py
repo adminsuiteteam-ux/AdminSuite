@@ -2873,6 +2873,31 @@ def chat_pin_message(request, pk):
     return Response({'is_pinned': msg.is_pinned})
 
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def chat_message_played(request, pk):
+    """
+    POST /api/chat/messages/<pk>/played/
+    Marks a voice note as played by the current user.
+    If the listener is not the sender, sets delivery_status to 'read'.
+    """
+    company_user = _get_company_user(request)
+    try:
+        msg = ChatMessage.objects.get(id=pk, company_user=company_user)
+    except ChatMessage.DoesNotExist:
+        return Response({'error': 'Message not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    msg.played_by.add(request.user)
+    if msg.sender_id != request.user.id:
+        msg.read_by.add(request.user)
+        if msg.delivery_status != 'read':
+            msg.delivery_status = 'read'
+            msg.save(update_fields=['delivery_status'])
+
+    is_played = msg.played_by.exclude(id=msg.sender_id).exists()
+    return Response({'success': True, 'is_played': is_played})
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def chat_contacts(request):

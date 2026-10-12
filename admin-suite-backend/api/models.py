@@ -445,6 +445,9 @@ class ChatMessage(models.Model):
     read_by = models.ManyToManyField(
         'auth.User', blank=True, related_name='read_chat_messages'
     )
+    played_by = models.ManyToManyField(
+        'auth.User', blank=True, related_name='played_chat_messages'
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import {
@@ -79,6 +79,8 @@ type ChatMessage = {
   reply_to_sender: string | null;
   created_at: string;
   updated_at: string;
+  delivery_status?: "sent" | "delivered" | "read";
+  is_played?: boolean;
 };
 
 const EMOJI_LIST = ["😀","😂","❤️","👍","👎","🔥","🎉","✅","❌","🙏","💯","😊","🤔","😎","👏","🚀","⭐","💪","🙌","😅","🥳","😢","😡","💬","📌"];
@@ -218,6 +220,7 @@ export default function EmployeeChatScreen() {
   // Voice recording
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [isRecordingPaused, setIsRecordingPaused] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const recordTimerRef = useRef<any>(null);
   const [playingAudioId, setPlayingAudioId] = useState<number | null>(null);
@@ -411,6 +414,7 @@ export default function EmployeeChatScreen() {
       reply_to_text: replyTo ? (replyTo.text || replyTo.display_text || (replyTo.attachment_type === "audio" ? "[Voice Note]" : replyTo.attachment_type === "image" ? "[Photo]" : replyTo.attachment_name || "[Attachment]")) : null,
       reply_to_sender: replyTo ? replyTo.sender_name : null,
       created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+      delivery_status: "sent",
     };
 
     setInputText("");
@@ -656,6 +660,7 @@ export default function EmployeeChatScreen() {
       );
       setRecording(newRecording);
       setIsRecording(true);
+      setIsRecordingPaused(false);
       setRecordingDuration(0);
 
       if (recordTimerRef.current) clearInterval(recordTimerRef.current);
@@ -669,7 +674,39 @@ export default function EmployeeChatScreen() {
     } catch (err: any) {
       Alert.alert("Recording Error", err.message || "Could not start voice recording.");
       setIsRecording(false);
+      setIsRecordingPaused(false);
       setRecording(null);
+    }
+  };
+
+  const pauseRecording = async () => {
+    if (!recording || !isRecording || isRecordingPaused) return;
+    try {
+      await recording.pauseAsync();
+      if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+      setIsRecordingPaused(true);
+      if (Platform.OS !== "web") {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      }
+    } catch (err: any) {
+      console.error("Error pausing recording:", err);
+    }
+  };
+
+  const resumeRecording = async () => {
+    if (!recording || !isRecording || !isRecordingPaused) return;
+    try {
+      await recording.startAsync();
+      setIsRecordingPaused(false);
+      if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+      recordTimerRef.current = setInterval(() => {
+        setRecordingDuration((prev) => prev + 1);
+      }, 1000);
+      if (Platform.OS !== "web") {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      }
+    } catch (err: any) {
+      console.error("Error resuming recording:", err);
     }
   };
 
@@ -677,6 +714,7 @@ export default function EmployeeChatScreen() {
     if (recordTimerRef.current) clearInterval(recordTimerRef.current);
     if (!recording) {
       setIsRecording(false);
+      setIsRecordingPaused(false);
       return;
     }
     try {
@@ -684,6 +722,7 @@ export default function EmployeeChatScreen() {
       const uri = recording.getURI();
       setRecording(null);
       setIsRecording(false);
+      setIsRecordingPaused(false);
       setRecordingDuration(0);
       if (uri) {
         const fname = `voice_${Date.now()}.m4a`;
@@ -692,6 +731,7 @@ export default function EmployeeChatScreen() {
     } catch (err: any) {
       Alert.alert("Recording Error", err.message || "Failed to finalize audio recording.");
       setIsRecording(false);
+      setIsRecordingPaused(false);
       setRecording(null);
     }
   };
@@ -703,6 +743,7 @@ export default function EmployeeChatScreen() {
     }
     setRecording(null);
     setIsRecording(false);
+    setIsRecordingPaused(false);
     setRecordingDuration(0);
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -710,6 +751,17 @@ export default function EmployeeChatScreen() {
   };
 
   const playVoiceNote = async (msgId: number, audioUrl: string) => {
+    // If receiver is playing a voice note they received, mark it played locally & inform server
+    const targetMsg = messages.find((m) => m.id === msgId);
+    if (targetMsg && targetMsg.sender_id !== myId && !targetMsg.is_played) {
+      setMessages((prev) =>
+        prev.map((m) => (m.id === msgId ? { ...m, is_played: true, delivery_status: "read" } : m))
+      );
+      apiService.markChatMessagePlayed(msgId).catch((err) => {
+        console.warn("Failed to mark chat message as played:", err);
+      });
+    }
+
     await playChatVoiceNote({
       msgId,
       audioUrl,
@@ -1001,12 +1053,19 @@ export default function EmployeeChatScreen() {
                     <View style={[styles.voiceNoteBubble, { backgroundColor: mine ? "rgba(255,255,255,0.18)" : (isDark ? "#27272a" : "#f4f4f5") }]}>
                       <Pressable
                         onPress={() => playVoiceNote(msg.id, msg.attachment!)}
-                        style={[styles.voicePlayBtn, { backgroundColor: mine ? "#fff" : "#0ea5e9" }]}
+                        style={[
+                          styles.voicePlayBtn,
+                          {
+                            backgroundColor: msg.is_played
+                              ? "#53bdeb"
+                              : (mine ? "#fff" : "#0ea5e9"),
+                          },
+                        ]}
                       >
                         <Feather
                           name={playingAudioId === msg.id ? "pause" : "play"}
                           size={16}
-                          color={mine ? "#0ea5e9" : "#fff"}
+                          color={msg.is_played ? "#fff" : (mine ? "#0ea5e9" : "#fff")}
                           style={{ marginLeft: playingAudioId === msg.id ? 0 : 2 }}
                         />
                       </Pressable>
@@ -1020,18 +1079,23 @@ export default function EmployeeChatScreen() {
                                 {
                                   height: h,
                                   backgroundColor: playingAudioId === msg.id && i % 2 === 0
-                                    ? (mine ? "#fff" : "#0ea5e9")
-                                    : (mine ? "rgba(255,255,255,0.6)" : (isDark ? "#71717a" : "#a1a1aa")),
+                                    ? (mine ? "#fff" : (msg.is_played ? "#53bdeb" : "#0ea5e9"))
+                                    : (msg.is_played ? "#53bdeb" : (mine ? "rgba(255,255,255,0.6)" : (isDark ? "#71717a" : "#a1a1aa"))),
                                 },
                               ]}
                             />
                           ))}
                         </View>
-                        <Text style={[styles.voiceDuration, { color: mine ? "rgba(255,255,255,0.8)" : colors.mutedForeground }]}>
+                        <Text style={[styles.voiceDuration, { color: msg.is_played ? "#53bdeb" : (mine ? "rgba(255,255,255,0.8)" : colors.mutedForeground) }]}>
                           {playingAudioId === msg.id ? "Playing..." : "Voice Note"}
                         </Text>
                       </View>
-                      <Feather name="mic" size={14} color={mine ? "rgba(255,255,255,0.75)" : "#0ea5e9"} style={{ alignSelf: "flex-end", marginBottom: 4 }} />
+                      <Feather
+                        name="mic"
+                        size={14}
+                        color={msg.is_played ? "#53bdeb" : (mine ? "rgba(255,255,255,0.75)" : "#0ea5e9")}
+                        style={{ alignSelf: "flex-end", marginBottom: 4 }}
+                      />
                     </View>
                   ) : (
                     /* Document */
@@ -1070,6 +1134,14 @@ export default function EmployeeChatScreen() {
               {msg.is_pinned && <Feather name="bookmark" size={10} color={colors.accent} style={{ marginRight: 4 }} />}
               {msg.is_edited && !msg.is_deleted && (<Text style={[styles.metaText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>{t("chat.edited")} · </Text>)}
               <Text style={[styles.metaText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>{formatTime(msg.created_at)}</Text>
+              {mine && (
+                <MaterialCommunityIcons
+                  name={msg.delivery_status === "delivered" || msg.delivery_status === "read" ? "check-all" : "check"}
+                  size={14}
+                  color={msg.delivery_status === "read" ? "#53bdeb" : colors.mutedForeground}
+                  style={{ marginLeft: 3 }}
+                />
+              )}
             </View>
           </View>
         </Pressable>
@@ -1441,17 +1513,35 @@ export default function EmployeeChatScreen() {
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                 <View style={[styles.recordingPill, { backgroundColor: isDark ? "#27272a" : "#f4f4f5" }]}>
                   <View style={styles.recordingLeft}>
-                    <View style={styles.recordingDot} />
+                    <View
+                      style={[
+                        styles.recordingDot,
+                        isRecordingPaused && { backgroundColor: "#f59e0b" },
+                      ]}
+                    />
                     <Text style={[styles.recordingTimer, { color: isDark ? "#e9edef" : "#111b21" }]}>
                       {Math.floor(recordingDuration / 60)}:{String(recordingDuration % 60).padStart(2, "0")}
                     </Text>
                     <Text style={[styles.recordingNotice, { color: colors.mutedForeground }]}>
-                      Recording voice note...
+                      {isRecordingPaused ? "Recording paused" : "Recording voice note..."}
                     </Text>
                   </View>
-                  <Pressable onPress={cancelRecording} style={({ pressed }) => [styles.cancelRecordBtn, { opacity: pressed ? 0.6 : 1 }]} hitSlop={8}>
-                    <Feather name="trash-2" size={18} color="#ef4444" />
-                  </Pressable>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Pressable
+                      onPress={isRecordingPaused ? resumeRecording : pauseRecording}
+                      style={({ pressed }) => [styles.cancelRecordBtn, { opacity: pressed ? 0.6 : 1 }]}
+                      hitSlop={8}
+                    >
+                      <Feather
+                        name={isRecordingPaused ? "mic" : "pause"}
+                        size={18}
+                        color={isRecordingPaused ? "#00a884" : (isDark ? "#e9edef" : "#111b21")}
+                      />
+                    </Pressable>
+                    <Pressable onPress={cancelRecording} style={({ pressed }) => [styles.cancelRecordBtn, { opacity: pressed ? 0.6 : 1 }]} hitSlop={8}>
+                      <Feather name="trash-2" size={18} color="#ef4444" />
+                    </Pressable>
+                  </View>
                 </View>
                 <Pressable onPress={stopAndSendRecording} disabled={sending} style={({ pressed }) => [styles.actionCircleBtn, { backgroundColor: "#ef4444", opacity: pressed ? 0.8 : 1 }]}>
                   {sending ? <ActivityIndicator size="small" color="#fff" /> : <Feather name="send" size={18} color="#fff" />}
