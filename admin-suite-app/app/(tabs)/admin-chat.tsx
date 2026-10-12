@@ -859,7 +859,7 @@ export default function AdminChatScreen() {
       is_edited: false,
       is_deleted: false,
       reply_to_id: replyTo ? replyTo.id : null,
-      reply_to_text: replyTo ? replyTo.text : null,
+      reply_to_text: replyTo ? (replyTo.text || replyTo.display_text || (replyTo.attachment_type === "audio" ? "[Voice Note]" : replyTo.attachment_type === "image" ? "[Photo]" : replyTo.attachment_name || "[Attachment]")) : null,
       reply_to_sender: replyTo ? replyTo.sender_name : null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -2008,10 +2008,17 @@ export default function AdminChatScreen() {
   // ─── Render individual message bubble ───────────────────────────────────────
   const renderMessage = ({ item: msg }: { item: ChatMessage }) => {
     const mine = msg.sender_id === myId;
+    const isBubbleDark = mine ? !isDark : isDark;
     // Fix: sender bubbles always use primary colour; receiver uses themed card
     const bubbleBg = mine ? colors.primary : isDark ? "#27272a" : "#e4e4e7";
     // Fix: receiver text always uses foreground; sender uses primaryForeground (dark in dark mode to contrast primary/white bubble)
     const textColor = mine ? (colors.primaryForeground || "#ffffff") : colors.text;
+
+    // High-contrast reply quote styling inside message bubble
+    const quoteBg = isBubbleDark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.05)";
+    const quoteBorderColor = isBubbleDark ? (isDark ? colors.accent : "#38bdf8") : (isDark ? colors.accent : "#2563eb");
+    const quoteNameColor = isBubbleDark ? (isDark ? "#a5b4fc" : "#93c5fd") : (isDark ? colors.accent : "#2563eb");
+    const quoteTextColor = isBubbleDark ? "rgba(255, 255, 255, 0.90)" : "#1f2937";
 
     return (
       <SwipeableMessage
@@ -2053,24 +2060,6 @@ export default function AdminChatScreen() {
                 {msg.sender_name}
               </Text>
             )}
-            {msg.reply_to_id && msg.reply_to_text && (
-              <View
-                style={[
-                  styles.replyPreview,
-                  {
-                    borderLeftColor: mine ? "rgba(255,255,255,0.6)" : colors.primary,
-                    backgroundColor: mine ? "rgba(255,255,255,0.15)" : colors.primary + "18",
-                  },
-                ]}
-              >
-                <Text style={[styles.replyName, { color: mine ? "rgba(255,255,255,0.85)" : colors.primary, fontFamily: "Inter_600SemiBold" }]}>
-                  {msg.reply_to_sender}
-                </Text>
-                <Text style={[styles.replyText, { color: mine ? "rgba(255,255,255,0.75)" : colors.mutedForeground, fontFamily: "Inter_400Regular" }]} numberOfLines={1}>
-                  {msg.reply_to_text}
-                </Text>
-              </View>
-            )}
             <View
               style={[
                 styles.bubble,
@@ -2078,10 +2067,41 @@ export default function AdminChatScreen() {
                   backgroundColor: bubbleBg,
                   borderTopRightRadius: mine ? 4 : 18,
                   borderTopLeftRadius: mine ? 18 : 4,
-                  padding: msg.attachment && msg.attachment_type === "image" ? 4 : 10,
+                  borderBottomRightRadius: 18,
+                  borderBottomLeftRadius: 18,
+                  borderWidth: isDark ? 1 : 0,
+                  borderColor: isDark ? (mine ? colors.primary + "55" : "rgba(255,255,255,0.08)") : "transparent",
+                  padding: msg.attachment && msg.attachment_type === "image" && !msg.reply_to_id ? 4 : 10,
                 },
               ]}
             >
+              {/* Quoted Reply inside bubble */}
+              {msg.reply_to_id && (msg.reply_to_text || msg.reply_to_sender) ? (
+                <Pressable
+                  onPress={() => {
+                    const idx = messages.findIndex((m) => m.id === msg.reply_to_id);
+                    if (idx !== -1) {
+                      try {
+                        flatListRef.current?.scrollToIndex({ index: idx, animated: true, viewPosition: 0.5 });
+                      } catch {}
+                    }
+                  }}
+                  style={[
+                    styles.replyPreview,
+                    {
+                      borderLeftColor: quoteBorderColor,
+                      backgroundColor: quoteBg,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.replyName, { color: quoteNameColor, fontFamily: "Inter_600SemiBold" }]} numberOfLines={1}>
+                    {msg.reply_to_sender || "User"}
+                  </Text>
+                  <Text style={[styles.replyText, { color: quoteTextColor, fontFamily: "Inter_400Regular" }]} numberOfLines={2}>
+                    {msg.reply_to_text || "Attachment"}
+                  </Text>
+                </Pressable>
+              ) : null}
               {/* Attachment rendering */}
               {msg.attachment ? (
                 <View style={{ marginBottom: msg.display_text && msg.display_text !== msg.attachment_name ? 6 : 0 }}>
@@ -3292,18 +3312,54 @@ export default function AdminChatScreen() {
 
         {/* Reply / Edit preview */}
         {(replyTo || editingMsg) && (
-          <View style={[styles.replyBar, { backgroundColor: isDark ? "#18181b" : "#f4f4f5", borderTopColor: colors.border }]}>
-            <View style={[styles.replyBarAccent, { backgroundColor: editingMsg ? colors.accent : colors.primary }]} />
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.replyBarLabel, { color: editingMsg ? colors.accent : colors.primary, fontFamily: "Inter_600SemiBold" }]}>
-                {editingMsg ? t("chat.editMessage") : t("chat.replyTo", { name: replyTo?.sender_name })}
+          <View
+            style={[
+              styles.replyBar,
+              {
+                backgroundColor: isDark ? "#18181b" : "#ffffff",
+                borderTopColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
+                borderBottomWidth: 1,
+                borderBottomColor: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)",
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.replyBarAccent,
+                { backgroundColor: editingMsg ? colors.accent : (isDark ? colors.accent : "#2563eb") },
+              ]}
+            />
+            <View style={{ flex: 1, paddingVertical: 2 }}>
+              <Text
+                style={[
+                  styles.replyBarLabel,
+                  { color: editingMsg ? colors.accent : (isDark ? "#818cf8" : "#2563eb"), fontFamily: "Inter_600SemiBold" },
+                ]}
+              >
+                {editingMsg ? t("chat.editMessage") : t("chat.replyTo", { name: replyTo?.sender_name || "User" })}
               </Text>
-              <Text style={[styles.replyBarText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]} numberOfLines={1}>
-                {editingMsg ? editingMsg.text : replyTo?.text}
+              <Text
+                style={[
+                  styles.replyBarText,
+                  { color: isDark ? "#e4e4e7" : "#1f2937", fontFamily: "Inter_400Regular" },
+                ]}
+                numberOfLines={1}
+              >
+                {editingMsg
+                  ? editingMsg.text
+                  : (replyTo?.text || replyTo?.display_text || (replyTo?.attachment_type === "audio" ? "Voice Note" : replyTo?.attachment_type === "image" ? "Photo" : replyTo?.attachment_name || "Attachment"))}
               </Text>
             </View>
-            <Pressable onPress={() => { setReplyTo(null); setEditingMsg(null); setInputText(""); }} hitSlop={8}>
-              <Feather name="x" size={18} color={colors.mutedForeground} />
+            <Pressable
+              onPress={() => {
+                setReplyTo(null);
+                setEditingMsg(null);
+                setInputText("");
+              }}
+              hitSlop={8}
+              style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1, padding: 4 }]}
+            >
+              <Feather name="x" size={18} color={isDark ? "#a1a1aa" : "#4b5563"} />
             </Pressable>
           </View>
         )}
@@ -4818,12 +4874,13 @@ const styles = StyleSheet.create({
   replyPreview: {
     borderLeftWidth: 3,
     paddingLeft: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-    marginBottom: 4,
+    paddingRight: 8,
+    paddingVertical: 5,
+    borderRadius: 6,
+    marginBottom: 6,
   },
-  replyName: { fontSize: 11 },
-  replyText: { fontSize: 12, marginTop: 1 },
+  replyName: { fontSize: 11, marginBottom: 2 },
+  replyText: { fontSize: 12, lineHeight: 16 },
   bubble: {
     borderRadius: 18,
     paddingHorizontal: 14,
@@ -4856,8 +4913,8 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   replyBarAccent: { width: 3, height: 32, borderRadius: 2 },
-  replyBarLabel: { fontSize: 12 },
-  replyBarText: { fontSize: 12, marginTop: 2 },
+  replyBarLabel: { fontSize: 12.5 },
+  replyBarText: { fontSize: 13, marginTop: 2 },
 
   // ── Input Container (WhatsApp style) ──
   inputBarContainer: {

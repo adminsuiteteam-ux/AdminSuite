@@ -405,7 +405,7 @@ export default function EmployeeChatScreen() {
       recipient_id: activeContact?.type === "group" ? null : (activeContact?.id as number),
       text, display_text: text, is_pinned: false, is_edited: false, is_deleted: false,
       reply_to_id: replyTo ? replyTo.id : null,
-      reply_to_text: replyTo ? replyTo.text : null,
+      reply_to_text: replyTo ? (replyTo.text || replyTo.display_text || (replyTo.attachment_type === "audio" ? "[Voice Note]" : replyTo.attachment_type === "image" ? "[Photo]" : replyTo.attachment_name || "[Attachment]")) : null,
       reply_to_sender: replyTo ? replyTo.sender_name : null,
       created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
     };
@@ -922,8 +922,16 @@ export default function EmployeeChatScreen() {
   // ── Render message ──
   const renderMessage = ({ item: msg }: { item: ChatMessage }) => {
     const mine = msg.sender_id === myId;
+    const isBubbleDark = mine ? !isDark : isDark;
     const bubbleBg = mine ? colors.primary : isDark ? "#27272a" : "#e4e4e7";
     const textColor = mine ? (colors.primaryForeground || "#fff") : colors.foreground;
+
+    // High-contrast reply quote styling inside message bubble
+    const quoteBg = isBubbleDark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.05)";
+    const quoteBorderColor = isBubbleDark ? (isDark ? colors.accent : "#38bdf8") : (isDark ? colors.accent : "#2563eb");
+    const quoteNameColor = isBubbleDark ? (isDark ? "#a5b4fc" : "#93c5fd") : (isDark ? colors.accent : "#2563eb");
+    const quoteTextColor = isBubbleDark ? "rgba(255, 255, 255, 0.90)" : "#1f2937";
+
     return (
       <SwipeableMessage onReply={() => { setReplyTo(msg); setEditingMsg(null); }} replyColor={colors.primary}>
         <Pressable onLongPress={() => !msg.is_deleted && openMessageActions(msg)} delayLongPress={350} style={[styles.msgRow, mine ? styles.msgRight : styles.msgLeft]}>
@@ -934,13 +942,48 @@ export default function EmployeeChatScreen() {
           )}
           <View style={[styles.msgContent, { maxWidth: "75%" }]}>
             {!mine && (<Text style={[styles.senderName, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" }]}>{msg.sender_name}</Text>)}
-            {msg.reply_to_id && msg.reply_to_text && (
-              <View style={[styles.replyPreview, { borderLeftColor: mine ? "rgba(255,255,255,0.6)" : colors.primary, backgroundColor: mine ? "rgba(255,255,255,0.15)" : colors.primary + "18" }]}>
-                <Text style={[styles.replyName, { color: mine ? "rgba(255,255,255,0.85)" : colors.primary, fontFamily: "Inter_600SemiBold" }]}>{msg.reply_to_sender}</Text>
-                <Text style={[styles.replyText, { color: mine ? "rgba(255,255,255,0.75)" : colors.mutedForeground, fontFamily: "Inter_400Regular" }]} numberOfLines={1}>{msg.reply_to_text}</Text>
-              </View>
-            )}
-            <View style={[styles.bubble, { backgroundColor: bubbleBg, borderTopRightRadius: mine ? 4 : 18, borderTopLeftRadius: mine ? 18 : 4, padding: msg.attachment && msg.attachment_type === "image" ? 4 : 10 }]}>
+            <View
+              style={[
+                styles.bubble,
+                {
+                  backgroundColor: bubbleBg,
+                  borderTopRightRadius: mine ? 4 : 18,
+                  borderTopLeftRadius: mine ? 18 : 4,
+                  borderBottomRightRadius: 18,
+                  borderBottomLeftRadius: 18,
+                  borderWidth: isDark ? 1 : 0,
+                  borderColor: isDark ? (mine ? colors.primary + "55" : "rgba(255,255,255,0.08)") : "transparent",
+                  padding: msg.attachment && msg.attachment_type === "image" && !msg.reply_to_id ? 4 : 10,
+                },
+              ]}
+            >
+              {/* Quoted Reply inside bubble */}
+              {msg.reply_to_id && (msg.reply_to_text || msg.reply_to_sender) ? (
+                <Pressable
+                  onPress={() => {
+                    const idx = messages.findIndex((m) => m.id === msg.reply_to_id);
+                    if (idx !== -1) {
+                      try {
+                        flatListRef.current?.scrollToIndex({ index: idx, animated: true, viewPosition: 0.5 });
+                      } catch {}
+                    }
+                  }}
+                  style={[
+                    styles.replyPreview,
+                    {
+                      borderLeftColor: quoteBorderColor,
+                      backgroundColor: quoteBg,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.replyName, { color: quoteNameColor, fontFamily: "Inter_600SemiBold" }]} numberOfLines={1}>
+                    {msg.reply_to_sender || "User"}
+                  </Text>
+                  <Text style={[styles.replyText, { color: quoteTextColor, fontFamily: "Inter_400Regular" }]} numberOfLines={2}>
+                    {msg.reply_to_text || "Attachment"}
+                  </Text>
+                </Pressable>
+              ) : null}
               {/* Attachment rendering */}
               {msg.attachment ? (
                 <View style={{ marginBottom: msg.display_text && msg.display_text !== msg.attachment_name ? 6 : 0 }}>
@@ -1346,14 +1389,54 @@ export default function EmployeeChatScreen() {
 
           {/* Reply / Edit bar */}
           {(replyTo || editingMsg) && (
-            <View style={[styles.replyBar, { backgroundColor: isDark ? "#18181b" : "#f4f4f5", borderTopColor: colors.border }]}>
-              <View style={[styles.replyBarAccent, { backgroundColor: editingMsg ? colors.accent : colors.primary }]} />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.replyBarLabel, { color: editingMsg ? colors.accent : colors.primary, fontFamily: "Inter_600SemiBold" }]}>{editingMsg ? t("chat.editMessage") : t("chat.replyTo", { name: replyTo?.sender_name })}</Text>
-                <Text style={[styles.replyBarText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]} numberOfLines={1}>{editingMsg ? editingMsg.text : replyTo?.text}</Text>
+            <View
+              style={[
+                styles.replyBar,
+                {
+                  backgroundColor: isDark ? "#18181b" : "#ffffff",
+                  borderTopColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
+                  borderBottomWidth: 1,
+                  borderBottomColor: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)",
+                },
+              ]}
+            >
+              <View
+                style={[
+                  styles.replyBarAccent,
+                  { backgroundColor: editingMsg ? colors.accent : (isDark ? colors.accent : "#2563eb") },
+                ]}
+              />
+              <View style={{ flex: 1, paddingVertical: 2 }}>
+                <Text
+                  style={[
+                    styles.replyBarLabel,
+                    { color: editingMsg ? colors.accent : (isDark ? "#818cf8" : "#2563eb"), fontFamily: "Inter_600SemiBold" },
+                  ]}
+                >
+                  {editingMsg ? t("chat.editMessage") : t("chat.replyTo", { name: replyTo?.sender_name || "User" })}
+                </Text>
+                <Text
+                  style={[
+                    styles.replyBarText,
+                    { color: isDark ? "#e4e4e7" : "#1f2937", fontFamily: "Inter_400Regular" },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {editingMsg
+                    ? editingMsg.text
+                    : (replyTo?.text || replyTo?.display_text || (replyTo?.attachment_type === "audio" ? "Voice Note" : replyTo?.attachment_type === "image" ? "Photo" : replyTo?.attachment_name || "Attachment"))}
+                </Text>
               </View>
-              <Pressable onPress={() => { setReplyTo(null); setEditingMsg(null); setInputText(""); }} hitSlop={8}>
-                <Feather name="x" size={18} color={colors.mutedForeground} />
+              <Pressable
+                onPress={() => {
+                  setReplyTo(null);
+                  setEditingMsg(null);
+                  setInputText("");
+                }}
+                hitSlop={8}
+                style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1, padding: 4 }]}
+              >
+                <Feather name="x" size={18} color={isDark ? "#a1a1aa" : "#4b5563"} />
               </Pressable>
             </View>
           )}
@@ -1792,19 +1875,33 @@ const styles = StyleSheet.create({
   avatarTxt: { fontSize: 11 },
   msgContent: { gap: 2 },
   senderName: { fontSize: 11, marginBottom: 2, marginLeft: 4 },
-  replyPreview: { borderLeftWidth: 3, paddingLeft: 8, paddingVertical: 4, borderRadius: 4, marginBottom: 4 },
-  replyName: { fontSize: 11 },
-  replyText: { fontSize: 12, marginTop: 1 },
+  replyPreview: {
+    borderLeftWidth: 3,
+    paddingLeft: 8,
+    paddingRight: 8,
+    paddingVertical: 5,
+    borderRadius: 6,
+    marginBottom: 6,
+  },
+  replyName: { fontSize: 11, marginBottom: 2 },
+  replyText: { fontSize: 12, lineHeight: 16 },
   bubble: { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10 },
   bubbleText: { fontSize: 14.5, lineHeight: 21 },
   metaRow: { flexDirection: "row", alignItems: "center", marginTop: 3, paddingHorizontal: 4 },
   metaText: { fontSize: 10 },
   emptyList: { flex: 1, alignItems: "center", justifyContent: "center", paddingTop: 80, gap: 12 },
   emptyText: { fontSize: 14, textAlign: "center" },
-  replyBar: { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1, gap: 10 },
+  replyBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    gap: 10,
+  },
   replyBarAccent: { width: 3, height: 32, borderRadius: 2 },
-  replyBarLabel: { fontSize: 12 },
-  replyBarText: { fontSize: 12, marginTop: 2 },
+  replyBarLabel: { fontSize: 12.5 },
+  replyBarText: { fontSize: 13, marginTop: 2 },
   inputBar: { paddingHorizontal: 12, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth },
   inputWrap: { flexDirection: "row", alignItems: "flex-end", borderRadius: 26, borderWidth: 1, paddingLeft: 14, paddingRight: 6, paddingVertical: 6, gap: 8 },
   input: { flex: 1, fontSize: 15, maxHeight: 120, paddingVertical: Platform.OS === "ios" ? 6 : 4 },

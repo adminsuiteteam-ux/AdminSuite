@@ -768,7 +768,17 @@ class ChatMessageSerializer(serializers.ModelSerializer):
         if obj.reply_to:
             if obj.reply_to.is_deleted:
                 return "This message was deleted"
-            return obj.reply_to.text[:80]
+            if obj.reply_to.text:
+                return obj.reply_to.text[:80]
+            if obj.reply_to.attachment_type == 'image':
+                return "Photo"
+            if obj.reply_to.attachment_type == 'audio':
+                return "Voice note"
+            if obj.reply_to.attachment_type == 'video':
+                return "Video"
+            if obj.reply_to.attachment_name:
+                return obj.reply_to.attachment_name[:50]
+            return "Attachment"
         return None
 
     def get_reply_to_sender(self, obj):
