@@ -45,6 +45,8 @@ import { useToast } from "@/context/ToastContext";
 import { useData } from "@/context/DataContext";
 import { apiService, getMediaUrl } from "@/services/api";
 import { ExpandableText } from "@/components/ExpandableText";
+import { WhatsAppEmojiPicker } from "@/components/WhatsAppEmojiPicker";
+import { playChatVoiceNote, openOrShareMedia } from "@/services/chatMedia";
 
 const EMOJI_LIST = ["😀", "😂", "😍", "👍", "🔥", "🎉", "❤️", "🙌", "👏", "😮", "🤔", "😢", "🙏", "🚀", "💯", "✨", "😎", "🥳", "🤝", "👀", "💬", "✅"];
 
@@ -1226,45 +1228,16 @@ export default function AdminChatScreen() {
   };
 
   const playVoiceNote = async (msgId: number, audioUrl: string) => {
-    try {
-      if (playingAudioId === msgId && soundRef.current) {
-        await soundRef.current.stopAsync();
-        await soundRef.current.unloadAsync();
-        soundRef.current = null;
-        setPlayingAudioId(null);
-        return;
-      }
-
-      if (soundRef.current) {
-        await soundRef.current.stopAsync();
-        await soundRef.current.unloadAsync();
-        soundRef.current = null;
-      }
-
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-      });
-
-      const fullUrl = getMediaUrl(audioUrl);
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: fullUrl },
-        { shouldPlay: true }
-      );
-      soundRef.current = sound;
-      setPlayingAudioId(msgId);
-
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded && status.didJustFinish) {
-          setPlayingAudioId(null);
-          sound.unloadAsync().catch(() => {});
-          soundRef.current = null;
-        }
-      });
-    } catch (err: any) {
-      Alert.alert("Audio Error", "Could not play voice note.");
-      setPlayingAudioId(null);
-    }
+    await playChatVoiceNote({
+      msgId,
+      audioUrl,
+      currentSoundRef: soundRef,
+      playingAudioId,
+      setPlayingAudioId,
+      onError: (err) => {
+        Alert.alert("Audio Error", err?.message || "Could not play voice note.");
+      },
+    });
   };
 
   useEffect(() => {
@@ -2118,7 +2091,7 @@ export default function AdminChatScreen() {
                     </Pressable>
                   ) : msg.attachment_type === "video" ? (
                     <Pressable
-                      onPress={() => Sharing.shareAsync(getMediaUrl(msg.attachment!)).catch(() => {})}
+                      onPress={() => openOrShareMedia(msg.attachment!, msg.attachment_name)}
                       style={[styles.attachmentVideoCard, { backgroundColor: mine ? "rgba(255,255,255,0.18)" : (isDark ? "#27272a" : "#f4f4f5") }]}
                     >
                       <View style={styles.videoPlayCircle}>
@@ -2129,7 +2102,7 @@ export default function AdminChatScreen() {
                           {msg.attachment_name || "Video"}
                         </Text>
                         <Text style={[styles.attachmentMeta, { color: mine ? "rgba(255,255,255,0.7)" : colors.mutedForeground }]}>
-                          Video file • Tap to view
+                          Video file • Tap to open
                         </Text>
                       </View>
                     </Pressable>
@@ -2164,7 +2137,7 @@ export default function AdminChatScreen() {
                           ))}
                         </View>
                         <Text style={[styles.voiceDuration, { color: mine ? "rgba(255,255,255,0.8)" : colors.mutedForeground }]}>
-                          Voice Note
+                          {playingAudioId === msg.id ? "Playing..." : "Voice Note"}
                         </Text>
                       </View>
                       <Feather name="mic" size={14} color={mine ? "rgba(255,255,255,0.75)" : "#0ea5e9"} style={{ alignSelf: "flex-end", marginBottom: 4 }} />
@@ -2172,7 +2145,14 @@ export default function AdminChatScreen() {
                   ) : (
                     /* Document */
                     <Pressable
-                      onPress={() => Sharing.shareAsync(getMediaUrl(msg.attachment!)).catch(() => {})}
+                      onPress={() => {
+                        const fname = (msg.attachment_name || "").toLowerCase();
+                        if (fname.endsWith(".jpg") || fname.endsWith(".jpeg") || fname.endsWith(".png") || fname.endsWith(".webp")) {
+                          setSelectedFullImage(getMediaUrl(msg.attachment!));
+                        } else {
+                          openOrShareMedia(msg.attachment!, msg.attachment_name);
+                        }
+                      }}
                       style={[styles.attachmentDocCard, { backgroundColor: mine ? "rgba(255,255,255,0.18)" : (isDark ? "#27272a" : "#f4f4f5") }]}
                     >
                       <View style={[styles.docIconWrap, { backgroundColor: mine ? "rgba(255,255,255,0.25)" : colors.primary + "20" }]}>
@@ -3364,32 +3344,12 @@ export default function AdminChatScreen() {
           </View>
         )}
 
-        {/* Emoji Selector Panel */}
-        {showEmojiPicker && (
-          <View style={[styles.emojiPickerContainer, { backgroundColor: isDark ? "#18181b" : "#fff", borderTopColor: colors.border }]}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.emojiScroll}>
-              {EMOJI_LIST.map((em) => (
-                <Pressable
-                  key={em}
-                  onPress={() => {
-                    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-                    setInputText((prev) => prev + em);
-                  }}
-                  style={styles.emojiTouch}
-                >
-                  <Text style={styles.emojiGlyph}>{em}</Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          </View>
-        )}
-
         {/* Input bar (WhatsApp style) */}
         <View
           style={[
             styles.inputBarContainer,
             {
-              paddingBottom: isKeyboardOpen ? 8 : Math.max(insets.bottom, 10),
+              paddingBottom: isKeyboardOpen ? 8 : (showEmojiPicker ? 4 : Math.max(insets.bottom, 10)),
               backgroundColor: isDark ? "#0c1317" : "#efeae2",
             },
           ]}
@@ -3419,11 +3379,18 @@ export default function AdminChatScreen() {
             <View style={[styles.pillInputContainer, { backgroundColor: isDark ? "#1f2c34" : "#ffffff" }]}>
               {/* Emoji icon on far left inside pill */}
               <Pressable
-                onPress={() => setShowEmojiPicker((v) => !v)}
+                onPress={() => {
+                  if (showEmojiPicker) {
+                    setShowEmojiPicker(false);
+                  } else {
+                    Keyboard.dismiss();
+                    setShowEmojiPicker(true);
+                  }
+                }}
                 style={({ pressed }) => [styles.pillIconBtn, { opacity: pressed ? 0.7 : 1 }]}
                 hitSlop={6}
               >
-                <Feather name="smile" size={24} color={showEmojiPicker ? colors.accent : (isDark ? "#8696a0" : "#54656f")} />
+                <Feather name="smile" size={24} color={showEmojiPicker ? "#00a884" : (isDark ? "#8696a0" : "#54656f")} />
               </Pressable>
 
               {/* Message text input */}
@@ -3492,6 +3459,23 @@ export default function AdminChatScreen() {
             )}
           </Pressable>
         </View>
+
+        {/* WhatsApp-style Emoji Picker */}
+        <WhatsAppEmojiPicker
+          visible={showEmojiPicker}
+          isDark={isDark}
+          onSelectEmoji={(emoji) => {
+            setInputText((prev) => prev + emoji);
+          }}
+          onBackspace={() => {
+            setInputText((prev) => {
+              if (!prev) return "";
+              const chars = Array.from(prev);
+              chars.pop();
+              return chars.join("");
+            });
+          }}
+        />
       </View>
 
       {/* ── Message Action Modal ── */}
@@ -4528,7 +4512,7 @@ export default function AdminChatScreen() {
             style={styles.fullImgShareBtn}
             onPress={() => {
               if (selectedFullImage) {
-                Sharing.shareAsync(selectedFullImage).catch(() => {});
+                openOrShareMedia(selectedFullImage, "photo.jpg");
               }
             }}
           >

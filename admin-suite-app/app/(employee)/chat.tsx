@@ -8,6 +8,7 @@ import {
   Clipboard,
   FlatList,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Linking,
   Modal,
@@ -36,6 +37,8 @@ import { useToast } from "@/context/ToastContext";
 import { apiService, getMediaUrl } from "@/services/api";
 import { useTranslation } from "react-i18next";
 import { ExpandableText } from "@/components/ExpandableText";
+import { WhatsAppEmojiPicker } from "@/components/WhatsAppEmojiPicker";
+import { playChatVoiceNote, openOrShareMedia } from "@/services/chatMedia";
 
 type Contact = {
   id: number | "group";
@@ -707,37 +710,16 @@ export default function EmployeeChatScreen() {
   };
 
   const playVoiceNote = async (msgId: number, audioUrl: string) => {
-    try {
-      if (playingAudioId === msgId && soundRef.current) {
-        await soundRef.current.stopAsync();
-        await soundRef.current.unloadAsync();
-        soundRef.current = null;
-        setPlayingAudioId(null);
-        return;
-      }
-      if (soundRef.current) {
-        await soundRef.current.stopAsync();
-        await soundRef.current.unloadAsync();
-        soundRef.current = null;
-      }
-      const fullUrl = getMediaUrl(audioUrl);
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: fullUrl },
-        { shouldPlay: true }
-      );
-      soundRef.current = sound;
-      setPlayingAudioId(msgId);
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded && status.didJustFinish) {
-          setPlayingAudioId(null);
-          sound.unloadAsync().catch(() => {});
-          soundRef.current = null;
-        }
-      });
-    } catch {
-      showToast({ title: "Playback Error", message: "Could not play voice note.", type: "error" });
-      setPlayingAudioId(null);
-    }
+    await playChatVoiceNote({
+      msgId,
+      audioUrl,
+      currentSoundRef: soundRef,
+      playingAudioId,
+      setPlayingAudioId,
+      onError: (err) => {
+        showToast({ title: "Playback Error", message: err?.message || "Could not play voice note.", type: "error" });
+      },
+    });
   };
 
   // ─── Call History Helpers ────────────────────────────────────────────────────
@@ -1000,7 +982,7 @@ export default function EmployeeChatScreen() {
                     </Pressable>
                   ) : msg.attachment_type === "video" ? (
                     <Pressable
-                      onPress={() => Sharing.shareAsync(getMediaUrl(msg.attachment!)).catch(() => {})}
+                      onPress={() => openOrShareMedia(msg.attachment!, msg.attachment_name)}
                       style={[styles.attachmentVideoCard, { backgroundColor: mine ? "rgba(255,255,255,0.18)" : (isDark ? "#27272a" : "#f4f4f5") }]}
                     >
                       <View style={styles.videoPlayCircle}>
@@ -1011,7 +993,7 @@ export default function EmployeeChatScreen() {
                           {msg.attachment_name || "Video"}
                         </Text>
                         <Text style={[styles.attachmentMeta, { color: mine ? "rgba(255,255,255,0.7)" : colors.mutedForeground }]}>
-                          Video file • Tap to view
+                          Video file • Tap to open
                         </Text>
                       </View>
                     </Pressable>
@@ -1046,7 +1028,7 @@ export default function EmployeeChatScreen() {
                           ))}
                         </View>
                         <Text style={[styles.voiceDuration, { color: mine ? "rgba(255,255,255,0.8)" : colors.mutedForeground }]}>
-                          Voice Note
+                          {playingAudioId === msg.id ? "Playing..." : "Voice Note"}
                         </Text>
                       </View>
                       <Feather name="mic" size={14} color={mine ? "rgba(255,255,255,0.75)" : "#0ea5e9"} style={{ alignSelf: "flex-end", marginBottom: 4 }} />
@@ -1054,7 +1036,14 @@ export default function EmployeeChatScreen() {
                   ) : (
                     /* Document */
                     <Pressable
-                      onPress={() => Sharing.shareAsync(getMediaUrl(msg.attachment!)).catch(() => {})}
+                      onPress={() => {
+                        const fname = (msg.attachment_name || "").toLowerCase();
+                        if (fname.endsWith(".jpg") || fname.endsWith(".jpeg") || fname.endsWith(".png") || fname.endsWith(".webp")) {
+                          setSelectedFullImage(getMediaUrl(msg.attachment!));
+                        } else {
+                          openOrShareMedia(msg.attachment!, msg.attachment_name);
+                        }
+                      }}
                       style={[styles.attachmentDocCard, { backgroundColor: mine ? "rgba(255,255,255,0.18)" : (isDark ? "#27272a" : "#f4f4f5") }]}
                     >
                       <View style={[styles.docIconWrap, { backgroundColor: mine ? "rgba(255,255,255,0.25)" : colors.primary + "20" }]}>
@@ -1441,21 +1430,8 @@ export default function EmployeeChatScreen() {
             </View>
           )}
 
-          {/* Emoji Picker */}
-          {showEmojiPicker && (
-            <View style={[styles.emojiPickerContainer, { backgroundColor: isDark ? "#18181b" : "#fff", borderTopColor: colors.border }]}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.emojiScroll}>
-                {EMOJI_LIST.map((em) => (
-                  <Pressable key={em} onPress={() => { if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); setInputText((prev) => prev + em); }} style={styles.emojiTouch}>
-                    <Text style={styles.emojiGlyph}>{em}</Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
-            </View>
-          )}
-
           {/* Input bar */}
-          <View style={[styles.inputBar, { paddingBottom: isKeyboardOpen ? 8 : Math.max(insets.bottom, 10), backgroundColor: isDark ? "#09090b" : "#fff", borderTopColor: colors.border }]}>
+          <View style={[styles.inputBar, { paddingBottom: isKeyboardOpen ? 8 : (showEmojiPicker ? 4 : Math.max(insets.bottom, 10)), backgroundColor: isDark ? "#09090b" : "#fff", borderTopColor: colors.border }]}>
             {isDisabled ? (
               <View style={[styles.lockBanner, { backgroundColor: isBlocked ? colors.danger + "15" : (colors.warning ?? "#f59e0b") + "15", borderColor: isBlocked ? colors.danger + "30" : (colors.warning ?? "#f59e0b") + "30" }]}>
                 <Feather name={isBlocked ? "slash" : "lock"} size={14} color={isBlocked ? colors.danger : (colors.warning ?? "#f59e0b")} />
@@ -1484,8 +1460,19 @@ export default function EmployeeChatScreen() {
             ) : (
               <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 8 }}>
                 {/* Emoji toggle */}
-                <Pressable onPress={() => setShowEmojiPicker((v) => !v)} style={({ pressed }) => [styles.emojiToggleBtn, { opacity: pressed ? 0.7 : 1 }]} hitSlop={6}>
-                  <Feather name="smile" size={22} color={showEmojiPicker ? colors.accent : colors.mutedForeground} />
+                <Pressable
+                  onPress={() => {
+                    if (showEmojiPicker) {
+                      setShowEmojiPicker(false);
+                    } else {
+                      Keyboard.dismiss();
+                      setShowEmojiPicker(true);
+                    }
+                  }}
+                  style={({ pressed }) => [styles.emojiToggleBtn, { opacity: pressed ? 0.7 : 1 }]}
+                  hitSlop={6}
+                >
+                  <Feather name="smile" size={22} color={showEmojiPicker ? "#00a884" : colors.mutedForeground} />
                 </Pressable>
                 <View style={[styles.inputWrap, { flex: 1, backgroundColor: isDark ? "#27272a" : "#f4f4f5", borderColor: colors.border }]}>
                   <TextInput
@@ -1531,6 +1518,23 @@ export default function EmployeeChatScreen() {
               </View>
             )}
           </View>
+
+          {/* WhatsApp-style Emoji Picker */}
+          <WhatsAppEmojiPicker
+            visible={showEmojiPicker}
+            isDark={isDark}
+            onSelectEmoji={(emoji) => {
+              setInputText((prev) => prev + emoji);
+            }}
+            onBackspace={() => {
+              setInputText((prev) => {
+                if (!prev) return "";
+                const chars = Array.from(prev);
+                chars.pop();
+                return chars.join("");
+              });
+            }}
+          />
         </View>
 
         {/* ── Attachment Options Bottom Sheet ── */}
@@ -1835,6 +1839,37 @@ export default function EmployeeChatScreen() {
             </Pressable>
           </KeyboardAvoidingView>
         </Modal>
+
+        {/* ── Full-Screen Image Viewer Modal ── */}
+        <Modal
+          visible={!!selectedFullImage}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setSelectedFullImage(null)}
+        >
+          <View style={styles.fullImgBackdrop}>
+            <Pressable style={styles.fullImgCloseBtn} onPress={() => setSelectedFullImage(null)}>
+              <Feather name="x" size={24} color="#fff" />
+            </Pressable>
+            {selectedFullImage && (
+              <Image
+                source={{ uri: selectedFullImage }}
+                style={styles.fullImg}
+                resizeMode="contain"
+              />
+            )}
+            <Pressable
+              style={styles.fullImgShareBtn}
+              onPress={() => {
+                if (selectedFullImage) {
+                  openOrShareMedia(selectedFullImage, "photo.jpg");
+                }
+              }}
+            >
+              <Feather name="share-2" size={20} color="#fff" />
+            </Pressable>
+          </View>
+        </Modal>
       </KeyboardAvoidingView>
     </View>
   );
@@ -1979,4 +2014,5 @@ const styles = StyleSheet.create({
   fullImgBackdrop: { flex: 1, backgroundColor: "#000", justifyContent: "center", alignItems: "center" },
   fullImgCloseBtn: { position: "absolute", top: 48, right: 20, zIndex: 10, width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center" },
   fullImg: { width: "100%", height: "80%" },
+  fullImgShareBtn: { position: "absolute", bottom: 48, right: 24, zIndex: 10, width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(255,255,255,0.25)", alignItems: "center", justifyContent: "center" },
 });
