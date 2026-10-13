@@ -840,9 +840,10 @@ export default function AdminChatScreen() {
   type ListItem = { type: "date"; label: string; key: string } | { type: "msg"; msg: ChatMessage; key: string };
 
   const displayedMessages = useMemo(() => {
-    if (!inChatSearchQuery.trim()) return messages;
+    const nonDeleted = messages.filter((m) => !m.is_deleted);
+    if (!inChatSearchQuery.trim()) return nonDeleted;
     const q = inChatSearchQuery.trim().toLowerCase();
-    return messages.filter(
+    return nonDeleted.filter(
       (m) =>
         m.text.toLowerCase().includes(q) ||
         m.sender_name.toLowerCase().includes(q) ||
@@ -1451,23 +1452,44 @@ export default function AdminChatScreen() {
         }
         break;
       case "delete":
-        if (selectedMsg.sender_id === user?.id) {
-          Alert.alert("Delete Message", "Delete this message for everyone?", [
+        if (!selectedMsg) break;
+        const targetDeleteMsg = selectedMsg;
+
+        const executeDelete = async (type: "for_me" | "for_everyone") => {
+          const targetId = targetDeleteMsg.id;
+          // Optimistically remove immediately from local state and cache
+          setMessages((prev) => prev.filter((m) => m.id !== targetId));
+          if (activeContact) {
+            const cid = String(activeContact.id);
+            if (globalAdminMessagesCache[cid]) {
+              globalAdminMessagesCache[cid] = globalAdminMessagesCache[cid].filter((m) => m.id !== targetId);
+            }
+          }
+          try {
+            await apiService.deleteChatMessage(targetId, type);
+          } catch {
+            showToast({ title: "Error", message: "Could not delete message.", type: "error" });
+            fetchMessages();
+          }
+        };
+
+        Alert.alert(
+          "Delete Message",
+          "Would you like to delete this message for everyone or only for yourself?",
+          [
             { text: "Cancel", style: "cancel" },
             {
-              text: "Delete",
+              text: "Delete for me",
               style: "destructive",
-              onPress: async () => {
-                try {
-                  await apiService.deleteChatMessage(selectedMsg.id);
-                  await fetchMessages();
-                } catch {
-                  showToast({ title: "Error", message: "Could not delete.", type: "error" });
-                }
-              },
+              onPress: () => executeDelete("for_me"),
             },
-          ]);
-        }
+            {
+              text: "Delete for everyone",
+              style: "destructive",
+              onPress: () => executeDelete("for_everyone"),
+            },
+          ]
+        );
         break;
       case "block_sender":
         const senderContact = contacts.find(
@@ -2206,6 +2228,8 @@ export default function AdminChatScreen() {
                   {msg.attachment_type === "image" ? (
                     <Pressable
                       onPress={() => setSelectedFullImage(getMediaUrl(msg.attachment!))}
+                      onLongPress={() => !msg.is_deleted && openMessageActions(msg)}
+                      delayLongPress={350}
                       style={styles.attachmentImgPressable}
                     >
                       <Image
@@ -2217,6 +2241,8 @@ export default function AdminChatScreen() {
                   ) : msg.attachment_type === "video" ? (
                     <Pressable
                       onPress={() => openOrShareMedia(msg.attachment!, msg.attachment_name)}
+                      onLongPress={() => !msg.is_deleted && openMessageActions(msg)}
+                      delayLongPress={350}
                       style={styles.attachmentVideoCard}
                     >
                       <View style={styles.videoPlayCircle}>
@@ -2235,6 +2261,8 @@ export default function AdminChatScreen() {
                     <View style={styles.voiceNoteBubble}>
                       <Pressable
                         onPress={() => playVoiceNote(msg.id, msg.attachment!)}
+                        onLongPress={() => !msg.is_deleted && openMessageActions(msg)}
+                        delayLongPress={350}
                         style={[
                           styles.voicePlayBtn,
                           {
@@ -2251,7 +2279,11 @@ export default function AdminChatScreen() {
                           style={{ marginLeft: playingAudioId === msg.id ? 0 : 2 }}
                         />
                       </Pressable>
-                      <View style={styles.voiceWaveformContainer}>
+                      <Pressable
+                        onLongPress={() => !msg.is_deleted && openMessageActions(msg)}
+                        delayLongPress={350}
+                        style={styles.voiceWaveformContainer}
+                      >
                         <View style={styles.waveformBars}>
                           {[6, 12, 18, 10, 16, 22, 14, 8, 16, 20, 12, 18, 10, 6].map((h, i) => (
                             <View
@@ -2271,7 +2303,7 @@ export default function AdminChatScreen() {
                         <Text style={[styles.voiceDuration, { color: msg.is_played ? "#53bdeb" : (mine ? "rgba(255,255,255,0.8)" : colors.mutedForeground) }]}>
                           {playingAudioId === msg.id ? "Playing..." : "Voice Note"}
                         </Text>
-                      </View>
+                      </Pressable>
                       <Feather
                         name="mic"
                         size={14}
@@ -2290,6 +2322,8 @@ export default function AdminChatScreen() {
                           openOrShareMedia(msg.attachment!, msg.attachment_name);
                         }
                       }}
+                      onLongPress={() => !msg.is_deleted && openMessageActions(msg)}
+                      delayLongPress={350}
                       style={styles.attachmentDocCard}
                     >
                       <View style={[styles.docIconWrap, { backgroundColor: mine ? "rgba(255,255,255,0.25)" : colors.primary + "20" }]}>
@@ -3666,10 +3700,10 @@ export default function AdminChatScreen() {
               { id: "reply", icon: "corner-up-left", label: t("chat.actions.reply") },
               { id: "copy", icon: "copy", label: t("chat.actions.copy") },
               ...(selectedMsg?.sender_id === myId && !selectedMsg?.is_deleted
-                ? [
-                    { id: "edit", icon: "edit-2", label: t("chat.actions.edit") },
-                    { id: "delete", icon: "trash-2", label: t("chat.actions.delete"), danger: true },
-                  ]
+                ? [{ id: "edit", icon: "edit-2", label: t("chat.actions.edit") }]
+                : []),
+              ...(!selectedMsg?.is_deleted
+                ? [{ id: "delete", icon: "trash-2", label: t("chat.actions.delete"), danger: true }]
                 : []),
               { id: "pin", icon: "bookmark", label: selectedMsg?.is_pinned ? t("chat.actions.unpin") : t("chat.actions.pin") },
               ...(isGroupChat && selectedMsg?.sender_id !== myId

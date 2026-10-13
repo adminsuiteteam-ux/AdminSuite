@@ -2577,6 +2577,9 @@ def chat_messages(request):
             group__isnull=True
         )
 
+    # Exclude messages deleted globally or hidden for current user
+    msgs_qs = msgs_qs.exclude(is_deleted=True).exclude(deleted_by=request.user)
+
     # Fetch latest 120 messages in reverse order with all relations joined in 1 query
     msgs_list = list(
         msgs_qs.order_by('-created_at')[:120].select_related(*chat_select)
@@ -2834,10 +2837,9 @@ def chat_message_detail(request, pk):
     except ChatMessage.DoesNotExist:
         return Response({'error': 'Message not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-    if msg.sender != request.user:
-        return Response({'error': 'You can only edit/delete your own messages.'}, status=status.HTTP_403_FORBIDDEN)
-
     if request.method == 'PUT':
+        if msg.sender != request.user:
+            return Response({'error': 'You can only edit your own messages.'}, status=status.HTTP_403_FORBIDDEN)
         text = request.data.get('text', '').strip()
         if not text:
             return Response({'error': 'Text is required.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -2847,10 +2849,33 @@ def chat_message_detail(request, pk):
         return Response(ChatMessageSerializer(msg, context={'request': request}).data)
 
     elif request.method == 'DELETE':
-        msg.is_deleted = True
-        msg.text = ''
-        msg.save(update_fields=['is_deleted', 'text', 'updated_at'])
-        return Response({'status': 'deleted'})
+        delete_type = request.data.get('delete_type') or request.query_params.get('delete_type') or 'for_everyone'
+
+        if delete_type == 'for_me':
+            # WhatsApp "Delete for me": hide only for current user
+            msg.deleted_by.add(request.user)
+            return Response({'status': 'deleted', 'delete_type': 'for_me', 'message_id': msg.id})
+        else:
+            # WhatsApp "Delete for everyone": sender or workspace admin only
+            if msg.sender != request.user and request.user != company_user:
+                return Response({'error': 'You can only delete your own messages for everyone.'}, status=status.HTTP_403_FORBIDDEN)
+            msg.is_deleted = True
+            msg.text = ''
+            msg.save(update_fields=['is_deleted', 'text', 'updated_at'])
+
+            try:
+                from .consumers import broadcast_workspace_sync
+                broadcast_workspace_sync(company_user.id, 'chat.message_deleted', {
+                    'message_id': msg.id,
+                    'delete_type': 'for_everyone',
+                    'sender_id': msg.sender_id,
+                    'recipient_id': msg.recipient_id,
+                    'group_id': msg.group_id,
+                })
+            except Exception as e:
+                logger.warning(f"Could not broadcast chat.message_deleted: {e}")
+
+            return Response({'status': 'deleted', 'delete_type': 'for_everyone', 'message_id': msg.id})
 
     return Response({'error': 'Method not allowed.'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
@@ -2928,7 +2953,7 @@ def chat_contacts(request):
         ChatMessage.objects.filter(
             company_user=company_user,
             recipient=request.user
-        ).exclude(read_by=request.user)
+        ).exclude(is_deleted=True).exclude(deleted_by=request.user).exclude(read_by=request.user)
         .values('sender_id')
         .annotate(cnt=models.Count('id'))
         .values_list('sender_id', 'cnt')
@@ -2938,7 +2963,7 @@ def chat_contacts(request):
         ChatMessage.objects.filter(
             company_user=company_user,
             group__isnull=False
-        ).exclude(sender=request.user).exclude(read_by=request.user)
+        ).exclude(is_deleted=True).exclude(deleted_by=request.user).exclude(sender=request.user).exclude(read_by=request.user)
         .values('group_id')
         .annotate(cnt=models.Count('id'))
         .values_list('group_id', 'cnt')
@@ -2948,11 +2973,12 @@ def chat_contacts(request):
         company_user=company_user,
         recipient__isnull=True,
         group__isnull=True
-    ).exclude(sender=request.user).exclude(read_by=request.user).count()
+    ).exclude(is_deleted=True).exclude(deleted_by=request.user).exclude(sender=request.user).exclude(read_by=request.user).count()
 
     # 2. Pre-fetch recent messages to resolve latest message per chat without DB queries inside loops
     recent_msgs = list(
         ChatMessage.objects.filter(company_user=company_user)
+        .exclude(is_deleted=True).exclude(deleted_by=request.user)
         .order_by('-created_at')[:250]
     )
 

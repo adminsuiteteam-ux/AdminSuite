@@ -528,8 +528,11 @@ export const apiService = {
   },
   editChatMessage: (id: number, text: string) =>
     apiClient.put(`chat/messages/${id}/`, { text }),
-  deleteChatMessage: (id: number) =>
-    apiClient.delete(`chat/messages/${id}/`),
+  deleteChatMessage: (id: number, deleteType: 'for_me' | 'for_everyone' = 'for_everyone') =>
+    apiClient.delete(`chat/messages/${id}/`, {
+      data: { delete_type: deleteType },
+      params: { delete_type: deleteType },
+    }),
   pinChatMessage: (id: number) =>
     apiClient.post(`chat/messages/${id}/pin/`),
   markChatMessagePlayed: (id: number) =>

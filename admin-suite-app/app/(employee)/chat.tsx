@@ -949,14 +949,59 @@ export default function EmployeeChatScreen() {
         catch { showToast({ title: "Error", message: t("chat.couldNotPin"), type: "error" }); }
         break;
       case "delete":
-        if (selectedMsg.sender_id === user?.id) {
-          Alert.alert(t("chat.deleteMessage"), t("chat.deleteMessageConfirm"), [
-            { text: t("settings.cancel"), style: "cancel" },
-            { text: t("chat.actions.delete"), style: "destructive", onPress: async () => {
-              try { await apiService.deleteChatMessage(selectedMsg.id); await fetchMessages(); }
-              catch { showToast({ title: "Error", message: t("chat.couldNotDelete"), type: "error" }); }
-            }},
-          ]);
+        if (!selectedMsg) break;
+        const targetDeleteMsg = selectedMsg;
+        const isAuthor = targetDeleteMsg.sender_id === myId;
+        const targetId = targetDeleteMsg.id;
+
+        const performDelete = async (type: "for_me" | "for_everyone") => {
+          // Optimistically remove immediately from local state and cache
+          setMessages((prev) => prev.filter((m) => m.id !== targetId));
+          if (activeContact) {
+            const cid = String(activeContact.id);
+            if (globalEmpMessagesCache[cid]) {
+              globalEmpMessagesCache[cid] = globalEmpMessagesCache[cid].filter((m) => m.id !== targetId);
+            }
+          }
+          try {
+            await apiService.deleteChatMessage(targetId, type);
+          } catch {
+            showToast({ title: "Error", message: t("chat.couldNotDelete") || "Could not delete.", type: "error" });
+            fetchMessages();
+          }
+        };
+
+        if (isAuthor) {
+          Alert.alert(
+            t("chat.deleteMessage") || "Delete Message",
+            "Would you like to delete this message for everyone or only for yourself?",
+            [
+              { text: t("settings.cancel") || "Cancel", style: "cancel" },
+              {
+                text: "Delete for me",
+                style: "destructive",
+                onPress: () => performDelete("for_me"),
+              },
+              {
+                text: "Delete for everyone",
+                style: "destructive",
+                onPress: () => performDelete("for_everyone"),
+              },
+            ]
+          );
+        } else {
+          Alert.alert(
+            t("chat.deleteMessage") || "Delete Message",
+            "Delete this message for yourself?",
+            [
+              { text: t("settings.cancel") || "Cancel", style: "cancel" },
+              {
+                text: "Delete for me",
+                style: "destructive",
+                onPress: () => performDelete("for_me"),
+              },
+            ]
+          );
         }
         break;
     }
@@ -1046,8 +1091,8 @@ export default function EmployeeChatScreen() {
   });
 
   const displayedMessages = inChatSearchQuery.trim()
-    ? messages.filter((m) => m.display_text?.toLowerCase().includes(inChatSearchQuery.toLowerCase()))
-    : messages;
+    ? messages.filter((m) => !m.is_deleted && m.display_text?.toLowerCase().includes(inChatSearchQuery.toLowerCase()))
+    : messages.filter((m) => !m.is_deleted);
 
   // ── Render message ──
   const renderMessage = ({ item: msg }: { item: ChatMessage }) => {
@@ -1127,6 +1172,8 @@ export default function EmployeeChatScreen() {
                   {msg.attachment_type === "image" ? (
                     <Pressable
                       onPress={() => setSelectedFullImage(getMediaUrl(msg.attachment!))}
+                      onLongPress={() => !msg.is_deleted && openMessageActions(msg)}
+                      delayLongPress={350}
                       style={styles.attachmentImgPressable}
                     >
                       <Image
@@ -1138,6 +1185,8 @@ export default function EmployeeChatScreen() {
                   ) : msg.attachment_type === "video" ? (
                     <Pressable
                       onPress={() => openOrShareMedia(msg.attachment!, msg.attachment_name)}
+                      onLongPress={() => !msg.is_deleted && openMessageActions(msg)}
+                      delayLongPress={350}
                       style={styles.attachmentVideoCard}
                     >
                       <View style={styles.videoPlayCircle}>
@@ -1156,6 +1205,8 @@ export default function EmployeeChatScreen() {
                     <View style={styles.voiceNoteBubble}>
                       <Pressable
                         onPress={() => playVoiceNote(msg.id, msg.attachment!)}
+                        onLongPress={() => !msg.is_deleted && openMessageActions(msg)}
+                        delayLongPress={350}
                         style={[
                           styles.voicePlayBtn,
                           {
@@ -1172,7 +1223,11 @@ export default function EmployeeChatScreen() {
                           style={{ marginLeft: playingAudioId === msg.id ? 0 : 2 }}
                         />
                       </Pressable>
-                      <View style={styles.voiceWaveformContainer}>
+                      <Pressable
+                        onLongPress={() => !msg.is_deleted && openMessageActions(msg)}
+                        delayLongPress={350}
+                        style={styles.voiceWaveformContainer}
+                      >
                         <View style={styles.waveformBars}>
                           {[6, 12, 18, 10, 16, 22, 14, 8, 16, 20, 12, 18, 10, 6].map((h, i) => (
                             <View
@@ -1192,7 +1247,7 @@ export default function EmployeeChatScreen() {
                         <Text style={[styles.voiceDuration, { color: msg.is_played ? "#53bdeb" : (mine ? "rgba(255,255,255,0.8)" : colors.mutedForeground) }]}>
                           {playingAudioId === msg.id ? "Playing..." : "Voice Note"}
                         </Text>
-                      </View>
+                      </Pressable>
                       <Feather
                         name="mic"
                         size={14}
@@ -1211,6 +1266,8 @@ export default function EmployeeChatScreen() {
                           openOrShareMedia(msg.attachment!, msg.attachment_name);
                         }
                       }}
+                      onLongPress={() => !msg.is_deleted && openMessageActions(msg)}
+                      delayLongPress={350}
                       style={styles.attachmentDocCard}
                     >
                       <View style={[styles.docIconWrap, { backgroundColor: mine ? "rgba(255,255,255,0.25)" : colors.primary + "20" }]}>
@@ -1856,7 +1913,8 @@ export default function EmployeeChatScreen() {
               {[
                 ...(!isDisabled ? [{ id: "reply", icon: "corner-up-left", label: t("chat.actions.reply") }] : []),
                 { id: "copy", icon: "copy", label: t("chat.actions.copy") },
-                ...(selectedMsg?.sender_id === myId && !selectedMsg?.is_deleted && !isDisabled ? [{ id: "edit", icon: "edit-2", label: t("chat.actions.edit") }, { id: "delete", icon: "trash-2", label: t("chat.actions.delete"), danger: true }] : []),
+                ...(selectedMsg?.sender_id === myId && !selectedMsg?.is_deleted && !isDisabled ? [{ id: "edit", icon: "edit-2", label: t("chat.actions.edit") }] : []),
+                ...(!selectedMsg?.is_deleted && !isDisabled ? [{ id: "delete", icon: "trash-2", label: t("chat.actions.delete"), danger: true }] : []),
                 { id: "pin", icon: "bookmark", label: selectedMsg?.is_pinned ? t("chat.actions.unpin") : t("chat.actions.pin") },
               ].map((action) => (
                 <Pressable key={action.id} onPress={() => handleAction(action.id)} style={({ pressed }) => [styles.actionItem, { opacity: pressed ? 0.7 : 1, borderBottomColor: colors.border }]}>
