@@ -322,6 +322,11 @@ function getDateLabel(iso: string): string {
   return d.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" });
 }
 
+// ─── Module-Level Instant Caches ──────────────────────────────────────────────
+let globalAdminContactsCache: Contact[] = [];
+const globalAdminMessagesCache: Record<string, ChatMessage[]> = {};
+const ADMIN_CONTACTS_CACHE_KEY = "@admin_suite_chat_contacts";
+
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function AdminChatScreen() {
   const colors = useColors();
@@ -334,11 +339,11 @@ export default function AdminChatScreen() {
   const isDark = colors.isDark;
 
   // ── State ──
-  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [contacts, setContacts] = useState<Contact[]>(globalAdminContactsCache);
   const [activeContact, setActiveContact] = useState<Contact | null>(null);
   const [showCallMenu, setShowCallMenu] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [loadingContacts, setLoadingContacts] = useState(true);
+  const [loadingContacts, setLoadingContacts] = useState(globalAdminContactsCache.length === 0);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [inputText, setInputText] = useState("");
   const [sending, setSending] = useState(false);
@@ -466,6 +471,8 @@ export default function AdminChatScreen() {
   // ─── Load contacts (always sorted: most recent first) ───────────────────────
   const loadContacts = useCallback(async (silent = false) => {
     try {
+      const hasCached = globalAdminContactsCache.length > 0;
+      if (!silent && !hasCached) setLoadingContacts(true);
       const res = await apiService.getChatContacts();
       const data: Contact[] = res.data;
       // Sort by last_message_time desc (most recent at top)
@@ -474,6 +481,9 @@ export default function AdminChatScreen() {
         const tb = b.last_message_time ? new Date(b.last_message_time).getTime() : 0;
         return tb - ta;
       });
+      globalAdminContactsCache = sorted;
+      AsyncStorage.setItem(ADMIN_CONTACTS_CACHE_KEY, JSON.stringify(sorted)).catch(() => {});
+
       const group = sorted.find((c) => c.id === "group");
       if (group?.group_locked !== undefined) setGroupLocked(group.group_locked);
       // Seed the previous-times map so polling doesn't fire false notifications
@@ -492,13 +502,29 @@ export default function AdminChatScreen() {
         return sorted;
       });
     } catch {
-      if (!silent) showToast({ title: "Error", message: "Could not load contacts.", type: "error" });
+      if (!silent && globalAdminContactsCache.length === 0) showToast({ title: "Error", message: "Could not load contacts.", type: "error" });
     } finally {
-      if (!silent) setLoadingContacts(false);
+      setLoadingContacts(false);
     }
   }, []);
 
-  useEffect(() => { loadContacts(); }, [loadContacts]);
+  useEffect(() => {
+    if (globalAdminContactsCache.length === 0) {
+      AsyncStorage.getItem(ADMIN_CONTACTS_CACHE_KEY).then((cached) => {
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              globalAdminContactsCache = parsed;
+              setContacts(parsed);
+              setLoadingContacts(false);
+            }
+          } catch {}
+        }
+      });
+    }
+    loadContacts(globalAdminContactsCache.length > 0);
+  }, [loadContacts]);
 
   // ─── Background contact polling (badge + ordering + in-app notifications) ─────
   // Runs regardless of whether we're in the list or a chat view.
@@ -631,6 +657,7 @@ export default function AdminChatScreen() {
         ) {
           return prev;
         }
+        globalAdminMessagesCache[String(cid)] = combined;
         return combined;
       });
     } catch {}
@@ -647,11 +674,18 @@ export default function AdminChatScreen() {
       setMessages([]);
       return;
     }
-    setMessages([]);
+    const cid = String(activeContact.id);
+    const cached = globalAdminMessagesCache[cid];
+    if (cached && cached.length > 0) {
+      setMessages(cached);
+      setLoadingMessages(false);
+    } else {
+      setMessages([]);
+      setLoadingMessages(true);
+    }
     setReplyTo(null);
     setEditingMsg(null);
     setSelectedMsg(null);
-    setLoadingMessages(true);
     lastMsgIdRef.current = null;
     fetchMessages().finally(() => {
       if (activeContactRef.current?.id === activeContact.id) {
@@ -2323,7 +2357,7 @@ export default function AdminChatScreen() {
   };
 
   // ─── Loading state ──────────────────────────────────────────────────────────
-  if (loadingContacts) {
+  if (loadingContacts && contacts.length === 0) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background, paddingTop: insets.top }]}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -3370,7 +3404,7 @@ export default function AdminChatScreen() {
 
       {/* ── Body ── */}
       <View style={{ flex: 1 }}>
-        {loadingMessages ? (
+        {loadingMessages && messages.length === 0 ? (
           <View style={styles.center}>
             <ActivityIndicator color={colors.primary} />
           </View>

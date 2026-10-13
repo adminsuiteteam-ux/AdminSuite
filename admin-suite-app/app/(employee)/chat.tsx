@@ -172,6 +172,11 @@ function TypingDots({ color }: { color: string }) {
   );
 }
 
+// ─── Module-Level Instant Caches ──────────────────────────────────────────────
+let globalEmpContactsCache: Contact[] = [];
+const globalEmpMessagesCache: Record<string, ChatMessage[]> = {};
+const EMP_CONTACTS_CACHE_KEY = "@employee_chat_contacts";
+
 export default function EmployeeChatScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -182,10 +187,10 @@ export default function EmployeeChatScreen() {
   const myId = user?.id;
 
   // ── Core State ──
-  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [contacts, setContacts] = useState<Contact[]>(globalEmpContactsCache);
   const [activeContact, setActiveContact] = useState<Contact | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [loadingContacts, setLoadingContacts] = useState(true);
+  const [loadingContacts, setLoadingContacts] = useState(globalEmpContactsCache.length === 0);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [inputText, setInputText] = useState("");
   const [sending, setSending] = useState(false);
@@ -256,8 +261,10 @@ export default function EmployeeChatScreen() {
   }, [activeContact]);
 
   // ── Load contacts ──
-  const loadContacts = useCallback(async () => {
+  const loadContacts = useCallback(async (silent = false) => {
     try {
+      const hasCached = globalEmpContactsCache.length > 0;
+      if (!silent && !hasCached) setLoadingContacts(true);
       const res = await apiService.getChatContacts();
       const data: Contact[] = res.data;
       const sorted = [...data].sort((a, b) => {
@@ -265,6 +272,8 @@ export default function EmployeeChatScreen() {
         const tb = b.last_message_time ? new Date(b.last_message_time).getTime() : 0;
         return tb - ta;
       });
+      globalEmpContactsCache = sorted;
+      AsyncStorage.setItem(EMP_CONTACTS_CACHE_KEY, JSON.stringify(sorted)).catch(() => {});
       setContacts(sorted);
       setActiveContact((prev) => {
         if (!prev) return null;
@@ -272,13 +281,28 @@ export default function EmployeeChatScreen() {
         return updated || prev;
       });
     } catch {
-      showToast({ title: "Error", message: "Could not load contacts.", type: "error" });
+      if (!silent && globalEmpContactsCache.length === 0) showToast({ title: "Error", message: "Could not load contacts.", type: "error" });
+    } finally {
+      setLoadingContacts(false);
     }
   }, [showToast]);
 
   useEffect(() => {
-    setLoadingContacts(true);
-    loadContacts().finally(() => setLoadingContacts(false));
+    if (globalEmpContactsCache.length === 0) {
+      AsyncStorage.getItem(EMP_CONTACTS_CACHE_KEY).then((cached) => {
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              globalEmpContactsCache = parsed;
+              setContacts(parsed);
+              setLoadingContacts(false);
+            }
+          } catch {}
+        }
+      });
+    }
+    loadContacts(globalEmpContactsCache.length > 0);
   }, [loadContacts]);
 
   useEffect(() => {
@@ -319,7 +343,9 @@ export default function EmployeeChatScreen() {
         const pending = prev.filter(
           (m) => m.id < 0 && !freshMsgs.some((f) => (f.text === m.text && f.sender_id === m.sender_id) || (m.created_at && f.created_at === m.created_at))
         );
-        return [...freshMsgs, ...pending];
+        const combined = [...freshMsgs, ...pending];
+        globalEmpMessagesCache[String(cid)] = combined;
+        return combined;
       });
     } catch {}
   }, [activeContact?.id, activeContact?.type]);
@@ -331,8 +357,19 @@ export default function EmployeeChatScreen() {
   }, [fetchMessages]);
 
   useEffect(() => {
-    if (!activeContact) return;
-    setLoadingMessages(true);
+    if (!activeContact) {
+      setMessages([]);
+      return;
+    }
+    const cid = String(activeContact.id);
+    const cached = globalEmpMessagesCache[cid];
+    if (cached && cached.length > 0) {
+      setMessages(cached);
+      setLoadingMessages(false);
+    } else {
+      setMessages([]);
+      setLoadingMessages(true);
+    }
     fetchMessages().finally(() => setLoadingMessages(false));
   }, [activeContact?.id, fetchMessages]);
 
@@ -1216,7 +1253,7 @@ export default function EmployeeChatScreen() {
   };
 
   // ── Loading ──
-  if (loadingContacts) {
+  if (loadingContacts && contacts.length === 0) {
     return (<View style={[styles.center, { backgroundColor: colors.background }]}><ActivityIndicator color={colors.primary} size="large" /></View>);
   }
 
@@ -1506,7 +1543,7 @@ export default function EmployeeChatScreen() {
 
         {/* Messages */}
         <View style={{ flex: 1 }}>
-          {loadingMessages ? (
+          {loadingMessages && messages.length === 0 ? (
             <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>
           ) : (
             <FlatList
