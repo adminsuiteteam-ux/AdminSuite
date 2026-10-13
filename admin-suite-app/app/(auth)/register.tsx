@@ -369,22 +369,38 @@ export default function RegisterScreen() {
 
   const handleOtpChange = (text: string, idx: number) => {
     const cleaned = text.replace(/[^0-9]/g, "");
-    const newValues = [...otpValues];
-    
+
     if (cleaned.length === 0) {
       // User cleared the box
-      newValues.splice(idx, 1, "");
+      const newValues = [...otpValues];
+      newValues[idx] = "";
       setOtpValues(newValues);
       return;
     }
 
-    // Take the last digit typed (handles overwrite when box already has a value)
+    // Handle paste or autofill of multiple digits (e.g. "123456")
+    if (cleaned.length > 1) {
+      const digits = cleaned.slice(0, otpDigits).split("");
+      while (digits.length < otpDigits) {
+        digits.push("");
+      }
+      setOtpValues(digits);
+      const lastFilledIdx = Math.min(cleaned.length, otpDigits) - 1;
+      inputRefs.current[lastFilledIdx]?.focus();
+      if (cleaned.length >= otpDigits) {
+        handleVerifyCode(cleaned.slice(0, otpDigits));
+      }
+      return;
+    }
+
+    // Single digit typed / replaced
     const digit = cleaned.slice(-1);
-    newValues.splice(idx, 1, digit);
+    const newValues = [...otpValues];
+    newValues[idx] = digit;
     setOtpValues(newValues);
-    
+
     if (idx < otpDigits - 1) {
-      inputRefs.current.find((_, i) => i === idx + 1)?.focus();
+      inputRefs.current[idx + 1]?.focus();
     } else {
       const fullCode = newValues.join("");
       if (fullCode.length === otpDigits) {
@@ -659,7 +675,9 @@ export default function RegisterScreen() {
                   onChangeText={(text) => handleOtpChange(text, idx)}
                   onKeyPress={(e) => handleOtpKeyPress(e, idx)}
                   onFocus={() => setActiveFocusedIndex(idx)}
-                  maxLength={2}
+                  maxLength={6}
+                  textContentType="oneTimeCode"
+                  autoComplete="one-time-code"
                   keyboardType="number-pad"
                   style={[
                     styles.otpBox,

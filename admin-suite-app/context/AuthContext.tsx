@@ -246,20 +246,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    */
   const verifyEmailOTP = async (email: string, code: string, password: string) => {
     const useSupabase = await AsyncStorage.getItem("auth.use_supabase_signup");
+    let verifiedViaSupabase = false;
 
-    if (useSupabase !== "false") {
-      const { error } = await supabase.auth.verifyOtp({
-        email,
-        token: code.trim(),
-        type: 'signup',
-      });
-
-      if (error) {
-        throw new Error(error.message);
-      }
-    } else {
+    // Only try Supabase if explicitly configured for Supabase auth and sign-up was initiated via Supabase
+    if (useSupabase === "true") {
       try {
-        await apiService.verifyEmailCode({ email, code: code.trim() });
+        const { error } = await supabase.auth.verifyOtp({
+          email: email.trim().toLowerCase(),
+          token: code.trim(),
+          type: 'signup',
+        });
+        if (!error) {
+          verifiedViaSupabase = true;
+        }
+      } catch (sbErr) {
+        console.warn("Supabase OTP verify error, falling back to Django:", sbErr);
+      }
+    }
+
+    // Verify code against Django backend if not verified via Supabase
+    if (!verifiedViaSupabase) {
+      try {
+        await apiService.verifyEmailCode({ email: email.trim().toLowerCase(), code: code.trim() });
       } catch (djangoErr: any) {
         throw new Error(djangoErr.response?.data?.error || djangoErr.message || "Invalid or expired verification code.");
       }
@@ -268,10 +276,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // 2. Register on Django backend with supabase_verified flag
     try {
       const signupRes = await apiService.signup({
-        email,
+        email: email.trim().toLowerCase(),
         password,
         confirm_password: password,
-        supabase_verified: useSupabase !== "false",
+        supabase_verified: verifiedViaSupabase,
       });
 
       const token = signupRes.data.token;

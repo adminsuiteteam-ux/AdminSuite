@@ -202,6 +202,10 @@ class EmployeeSerializer(serializers.ModelSerializer):
                 data['finance_data'] = json.loads(data['finance_data'])
             except Exception:
                 pass
+        if not data.get('salary'):
+            data['salary'] = 0
+        if not data.get('performance'):
+            data['performance'] = 0
         return super().to_internal_value(data)
 
     def create(self, validated_data):

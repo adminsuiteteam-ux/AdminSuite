@@ -150,16 +150,20 @@ export const appendFileToFormData = async (
     try {
       const response = await fetch(uri);
       const blob = await response.blob();
-      const filename = uri.split('/').pop() || 'upload.jpg';
-      formData.append(fieldName, blob, filename);
+      const rawName = uri.split('/').pop() || 'upload.jpg';
+      const cleanName = rawName.includes('.') ? rawName : `${rawName}.jpg`;
+      formData.append(fieldName, blob, cleanName);
     } catch (e) {
       console.error(`Failed to append web file for ${fieldName}`, e);
     }
   } else {
-    const filename = uri.split('/').pop();
-    const match = /\.(\w+)$/.exec(filename || '');
-    const type = match ? `image/${match[1]}` : 'image/jpeg';
-    formData.append(fieldName, { uri, name: filename, type } as any);
+    const rawName = uri.split('/').pop() || `upload_${Date.now()}.jpg`;
+    const match = /\.(\w+)$/.exec(rawName);
+    const ext = match ? match[1].toLowerCase() : 'jpg';
+    const cleanName = rawName.includes('.') ? rawName : `${rawName}.${ext}`;
+    const type = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : ext === 'gif' ? 'image/gif' : 'image/jpeg';
+    const cleanUri = Platform.OS === 'android' ? uri : uri.replace('file://', '');
+    formData.append(fieldName, { uri: cleanUri, name: cleanName, type } as any);
   }
 };
 

@@ -40,6 +40,7 @@ import { useTranslation } from "react-i18next";
 import { ExpandableText } from "@/components/ExpandableText";
 import { WhatsAppEmojiPicker } from "@/components/WhatsAppEmojiPicker";
 import { playChatVoiceNote, openOrShareMedia } from "@/services/chatMedia";
+import { playMessageSentSound, playMessageReceivedSound } from "@/services/chatSounds";
 
 type Contact = {
   id: number | "group";
@@ -237,6 +238,7 @@ export default function EmployeeChatScreen() {
   const flatListRef = useRef<FlatList>(null);
   const lastTypingSentRef = useRef<number>(0);
   const draftsRef = useRef<Record<string, string>>({});
+  const lastMsgIdRef = useRef<number | null>(null);
 
   useEffect(() => {
     return () => {
@@ -298,7 +300,27 @@ export default function EmployeeChatScreen() {
       } else {
         res = await apiService.getChatMessages(cid as number);
       }
-      setMessages(res.data);
+      setMessages((prev) => {
+        const freshMsgs: ChatMessage[] = res.data || [];
+        if (freshMsgs.length > 0) {
+          const latest = freshMsgs.at(-1);
+          if (
+            latest &&
+            lastMsgIdRef.current !== null &&
+            latest.id > lastMsgIdRef.current &&
+            latest.sender_id !== myId
+          ) {
+            playMessageReceivedSound().catch(() => {});
+          }
+          if (latest) {
+            lastMsgIdRef.current = latest.id;
+          }
+        }
+        const pending = prev.filter(
+          (m) => m.id < 0 && !freshMsgs.some((f) => (f.text === m.text && f.sender_id === m.sender_id) || (m.created_at && f.created_at === m.created_at))
+        );
+        return [...freshMsgs, ...pending];
+      });
     } catch {}
   }, [activeContact?.id, activeContact?.type]);
 
@@ -451,6 +473,7 @@ export default function EmployeeChatScreen() {
     try {
       const res = await apiService.sendChatMessage(payload);
       if (res.data) {
+        playMessageSentSound().catch(() => {});
         if (activeContact) delete draftsRef.current[String(activeContact.id)];
         setMessages((prev) => prev.map((m) => (m.id === tempId ? res.data : m)));
       }
@@ -472,6 +495,7 @@ export default function EmployeeChatScreen() {
   ) => {
     if (sending) return;
     setSending(true);
+    let tempId: number | null = null;
     try {
       const formData = new FormData();
       const fname =
@@ -533,7 +557,37 @@ export default function EmployeeChatScreen() {
         formData.append("recipient_id", String(activeContact.id));
       }
       if (replyTo) formData.append("reply_to_id", String(replyTo.id));
+      const savedReply = replyTo;
       setReplyTo(null);
+
+      tempId = -Date.now();
+      const optimisticMsg: ChatMessage = {
+        id: tempId,
+        sender_id: myId ?? 0,
+        sender_name: (user as any)?.first_name
+          ? `${(user as any).first_name} ${(user as any).last_name || ""}`.trim()
+          : (user?.username || "You"),
+        sender_initials: ((user as any)?.first_name?.[0] || user?.username?.[0] || "U").toUpperCase(),
+        sender_avatar: (user as any)?.avatar || null,
+        recipient_id: activeContact?.type === "group" ? null : (activeContact?.id as number),
+        text: fallbackText,
+        display_text: fallbackText,
+        attachment: fileUri,
+        attachment_type: type,
+        attachment_name: fname,
+        attachment_size: fileSize || 0,
+        is_pinned: false,
+        is_edited: false,
+        is_deleted: false,
+        reply_to_id: savedReply ? savedReply.id : null,
+        reply_to_text: savedReply ? (savedReply.text || savedReply.display_text) : null,
+        reply_to_sender: savedReply ? savedReply.sender_name : null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        delivery_status: "sent",
+      };
+      setMessages((prev) => [...prev, optimisticMsg]);
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 40);
 
       let res;
       try {
@@ -558,7 +612,7 @@ export default function EmployeeChatScreen() {
             } else if (activeContact?.id) {
               fallbackPayload.recipient_id = Number(activeContact.id);
             }
-            if (replyTo) fallbackPayload.reply_to_id = Number(replyTo.id);
+            if (savedReply) fallbackPayload.reply_to_id = Number(savedReply.id);
             res = await apiService.sendChatMessage(fallbackPayload);
           } catch (b64Err: any) {
             console.error("[Base64 fallback upload also failed]:", b64Err);
@@ -569,11 +623,15 @@ export default function EmployeeChatScreen() {
         }
       }
 
-      if (res?.data) {
-        setMessages((prev) => [...prev, res.data]);
+      if (res?.data && tempId) {
+        playMessageSentSound().catch(() => {});
+        setMessages((prev) => prev.map((m) => (m.id === tempId ? res.data : m)));
         setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 60);
       }
     } catch (err: any) {
+      if (tempId) {
+        setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      }
       console.error("[Chat Media Upload Error]:", err?.response?.data || err?.message || err);
       const errMsg =
         err?.response?.data?.error ||
@@ -1043,7 +1101,7 @@ export default function EmployeeChatScreen() {
                   ) : msg.attachment_type === "video" ? (
                     <Pressable
                       onPress={() => openOrShareMedia(msg.attachment!, msg.attachment_name)}
-                      style={[styles.attachmentVideoCard, { backgroundColor: mine ? "rgba(255,255,255,0.18)" : (isDark ? "#27272a" : "#f4f4f5") }]}
+                      style={styles.attachmentVideoCard}
                     >
                       <View style={styles.videoPlayCircle}>
                         <Feather name="play" size={18} color="#fff" style={{ marginLeft: 2 }} />
@@ -1058,7 +1116,7 @@ export default function EmployeeChatScreen() {
                       </View>
                     </Pressable>
                   ) : msg.attachment_type === "audio" ? (
-                    <View style={[styles.voiceNoteBubble, { backgroundColor: mine ? "rgba(255,255,255,0.18)" : (isDark ? "#27272a" : "#f4f4f5") }]}>
+                    <View style={styles.voiceNoteBubble}>
                       <Pressable
                         onPress={() => playVoiceNote(msg.id, msg.attachment!)}
                         style={[
@@ -1116,7 +1174,7 @@ export default function EmployeeChatScreen() {
                           openOrShareMedia(msg.attachment!, msg.attachment_name);
                         }
                       }}
-                      style={[styles.attachmentDocCard, { backgroundColor: mine ? "rgba(255,255,255,0.18)" : (isDark ? "#27272a" : "#f4f4f5") }]}
+                      style={styles.attachmentDocCard}
                     >
                       <View style={[styles.docIconWrap, { backgroundColor: mine ? "rgba(255,255,255,0.25)" : colors.primary + "20" }]}>
                         <Feather name="file-text" size={20} color={mine ? "#fff" : colors.primary} />
@@ -2107,13 +2165,13 @@ const styles = StyleSheet.create({
   // Attachment & Voice Note styles
   attachmentImgPressable: { borderRadius: 12, overflow: "hidden", marginBottom: 4 },
   attachmentImg: { width: 220, height: 160, borderRadius: 12 },
-  attachmentVideoCard: { flexDirection: "row", alignItems: "center", padding: 10, borderRadius: 12, gap: 10, minWidth: 200, marginBottom: 4 },
+  attachmentVideoCard: { flexDirection: "row", alignItems: "center", paddingVertical: 2, paddingHorizontal: 2, gap: 10, minWidth: 200, marginBottom: 4 },
   videoPlayCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center" },
-  attachmentDocCard: { flexDirection: "row", alignItems: "center", padding: 10, borderRadius: 12, gap: 10, minWidth: 200, marginBottom: 4 },
+  attachmentDocCard: { flexDirection: "row", alignItems: "center", paddingVertical: 2, paddingHorizontal: 2, gap: 10, minWidth: 200, marginBottom: 4 },
   docIconWrap: { width: 36, height: 36, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   attachmentFileName: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   attachmentMeta: { fontSize: 11, marginTop: 2 },
-  voiceNoteBubble: { flexDirection: "row", alignItems: "center", padding: 8, borderRadius: 14, gap: 10, minWidth: 210, marginBottom: 4 },
+  voiceNoteBubble: { flexDirection: "row", alignItems: "center", paddingVertical: 2, paddingHorizontal: 2, gap: 10, minWidth: 210, marginBottom: 4 },
   voicePlayBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
   voiceWaveformContainer: { flex: 1, gap: 4 },
   waveformBars: { flexDirection: "row", alignItems: "center", gap: 2, height: 24 },

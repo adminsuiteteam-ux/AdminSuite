@@ -48,6 +48,7 @@ import { AvatarImage } from "@/components/AvatarImage";
 import { ExpandableText } from "@/components/ExpandableText";
 import { WhatsAppEmojiPicker } from "@/components/WhatsAppEmojiPicker";
 import { playChatVoiceNote, openOrShareMedia } from "@/services/chatMedia";
+import { playMessageSentSound, playMessageReceivedSound } from "@/services/chatSounds";
 
 const EMOJI_LIST = ["😀", "😂", "😍", "👍", "🔥", "🎉", "❤️", "🙌", "👏", "😮", "🤔", "😢", "🙏", "🚀", "💯", "✨", "😎", "🥳", "🤝", "👀", "💬", "✅"];
 
@@ -327,6 +328,7 @@ export default function AdminChatScreen() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const myId = user?.id;
   const { showToast } = useToast();
   const { employees } = useData();
   const isDark = colors.isDark;
@@ -590,6 +592,7 @@ export default function AdminChatScreen() {
           latestMsg.id > lastMsgIdRef.current &&
           latestMsg.sender_id !== user?.id
         ) {
+          playMessageReceivedSound().catch(() => {});
           setNotification({
             title: latestMsg.sender_name,
             body: latestMsg.display_text,
@@ -933,6 +936,7 @@ export default function AdminChatScreen() {
     try {
       const res = await apiService.sendChatMessage(payload);
       if (res.data) {
+        playMessageSentSound().catch(() => {});
         // Clear draft for this contact upon successful send
         if (sentCid) {
           delete draftsRef.current[String(sentCid)];
@@ -971,6 +975,7 @@ export default function AdminChatScreen() {
   ) => {
     if (sending) return;
     setSending(true);
+    let tempId: number | null = null;
     try {
       const formData = new FormData();
       const fname =
@@ -1032,7 +1037,33 @@ export default function AdminChatScreen() {
         formData.append("recipient_id", String(activeContact.id));
       }
       if (replyTo) formData.append("reply_to_id", String(replyTo.id));
-      setReplyTo(null);
+      tempId = -Date.now();
+      const optimisticMsg: ChatMessage = {
+        id: tempId,
+        sender_id: myId ?? 0,
+        sender_name: (user as any)?.first_name
+          ? `${(user as any).first_name} ${(user as any).last_name || ""}`.trim()
+          : (user?.username || "You"),
+        sender_initials: ((user as any)?.first_name?.[0] || user?.username?.[0] || "U").toUpperCase(),
+        sender_avatar: (user as any)?.avatar || null,
+        recipient_id: activeContact?.type === "group" ? null : (activeContact?.id as number),
+        text: fallbackText,
+        display_text: fallbackText,
+        attachment: fileUri,
+        attachment_type: type,
+        attachment_name: fname,
+        attachment_size: fileSize || 0,
+        is_pinned: false,
+        is_edited: false,
+        is_deleted: false,
+        reply_to_id: replyTo ? replyTo.id : null,
+        reply_to_text: replyTo ? (replyTo.text || replyTo.display_text) : null,
+        reply_to_sender: replyTo ? replyTo.sender_name : null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, optimisticMsg]);
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 40);
 
       let res;
       try {
@@ -1068,11 +1099,15 @@ export default function AdminChatScreen() {
         }
       }
 
-      if (res?.data) {
-        setMessages((prev) => [...prev, res.data]);
+      if (res?.data && tempId) {
+        playMessageSentSound().catch(() => {});
+        setMessages((prev) => prev.map((m) => (m.id === tempId ? res.data : m)));
         setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 60);
       }
     } catch (err: any) {
+      if (tempId) {
+        setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      }
       console.error("[Chat Media Upload Error]:", err?.response?.data || err?.message || err);
       const errMsg =
         err?.response?.data?.error ||
@@ -1563,8 +1598,6 @@ export default function AdminChatScreen() {
     return d.toLocaleDateString([], { day: "2-digit", month: "2-digit", year: "numeric" });
   };
 
-  const myId = user?.id;
-
   // totalUnreadLocal is defined above (near filteredContacts)
   const totalUnread = totalUnreadLocal;
 
@@ -1692,8 +1725,10 @@ export default function AdminChatScreen() {
   };
 
   const handleInitiateCall = async (type: "voice" | "video") => {
-    if (!activeContact || typeof activeContact.id !== "number") return;
-    return handleCallUser(activeContact.id, activeContact.name, activeContact.initials, type);
+    if (!activeContact) return;
+    const targetId = typeof activeContact.id === "number" ? activeContact.id : ((activeContact as any).employee_id || null);
+    if (!targetId) return;
+    return handleCallUser(targetId, activeContact.name, activeContact.initials, type);
   };
 
   const formatCallTimeLabel = (isoString?: string) => {
@@ -2148,7 +2183,7 @@ export default function AdminChatScreen() {
                   ) : msg.attachment_type === "video" ? (
                     <Pressable
                       onPress={() => openOrShareMedia(msg.attachment!, msg.attachment_name)}
-                      style={[styles.attachmentVideoCard, { backgroundColor: mine ? "rgba(255,255,255,0.18)" : (isDark ? "#27272a" : "#f4f4f5") }]}
+                      style={styles.attachmentVideoCard}
                     >
                       <View style={styles.videoPlayCircle}>
                         <Feather name="play" size={18} color="#fff" style={{ marginLeft: 2 }} />
@@ -2163,7 +2198,7 @@ export default function AdminChatScreen() {
                       </View>
                     </Pressable>
                   ) : msg.attachment_type === "audio" ? (
-                    <View style={[styles.voiceNoteBubble, { backgroundColor: mine ? "rgba(255,255,255,0.18)" : (isDark ? "#27272a" : "#f4f4f5") }]}>
+                    <View style={styles.voiceNoteBubble}>
                       <Pressable
                         onPress={() => playVoiceNote(msg.id, msg.attachment!)}
                         style={[
@@ -2221,7 +2256,7 @@ export default function AdminChatScreen() {
                           openOrShareMedia(msg.attachment!, msg.attachment_name);
                         }
                       }}
-                      style={[styles.attachmentDocCard, { backgroundColor: mine ? "rgba(255,255,255,0.18)" : (isDark ? "#27272a" : "#f4f4f5") }]}
+                      style={styles.attachmentDocCard}
                     >
                       <View style={[styles.docIconWrap, { backgroundColor: mine ? "rgba(255,255,255,0.25)" : colors.primary + "20" }]}>
                         <Feather name="file-text" size={20} color={mine ? "#fff" : colors.primary} />
@@ -2612,7 +2647,8 @@ export default function AdminChatScreen() {
                           <Pressable
                             onPress={() => {
                               setShowNewCallModal(false);
-                              handleCallUser(emp.id, emp.name, emp.initials, "voice");
+                              const targetUserId = (emp as any).linked_user?.id || (emp as any).linked_user_id || emp.id;
+                              handleCallUser(targetUserId, emp.name, emp.initials, "voice");
                             }}
                             style={{
                               width: 38,
@@ -2628,7 +2664,8 @@ export default function AdminChatScreen() {
                           <Pressable
                             onPress={() => {
                               setShowNewCallModal(false);
-                              handleCallUser(emp.id, emp.name, emp.initials, "video");
+                              const targetUserId = (emp as any).linked_user?.id || (emp as any).linked_user_id || emp.id;
+                              handleCallUser(targetUserId, emp.name, emp.initials, "video");
                             }}
                             style={{
                               width: 38,
@@ -5131,8 +5168,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    padding: 10,
-    borderRadius: 12,
+    paddingVertical: 2,
+    paddingHorizontal: 2,
     width: 220,
   },
   videoPlayCircle: {
@@ -5147,8 +5184,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    padding: 10,
-    borderRadius: 12,
+    paddingVertical: 2,
+    paddingHorizontal: 2,
     width: 220,
   },
   docIconWrap: {
@@ -5173,9 +5210,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 14,
+    paddingVertical: 2,
+    paddingHorizontal: 2,
     width: 220,
   },
   voicePlayBtn: {

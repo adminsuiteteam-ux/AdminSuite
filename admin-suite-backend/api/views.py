@@ -2498,7 +2498,7 @@ def _get_company_user(request):
     """
     user = request.user
     employee = getattr(user, 'employee_profile', None)
-    if employee:
+    if employee and employee.user:
         return employee.user
     return user
 
@@ -3837,14 +3837,21 @@ def chat_calls(request):
         try:
             callee = User.objects.get(pk=callee_id)
         except User.DoesNotExist:
-            return Response({'error': 'Callee not found.'}, status=status.HTTP_404_NOT_FOUND)
-    elif group_id:
+            try:
+                emp = Employee.objects.get(pk=callee_id)
+                callee = emp.linked_user or User.objects.filter(email__iexact=emp.email).first()
+            except Employee.DoesNotExist:
+                callee = None
+            if not callee:
+                return Response({'error': 'Callee user account not found.'}, status=status.HTTP_404_NOT_FOUND)
+    elif group_id and str(group_id).lower() != 'group':
         try:
             group = ChatGroup.objects.get(pk=group_id, company_user=company_user)
         except ChatGroup.DoesNotExist:
             return Response({'error': 'Group not found.'}, status=status.HTTP_404_NOT_FOUND)
     else:
-        return Response({'error': 'callee_id or group_id required.'}, status=status.HTTP_400_BAD_REQUEST)
+        # Team conference call (group_id is 'group' or omitted for company-wide room)
+        group = None
 
     # ── Create Daily.co Room ───────────────────────────────────────────────────
     daily_api_key = (

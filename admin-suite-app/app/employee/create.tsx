@@ -498,7 +498,7 @@ export default function CreateEmployeeScreen() {
       console.error("Save failed:", err);
       // Extract the most useful error message from the server response
       const data = err?.response?.data;
-      let msg = "Failed to save employee data. Please try again.";
+      let msg = "";
       if (data) {
         if (typeof data === "string") {
           if (data.includes("<html") || data.includes("<!doctype") || data.includes("<body")) {
@@ -506,10 +506,16 @@ export default function CreateEmployeeScreen() {
           } else {
             msg = data;
           }
+        } else if (data.error) {
+          msg = Array.isArray(data.error) ? data.error[0] : data.error;
         } else if (data.detail) {
           msg = data.detail;
+        } else if (data.message) {
+          msg = data.message;
         } else if (data.email) {
           msg = Array.isArray(data.email) ? data.email[0] : data.email;
+        } else if (data.personal_email) {
+          msg = Array.isArray(data.personal_email) ? data.personal_email[0] : data.personal_email;
         } else if (data.non_field_errors) {
           msg = Array.isArray(data.non_field_errors) ? data.non_field_errors[0] : data.non_field_errors;
         } else {
@@ -519,6 +525,13 @@ export default function CreateEmployeeScreen() {
             const val = data[firstKey];
             msg = `${firstKey}: ${Array.isArray(val) ? val[0] : val}`;
           }
+        }
+      }
+      if (!msg) {
+        if (err?.message === "Network Error") {
+          msg = "Network connection failed. Please check your internet connection.";
+        } else {
+          msg = err?.message || "Failed to save employee data. Please try again.";
         }
       }
       showToast({ title: "Error", message: msg, type: "error" });
