@@ -120,6 +120,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
     salary_adjustments = SalaryAdjustmentSerializer(many=True, read_only=True)
     temp_password = serializers.SerializerMethodField()
     avatar = serializers.ImageField(required=False, allow_null=True)
+    avatar_base64 = serializers.CharField(write_only=True, required=False, allow_blank=True)
     branch_name = serializers.CharField(write_only=True, required=False, allow_blank=True)
     branch_location = serializers.CharField(write_only=True, required=False, allow_blank=True)
     
@@ -132,7 +133,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
             'is_flagged', 'flag_reason', 'flag_note', 'is_archived',
             'activity_logs', 'queries', 'tasks', 'leaves', 'messages',
             'documents', 'salary_adjustments', 'linked_user', 'temp_password',
-            'branch_name', 'branch_location'
+            'branch_name', 'branch_location', 'avatar_base64'
         ]
         read_only_fields = ['user', 'linked_user']
         extra_kwargs = {
@@ -190,6 +191,20 @@ class EmployeeSerializer(serializers.ModelSerializer):
             data = data.dict()
         else:
             data = dict(data)
+
+        # Handle Base64 encoded avatar string fallback
+        avatar_b64 = data.get('avatar_base64')
+        if avatar_b64 and isinstance(avatar_b64, str):
+            import base64, time
+            from django.core.files.base import ContentFile
+            try:
+                if ';base64,' in avatar_b64:
+                    _, avatar_b64 = avatar_b64.split(';base64,', 1)
+                decoded_file = base64.b64decode(avatar_b64)
+                fname = f"avatar_{int(time.time())}.jpg"
+                data['avatar'] = ContentFile(decoded_file, name=fname)
+            except Exception:
+                pass
 
         # Handle FormData stringified JSON
         if isinstance(data.get('socials'), str):

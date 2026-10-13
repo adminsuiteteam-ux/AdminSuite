@@ -1,6 +1,7 @@
 import { FontAwesome6, Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system/legacy";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -365,7 +366,7 @@ export default function CreateEmployeeScreen() {
       mediaTypes: ["images"],
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.5,
+      quality: 0.35,
     });
     if (!result.canceled && result.assets[0]) {
       setPhotoUri(result.assets[0].uri);
@@ -390,6 +391,18 @@ export default function CreateEmployeeScreen() {
     const finalWorkEmail = (email.trim() || generateCompanyEmail(name)).trim().toLowerCase();
     const finalPersonalEmail = personalEmail.trim().toLowerCase();
 
+    // Read avatar as base64 for reliable fallback on mobile networks
+    let avatarBase64: string | null = null;
+    if (photoUri && Platform.OS !== "web" && !photoUri.startsWith("http")) {
+      try {
+        avatarBase64 = await FileSystem.readAsStringAsync(photoUri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+      } catch (b64Err) {
+        console.warn("Could not read avatar as base64:", b64Err);
+      }
+    }
+
     const formData = new FormData();
     formData.append("name", name);
     formData.append("email", finalWorkEmail);
@@ -398,6 +411,23 @@ export default function CreateEmployeeScreen() {
     }
     formData.append("phone", phone);
     formData.append("initials", name.substring(0, 2).toUpperCase());
+
+    const roleKey = (() => {
+      switch (selectedRole) {
+        case "Admin": return "BRANCH_ADMIN";
+        case "HR Manager": return "HR";
+        case "Secretary": return "SECRETARY";
+        case "Finance Officer": return "FINANCE";
+        case "Operations Manager": return "OPERATIONS";
+        case "Department Manager": return "DEPT_MANAGER";
+        case "Employee": return "EMPLOYEE";
+        default: return selectedRole;
+      }
+    })();
+
+    const finalDepartment = department === "Other" ? customDepartment.trim() : department;
+    const finalOffice = selectedRole === "Admin" ? (adminScope === "new_branch" ? branchName : "Main Office") : office;
+    const finalLocation = selectedRole === "Admin" ? (adminScope === "new_branch" ? branchLocation : (location || "Main Headquarters")) : location;
 
     if (selectedRole === "Admin") {
       formData.append("role", ROLE_KEY_MAP["Admin"]);
@@ -414,21 +444,7 @@ export default function CreateEmployeeScreen() {
         formData.append("location", location || "Main Headquarters");
       }
     } else {
-      const roleKey = (() => {
-        switch (selectedRole) {
-          case "Admin": return "BRANCH_ADMIN";
-          case "HR Manager": return "HR";
-          case "Secretary": return "SECRETARY";
-          case "Finance Officer": return "FINANCE";
-          case "Operations Manager": return "OPERATIONS";
-          case "Department Manager": return "DEPT_MANAGER";
-          case "Employee": return "EMPLOYEE";
-          default: return selectedRole;
-        }
-      })();
       formData.append("role", roleKey);
-      const finalDepartment =
-        department === "Other" ? customDepartment.trim() : department;
       formData.append("department", finalDepartment);
       formData.append("office", office);
       formData.append("status", status);
@@ -448,8 +464,6 @@ export default function CreateEmployeeScreen() {
       };
       formData.append("socials", JSON.stringify(socials));
 
-      await appendFileToFormData(formData, "avatar", photoUri);
-
       formData.append(
         "finance_data",
         JSON.stringify({
@@ -461,10 +475,47 @@ export default function CreateEmployeeScreen() {
       );
     }
 
+    if (avatarBase64) {
+      formData.append("avatar_base64", avatarBase64);
+    }
+    await appendFileToFormData(formData, "avatar", photoUri);
+
     try {
       let response;
       if (isEditing) {
-        response = await apiService.updateEmployee(editId!, formData);
+        try {
+          response = await apiService.updateEmployee(editId!, formData);
+        } catch (mErr: any) {
+          if (mErr?.message === "Network Error" || !mErr?.response) {
+            console.warn("[Multipart update failed, attempting JSON base64 fallback]");
+            const jsonPayload: any = {
+              name,
+              email: finalWorkEmail,
+              personal_email: finalPersonalEmail || undefined,
+              phone,
+              initials: name.substring(0, 2).toUpperCase(),
+              role: selectedRole === "Admin" ? ROLE_KEY_MAP["Admin"] : roleKey,
+              department: selectedRole === "Admin" ? "Administration" : finalDepartment,
+              office: finalOffice,
+              status: selectedRole === "Admin" ? "active" : status,
+              location: finalLocation,
+              bio,
+              salary: salary || "0",
+              performance: performance.toString(),
+              socials: selectedRole === "Admin" ? undefined : { whatsapp, facebook, instagram, phone: phoneHandle, linkedin, discord, twitter },
+              finance_data: selectedRole === "Admin" ? undefined : {
+                employee_owes_company: parseFloat(employeeOwes) || 0,
+                company_owes_employee: parseFloat(companyOwes) || 0,
+                shares: parseFloat(shares) || 0,
+                current_pay: parseFloat(salary) || 0,
+              },
+              avatar_base64: avatarBase64 || undefined,
+            };
+            response = await apiService.updateEmployee(editId!, jsonPayload);
+          } else {
+            throw mErr;
+          }
+        }
         await refresh();
         showToast({
           title: "Employee Updated",
@@ -473,7 +524,39 @@ export default function CreateEmployeeScreen() {
         });
         router.back();
       } else {
-        response = await apiService.createEmployee(formData);
+        try {
+          response = await apiService.createEmployee(formData);
+        } catch (mErr: any) {
+          if (mErr?.message === "Network Error" || !mErr?.response) {
+            console.warn("[Multipart create failed, attempting JSON base64 fallback]");
+            const jsonPayload: any = {
+              name,
+              email: finalWorkEmail,
+              personal_email: finalPersonalEmail || undefined,
+              phone,
+              initials: name.substring(0, 2).toUpperCase(),
+              role: selectedRole === "Admin" ? ROLE_KEY_MAP["Admin"] : roleKey,
+              department: selectedRole === "Admin" ? "Administration" : finalDepartment,
+              office: finalOffice,
+              status: selectedRole === "Admin" ? "active" : status,
+              location: finalLocation,
+              bio,
+              salary: salary || "0",
+              performance: performance.toString(),
+              socials: selectedRole === "Admin" ? undefined : { whatsapp, facebook, instagram, phone: phoneHandle, linkedin, discord, twitter },
+              finance_data: selectedRole === "Admin" ? undefined : {
+                employee_owes_company: parseFloat(employeeOwes) || 0,
+                company_owes_employee: parseFloat(companyOwes) || 0,
+                shares: parseFloat(shares) || 0,
+                current_pay: parseFloat(salary) || 0,
+              },
+              avatar_base64: avatarBase64 || undefined,
+            };
+            response = await apiService.createEmployee(jsonPayload);
+          } else {
+            throw mErr;
+          }
+        }
         const tempPassword = response.data?.temp_password;
         const confirmedWorkEmail = response.data?.email || finalWorkEmail;
         const confirmedPersonalEmail = response.data?.personal_email || finalPersonalEmail;
