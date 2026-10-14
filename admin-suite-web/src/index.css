@@ -1682,8 +1682,8 @@ input, select, textarea { font-family: inherit; }
   border-right: 8px solid var(--card);
 }
 .chat-message.outgoing .chat-message-bubble {
-  background: var(--accent);
-  color: var(--accent-foreground);
+  background: #0284c7;
+  color: #ffffff;
   border-top-right-radius: 0;
 }
 .chat-message.outgoing .chat-message-bubble::before {
@@ -1693,11 +1693,18 @@ input, select, textarea { font-family: inherit; }
   width: 0; height: 0;
   border-top: 0px solid transparent;
   border-bottom: 8px solid transparent;
-  border-left: 8px solid var(--accent);
+  border-left: 8px solid #0284c7;
 }
-/* No green theme overrides needed; color consistency using CSS vars handles both modes */
+[data-theme="dark"] .chat-message.outgoing .chat-message-bubble {
+  background: #0284c7;
+  color: #ffffff;
+}
+[data-theme="dark"] .chat-message.outgoing .chat-message-bubble::before {
+  border-left-color: #0284c7;
+}
 .chat-message-sender { font-size: 12px; color: var(--foreground); font-weight: 700; margin-bottom: 3px; }
 .chat-message-text { margin: 0; }
+.chat-message.outgoing .chat-message-text { color: #ffffff; }
 .chat-message-meta {
   position: absolute;
   bottom: 2px; right: 7px;
@@ -1707,7 +1714,18 @@ input, select, textarea { font-family: inherit; }
   font-size: 9.5px;
   color: var(--muted-foreground);
 }
-.chat-message.outgoing .chat-message-meta { color: var(--muted-foreground); opacity: 0.8; }
+.chat-message.outgoing .chat-message-meta { color: rgba(255, 255, 255, 0.85); opacity: 0.95; }
+.chat-message.outgoing .chat-message-options-btn { color: rgba(255, 255, 255, 0.85); }
+.chat-message.outgoing .chat-reply-quote {
+  background: rgba(0, 0, 0, 0.18);
+  border-left-color: #ffffff;
+}
+.chat-message.outgoing .chat-reply-quote .reply-quote-sender {
+  color: #ffffff;
+}
+.chat-message.outgoing .chat-reply-quote .reply-quote-text {
+  color: rgba(255, 255, 255, 0.9);
+}
 
 /* Options Dropdown on Message Bubble Hover */
 .chat-message-options-btn {
@@ -1944,8 +1962,8 @@ input, select, textarea { font-family: inherit; }
   height: 38px;
   border-radius: 50%;
   border: none;
-  background: rgba(255, 255, 255, 0.2);
-  color: var(--accent-foreground);
+  background: #ffffff;
+  color: #0284c7;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1954,8 +1972,8 @@ input, select, textarea { font-family: inherit; }
   transition: transform 0.15s ease, background 0.15s ease;
 }
 .chat-message.incoming .voice-play-btn {
-  background: var(--accent);
-  color: var(--accent-foreground);
+  background: #0ea5e9;
+  color: #ffffff;
 }
 .voice-play-btn:hover {
   transform: scale(1.06);
@@ -1983,7 +2001,7 @@ input, select, textarea { font-family: inherit; }
 }
 .waveform-bar {
   flex: 1;
-  background: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.4);
   border-radius: 3px;
   transition: background 0.1s ease, height 0.15s ease;
 }
@@ -1997,7 +2015,7 @@ input, select, textarea { font-family: inherit; }
   background: #ffffff;
 }
 .chat-message.incoming .waveform-bar.played {
-  background: var(--accent);
+  background: #0ea5e9;
 }
 
 .voice-meta {
@@ -2483,6 +2501,99 @@ input, select, textarea { font-family: inherit; }
 }
 .chat-lightbox-close:hover {
   background: rgba(255, 255, 255, 0.3);
+}
+
+/* --- Chat Delete Message Modal --- */
+.chat-delete-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.chat-delete-modal-card {
+  width: 90%;
+  max-width: 380px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+  text-align: center;
+  animation: fadeIn 0.15s ease;
+}
+.chat-delete-modal-icon {
+  width: 50px;
+  height: 50px;
+  border-radius: 25px;
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+  font-size: 20px;
+}
+.chat-delete-modal-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--foreground);
+  margin-bottom: 6px;
+}
+.chat-delete-modal-desc {
+  font-size: 13px;
+  color: var(--muted-foreground);
+  margin-bottom: 20px;
+  line-height: 1.45;
+}
+.chat-delete-modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.chat-delete-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 11px 16px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s;
+}
+.chat-delete-btn-for-me {
+  background: var(--secondary);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+}
+.chat-delete-btn-for-me:hover {
+  background: var(--muted);
+}
+.chat-delete-btn-everyone {
+  background: #ef4444;
+  color: #ffffff;
+}
+.chat-delete-btn-everyone:hover {
+  background: #dc2626;
+}
+.chat-delete-btn-cancel {
+  background: transparent;
+  color: var(--muted-foreground);
+  border: none;
+  padding: 8px;
+  font-size: 13px;
+  margin-top: 4px;
+  cursor: pointer;
+}
+.chat-delete-btn-cancel:hover {
+  color: var(--foreground);
 }
 
 /* ---------- Notes layout ---------- */

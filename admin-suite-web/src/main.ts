@@ -10081,16 +10081,7 @@ function _bindChatViewportEvents(): void {
             _updateComposerButtons();
           }
         } else if (action === 'delete') {
-          if (confirm('Delete this message for everyone?')) {
-            try {
-              await apiRequest(`chat/messages/${msgId}/?delete_type=for_everyone`, { method: 'DELETE' });
-              state.chatMessages = state.chatMessages.map(m => m.id === msgId ? { ...m, is_deleted: true, text: 'This message was deleted' } : m);
-              refreshChatMessages();
-              showToast('Message deleted', 'success');
-            } catch (err: any) {
-              showToast(err.message || 'Failed to delete message', 'error');
-            }
-          }
+          _openDeleteMessageModal(msgId);
         }
       }
     });
@@ -10214,6 +10205,87 @@ function _bindChatViewportEvents(): void {
       }
     });
   });
+}
+
+function _openDeleteMessageModal(msgId: number): void {
+  const msg = state.chatMessages.find((m: any) => m.id === msgId);
+  if (!msg) return;
+
+  const me = state.user;
+  const isMine = (msg.sender_id === me?.id || (msg.sender && msg.sender.id === me?.id));
+  const isAdmin = me?.role === 'admin' || me?.role === 'owner' || (me as any)?.is_superuser;
+
+  const existing = document.getElementById('chat-delete-modal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'chat-delete-modal';
+  modal.className = 'chat-delete-modal-backdrop';
+  modal.innerHTML = `
+    <div class="chat-delete-modal-card">
+      <div class="chat-delete-modal-icon">${getIconSvg('trash')}</div>
+      <div class="chat-delete-modal-title">Delete Message?</div>
+      <div class="chat-delete-modal-desc">
+        ${isMine || isAdmin
+          ? 'Would you like to delete this message for everyone or only for yourself?'
+          : 'Delete this message from your view? This action cannot be undone.'}
+      </div>
+      <div class="chat-delete-modal-actions">
+        <button class="chat-delete-btn chat-delete-btn-for-me" id="chat-delete-btn-for-me">
+          ${getIconSvg('trash')} Delete for me
+        </button>
+        ${(isMine || isAdmin) ? `
+          <button class="chat-delete-btn chat-delete-btn-everyone" id="chat-delete-btn-everyone">
+            ${getIconSvg('trash')} Delete for everyone
+          </button>
+        ` : ''}
+        <button class="chat-delete-btn-cancel" id="chat-delete-btn-cancel">Cancel</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  const closeModal = () => modal.remove();
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) closeModal();
+  });
+
+  const cancelBtn = document.getElementById('chat-delete-btn-cancel');
+  if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
+
+  const forMeBtn = document.getElementById('chat-delete-btn-for-me');
+  if (forMeBtn) {
+    forMeBtn.addEventListener('click', async () => {
+      closeModal();
+      try {
+        await apiRequest(`chat/messages/${msgId}/?delete_type=for_me`, { method: 'DELETE' });
+        state.chatMessages = state.chatMessages.filter((m: any) => m.id !== msgId);
+        refreshChatMessages();
+        showToast('Message deleted for you', 'success');
+      } catch (err: any) {
+        showToast(err.message || 'Failed to delete message', 'error');
+      }
+    });
+  }
+
+  const everyoneBtn = document.getElementById('chat-delete-btn-everyone');
+  if (everyoneBtn) {
+    everyoneBtn.addEventListener('click', async () => {
+      closeModal();
+      try {
+        await apiRequest(`chat/messages/${msgId}/?delete_type=for_everyone`, { method: 'DELETE' });
+        state.chatMessages = state.chatMessages.map((m: any) =>
+          m.id === msgId ? { ...m, is_deleted: true, text: 'This message was deleted' } : m
+        );
+        refreshChatMessages();
+        showToast('Message deleted for everyone', 'success');
+      } catch (err: any) {
+        showToast(err.message || 'Failed to delete message', 'error');
+      }
+    });
+  }
 }
 
 function renderChatProfileDrawer() {

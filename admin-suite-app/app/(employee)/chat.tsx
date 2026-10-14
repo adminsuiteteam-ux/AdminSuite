@@ -197,6 +197,7 @@ export default function EmployeeChatScreen() {
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [editingMsg, setEditingMsg] = useState<ChatMessage | null>(null);
   const [selectedMsg, setSelectedMsg] = useState<ChatMessage | null>(null);
+  const [deleteTargetMsg, setDeleteTargetMsg] = useState<ChatMessage | null>(null);
   const [showActionSheet, setShowActionSheet] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -949,63 +950,45 @@ export default function EmployeeChatScreen() {
         catch { showToast({ title: "Error", message: t("chat.couldNotPin"), type: "error" }); }
         break;
       case "delete":
-        if (!selectedMsg) break;
-        const targetDeleteMsg = selectedMsg;
-        const isAuthor = targetDeleteMsg.sender_id === myId;
-        const targetId = targetDeleteMsg.id;
-
-        const performDelete = async (type: "for_me" | "for_everyone") => {
-          // Optimistically remove immediately from local state and cache
-          setMessages((prev) => prev.filter((m) => m.id !== targetId));
-          if (activeContact) {
-            const cid = String(activeContact.id);
-            if (globalEmpMessagesCache[cid]) {
-              globalEmpMessagesCache[cid] = globalEmpMessagesCache[cid].filter((m) => m.id !== targetId);
-            }
-          }
-          try {
-            await apiService.deleteChatMessage(targetId, type);
-          } catch {
-            showToast({ title: "Error", message: t("chat.couldNotDelete") || "Could not delete.", type: "error" });
-            fetchMessages();
-          }
-        };
-
-        if (isAuthor) {
-          Alert.alert(
-            t("chat.deleteMessage") || "Delete Message",
-            "Would you like to delete this message for everyone or only for yourself?",
-            [
-              { text: t("settings.cancel") || "Cancel", style: "cancel" },
-              {
-                text: "Delete for me",
-                style: "destructive",
-                onPress: () => performDelete("for_me"),
-              },
-              {
-                text: "Delete for everyone",
-                style: "destructive",
-                onPress: () => performDelete("for_everyone"),
-              },
-            ]
-          );
-        } else {
-          Alert.alert(
-            t("chat.deleteMessage") || "Delete Message",
-            "Delete this message for yourself?",
-            [
-              { text: t("settings.cancel") || "Cancel", style: "cancel" },
-              {
-                text: "Delete for me",
-                style: "destructive",
-                onPress: () => performDelete("for_me"),
-              },
-            ]
-          );
+        if (selectedMsg) {
+          setDeleteTargetMsg(selectedMsg);
         }
         break;
     }
     setSelectedMsg(null);
+  };
+
+  const performDelete = async (targetId: number, type: "for_me" | "for_everyone") => {
+    if (type === "for_me") {
+      setMessages((prev) => prev.filter((m) => m.id !== targetId));
+    } else {
+      setMessages((prev) =>
+        prev.map((m) => (m.id === targetId ? { ...m, is_deleted: true, text: "This message was deleted", display_text: "This message was deleted" } : m))
+      );
+    }
+    if (activeContact) {
+      const cid = String(activeContact.id);
+      if (globalEmpMessagesCache[cid]) {
+        if (type === "for_me") {
+          globalEmpMessagesCache[cid] = globalEmpMessagesCache[cid].filter((m) => m.id !== targetId);
+        } else {
+          globalEmpMessagesCache[cid] = globalEmpMessagesCache[cid].map((m) =>
+            m.id === targetId ? { ...m, is_deleted: true, text: "This message was deleted", display_text: "This message was deleted" } : m
+          );
+        }
+      }
+    }
+    try {
+      await apiService.deleteChatMessage(targetId, type);
+      showToast({
+        title: "Deleted",
+        message: type === "for_everyone" ? "Message deleted for everyone." : "Message deleted for you.",
+        type: "success",
+      });
+    } catch {
+      showToast({ title: "Error", message: t("chat.couldNotDelete") || "Could not delete.", type: "error" });
+      fetchMessages();
+    }
   };
 
   // ── Report ──
@@ -1097,15 +1080,15 @@ export default function EmployeeChatScreen() {
   // ── Render message ──
   const renderMessage = ({ item: msg }: { item: ChatMessage }) => {
     const mine = msg.sender_id === myId;
-    const isBubbleDark = mine ? !isDark : isDark;
-    const bubbleBg = mine ? colors.primary : isDark ? "#27272a" : "#e4e4e7";
-    const textColor = mine ? (colors.primaryForeground || "#fff") : colors.foreground;
+    const isBubbleDark = mine ? true : isDark;
+    const bubbleBg = mine ? "#0284c7" : isDark ? "#27272a" : "#e4e4e7";
+    const textColor = mine ? "#ffffff" : colors.foreground;
 
     // High-contrast reply quote styling inside message bubble
-    const quoteBg = isBubbleDark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.05)";
-    const quoteBorderColor = isBubbleDark ? (isDark ? colors.accent : "#38bdf8") : (isDark ? colors.accent : "#2563eb");
-    const quoteNameColor = isBubbleDark ? (isDark ? "#a5b4fc" : "#93c5fd") : (isDark ? colors.accent : "#2563eb");
-    const quoteTextColor = isBubbleDark ? "rgba(255, 255, 255, 0.90)" : "#1f2937";
+    const quoteBg = mine ? "rgba(0, 0, 0, 0.2)" : isBubbleDark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.05)";
+    const quoteBorderColor = mine ? "#ffffff" : isBubbleDark ? (isDark ? colors.accent : "#38bdf8") : (isDark ? colors.accent : "#2563eb");
+    const quoteNameColor = mine ? "#ffffff" : isBubbleDark ? (isDark ? "#a5b4fc" : "#93c5fd") : (isDark ? colors.accent : "#2563eb");
+    const quoteTextColor = mine ? "rgba(255, 255, 255, 0.95)" : isBubbleDark ? "rgba(255, 255, 255, 0.90)" : "#1f2937";
 
     return (
       <SwipeableMessage onReply={() => { setReplyTo(msg); setEditingMsg(null); }} replyColor={colors.primary}>
@@ -1134,7 +1117,7 @@ export default function EmployeeChatScreen() {
                   borderBottomRightRadius: 18,
                   borderBottomLeftRadius: 18,
                   borderWidth: isDark ? 1 : 0,
-                  borderColor: isDark ? (mine ? colors.primary + "55" : "rgba(255,255,255,0.08)") : "transparent",
+                  borderColor: isDark ? (mine ? "#0369a1" : "rgba(255,255,255,0.08)") : "transparent",
                   padding: msg.attachment && msg.attachment_type === "image" && !msg.reply_to_id ? 4 : 10,
                 },
               ]}
@@ -1211,15 +1194,15 @@ export default function EmployeeChatScreen() {
                           styles.voicePlayBtn,
                           {
                             backgroundColor: msg.is_played
-                              ? "#53bdeb"
-                              : (mine ? "#fff" : "#0ea5e9"),
+                              ? (mine ? "rgba(255,255,255,0.25)" : "#53bdeb")
+                              : (mine ? "#ffffff" : "#0ea5e9"),
                           },
                         ]}
                       >
                         <Feather
                           name={playingAudioId === msg.id ? "pause" : "play"}
                           size={16}
-                          color={msg.is_played ? "#fff" : (mine ? "#0ea5e9" : "#fff")}
+                          color={msg.is_played ? "#ffffff" : (mine ? "#0284c7" : "#ffffff")}
                           style={{ marginLeft: playingAudioId === msg.id ? 0 : 2 }}
                         />
                       </Pressable>
@@ -1237,21 +1220,23 @@ export default function EmployeeChatScreen() {
                                 {
                                   height: h,
                                   backgroundColor: playingAudioId === msg.id && i % 2 === 0
-                                    ? (mine ? "#fff" : (msg.is_played ? "#53bdeb" : "#0ea5e9"))
-                                    : (msg.is_played ? "#53bdeb" : (mine ? "rgba(255,255,255,0.6)" : (isDark ? "#71717a" : "#a1a1aa"))),
+                                    ? "#ffffff"
+                                    : (mine
+                                        ? (msg.is_played ? "#ffffff" : "rgba(255,255,255,0.45)")
+                                        : (msg.is_played ? "#53bdeb" : (isDark ? "#71717a" : "#a1a1aa"))),
                                 },
                               ]}
                             />
                           ))}
                         </View>
-                        <Text style={[styles.voiceDuration, { color: msg.is_played ? "#53bdeb" : (mine ? "rgba(255,255,255,0.8)" : colors.mutedForeground) }]}>
+                        <Text style={[styles.voiceDuration, { color: mine ? "rgba(255,255,255,0.9)" : (msg.is_played ? "#53bdeb" : colors.mutedForeground) }]}>
                           {playingAudioId === msg.id ? "Playing..." : "Voice Note"}
                         </Text>
                       </Pressable>
                       <Feather
                         name="mic"
                         size={14}
-                        color={msg.is_played ? "#53bdeb" : (mine ? "rgba(255,255,255,0.75)" : "#0ea5e9")}
+                        color={mine ? "rgba(255,255,255,0.85)" : (msg.is_played ? "#53bdeb" : "#0ea5e9")}
                         style={{ alignSelf: "flex-end", marginBottom: 4 }}
                       />
                     </View>
@@ -1926,6 +1911,85 @@ export default function EmployeeChatScreen() {
           </Pressable>
         </Modal>
 
+        {/* Delete Confirmation Modal */}
+        <Modal visible={!!deleteTargetMsg} transparent animationType="fade" onRequestClose={() => setDeleteTargetMsg(null)}>
+          <Pressable style={styles.backdrop} onPress={() => setDeleteTargetMsg(null)}>
+            <Pressable style={[styles.deleteModalCard, { backgroundColor: isDark ? "#18181b" : "#ffffff", borderColor: colors.border }]} onPress={(e) => e.stopPropagation()}>
+              <View style={{ alignItems: "center", marginBottom: 16 }}>
+                <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: isDark ? "#ef444420" : "#fee2e2", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
+                  <Feather name="trash-2" size={24} color="#ef4444" />
+                </View>
+                <Text style={{ fontSize: 17, fontFamily: "Inter_700Bold", color: colors.foreground, textAlign: "center" }}>
+                  Delete Message?
+                </Text>
+                <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: colors.mutedForeground, textAlign: "center", marginTop: 4, paddingHorizontal: 12 }}>
+                  {deleteTargetMsg?.sender_id === myId
+                    ? "Would you like to delete this message for everyone or only for yourself?"
+                    : "Delete this message from your device? This cannot be undone."}
+                </Text>
+              </View>
+
+              <View style={{ gap: 10 }}>
+                <Pressable
+                  onPress={() => {
+                    const m = deleteTargetMsg;
+                    setDeleteTargetMsg(null);
+                    if (m) performDelete(m.id, "for_me");
+                  }}
+                  style={({ pressed }) => [
+                    styles.deleteOptionBtn,
+                    {
+                      backgroundColor: isDark ? "#27272a" : "#f4f4f5",
+                      opacity: pressed ? 0.7 : 1,
+                    },
+                  ]}
+                >
+                  <Feather name="user-x" size={16} color={colors.foreground} />
+                  <Text style={[styles.deleteOptionText, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                    Delete for me
+                  </Text>
+                </Pressable>
+
+                {deleteTargetMsg?.sender_id === myId && (
+                  <Pressable
+                    onPress={() => {
+                      const m = deleteTargetMsg;
+                      setDeleteTargetMsg(null);
+                      if (m) performDelete(m.id, "for_everyone");
+                    }}
+                    style={({ pressed }) => [
+                      styles.deleteOptionBtn,
+                      {
+                        backgroundColor: "#ef4444",
+                        opacity: pressed ? 0.8 : 1,
+                      },
+                    ]}
+                  >
+                    <Feather name="users" size={16} color="#ffffff" />
+                    <Text style={[styles.deleteOptionText, { color: "#ffffff", fontFamily: "Inter_600SemiBold" }]}>
+                      Delete for everyone
+                    </Text>
+                  </Pressable>
+                )}
+
+                <Pressable
+                  onPress={() => setDeleteTargetMsg(null)}
+                  style={({ pressed }) => [
+                    styles.deleteCancelBtn,
+                    {
+                      opacity: pressed ? 0.6 : 1,
+                    },
+                  ]}
+                >
+                  <Text style={{ color: colors.mutedForeground, fontSize: 14, fontFamily: "Inter_500Medium" }}>
+                    Cancel
+                  </Text>
+                </Pressable>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
+
         {/* Header ⋮ Menu */}
         <Modal visible={showHeaderMenu} transparent animationType="fade" onRequestClose={() => setShowHeaderMenu(false)}>
           <Pressable style={styles.backdrop} onPress={() => setShowHeaderMenu(false)}>
@@ -2289,4 +2353,32 @@ const styles = StyleSheet.create({
   fullImgCloseBtn: { position: "absolute", top: 48, right: 20, zIndex: 10, width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center" },
   fullImg: { width: "100%", height: "80%" },
   fullImgShareBtn: { position: "absolute", bottom: 48, right: 24, zIndex: 10, width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(255,255,255,0.25)", alignItems: "center", justifyContent: "center" },
+  deleteModalCard: {
+    width: "86%",
+    maxWidth: 360,
+    borderRadius: 20,
+    padding: 22,
+    borderWidth: 1,
+    alignSelf: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  deleteOptionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  deleteOptionText: {
+    fontSize: 14,
+  },
+  deleteCancelBtn: {
+    alignItems: "center",
+    paddingVertical: 10,
+  },
 });
