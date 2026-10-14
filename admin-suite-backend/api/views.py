@@ -3882,13 +3882,11 @@ def chat_calls(request):
     # ── Create Daily.co Room ───────────────────────────────────────────────────
     daily_api_key = (
         getattr(settings, 'DAILY_API_KEY', None)
-        or os.environ.get('DAILY_API_KEY')
-        or '3f81d666c2e8c7a25967002c7a8d543aa39350f3ddc171cb97b4e7006958575f'
+        or os.environ.get('DAILY_API_KEY', '')
     )
     daily_domain = (
         getattr(settings, 'DAILY_DOMAIN', None)
-        or os.environ.get('DAILY_DOMAIN')
-        or 'adminsuite'
+        or os.environ.get('DAILY_DOMAIN', 'adminsuite')
     )
     room_name = f"adminsuite-call-{request.user.id}-{int(django_tz.now().timestamp())}"
 

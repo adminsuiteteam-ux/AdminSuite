@@ -10,7 +10,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         username = os.environ.get('ADMIN_USERNAME', 'admin')
         email = os.environ.get('ADMIN_EMAIL', 'admin@adminsuite.app')
-        password = os.environ.get('ADMIN_PASSWORD', 'AdminDimaro2210!')
+        password = os.environ.get('ADMIN_PASSWORD')
 
         user, created = User.objects.get_or_create(
             username=username,
@@ -24,20 +24,26 @@ class Command(BaseCommand):
         )
 
         if created:
-            user.set_password(password)
-            user.save()
-            self.stdout.write(self.style.SUCCESS(
-                f'[OK] Superuser "{username}" created with email {email}.'
-            ))
+            if password:
+                user.set_password(password)
+                user.save()
+                self.stdout.write(self.style.SUCCESS(
+                    f'[OK] Superuser "{username}" created with email {email}.'
+                ))
+            else:
+                self.stdout.write(self.style.WARNING(
+                    f'[WARNING] Superuser "{username}" created without password. Set ADMIN_PASSWORD in environment.'
+                ))
         else:
-            # Always sync password and staff flags on existing user
-            user.set_password(password)
+            # Sync staff/superuser flags and update password if explicitly provided in environment
+            if password:
+                user.set_password(password)
             user.is_staff = True
             user.is_superuser = True
             user.email = email
             user.save()
             self.stdout.write(self.style.SUCCESS(
-                f'[OK] Superuser "{username}" already exists — password and flags synced.'
+                f'[OK] Superuser "{username}" exists — flags synced.'
             ))
 
         # Ensure UserProfile exists

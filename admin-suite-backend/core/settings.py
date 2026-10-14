@@ -347,11 +347,11 @@ _raw_port = os.environ.get('EMAIL_PORT') or '465'
 EMAIL_PORT = int(_raw_port)
 EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'True').lower() in ('true', '1', 'yes') or EMAIL_PORT == 465
 EMAIL_USE_TLS = False if EMAIL_USE_SSL else (os.environ.get('EMAIL_USE_TLS', 'False').lower() in ('true', '1', 'yes'))
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER') or 'adminsuiteteam@gmail.com'
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD') or 'ctlqddwhiagkpfjy'
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT') or 30)
 
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL') or 'AdminSuite <noreply@brownforte.com>'
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'AdminSuite <noreply@brownforte.com>')
 
 # ZeptoMail HTTPS Email API (Primary transactional email dispatch via verified custom domain brownforte.com)
 ZEPTOMAIL_SEND_MAIL_TOKEN = os.environ.get('ZEPTOMAIL_SEND_MAIL_TOKEN')
@@ -360,7 +360,7 @@ ZEPTOMAIL_SEND_MAIL_TOKEN = os.environ.get('ZEPTOMAIL_SEND_MAIL_TOKEN')
 BREVO_API_KEY = os.environ.get('BREVO_API_KEY')
 
 # Daily.co Real-Time Calling
-DAILY_API_KEY = os.environ.get('DAILY_API_KEY') or '3f81d666c2e8c7a25967002c7a8d543aa39350f3ddc171cb97b4e7006958575f'
-DAILY_DOMAIN = os.environ.get('DAILY_DOMAIN') or 'adminsuite'
+DAILY_API_KEY = os.environ.get('DAILY_API_KEY', '')
+DAILY_DOMAIN = os.environ.get('DAILY_DOMAIN', 'adminsuite')
 
 

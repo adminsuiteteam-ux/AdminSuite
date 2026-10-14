@@ -7,16 +7,31 @@ django.setup()
 from django.contrib.auth.models import User
 from api.models import UserProfile
 
+import sys
+import getpass
+
 def create_admin():
+    # Read password from environment or prompt securely
+    password = os.environ.get('ADMIN_PASSWORD')
+    if not password:
+        if sys.stdin.isatty():
+            password = getpass.getpass("Enter admin password: ")
+        else:
+            print("[ERROR] ADMIN_PASSWORD environment variable is required.")
+            return
+
+    username = os.environ.get('ADMIN_USERNAME', 'admin')
+    email = os.environ.get('ADMIN_EMAIL', 'admin@adminsuite.app')
+
     # Create fresh superuser admin
-    if User.objects.filter(username='admin').exists():
-        User.objects.filter(username='admin').delete()
-        print("Removed existing admin user.")
+    if User.objects.filter(username=username).exists():
+        User.objects.filter(username=username).delete()
+        print(f"Removed existing {username} user.")
 
     admin = User.objects.create_superuser(
-        username='admin',
-        email='admin@adminsuite.app',
-        password='AdminSuite@2025',
+        username=username,
+        email=email,
+        password=password,
         first_name='Admin',
         last_name='Suite',
     )
@@ -32,11 +47,11 @@ def create_admin():
     print("\n========================================")
     print("  BACKEND LOGIN CREDENTIALS")
     print("========================================")
-    print("  URL:      http://localhost:8000/")
+    print("  URL:         http://localhost:8000/")
     print("  Admin Panel: http://localhost:8000/admin/")
-    print("  Email:    admin@adminsuite.app")
-    print("  Username: admin")
-    print("  Password: AdminSuite@2025")
+    print(f"  Email:       {email}")
+    print(f"  Username:    {username}")
+    print("  Password:    [CONFIGURED VIA ENV / INPUT]")
     print("========================================\n")
 
 if __name__ == '__main__':

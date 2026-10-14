@@ -23,8 +23,8 @@ from django.views.static import serve
 from django.http import JsonResponse
 from api.views import ThrottledObtainAuthToken, export_data
 
-# Secret token to protect the setup endpoint (set via env var)
-_SETUP_TOKEN = os.environ.get('SETUP_SECRET_TOKEN', 'adminsuite-setup-9x7k2p')
+# Secret token to protect the setup endpoint (must be set via env var)
+_SETUP_TOKEN = os.environ.get('SETUP_SECRET_TOKEN', '')
 
 
 def health_check(request):
@@ -62,6 +62,9 @@ def setup_admin(request):
     """One-time endpoint to create/reset admin superuser.
     Protected by a secret token query param: /setup-admin/?token=SECRET
     """
+    if not _SETUP_TOKEN:
+        return JsonResponse({"error": "Setup endpoint is disabled. Set SETUP_SECRET_TOKEN in your environment variables."}, status=403)
+
     token = request.GET.get('token', '')
     if token != _SETUP_TOKEN:
         return JsonResponse({"error": "Forbidden"}, status=403)
@@ -72,7 +75,10 @@ def setup_admin(request):
 
         username = os.environ.get('ADMIN_USERNAME', 'admin')
         email = os.environ.get('ADMIN_EMAIL', 'admin@adminsuite.app')
-        password = os.environ.get('ADMIN_PASSWORD', 'AdminDimaro2210!')
+        password = os.environ.get('ADMIN_PASSWORD')
+
+        if not password:
+            return JsonResponse({"error": "ADMIN_PASSWORD environment variable is required."}, status=400)
 
         user, created = User.objects.get_or_create(
             username=username,

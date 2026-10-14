@@ -39,9 +39,9 @@ services:
       - key: EMAIL_USE_SSL
         value: "True"
       - key: EMAIL_HOST_USER
-        value: adminsuiteteam@gmail.com
+        sync: false
       - key: EMAIL_HOST_PASSWORD
-        value: ctlqddwhiagkpfjy
+        sync: false
       # ── Cloudinary (media storage) ───────────────────────────────────────────
       # Configure in Render Dashboard for avatar/logo uploads.
       - key: CLOUDINARY_CLOUD_NAME
