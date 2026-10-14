@@ -618,6 +618,11 @@ interface AppState {
   leaves: any[];
   chatChannels: any[];
   chatActiveChannel: any | null;
+  chatReplyTo: any | null;
+  chatStagedFiles: File[];
+  chatIsRecording: boolean;
+  chatRecordingDuration: number;
+  chatRecordingPaused: boolean;
 
   // Enterprise communication state
   wsSocket: WebSocket | null;
@@ -698,6 +703,11 @@ const state: AppState = {
   generalPollTimer: null,
   chatChannels: [],
   chatActiveChannel: null,
+  chatReplyTo: null,
+  chatStagedFiles: [],
+  chatIsRecording: false,
+  chatRecordingDuration: 0,
+  chatRecordingPaused: false,
 
   // Enterprise communication
   wsSocket: null,
@@ -1183,9 +1193,19 @@ const FA_ICONS: Record<string, string> = {
   'heart': 'fa-solid fa-heart',
   'link': 'fa-solid fa-link',
   'thumbs-down': 'fa-solid fa-thumbs-down',
-  'slash': 'fa-solid fa-ban',
   'trash-2': 'fa-solid fa-trash-can',
   'chevron-down': 'fa-solid fa-chevron-down',
+  'mic': 'fa-solid fa-microphone',
+  'mic-slash': 'fa-solid fa-microphone-slash',
+  'paperclip': 'fa-solid fa-paperclip',
+  'image': 'fa-solid fa-image',
+  'file': 'fa-solid fa-file',
+  'pin': 'fa-solid fa-thumbtack',
+  'reply': 'fa-solid fa-reply',
+  'copy': 'fa-solid fa-copy',
+  'forward': 'fa-solid fa-share',
+  'check-double': 'fa-solid fa-check-double',
+  'rotate-right': 'fa-solid fa-rotate-right',
 };
 
 function getIconSvg(name: string, _className = ''): string {
@@ -8792,14 +8812,720 @@ function _getChatContactKey(c: any): string {
   return `${c.type}:${c.id}:${chanId}`;
 }
 
-// Builds the messages HTML only (no header, no footer)
+// ============================================================
+// RICH CHAT SUBSYSTEM — Voice Notes, Audio Player, Attachments & Quotes
+// ============================================================
+
+// ─── 1. Web Audio Synthesizer (Zero-dependency sound effects) ───────────────
+let _chatAudioCtx: AudioContext | null = null;
+function getChatAudioContext(): AudioContext | null {
+  try {
+    const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!Ctx) return null;
+    if (!_chatAudioCtx) _chatAudioCtx = new Ctx();
+    if (_chatAudioCtx.state === 'suspended') _chatAudioCtx.resume().catch(() => {});
+    return _chatAudioCtx;
+  } catch {
+    return null;
+  }
+}
+
+function playChatSound(type: 'sent' | 'received' | 'record_start' | 'record_stop'): void {
+  const ctx = getChatAudioContext();
+  if (!ctx) return;
+  try {
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    if (type === 'sent') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(440, now);
+      osc.frequency.exponentialRampToValueAtTime(680, now + 0.1);
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.linearRampToValueAtTime(0, now + 0.1);
+      osc.start(now);
+      osc.stop(now + 0.1);
+    } else if (type === 'received') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, now);
+      osc.frequency.setValueAtTime(880, now + 0.08);
+      gain.gain.setValueAtTime(0.16, now);
+      gain.gain.linearRampToValueAtTime(0.16, now + 0.16);
+      gain.gain.linearRampToValueAtTime(0, now + 0.25);
+      osc.start(now);
+      osc.stop(now + 0.25);
+    } else if (type === 'record_start') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(520, now);
+      gain.gain.setValueAtTime(0.1, now);
+      gain.gain.linearRampToValueAtTime(0, now + 0.06);
+      osc.start(now);
+      osc.stop(now + 0.06);
+    } else if (type === 'record_stop') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(360, now);
+      gain.gain.setValueAtTime(0.1, now);
+      gain.gain.linearRampToValueAtTime(0, now + 0.06);
+      osc.start(now);
+      osc.stop(now + 0.06);
+    }
+  } catch {
+    // Non-fatal audio synthesizer error
+  }
+}
+
+// ─── 2. Voice Note Audio Player Engine ──────────────────────────────────────
+let _activeVoiceAudio: HTMLAudioElement | null = null;
+let _activeVoiceMsgId: number | null = null;
+let _activeVoiceSpeed = 1;
+
+function toggleVoiceNotePlayback(msgId: number, audioUrl: string): void {
+  if (!audioUrl) {
+    showToast('Voice note audio is not available', 'error');
+    return;
+  }
+
+  // If already playing this message: toggle pause/play
+  if (_activeVoiceMsgId === msgId && _activeVoiceAudio) {
+    if (_activeVoiceAudio.paused) {
+      _activeVoiceAudio.play().then(() => _setVoiceButtonState(msgId, true)).catch(() => {});
+    } else {
+      _activeVoiceAudio.pause();
+      _setVoiceButtonState(msgId, false);
+    }
+    return;
+  }
+
+  // If playing another message, pause and reset it
+  if (_activeVoiceAudio) {
+    _activeVoiceAudio.pause();
+    if (_activeVoiceMsgId !== null) {
+      _setVoiceButtonState(_activeVoiceMsgId, false);
+      _resetVoiceProgress(_activeVoiceMsgId);
+    }
+  }
+
+  _activeVoiceAudio = new Audio(getMediaUrl(audioUrl));
+  _activeVoiceAudio.playbackRate = _activeVoiceSpeed;
+  _activeVoiceMsgId = msgId;
+
+  _setVoiceButtonState(msgId, true);
+
+  _activeVoiceAudio.ontimeupdate = () => {
+    if (!_activeVoiceAudio) return;
+    const cur = _activeVoiceAudio.currentTime;
+    const dur = _activeVoiceAudio.duration || 1;
+    const progress = Math.min(100, (cur / dur) * 100);
+
+    const durEl = document.getElementById(`voice-dur-${msgId}`);
+    if (durEl) {
+      const curM = Math.floor(cur / 60);
+      const curS = String(Math.floor(cur % 60)).padStart(2, '0');
+      durEl.textContent = `${curM}:${curS}`;
+    }
+
+    const playerEl = document.querySelector(`.chat-voice-player[data-msg-id="${msgId}"]`);
+    if (playerEl) {
+      const bars = playerEl.querySelectorAll('.waveform-bar');
+      const activeBarCount = Math.floor((progress / 100) * bars.length);
+      bars.forEach((bar, idx) => {
+        if (idx <= activeBarCount) bar.classList.add('played');
+        else bar.classList.remove('played');
+      });
+    }
+  };
+
+  _activeVoiceAudio.onended = () => {
+    _setVoiceButtonState(msgId, false);
+    _resetVoiceProgress(msgId);
+    _activeVoiceAudio = null;
+    _activeVoiceMsgId = null;
+  };
+
+  _activeVoiceAudio.onerror = () => {
+    showToast('Failed to play audio file', 'error');
+    _setVoiceButtonState(msgId, false);
+    _activeVoiceAudio = null;
+    _activeVoiceMsgId = null;
+  };
+
+  _activeVoiceAudio.play().catch(() => {
+    _setVoiceButtonState(msgId, false);
+  });
+
+  // Mark played on backend
+  apiRequest(`chat/messages/${msgId}/played/`, { method: 'POST' }).catch(() => {});
+  const badge = document.querySelector(`.chat-voice-player[data-msg-id="${msgId}"] .voice-mic-badge`);
+  if (badge) {
+    badge.classList.remove('unplayed');
+    badge.classList.add('played');
+    badge.setAttribute('title', 'Played');
+  }
+}
+
+function _setVoiceButtonState(msgId: number, isPlaying: boolean): void {
+  const btn = document.querySelector(`.chat-voice-player[data-msg-id="${msgId}"] .voice-play-btn`);
+  if (btn) {
+    btn.innerHTML = getIconSvg(isPlaying ? 'pause' : 'play');
+    btn.setAttribute('title', isPlaying ? 'Pause voice note' : 'Play voice note');
+  }
+}
+
+function _resetVoiceProgress(msgId: number): void {
+  const playerEl = document.querySelector(`.chat-voice-player[data-msg-id="${msgId}"]`);
+  if (playerEl) {
+    const bars = playerEl.querySelectorAll('.waveform-bar');
+    bars.forEach(bar => bar.classList.remove('played'));
+  }
+}
+
+function seekVoiceNote(msgId: number, e: MouseEvent): void {
+  if (!_activeVoiceAudio || _activeVoiceMsgId !== msgId) return;
+  const track = e.currentTarget as HTMLElement;
+  const rect = track.getBoundingClientRect();
+  const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  _activeVoiceAudio.currentTime = ratio * (_activeVoiceAudio.duration || 0);
+}
+
+function cycleVoiceNoteSpeed(msgId: number): void {
+  if (_activeVoiceSpeed === 1) _activeVoiceSpeed = 1.5;
+  else if (_activeVoiceSpeed === 1.5) _activeVoiceSpeed = 2;
+  else _activeVoiceSpeed = 1;
+
+  if (_activeVoiceAudio) {
+    _activeVoiceAudio.playbackRate = _activeVoiceSpeed;
+  }
+  const speedBtn = document.querySelector(`.chat-voice-player[data-msg-id="${msgId}"] .voice-speed-btn`);
+  if (speedBtn) {
+    speedBtn.textContent = `${_activeVoiceSpeed}x`;
+  }
+}
+
+// ─── 3. Voice Note Recording Engine (HTML5 MediaRecorder) ───────────────────
+let _mediaRecorder: MediaRecorder | null = null;
+let _audioChunks: Blob[] = [];
+let _recordTimer: any = null;
+let _audioStream: MediaStream | null = null;
+let _recordElapsedSeconds = 0;
+
+async function startVoiceRecording(): Promise<void> {
+  try {
+    _audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    let mimeType = 'audio/webm;codecs=opus';
+    if (!MediaRecorder.isTypeSupported(mimeType)) {
+      if (MediaRecorder.isTypeSupported('audio/webm')) mimeType = 'audio/webm';
+      else if (MediaRecorder.isTypeSupported('audio/mp4')) mimeType = 'audio/mp4';
+      else mimeType = '';
+    }
+
+    _mediaRecorder = mimeType ? new MediaRecorder(_audioStream, { mimeType }) : new MediaRecorder(_audioStream);
+    _audioChunks = [];
+
+    _mediaRecorder.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) _audioChunks.push(e.data);
+    };
+
+    _mediaRecorder.start(100);
+    state.chatIsRecording = true;
+    state.chatRecordingPaused = false;
+    _recordElapsedSeconds = 0;
+
+    playChatSound('record_start');
+    _updateVoiceRecordingUI(true);
+
+    if (_recordTimer) clearInterval(_recordTimer);
+    _recordTimer = setInterval(() => {
+      if (!state.chatRecordingPaused) {
+        _recordElapsedSeconds++;
+        const timerEl = document.getElementById('chat-rec-timer');
+        if (timerEl) {
+          const m = String(Math.floor(_recordElapsedSeconds / 60)).padStart(2, '0');
+          const s = String(_recordElapsedSeconds % 60).padStart(2, '0');
+          timerEl.textContent = `${m}:${s}`;
+        }
+      }
+    }, 1000);
+  } catch (err: any) {
+    console.error('Microphone access failed:', err);
+    showToast('Could not access microphone. Please allow microphone permissions in your browser.', 'error');
+  }
+}
+
+function cancelVoiceRecording(): void {
+  if (_recordTimer) clearInterval(_recordTimer);
+  if (_mediaRecorder && _mediaRecorder.state !== 'inactive') {
+    _mediaRecorder.stop();
+  }
+  if (_audioStream) {
+    _audioStream.getTracks().forEach(t => t.stop());
+    _audioStream = null;
+  }
+  _mediaRecorder = null;
+  _audioChunks = [];
+  state.chatIsRecording = false;
+  state.chatRecordingPaused = false;
+  playChatSound('record_stop');
+  _updateVoiceRecordingUI(false);
+}
+
+function togglePauseVoiceRecording(): void {
+  if (!_mediaRecorder) return;
+  const pauseBtn = document.getElementById('chat-rec-pause-btn');
+  if (state.chatRecordingPaused) {
+    _mediaRecorder.resume();
+    state.chatRecordingPaused = false;
+    if (pauseBtn) pauseBtn.innerHTML = getIconSvg('pause');
+  } else {
+    _mediaRecorder.pause();
+    state.chatRecordingPaused = true;
+    if (pauseBtn) pauseBtn.innerHTML = getIconSvg('play');
+  }
+}
+
+async function stopAndSendVoiceRecording(): Promise<void> {
+  if (!_mediaRecorder || _mediaRecorder.state === 'inactive') return;
+  if (_recordTimer) clearInterval(_recordTimer);
+
+  const durationSec = _recordElapsedSeconds;
+  const m = String(Math.floor(durationSec / 60)).padStart(2, '0');
+  const s = String(durationSec % 60).padStart(2, '0');
+  const durationStr = `${m}:${s}`;
+
+  _mediaRecorder.onstop = async () => {
+    try {
+      const mime = _mediaRecorder?.mimeType || 'audio/webm';
+      const ext = mime.includes('mp4') ? 'm4a' : 'webm';
+      const audioBlob = new Blob(_audioChunks, { type: mime });
+      const audioFile = new File([audioBlob], `voice_${Date.now()}.${ext}`, { type: mime });
+
+      if (_audioStream) {
+        _audioStream.getTracks().forEach(t => t.stop());
+        _audioStream = null;
+      }
+      _mediaRecorder = null;
+      _audioChunks = [];
+      state.chatIsRecording = false;
+      state.chatRecordingPaused = false;
+      _updateVoiceRecordingUI(false);
+
+      if (durationSec < 1) {
+        showToast('Voice note was too short', 'info');
+        return;
+      }
+
+      await _dispatchChatPayload({
+        attachment: audioFile,
+        attachment_type: 'audio',
+        attachment_name: `Voice Note (${durationStr})`,
+        text: '[Voice Note]'
+      });
+    } catch (err: any) {
+      showToast(err.message || 'Failed to send voice note', 'error');
+    }
+  };
+
+  _mediaRecorder.stop();
+}
+
+function _updateVoiceRecordingUI(isRecording: boolean): void {
+  const inputWrapper = document.getElementById('chat-input-wrapper');
+  const recorderBar = document.getElementById('chat-voice-recorder');
+  const micBtn = document.getElementById('chat-mic-btn');
+  const sendBtn = document.getElementById('chat-send-message-btn');
+  const attachBtn = document.getElementById('chat-attach-btn');
+  const emojiBtn = document.getElementById('chat-emoji-btn');
+
+  if (isRecording) {
+    if (inputWrapper) inputWrapper.style.display = 'none';
+    if (recorderBar) recorderBar.style.display = 'flex';
+    if (micBtn) micBtn.style.display = 'none';
+    if (sendBtn) sendBtn.style.display = 'none';
+    if (attachBtn) (attachBtn as HTMLElement).style.display = 'none';
+    if (emojiBtn) (emojiBtn as HTMLElement).style.display = 'none';
+    const timerEl = document.getElementById('chat-rec-timer');
+    if (timerEl) timerEl.textContent = '00:00';
+  } else {
+    if (inputWrapper) inputWrapper.style.display = 'flex';
+    if (recorderBar) recorderBar.style.display = 'none';
+    if (attachBtn) (attachBtn as HTMLElement).style.display = 'flex';
+    if (emojiBtn) (emojiBtn as HTMLElement).style.display = 'flex';
+    _updateComposerButtons();
+  }
+}
+
+// ─── 4. Attachment Staging & Helpers ─────────────────────────────────────────
+function _stageFiles(files: FileList | File[]): void {
+  const newFiles = Array.from(files);
+  if (!newFiles.length) return;
+  state.chatStagedFiles = [...(state.chatStagedFiles || []), ...newFiles];
+  _renderStagedPreviewsContainer();
+  _updateComposerButtons();
+}
+
+function _removeStagedFile(idx: number): void {
+  if (!state.chatStagedFiles) return;
+  state.chatStagedFiles.splice(idx, 1);
+  _renderStagedPreviewsContainer();
+  _updateComposerButtons();
+}
+
+function _clearStagedFiles(): void {
+  state.chatStagedFiles = [];
+  _renderStagedPreviewsContainer();
+  _updateComposerButtons();
+}
+
+function _renderStagedPreviewsContainer(): void {
+  const existing = document.getElementById('chat-staged-previews');
+  if (existing) existing.remove();
+
+  if (!state.chatStagedFiles || state.chatStagedFiles.length === 0) return;
+
+  const footer = document.getElementById('chat-footer-bar');
+  if (!footer) return;
+
+  const previewsHtml = `
+    <div class="chat-staged-previews" id="chat-staged-previews">
+      ${state.chatStagedFiles.map((file, idx) => {
+        const isImg = file.type.startsWith('image/');
+        const url = isImg ? URL.createObjectURL(file) : '';
+        const sizeStr = file.size > 1048576 ? `${(file.size / 1048576).toFixed(1)} MB` : `${Math.round(file.size / 1024)} KB`;
+        return `
+          <div class="staged-item">
+            ${isImg ? `<img src="${url}" class="staged-thumb" alt="${sanitizeHtml(file.name)}">` : `<div style="font-size:18px;">📄</div>`}
+            <div class="staged-file-info">
+              <span class="staged-file-name">${sanitizeHtml(file.name)}</span>
+              <span class="staged-file-size">${sizeStr}</span>
+            </div>
+            <button class="staged-remove-btn" data-action="remove-staged" data-idx="${idx}" title="Remove file">${getIconSvg('x')}</button>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+  footer.insertAdjacentHTML('beforebegin', DOMPurify.sanitize(previewsHtml));
+
+  // Bind staged remove buttons
+  const container = document.getElementById('chat-staged-previews');
+  if (container) {
+    container.querySelectorAll('[data-action="remove-staged"]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const idx = Number((btn as HTMLElement).dataset.idx);
+        _removeStagedFile(idx);
+      });
+    });
+  }
+}
+
+function _updateComposerButtons(): void {
+  const input = document.getElementById('chat-message-input-field') as HTMLInputElement;
+  const micBtn = document.getElementById('chat-mic-btn');
+  const sendBtn = document.getElementById('chat-send-message-btn');
+  if (!micBtn || !sendBtn) return;
+
+  const hasText = input && input.value.trim().length > 0;
+  const hasFiles = state.chatStagedFiles && state.chatStagedFiles.length > 0;
+
+  if (hasText || hasFiles) {
+    micBtn.style.display = 'none';
+    sendBtn.style.display = 'flex';
+  } else {
+    micBtn.style.display = 'flex';
+    sendBtn.style.display = 'none';
+  }
+}
+
+// ─── 5. Reply Quote Bar Helpers ─────────────────────────────────────────────
+function _renderReplyBarContainer(): void {
+  const existing = document.getElementById('chat-reply-bar');
+  if (existing) existing.remove();
+
+  if (!state.chatReplyTo) return;
+
+  const footer = document.getElementById('chat-footer-bar');
+  if (!footer) return;
+
+  const r = state.chatReplyTo;
+  const author = r.sender_name || (r.sender ? (r.sender.name || r.sender.username) : 'Message');
+  const snippet = r.text || (r.attachment_name ? `📎 ${r.attachment_name}` : 'Attachment');
+
+  const replyHtml = `
+    <div class="chat-reply-bar" id="chat-reply-bar">
+      <div class="reply-bar-content">
+        <span class="reply-bar-author">Replying to ${sanitizeHtml(author)}</span>
+        <span class="reply-bar-text">${sanitizeHtml(snippet)}</span>
+      </div>
+      <button class="reply-bar-close" id="chat-reply-cancel-btn" title="Cancel reply">${getIconSvg('x')}</button>
+    </div>
+  `;
+  footer.insertAdjacentHTML('beforebegin', DOMPurify.sanitize(replyHtml));
+
+  const cancelBtn = document.getElementById('chat-reply-cancel-btn');
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', () => {
+      state.chatReplyTo = null;
+      _renderReplyBarContainer();
+    });
+  }
+
+  const input = document.getElementById('chat-message-input-field');
+  if (input) input.focus();
+}
+
+// ─── 6. Image Lightbox Helper ───────────────────────────────────────────────
+function openImageLightbox(src: string): void {
+  closeImageLightbox();
+  const lightbox = document.createElement('div');
+  lightbox.className = 'chat-lightbox-overlay';
+  lightbox.id = 'chat-lightbox-modal';
+  lightbox.innerHTML = `
+    <button class="chat-lightbox-close" id="chat-lightbox-close-btn" title="Close">${getIconSvg('x')}</button>
+    <img src="${sanitizeHtml(src)}" class="chat-lightbox-img" alt="Enlarged view">
+  `;
+  lightbox.addEventListener('click', (e) => {
+    if (e.target === lightbox || (e.target as HTMLElement).closest('#chat-lightbox-close-btn')) {
+      closeImageLightbox();
+    }
+  });
+  document.body.appendChild(lightbox);
+}
+
+function closeImageLightbox(): void {
+  const existing = document.getElementById('chat-lightbox-modal');
+  if (existing) existing.remove();
+}
+
+// ─── 7. Unified Message Dispatcher ──────────────────────────────────────────
+async function _dispatchChatPayload(data: {
+  text?: string;
+  attachment?: File;
+  attachment_type?: string;
+  attachment_name?: string;
+}): Promise<void> {
+  const c = state.chatActiveContact;
+  if (!c) return;
+
+  const text = (data.text || '').trim();
+  const file = data.attachment;
+  if (!text && !file) return;
+
+  const replyTo = state.chatReplyTo;
+  state.chatReplyTo = null;
+  _renderReplyBarContainer();
+
+  if (file) {
+    const formData = new FormData();
+    formData.append('attachment', file, file.name);
+    formData.append('attachment_name', data.attachment_name || file.name);
+    formData.append('attachment_type', data.attachment_type || 'document');
+    formData.append('text', text || data.attachment_name || file.name);
+
+    if (c.type === 'private' || c.type === 'dm') {
+      formData.append('recipient_id', String(c.id));
+    } else if (c.id !== 'group') {
+      formData.append('group_id', String(c.id));
+    }
+    if (state.chatActiveChannel) {
+      formData.append('channel_id', String(state.chatActiveChannel.id));
+    }
+    if (replyTo) {
+      formData.append('reply_to_id', String(replyTo.id));
+    }
+
+    const tempId = -Date.now();
+    const optMsg: any = {
+      id: tempId,
+      sender_id: state.user?.id || 0,
+      sender_name: state.user?.name || state.user?.username || 'You',
+      sender_initials: (state.user?.name || state.user?.username || 'U').slice(0, 2).toUpperCase(),
+      sender_avatar: state.user?.avatar || null,
+      text: text || data.attachment_name || file.name,
+      attachment: URL.createObjectURL(file),
+      attachment_type: data.attachment_type || 'document',
+      attachment_name: data.attachment_name || file.name,
+      attachment_size: file.size,
+      reply_to_id: replyTo ? replyTo.id : null,
+      reply_to_sender: replyTo ? (replyTo.sender_name || (replyTo.sender?.name || replyTo.sender?.username)) : null,
+      reply_to_text: replyTo ? replyTo.text : null,
+      is_pinned: false,
+      is_edited: false,
+      is_deleted: false,
+      reactions: [],
+      delivery_status: 'sent',
+      created_at: new Date().toISOString(),
+    };
+
+    state.chatMessages = [...state.chatMessages, optMsg];
+    refreshChatMessages();
+    playChatSound('sent');
+
+    try {
+      const sentMsg = await apiRequest('chat/send/', {
+        method: 'POST',
+        body: formData,
+      });
+      if (sentMsg && sentMsg.id) {
+        state.chatMessages = state.chatMessages.map(m => m.id === tempId ? sentMsg : m);
+        refreshChatMessages();
+      }
+    } catch (err: any) {
+      state.chatMessages = state.chatMessages.filter(m => m.id !== tempId);
+      refreshChatMessages();
+      showToast(err.message || 'Failed to upload attachment', 'error');
+    }
+  } else {
+    // Pure text message
+    if (state.wsSocket && state.wsSocket.readyState === WebSocket.OPEN) {
+      const payload: any = { type: 'chat.message', text };
+      if (c.type === 'private' || c.type === 'dm') payload.recipient_id = c.id;
+      else if (c.id !== 'group') payload.group_id = c.id;
+      if (state.chatActiveChannel) payload.channel_id = state.chatActiveChannel.id;
+      if (replyTo) payload.reply_to_id = replyTo.id;
+      wsSend(payload);
+      playChatSound('sent');
+      return;
+    }
+
+    const body: any = { text };
+    if (c.type === 'private' || c.type === 'dm') body.recipient_id = c.id;
+    else if (c.id !== 'group') body.group_id = c.id;
+    if (state.chatActiveChannel) body.channel_id = state.chatActiveChannel.id;
+    if (replyTo) body.reply_to_id = replyTo.id;
+
+    playChatSound('sent');
+    const sentMsg = await apiRequest('chat/send/', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+    if (sentMsg && sentMsg.id) {
+      const exists = state.chatMessages.find((m: any) => m.id === sentMsg.id);
+      if (!exists) {
+        state.chatMessages = [...state.chatMessages, sentMsg];
+        refreshChatMessages();
+      }
+    }
+  }
+}
+
+// ─── 8. Rich Message Helpers for Bubble Rendering ───────────────────────────
+function _isVoiceNote(m: any): boolean {
+  if (m.attachment_type === 'audio') return true;
+  if (m.text === '[Voice Note]') return true;
+  const att = (m.attachment || m.attachment_name || '').toLowerCase();
+  return att.endsWith('.m4a') || att.endsWith('.mp3') || att.endsWith('.ogg') || att.endsWith('.wav') || att.endsWith('.webm') || att.includes('voice_');
+}
+
+function _renderVoiceNotePlayer(m: any, isOutgoing: boolean): string {
+  const audioUrl = m.attachment || '';
+  const dur = m.attachment_name?.match(/\((.*?)\)/)?.[1] || '0:15';
+  const played = m.is_played || isOutgoing;
+  const barHeights = [10, 16, 24, 12, 18, 22, 14, 20, 26, 16, 12, 18, 24, 14, 20, 26, 18, 14, 22, 16, 12, 8];
+  const barsHtml = barHeights.map((h, i) => `
+    <span class="waveform-bar ${i < 6 && played ? 'played' : ''}" style="height:${h}px;" data-bar-idx="${i}"></span>
+  `).join('');
+
+  return `
+    <div class="chat-voice-player" data-msg-id="${m.id}" data-audio-url="${sanitizeHtml(audioUrl)}">
+      <button class="voice-play-btn" type="button" data-action="toggle-audio" data-msg-id="${m.id}" title="Play voice note">
+        ${getIconSvg('play')}
+      </button>
+      <div class="voice-waveform-track" data-action="seek-audio" data-msg-id="${m.id}">
+        <div class="waveform-bars">${barsHtml}</div>
+      </div>
+      <div class="voice-meta">
+        <span class="voice-duration" id="voice-dur-${m.id}">${sanitizeHtml(dur)}</span>
+        <button class="voice-speed-btn" type="button" data-action="toggle-speed" data-msg-id="${m.id}">1x</button>
+      </div>
+      <div class="voice-mic-badge ${played ? 'played' : 'unplayed'}" title="${played ? 'Listened' : 'New Voice Note'}">
+        ${getIconSvg('mic')}
+      </div>
+    </div>
+  `;
+}
+
+function _renderAttachmentHtml(m: any, isOutgoing: boolean): string {
+  if (!m.attachment) return '';
+  const attUrl = getMediaUrl(m.attachment);
+  const attType = m.attachment_type || '';
+  const attName = m.attachment_name || 'attachment';
+  const attSize = m.attachment_size ? (m.attachment_size > 1048576 ? `${(m.attachment_size / 1048576).toFixed(1)} MB` : `${Math.round(m.attachment_size / 1024)} KB`) : '';
+
+  if (_isVoiceNote(m)) {
+    return _renderVoiceNotePlayer(m, isOutgoing);
+  }
+
+  if (attType === 'image' || attUrl.match(/\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i)) {
+    return `
+      <div class="chat-msg-media">
+        <img src="${sanitizeHtml(attUrl)}" class="chat-msg-image" alt="${sanitizeHtml(attName)}" data-action="open-lightbox" data-img-url="${sanitizeHtml(attUrl)}" loading="lazy">
+      </div>
+    `;
+  }
+
+  if (attType === 'video' || attUrl.match(/\.(mp4|mov|webm|mkv)(\?.*)?$/i)) {
+    return `
+      <div class="chat-msg-media">
+        <video src="${sanitizeHtml(attUrl)}" controls class="chat-msg-video" preload="metadata"></video>
+      </div>
+    `;
+  }
+
+  const docExt = attName.split('.').pop()?.toUpperCase() || 'FILE';
+  return `
+    <a href="${sanitizeHtml(attUrl)}" target="_blank" download="${sanitizeHtml(attName)}" class="chat-msg-doc" title="Download ${sanitizeHtml(attName)}">
+      <div class="chat-doc-icon">${getIconSvg('file')}</div>
+      <div class="chat-doc-info">
+        <span class="chat-doc-name">${sanitizeHtml(attName)}</span>
+        <span class="chat-doc-size">${sanitizeHtml(docExt)}${attSize ? ` · ${attSize}` : ''}</span>
+      </div>
+      <span style="margin-left:auto; opacity:0.6;">${getIconSvg('download')}</span>
+    </a>
+  `;
+}
+
+function _renderReplyQuote(m: any): string {
+  const replyId = m.reply_to_id || (m.reply_to ? m.reply_to.id : null);
+  const replySender = m.reply_to_sender || (m.reply_to?.sender ? (m.reply_to.sender.name || m.reply_to.sender.username) : 'Reply');
+  const replyText = m.reply_to_text || m.reply_to?.text || '';
+  if (!replyId && !replyText) return '';
+
+  return `
+    <div class="chat-reply-quote" data-action="scroll-to-msg" data-target-id="${replyId || ''}" title="Jump to original message">
+      <div class="reply-quote-sender">${sanitizeHtml(replySender)}</div>
+      <div class="reply-quote-text">${sanitizeHtml(replyText || '[Attachment]')}</div>
+    </div>
+  `;
+}
+
+function _renderPinnedBanner(): string {
+  const pinned = (state.chatMessages || []).find((m: any) => m.is_pinned);
+  if (!pinned) return '';
+  const text = pinned.text || (pinned.attachment_name ? `📎 ${pinned.attachment_name}` : 'Pinned message');
+  return `
+    <div class="chat-pinned-banner" id="chat-pinned-banner" data-action="scroll-to-msg" data-target-id="${pinned.id}">
+      <div class="pinned-banner-left">
+        <span class="pinned-banner-icon">${getIconSvg('pin')}</span>
+        <span class="pinned-banner-title">Pinned:</span>
+        <span class="pinned-banner-text">${sanitizeHtml(text)}</span>
+      </div>
+      <button class="pinned-banner-close" data-action="unpin-msg" data-msg-id="${pinned.id}" title="Unpin message">${getIconSvg('x')}</button>
+    </div>
+  `;
+}
+
+// ─── 9. Message List Builder (Full Rich Support) ─────────────────────────────
+
 function _buildMessagesHtml(c: any): string {
   let messages = state.chatMessages || [];
   if ((state as any).chatMessageSearchQuery) {
     const q = (state as any).chatMessageSearchQuery.toLowerCase();
     messages = messages.filter((m: any) => {
       const senderName = m.sender_name || (m.sender ? (m.sender.name || m.sender.username) : 'System');
-      return m.text.toLowerCase().includes(q) || senderName.toLowerCase().includes(q);
+      return (m.text || '').toLowerCase().includes(q) || senderName.toLowerCase().includes(q);
     });
   }
 
@@ -8840,23 +9566,49 @@ function _buildMessagesHtml(c: any): string {
       dateDivider = `<div class="chat-date-separator"><span>${sanitizeHtml(displayDate)}</span></div>`;
     }
 
+    const isVoice = _isVoiceNote(m);
+    const textToShow = m.is_deleted
+      ? '<span style="font-style:italic;opacity:0.5;">This message was deleted</span>'
+      : (isVoice ? '' : (m.text === m.attachment_name ? '' : sanitizeHtml(m.text || '')));
+
+    const quoteHtml = _renderReplyQuote(m);
+    const attachmentHtml = _renderAttachmentHtml(m, isOutgoing);
+
+    const pinnedBadge = m.is_pinned
+      ? `<span style="font-size:10px; color:#f59e0b; margin-right:4px;" title="Pinned">${getIconSvg('pin')}</span>`
+      : '';
+
+    const reactionsHtml = m.reactions && m.reactions.length
+      ? `<div class="msg-reactions" style="display:flex; gap:4px; margin-top:4px; flex-wrap:wrap;">
+          ${renderReactionChips(m)}
+        </div>`
+      : '';
+
     const bubbleHtml = `
-      <div class="chat-message ${isOutgoing ? 'outgoing' : 'incoming'}">
+      <div class="chat-message ${isOutgoing ? 'outgoing' : 'incoming'}" id="chat-msg-${m.id}">
         ${!isOutgoing && c.type === 'group' ? `<div class="chat-contact-avatar" style="width:32px; height:32px; font-size:11px; margin-top:2px; flex-shrink:0;">${sanitizeHtml(initials)}</div>` : ''}
-        <div class="chat-message-bubble" data-msg-id="${m.id}" data-msg-text="${encodeURIComponent(m.text)}">
+        <div class="chat-message-bubble" data-msg-id="${m.id}" data-msg-text="${encodeURIComponent(m.text || '')}">
           ${!isOutgoing && c.type === 'group' ? `<div class="chat-message-sender">${senderName}</div>` : ''}
-          <p class="chat-message-text">${sanitizeHtml(m.text)}</p>
+          ${quoteHtml}
+          ${attachmentHtml}
+          ${textToShow ? `<p class="chat-message-text">${textToShow}</p>` : ''}
+          ${reactionsHtml}
           <button class="chat-message-options-btn" title="Options">${getIconSvg('chevron-down')}</button>
           <div class="chat-message-dropdown">
-            <div class="chat-message-dropdown-item" data-action="reply">Reply</div>
-            <div class="chat-message-dropdown-item" data-action="edit">Edit</div>
-            <div class="chat-message-dropdown-item" data-action="delete">Delete</div>
-            <div class="chat-message-dropdown-item" data-action="copy">Copy</div>
-            <div class="chat-message-dropdown-item" data-action="forward">Forward</div>
-            <div class="chat-message-dropdown-item" data-action="pin">Pin</div>
+            <div style="display:flex; gap:6px; padding:6px 10px; border-bottom:1px solid var(--border); font-size:15px; cursor:default;">
+              ${['👍','❤️','😂','😮','😢','🔥'].map(e => `
+                <span class="emoji-quick-react" data-action="quick-react" data-emoji="${e}" data-msg-id="${m.id}" style="cursor:pointer; transition:transform 0.15s;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'">${e}</span>
+              `).join('')}
+            </div>
+            <div class="chat-message-dropdown-item" data-action="reply" data-msg-id="${m.id}">${getIconSvg('reply')} Reply</div>
+            <div class="chat-message-dropdown-item" data-action="copy" data-msg-id="${m.id}">${getIconSvg('copy')} Copy</div>
+            <div class="chat-message-dropdown-item" data-action="pin" data-msg-id="${m.id}">${getIconSvg('pin')} ${m.is_pinned ? 'Unpin' : 'Pin'}</div>
+            ${isOutgoing && !m.is_deleted ? `<div class="chat-message-dropdown-item" data-action="edit" data-msg-id="${m.id}">${getIconSvg('edit')} Edit</div>` : ''}
+            <div class="chat-message-dropdown-item text-danger" style="color:var(--danger);" data-action="delete" data-msg-id="${m.id}">${getIconSvg('trash')} Delete</div>
           </div>
           <div class="chat-message-meta">
-            <span class="chat-message-time">${formattedTime}</span>
+            ${pinnedBadge}
+            <span class="chat-message-time">${formattedTime}${m.is_edited ? ' (edited)' : ''}</span>
             ${isOutgoing ? doubleCheckSvg : ''}
           </div>
         </div>
@@ -8866,7 +9618,7 @@ function _buildMessagesHtml(c: any): string {
   }).join('');
 }
 
-// Full render — called only when switching contacts
+// ─── 10. Chat Viewport Renderer ─────────────────────────────────────────────
 function renderChatViewport(viewportContainer: HTMLElement) {
   const c = state.chatActiveContact;
   let presenceStatus = 'offline';
@@ -8897,7 +9649,7 @@ function renderChatViewport(viewportContainer: HTMLElement) {
         </button>
         <div class="chat-contact-avatar-wrapper">
           <div class="chat-contact-avatar" style="width:40px; height:40px; font-size:13px;">
-            ${c.avatar ? `<img src="${c.avatar}" alt="${sanitizeHtml(c.name)}">` : sanitizeHtml(c.initials || c.name.slice(0,2).toUpperCase())}
+            ${c.avatar ? `<img src="${getMediaUrl(c.avatar)}" alt="${sanitizeHtml(c.name)}">` : sanitizeHtml(c.initials || c.name.slice(0,2).toUpperCase())}
           </div>
           ${presenceDot}
         </div>
@@ -8911,14 +9663,14 @@ function renderChatViewport(viewportContainer: HTMLElement) {
       <div style="display:flex; gap:8px; align-items:center; color:var(--muted-foreground); position:relative;">
         ${c.type === 'dm' ? `
           <button title="Voice call" onclick="initiateCall(${c.id},'${sanitizeHtml(c.name)}','voice')" class="chat-hdr-icon-btn" id="chat-voice-call-btn">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.67A2 2 0 012 .18h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.1 7.92a16 16 0 006 6l1.06-1.06a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92v2z"/></svg>
+            ${getIconSvg('phone')}
           </button>
           <button title="Video call" onclick="initiateCall(${c.id},'${sanitizeHtml(c.name)}','video')" class="chat-hdr-icon-btn" id="chat-video-call-btn">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+            ${getIconSvg('video')}
           </button>
         ` : `
           <button title="Start Group Call" onclick="initiateGroupCall('${sanitizeHtml(c.name)}')" class="chat-hdr-icon-btn chat-hdr-group-call-btn" id="chat-group-call-btn">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.67A2 2 0 012 .18h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.1 7.92a16 16 0 006 6l1.06-1.06a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92v2z"/></svg>
+            ${getIconSvg('phone')}
             <span style="font-size:11px; font-weight:600; margin-left:4px;">Call</span>
           </button>
         `}
@@ -8929,22 +9681,15 @@ function renderChatViewport(viewportContainer: HTMLElement) {
       <!-- Vertical Dropdown Menu -->
       <div class="chat-header-menu-dropdown" id="chat-header-menu-dropdown" style="display:none; position:absolute; top:52px; right:16px; background:var(--card); border:1px solid var(--border); border-radius:var(--radius-lg); box-shadow:var(--shadow-lg); z-index:100; min-width:220px; padding:6px 0;">
         <div class="chat-dropdown-menu-item" data-action="contact-info">${getIconSvg('info')} Contact info</div>
-        <div class="chat-dropdown-menu-item" data-action="select-messages">${getIconSvg('check-square')} Select messages</div>
         <div class="chat-dropdown-menu-item" data-action="mute">${getIconSvg('bell-off')} Mute notifications</div>
-        <div class="chat-dropdown-menu-item" data-action="disappearing">${getIconSvg('clock')} Disappearing messages</div>
-        <div class="chat-dropdown-menu-item" data-action="favourites">${getIconSvg('heart')} Add to favourites</div>
         <div class="chat-dropdown-menu-item" data-action="close">${getIconSvg('x')} Close chat</div>
         <div class="chat-dropdown-menu-divider" style="height:1px; background:var(--border); margin:4px 0;"></div>
-        <div class="chat-dropdown-menu-item" data-action="call-link">${getIconSvg('link')} Send call link</div>
-        <div class="chat-dropdown-menu-item" data-action="schedule-call">${getIconSvg('calendar')} Schedule call</div>
-        <div class="chat-dropdown-menu-item" data-action="new-group-call">${getIconSvg('users')} New group call</div>
-        <div class="chat-dropdown-menu-divider" style="height:1px; background:var(--border); margin:4px 0;"></div>
-        <div class="chat-dropdown-menu-item text-danger" style="color:var(--danger);" data-action="report">${getIconSvg('thumbs-down')} Report</div>
-        <div class="chat-dropdown-menu-item text-danger" style="color:var(--danger);" data-action="block">${getIconSvg('slash')} Block</div>
         <div class="chat-dropdown-menu-item text-danger" style="color:var(--danger);" data-action="clear">${getIconSvg('trash-2')} Clear chat</div>
-        <div class="chat-dropdown-menu-item text-danger" style="color:var(--danger);" data-action="delete">${getIconSvg('trash')} Delete chat</div>
       </div>
     </div>
+
+    <!-- Pinned message banner if any -->
+    ${_renderPinnedBanner()}
 
     <!-- Toggleable Active Chat Search Container -->
     <div class="chat-message-search-bar-container" id="chat-message-search-bar-container" style="display:none; padding:8px 16px; border-bottom:1.5px solid var(--border); background:var(--card); align-items:center; gap:8px; position:relative; z-index:10;">
@@ -8955,58 +9700,101 @@ function renderChatViewport(viewportContainer: HTMLElement) {
       <button id="chat-message-search-close-btn" class="btn-ghost" style="padding:4px; cursor:pointer; display:flex; align-items:center; justify-content:center;">${getIconSvg('x')}</button>
     </div>
 
+    <!-- Messages scroll container -->
     <div class="chat-messages" id="chat-messages-scroll-container">
       ${_buildMessagesHtml(c)}
     </div>
 
+    <!-- Footer Area -->
     <div class="chat-footer" id="chat-footer-bar" style="position:relative;">
+      <!-- Hidden File Input -->
+      <input type="file" id="chat-file-input" style="display:none;" multiple accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.csv">
+
       <!-- Emoji Picker Panel -->
       <div class="chat-emoji-picker" id="chat-emoji-picker" style="display:none; position:absolute; bottom:56px; left:16px; background:var(--card); border:1px solid var(--border); border-radius:var(--radius-lg); box-shadow:var(--shadow-lg); z-index:100; padding:10px; width:260px; grid-template-columns: repeat(7, 1fr); gap:6px; max-height: 180px; overflow-y: auto;">
-        ${['😀','😃','😄','😁','😆','😅','😂','🤣','😊','😇','🙂','🙃','😉','😌','😍','🥰','😘','😗','😙','😚','😋','😛','😝','😜','🤪','🤨','🧐','🤓','😎','🥸','🤩','🥳','😏','😒','😞','😔','😟','😕','🙁','☹️','😣','😖','😫','😩','🥺','😢','😭','😤','😠','😡','🤬','🤯','😳','🥵','🥶','😱','😨','😰','😥','😓','🤗','🤔','🫣','🤭','🤫','🫡','✍️','👋','👍','👎','👏','🙌','🙏','❤️','🔥'].map(emoji => `
+        ${['😀','😃','😄','😁','😆','😅','😂','🤣','😊','😇','🙂','🙃','😉','😌','😍','🥰','😘','😗','😙','😚','😋','😛','😝','😜','🤪','🤨','🧐','🤓','😎','🤩','🥳','😏','😒','😞','😔','😟','😕','🙁','☹️','😣','😖','😫','😩','🥺','😢','😭','😤','😠','😡','🤯','😳','🥵','🥶','😱','😨','😰','😥','😓','🤗','🤔','🤫','🫡','✍️','👋','👍','👎','👏','🙌','🙏','❤️','🔥','✨','💯'].map(emoji => `
           <span class="emoji-item" style="font-size:20px; cursor:pointer; text-align:center; padding:4px; display:inline-block; transition:transform 0.15s ease;" data-emoji="${emoji}">${emoji}</span>
         `).join('')}
       </div>
 
+      <!-- Action buttons -->
+      <button class="chat-emoji-btn" type="button" id="chat-attach-btn" title="Attach file or photo">${getIconSvg('paperclip')}</button>
       <button class="chat-emoji-btn" type="button" id="chat-emoji-btn" title="Emojis">${getIconSvg('smile')}</button>
-      <div class="chat-input-wrapper">
+
+      <!-- Standard text input wrapper -->
+      <div class="chat-input-wrapper" id="chat-input-wrapper">
         <div id="chat-typing-indicator" class="typing-indicator" style="display:none;"></div>
         <input type="text" class="chat-input" id="chat-message-input-field" placeholder="Type a message..." autocomplete="off" spellcheck="true">
       </div>
-      <button class="chat-send-button" id="chat-send-message-btn" title="Send">${getIconSvg('send')}</button>
+
+      <!-- Voice recorder controls (hidden until mic button clicked) -->
+      <div class="chat-voice-recorder" id="chat-voice-recorder" style="display:none;">
+        <div class="rec-indicator">
+          <span class="rec-dot"></span>
+          <span class="rec-timer" id="chat-rec-timer">00:00</span>
+        </div>
+        <div class="rec-waves">
+          <span class="rec-wave-bar" style="height:8px; animation-delay:0.1s;"></span>
+          <span class="rec-wave-bar" style="height:14px; animation-delay:0.2s;"></span>
+          <span class="rec-wave-bar" style="height:20px; animation-delay:0.3s;"></span>
+          <span class="rec-wave-bar" style="height:12px; animation-delay:0.15s;"></span>
+          <span class="rec-wave-bar" style="height:18px; animation-delay:0.25s;"></span>
+          <span class="rec-wave-bar" style="height:22px; animation-delay:0.35s;"></span>
+          <span class="rec-wave-bar" style="height:16px; animation-delay:0.05s;"></span>
+          <span class="rec-wave-bar" style="height:10px; animation-delay:0.2s;"></span>
+          <span class="rec-wave-bar" style="height:15px; animation-delay:0.3s;"></span>
+          <span class="rec-wave-bar" style="height:19px; animation-delay:0.1s;"></span>
+        </div>
+        <button class="rec-btn-cancel" id="chat-rec-cancel-btn" type="button" title="Discard voice note">${getIconSvg('trash')}</button>
+        <button class="rec-btn-pause" id="chat-rec-pause-btn" type="button" title="Pause / Resume">${getIconSvg('pause')}</button>
+        <button class="rec-btn-send" id="chat-rec-send-btn" type="button" title="Send voice note">${getIconSvg('send')}</button>
+      </div>
+
+      <!-- Send / Mic buttons -->
+      <button class="chat-send-button" id="chat-mic-btn" type="button" title="Record Voice Note">${getIconSvg('mic')}</button>
+      <button class="chat-send-button" id="chat-send-message-btn" type="button" title="Send message" style="display:none;">${getIconSvg('send')}</button>
     </div>
   `);
 
-  // Scroll to bottom
   const scrollEl = document.getElementById('chat-messages-scroll-container');
   if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
 
-  // Wire up events
   _bindChatViewportEvents();
 }
 
-// Lightweight refresh — only update messages list, never touch input
-function refreshChatMessages() {
+function refreshChatMessages(): void {
   const scrollEl = document.getElementById('chat-messages-scroll-container');
   if (!scrollEl) return;
-
   const c = state.chatActiveContact;
   if (!c) return;
 
-  // Save scroll position: only auto-scroll if already near bottom
-  const wasAtBottom = scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight < 80;
-
+  const wasAtBottom = scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight < 100;
   scrollEl.innerHTML = DOMPurify.sanitize(_buildMessagesHtml(c));
+
+  // Update pinned banner if message pin state changed
+  const existingPinned = document.getElementById('chat-pinned-banner');
+  if (existingPinned) existingPinned.remove();
+  const searchBar = document.getElementById('chat-message-search-bar-container');
+  if (searchBar) {
+    searchBar.insertAdjacentHTML('beforebegin', DOMPurify.sanitize(_renderPinnedBanner()));
+  }
 
   if (wasAtBottom) {
     scrollEl.scrollTop = scrollEl.scrollHeight;
   }
 }
 
-// Bind input / send / back events (called after full render)
-function _bindChatViewportEvents() {
+// ─── 11. Event Bindings for Complete Chat Interaction ───────────────────────
+let _editingMessageId: number | null = null;
+
+function _bindChatViewportEvents(): void {
   const inputField = document.getElementById('chat-message-input-field') as HTMLInputElement;
   const sendBtn = document.getElementById('chat-send-message-btn');
+  const micBtn = document.getElementById('chat-mic-btn');
   const backBtn = document.getElementById('chat-mobile-back-btn');
+  const attachBtn = document.getElementById('chat-attach-btn');
+  const fileInput = document.getElementById('chat-file-input') as HTMLInputElement;
+  const scrollContainer = document.getElementById('chat-messages-scroll-container');
 
   if (backBtn) {
     backBtn.addEventListener('click', () => {
@@ -9018,158 +9806,292 @@ function _bindChatViewportEvents() {
     });
   }
 
-  const sendMessage = async () => {
-    if (!inputField) return;
-    const text = inputField.value.trim();
-    if (!text) return;
-
-    inputField.value = '';
-    inputField.focus();
-
-    // Send via WebSocket if open
-    if (state.wsSocket && state.wsSocket.readyState === WebSocket.OPEN) {
-      const payload: any = {
-        type: 'chat.message',
-        text: text,
-      };
-      if (state.chatActiveContact.type === 'private' || state.chatActiveContact.type === 'dm') {
-        payload.recipient_id = state.chatActiveContact.id;
-      } else if (state.chatActiveContact.id !== 'group') {
-        payload.group_id = state.chatActiveContact.id;
-      }
-      if (state.chatActiveChannel) {
-        payload.channel_id = state.chatActiveChannel.id;
-      }
-      wsSend(payload);
-      return;
-    }
-
-    // REST fallback
-    try {
-      const body: any = { text };
-      if (state.chatActiveContact.type === 'private' || state.chatActiveContact.type === 'dm') {
-        body.recipient_id = state.chatActiveContact.id;
-      } else if (state.chatActiveContact.id !== 'group') {
-        body.group_id = state.chatActiveContact.id;
-      }
-      if (state.chatActiveChannel) {
-        body.channel_id = state.chatActiveChannel.id;
-      }
-
-      // Send message — response is the newly created message object
-      const sentMsg = await apiRequest('chat/send/', {
-        method: 'POST',
-        body: JSON.stringify(body)
-      });
-
-      // Optimistically append the sent message immediately so the UI feels instant
-      if (sentMsg && sentMsg.id) {
-        const exists = state.chatMessages.find((m: any) => m.id === sentMsg.id);
-        if (!exists) {
-          state.chatMessages = [...state.chatMessages, sentMsg];
-          appendMessageToDOM(sentMsg);
-        }
-      }
-
-      // Re-fetch the full list to sync with backend (handles reactions, read receipts, etc.)
-      let url = 'chat/messages/';
-      if (state.chatActiveContact.type === 'private' || state.chatActiveContact.type === 'dm') {
-        url += `?recipient_id=${state.chatActiveContact.id}`;
-      } else if (state.chatActiveContact.id !== 'group') {
-        url += `?group_id=${state.chatActiveContact.id}`;
-      }
-      if (state.chatActiveChannel) {
-        url = `chat/messages/?channel_id=${state.chatActiveChannel.id}`;
-      }
-      const rawMsgs = await apiRequest(url);
-      // Normalise: DRF may return paginated { results: [] } or a plain array
-      state.chatMessages = Array.isArray(rawMsgs) ? rawMsgs : (rawMsgs?.results ?? []);
-      refreshChatMessages();
-    } catch (err: any) {
-      // Strip bare "{}" error messages — show a friendly fallback instead
-      const msg = err.message || '';
-      showToast(msg === '{}' || !msg ? 'Failed to send message. Please try again.' : msg, 'error');
-    }
-  };
-
+  // Input change: toggle Mic vs Send button
   if (inputField) {
-    // Prevent any parent keydown handlers from interfering
-    inputField.addEventListener('keydown', (e) => {
-      e.stopPropagation();
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-      }
-    });
-    inputField.addEventListener('keyup', (e) => e.stopPropagation());
-    inputField.addEventListener('keypress', (e) => e.stopPropagation());
-
-    // Broadcast typing indicator via WebSocket
-    let _typingTimeout: any = null;
     inputField.addEventListener('input', () => {
+      _updateComposerButtons();
+
       const c = state.chatActiveContact;
       if (!c) return;
       const payload: any = { type: 'chat.typing', is_typing: true };
       if (c.type === 'dm') payload.recipient_id = c.id;
       else if (c.type === 'group') payload.group_id = c.id;
       wsSend(payload);
-
-      clearTimeout(_typingTimeout);
-      _typingTimeout = setTimeout(() => {
-        const stopPayload: any = { type: 'chat.typing', is_typing: false };
-        if (c.type === 'dm') stopPayload.recipient_id = c.id;
-        else if (c.type === 'group') stopPayload.group_id = c.id;
-        wsSend(stopPayload);
-      }, 2000);
     });
 
+    inputField.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        handleSendMessage();
+      }
+    });
+    inputField.addEventListener('keyup', (e) => e.stopPropagation());
+    inputField.addEventListener('keypress', (e) => e.stopPropagation());
     inputField.focus();
   }
 
+  // Send message trigger
+  const handleSendMessage = async () => {
+    if (!inputField) return;
+    const text = inputField.value.trim();
+
+    // If editing existing message
+    if (_editingMessageId !== null) {
+      if (!text) return;
+      try {
+        await apiRequest(`chat/messages/${_editingMessageId}/`, {
+          method: 'PUT',
+          body: JSON.stringify({ text })
+        });
+        state.chatMessages = state.chatMessages.map(m => m.id === _editingMessageId ? { ...m, text, is_edited: true } : m);
+        refreshChatMessages();
+        _editingMessageId = null;
+        inputField.value = '';
+        _updateComposerButtons();
+        showToast('Message edited', 'success');
+      } catch (err: any) {
+        showToast(err.message || 'Failed to edit message', 'error');
+      }
+      return;
+    }
+
+    // If staged attachments exist, send them first
+    if (state.chatStagedFiles && state.chatStagedFiles.length > 0) {
+      const filesToSend = [...state.chatStagedFiles];
+      _clearStagedFiles();
+      inputField.value = '';
+      _updateComposerButtons();
+
+      for (let i = 0; i < filesToSend.length; i++) {
+        const file = filesToSend[i];
+        const caption = i === 0 ? text : '';
+        let fileType = 'document';
+        if (file.type.startsWith('image/')) fileType = 'image';
+        else if (file.type.startsWith('video/')) fileType = 'video';
+        else if (file.type.startsWith('audio/')) fileType = 'audio';
+
+        await _dispatchChatPayload({
+          attachment: file,
+          attachment_type: fileType,
+          attachment_name: file.name,
+          text: caption || file.name,
+        });
+      }
+      return;
+    }
+
+    if (!text) return;
+    inputField.value = '';
+    _updateComposerButtons();
+    await _dispatchChatPayload({ text });
+  };
+
   if (sendBtn) {
-    sendBtn.addEventListener('click', sendMessage);
+    sendBtn.addEventListener('click', handleSendMessage);
   }
 
-  // File attachment button
-  const attachBtn = document.getElementById('chat-attach-btn');
-  const fileInput = document.getElementById('chat-file-input') as HTMLInputElement;
+  // Voice recording triggers
+  if (micBtn) {
+    micBtn.addEventListener('click', () => {
+      startVoiceRecording();
+    });
+  }
+
+  const recCancelBtn = document.getElementById('chat-rec-cancel-btn');
+  if (recCancelBtn) {
+    recCancelBtn.addEventListener('click', cancelVoiceRecording);
+  }
+
+  const recPauseBtn = document.getElementById('chat-rec-pause-btn');
+  if (recPauseBtn) {
+    recPauseBtn.addEventListener('click', togglePauseVoiceRecording);
+  }
+
+  const recSendBtn = document.getElementById('chat-rec-send-btn');
+  if (recSendBtn) {
+    recSendBtn.addEventListener('click', stopAndSendVoiceRecording);
+  }
+
+  // Paperclip attachment trigger
   if (attachBtn && fileInput) {
     attachBtn.addEventListener('click', () => fileInput.click());
-    fileInput.addEventListener('change', async () => {
-      const file = fileInput.files?.[0];
-      if (!file) return;
-      fileInput.value = '';
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files && fileInput.files.length > 0) {
+        _stageFiles(fileInput.files);
+        fileInput.value = '';
+      }
+    });
+  }
 
-      const c = state.chatActiveContact;
-      if (!c) return;
+  // Drag and drop onto chat area
+  if (scrollContainer) {
+    scrollContainer.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      scrollContainer.classList.add('chat-drag-active');
+    });
+    scrollContainer.addEventListener('dragleave', (e) => {
+      if (e.relatedTarget && scrollContainer.contains(e.relatedTarget as Node)) return;
+      scrollContainer.classList.remove('chat-drag-active');
+    });
+    scrollContainer.addEventListener('drop', (e) => {
+      e.preventDefault();
+      scrollContainer.classList.remove('chat-drag-active');
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        _stageFiles(e.dataTransfer.files);
+      }
+    });
+  }
 
-      try {
-        // First send an empty/attachment-only message
-        const body: any = { text: `📎 ${file.name}` };
-        if (c.type === 'dm') body.recipient_id = c.id;
-        else if (c.type !== 'team') body.group_id = c.id;
+  // Clipboard paste (Ctrl+V screenshots)
+  document.addEventListener('paste', (e: ClipboardEvent) => {
+    if (state.activeTab !== 'chat') return;
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const imageFiles: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith('image/')) {
+        const blob = items[i].getAsFile();
+        if (blob) {
+          const file = new File([blob], `screenshot_${Date.now()}.png`, { type: blob.type });
+          imageFiles.push(file);
+        }
+      }
+    }
+    if (imageFiles.length > 0) {
+      _stageFiles(imageFiles);
+    }
+  });
 
-        const sentMsg = await apiRequest('chat/send/', { method: 'POST', body: JSON.stringify(body) });
+  // Delegated clicks inside messages container (audio player, options, lightbox, replies)
+  if (scrollContainer) {
+    scrollContainer.addEventListener('click', async (e) => {
+      const target = e.target as HTMLElement;
 
-        // Upload the file attachment
-        const formData = new FormData();
-        formData.append('file', file);
-        await fetch(`${API_BASE}chat/messages/${sentMsg.id}/attach/`, {
-          method: 'POST',
-          headers: { 'Authorization': `Token ${state.authToken}` },
-          body: formData,
+      // 1. Play / Pause Voice Note
+      const playBtn = target.closest('[data-action="toggle-audio"]') as HTMLElement;
+      if (playBtn) {
+        e.stopPropagation();
+        const msgId = Number(playBtn.dataset.msgId);
+        const player = playBtn.closest('.chat-voice-player') as HTMLElement;
+        const audioUrl = player?.dataset.audioUrl || '';
+        toggleVoiceNotePlayback(msgId, audioUrl);
+        return;
+      }
+
+      // 2. Seek Voice Note Track
+      const track = target.closest('[data-action="seek-audio"]') as HTMLElement;
+      if (track) {
+        e.stopPropagation();
+        const msgId = Number(track.dataset.msgId);
+        seekVoiceNote(msgId, e);
+        return;
+      }
+
+      // 3. Cycle Voice Note Speed
+      const speedBtn = target.closest('[data-action="toggle-speed"]') as HTMLElement;
+      if (speedBtn) {
+        e.stopPropagation();
+        const msgId = Number(speedBtn.dataset.msgId);
+        cycleVoiceNoteSpeed(msgId);
+        return;
+      }
+
+      // 4. Open Image Lightbox
+      const img = target.closest('[data-action="open-lightbox"]') as HTMLElement;
+      if (img) {
+        e.stopPropagation();
+        const src = img.dataset.imgUrl;
+        if (src) openImageLightbox(src);
+        return;
+      }
+
+      // 5. Jump to Quoted Message
+      const quote = target.closest('[data-action="scroll-to-msg"]') as HTMLElement;
+      if (quote) {
+        e.stopPropagation();
+        const targetId = quote.dataset.targetId;
+        if (targetId) {
+          const targetEl = document.getElementById(`chat-msg-${targetId}`);
+          if (targetEl) {
+            targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            targetEl.style.transition = 'background 0.3s ease';
+            targetEl.style.background = 'rgba(99, 102, 241, 0.2)';
+            setTimeout(() => { targetEl.style.background = ''; }, 1200);
+          }
+        }
+        return;
+      }
+
+      // 6. Message Options Chevron Toggle
+      const optionsBtn = target.closest('.chat-message-options-btn');
+      if (optionsBtn) {
+        e.stopPropagation();
+        document.querySelectorAll('.chat-message-dropdown.show').forEach(el => {
+          if (el !== optionsBtn.nextElementSibling) el.classList.remove('show');
         });
+        const dropdown = optionsBtn.nextElementSibling as HTMLElement;
+        if (dropdown) dropdown.classList.toggle('show');
+        return;
+      }
 
-        // Refresh messages
-        const url = c.type === 'dm'
-          ? `chat/messages/?recipient_id=${c.id}`
-          : c.type === 'group' ? `chat/messages/?group_id=${c.id}` : 'chat/messages/';
-        const rawMsgsA = await apiRequest(url);
-        state.chatMessages = Array.isArray(rawMsgsA) ? rawMsgsA : (rawMsgsA?.results ?? []);
-        refreshChatMessages();
-        showToast('File sent', 'success');
-      } catch (err: any) {
-        showToast(err.message || 'Failed to upload file', 'error');
+      // 7. Quick Emoji React
+      const quickReact = target.closest('[data-action="quick-react"]') as HTMLElement;
+      if (quickReact) {
+        e.stopPropagation();
+        const emoji = quickReact.dataset.emoji || '👍';
+        const msgId = Number(quickReact.dataset.msgId);
+        quickReact.closest('.chat-message-dropdown')?.classList.remove('show');
+        (window as any).toggleReaction(msgId, emoji);
+        return;
+      }
+
+      // 8. Dropdown Actions (Reply, Copy, Pin, Edit, Delete)
+      const dropdownItem = target.closest('.chat-message-dropdown-item') as HTMLElement;
+      if (dropdownItem) {
+        e.stopPropagation();
+        const action = dropdownItem.getAttribute('data-action');
+        const msgId = Number(dropdownItem.getAttribute('data-msg-id'));
+        dropdownItem.closest('.chat-message-dropdown')?.classList.remove('show');
+
+        const msg = state.chatMessages.find((m: any) => m.id === msgId);
+        if (!msg) return;
+
+        if (action === 'reply') {
+          state.chatReplyTo = msg;
+          _renderReplyBarContainer();
+        } else if (action === 'copy') {
+          navigator.clipboard.writeText(msg.text || '').then(() => {
+            showToast('Message copied to clipboard!', 'success');
+          }).catch(() => {});
+        } else if (action === 'pin') {
+          try {
+            await apiRequest(`chat/messages/${msgId}/pin/`, { method: 'POST' });
+            msg.is_pinned = !msg.is_pinned;
+            refreshChatMessages();
+            showToast(msg.is_pinned ? 'Message pinned' : 'Message unpinned', 'success');
+          } catch (err: any) {
+            showToast(err.message || 'Failed to update pin', 'error');
+          }
+        } else if (action === 'edit') {
+          _editingMessageId = msgId;
+          if (inputField) {
+            inputField.value = msg.text || '';
+            inputField.focus();
+            _updateComposerButtons();
+          }
+        } else if (action === 'delete') {
+          if (confirm('Delete this message for everyone?')) {
+            try {
+              await apiRequest(`chat/messages/${msgId}/?delete_type=for_everyone`, { method: 'DELETE' });
+              state.chatMessages = state.chatMessages.map(m => m.id === msgId ? { ...m, is_deleted: true, text: 'This message was deleted' } : m);
+              refreshChatMessages();
+              showToast('Message deleted', 'success');
+            } catch (err: any) {
+              showToast(err.message || 'Failed to delete message', 'error');
+            }
+          }
+        }
       }
     });
   }
@@ -9183,13 +10105,13 @@ function _bindChatViewportEvents() {
       const isHidden = emojiPicker.style.display === 'none';
       emojiPicker.style.display = isHidden ? 'grid' : 'none';
     });
-    // Append emojis
     emojiPicker.querySelectorAll('.emoji-item').forEach(el => {
       el.addEventListener('click', (ev) => {
         ev.stopPropagation();
         const emoji = (el as HTMLElement).dataset.emoji;
         if (emoji && inputField) {
           inputField.value += emoji;
+          _updateComposerButtons();
           inputField.focus();
         }
       });
@@ -9253,8 +10175,12 @@ function _bindChatViewportEvents() {
           const drawer = document.getElementById('chat-profile-drawer');
           if (drawer) drawer.classList.remove('open');
           updateChatDOM();
-        } else {
-          showToast(`Action "${action}" selected`, 'info');
+        } else if (action === 'clear') {
+          if (confirm('Clear all messages in this conversation?')) {
+            state.chatMessages = [];
+            refreshChatMessages();
+            showToast('Chat cleared', 'info');
+          }
         }
       });
     });
@@ -9281,7 +10207,6 @@ function _bindChatViewportEvents() {
     if (menuDropdown && menuBtn && !menuDropdown.contains(target) && !menuBtn.contains(target)) {
       menuDropdown.style.display = 'none';
     }
-    // Close message dropdowns
     document.querySelectorAll('.chat-message-dropdown.show').forEach(el => {
       const parent = el.closest('.chat-message-bubble');
       if (parent && !parent.contains(target)) {
@@ -9289,47 +10214,6 @@ function _bindChatViewportEvents() {
       }
     });
   });
-
-  // Message Bubble dropdown triggers delegate event
-  const messagesScrollContainer = document.getElementById('chat-messages-scroll-container');
-  if (messagesScrollContainer) {
-    messagesScrollContainer.addEventListener('click', (e) => {
-      const target = e.target as HTMLElement;
-      
-      const optionsBtn = target.closest('.chat-message-options-btn');
-      if (optionsBtn) {
-        e.stopPropagation();
-        document.querySelectorAll('.chat-message-dropdown.show').forEach(el => {
-          if (el !== optionsBtn.nextElementSibling) el.classList.remove('show');
-        });
-        const dropdown = optionsBtn.nextElementSibling as HTMLElement;
-        if (dropdown) dropdown.classList.toggle('show');
-        return;
-      }
-
-      const dropdownItem = target.closest('.chat-message-dropdown-item');
-      if (dropdownItem) {
-        e.stopPropagation();
-        const action = dropdownItem.getAttribute('data-action');
-        const bubble = dropdownItem.closest('.chat-message-bubble') as HTMLElement;
-        const msgId = bubble?.dataset.msgId;
-        const msgTextEncoded = bubble?.dataset.msgText;
-        const msgText = msgTextEncoded ? decodeURIComponent(msgTextEncoded) : '';
-
-        dropdownItem.closest('.chat-message-dropdown')?.classList.remove('show');
-
-        if (action === 'copy') {
-          navigator.clipboard.writeText(msgText).then(() => {
-            showToast('Message copied to clipboard!', 'success');
-          }).catch(() => {
-            showToast('Failed to copy text', 'error');
-          });
-        } else {
-          showToast(`Action "${action}" selected for message ${msgId}`, 'info');
-        }
-      }
-    });
-  }
 }
 
 function renderChatProfileDrawer() {
@@ -10112,7 +10996,11 @@ function onWsNewMessage(msg: any): void {
     const exists = state.chatMessages.find((m: any) => m.id === msg.id);
     if (!exists) {
       state.chatMessages = [...state.chatMessages, msg];
-      appendMessageToDOM(msg);
+      refreshChatMessages();
+      const isMine = (msg.sender_id === state.user?.id || msg.sender === state.user?.id);
+      if (!isMine) {
+        playChatSound('received');
+      }
     }
   }
 
@@ -10354,84 +11242,6 @@ function renderTypingIndicator(): void {
   }
 }
 
-function appendMessageToDOM(msg: any): void {
-  const list = document.getElementById('chat-messages-list');
-  if (!list) return;
-  const me = state.user;
-  const isMine = msg.sender === me?.id || msg.sender_id === me?.id;
-  const bubbleHtml = renderMessageBubble(msg, isMine);
-  list.insertAdjacentHTML('beforeend', bubbleHtml);
-  list.scrollTop = list.scrollHeight;
-}
-
-function renderMessageBubble(msg: any, isMine: boolean): string {
-  const text = msg.is_deleted
-    ? `<span style="font-style:italic;opacity:0.4;">This message was deleted</span>`
-    : escapeHtml(msg.display_text || msg.text || '');
-
-  const time = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-  const forwarded = msg.forwarded_from
-    ? `<div class="msg-forwarded-label">↩ Forwarded</div>`
-    : '';
-
-  const reactions = msg.reactions && msg.reactions.length
-    ? `<div class="msg-reactions">${renderReactionChips(msg)}</div>`
-    : `<div class="msg-reactions" data-msg-reactions="${msg.id}"></div>`;
-
-  const tick = isMine
-    ? `<span class="read-receipt ${msg.delivery_status || 'sent'}" title="${msg.delivery_status || 'sent'}">✓${msg.delivery_status === 'read' ? '✓' : ''}</span>`
-    : '';
-
-  const reactionPickerHtml = `
-    <div class="reaction-picker" id="rp-${msg.id}">
-      ${['👍','❤️','😂','😮','😢','🔥'].map(e =>
-        `<button onclick="toggleReaction(${msg.id},'${e}')">${e}</button>`
-      ).join('')}
-    </div>`;
-
-  return `
-    <div class="msg-row ${isMine ? 'msg-row--mine' : ''}" data-msg-id="${msg.id}" style="position:relative;"
-         onmouseenter="document.getElementById('rp-${msg.id}')?.classList.add('visible')"
-         onmouseleave="document.getElementById('rp-${msg.id}')?.classList.remove('visible')">
-      ${reactionPickerHtml}
-      <div class="chat-bubble ${isMine ? 'chat-bubble--mine' : 'chat-bubble--theirs'}">
-        ${forwarded}
-        <div class="chat-bubble-text">${text}</div>
-        ${renderAttachments(msg)}
-        <div class="chat-bubble-meta">
-          <span class="chat-time">${time}${msg.is_edited ? ' <span style="opacity:0.5;font-size:0.68rem;">(edited)</span>' : ''}</span>
-          ${tick}
-        </div>
-      </div>
-      ${reactions}
-    </div>`;
-}
-
-function renderAttachments(msg: any): string {
-  if (!msg.attachments || !msg.attachments.length) return '';
-  return msg.attachments.map((a: any) => {
-    if (a.file_type === 'image') {
-      return `<div class="msg-attachment">
-        <img src="${a.file_url}" class="msg-image-preview" alt="${escapeHtml(a.original_filename)}" onclick="window.open('${a.file_url}','_blank')">
-      </div>`;
-    }
-    const icons: Record<string, string> = { document: '📄', audio: '🎵', video: '🎬', other: '📎' };
-    const icon = icons[a.file_type] || '📎';
-    const size = a.file_size > 1048576
-      ? `${(a.file_size / 1048576).toFixed(1)} MB`
-      : `${Math.round(a.file_size / 1024)} KB`;
-    return `<div class="msg-attachment">
-      <a href="${a.file_url}" target="_blank" class="msg-file-chip" download="${escapeHtml(a.original_filename)}">
-        <span class="msg-file-icon">${icon}</span>
-        <div class="msg-file-info">
-          <div class="msg-file-name">${escapeHtml(a.original_filename)}</div>
-          <div class="msg-file-size">${size}</div>
-        </div>
-      </a>
-    </div>`;
-  }).join('');
-}
 
 function renderReactionChips(msg: any): string {
   const me = state.user;
