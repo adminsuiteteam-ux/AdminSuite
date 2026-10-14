@@ -277,8 +277,12 @@ def send_onboarding_email(email, name, temp_password, company_name, role_display
             </div>
             
             <!-- Footer -->
-            <div style="background-color: #f8fafc; padding: 28px 24px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
-                <p style="margin: 0 0 10px 0;">This account onboarding message and workplace newsletter was sent on behalf of <strong>{company_name}</strong>.</p>
+            <div style="background-color: #f8fafc; padding: 28px 24px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; line-height: 1.6;">
+                <p style="margin: 0 0 8px 0;">This account onboarding message and workplace newsletter was sent on behalf of <strong>{company_name}</strong>.</p>
+                <p style="margin: 0 0 10px 0; color: #64748b;">
+                    AdminSuite Inc. &bull; 100 Innovation Way, Suite 400, Dover, DE 19901, USA<br>
+                    <a href="https://adminsuite.app/settings/notifications" style="color: #4f46e5; text-decoration: underline;">Unsubscribe or update your notification preferences</a>
+                </p>
                 <div style="margin: 16px 0; border-top: 1px solid #e2e8f0; padding-top: 16px;">
                     <span style="font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 700; color: #94a3b8; display: block; margin-bottom: 4px;">POWERED BY</span>
                     <span style="font-size: 15px; font-weight: 800; color: #4f46e5; letter-spacing: -0.3px;">AdminSuite</span>
@@ -310,7 +314,9 @@ def send_onboarding_email(email, name, temp_password, company_name, role_display
         f"--------------------------------------------------\n\n"
         f"Best regards,\n"
         f"The {company_name} Team\n"
-        f"Powered by AdminSuite"
+        f"Powered by AdminSuite\n\n"
+        f"AdminSuite Inc., 100 Innovation Way, Suite 400, Dover, DE 19901, USA\n"
+        f"Unsubscribe / Manage Preferences: https://adminsuite.app/settings/notifications"
     )
     
     try:
@@ -359,9 +365,10 @@ def send_password_reset_email(email, code):
             </div>
             
             <!-- Footer with "Powered by DimaCode" branding -->
-            <div style="background-color: #f9fafb; padding: 30px; text-align: center; font-size: 12px; color: #9ca3af; border-top: 1px solid #f3f4f6;">
-                <p style="margin: 0 0 10px 0;">This is an automated security message. Please do not reply to this email.</p>
-                <div style="margin: 18px 0; border-top: 1px solid #e5e7eb; padding-top: 18px;">
+            <div style="background-color: #f9fafb; padding: 26px 20px; text-align: center; font-size: 12px; color: #9ca3af; border-top: 1px solid #f3f4f6; line-height: 1.5;">
+                <p style="margin: 0 0 6px 0;">This is an automated transactional security notification for your account.</p>
+                <p style="margin: 0 0 8px 0; color: #64748b;">AdminSuite Inc. &bull; 100 Innovation Way, Suite 400, Dover, DE 19901, USA</p>
+                <div style="margin: 14px 0; border-top: 1px solid #e5e7eb; padding-top: 14px;">
                     <span style="font-size: 11px; letter-spacing: 1px; text-transform: uppercase; font-weight: 700; color: #cbd5e1; display: block; margin-bottom: 4px;">Powered By</span>
                     <span style="font-size: 14px; font-weight: 800; color: #6b7280; letter-spacing: -0.5px;">DimaCode</span>
                 </div>
@@ -429,9 +436,10 @@ def send_signup_otp_email(email, code):
             </div>
             
             <!-- Footer with "Powered by DimaCode" branding -->
-            <div style="background-color: #f9fafb; padding: 30px; text-align: center; font-size: 12px; color: #9ca3af; border-top: 1px solid #f3f4f6;">
-                <p style="margin: 0 0 10px 0;">This is an automated security message. Please do not reply to this email.</p>
-                <div style="margin: 18px 0; border-top: 1px solid #e5e7eb; padding-top: 18px;">
+            <div style="background-color: #f9fafb; padding: 26px 20px; text-align: center; font-size: 12px; color: #9ca3af; border-top: 1px solid #f3f4f6; line-height: 1.5;">
+                <p style="margin: 0 0 6px 0;">This is an automated transactional verification email sent to confirm your email address.</p>
+                <p style="margin: 0 0 8px 0; color: #64748b;">AdminSuite Inc. &bull; 100 Innovation Way, Suite 400, Dover, DE 19901, USA</p>
+                <div style="margin: 14px 0; border-top: 1px solid #e5e7eb; padding-top: 14px;">
                     <span style="font-size: 11px; letter-spacing: 1px; text-transform: uppercase; font-weight: 700; color: #cbd5e1; display: block; margin-bottom: 4px;">Powered By</span>
                     <span style="font-size: 14px; font-weight: 800; color: #6b7280; letter-spacing: -0.5px;">DimaCode</span>
                 </div>

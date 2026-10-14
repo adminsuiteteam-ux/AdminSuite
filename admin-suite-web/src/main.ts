@@ -15,6 +15,15 @@ if (_webSentryDsn && _webSentryDsn !== 'YOUR_SENTRY_DSN_HERE') {
 }
 
 import './index.css';
+import '@fontsource/plus-jakarta-sans/400.css';
+import '@fontsource/plus-jakarta-sans/500.css';
+import '@fontsource/plus-jakarta-sans/600.css';
+import '@fontsource/plus-jakarta-sans/700.css';
+import '@fontsource/plus-jakarta-sans/800.css';
+import '@fontsource/outfit/500.css';
+import '@fontsource/outfit/600.css';
+import '@fontsource/outfit/700.css';
+import '@fontsource/outfit/800.css';
 
 import { sanitizeHtml, safeProp } from './utils/security';
 import DOMPurify from 'dompurify';
@@ -11076,9 +11085,14 @@ function openCheckoutModal(planId: string, planName: string, planPrice: string) 
               🔒 <span>This is a simulated payment. No real charges will be made.</span>
             </div>
 
-            <button type="submit" id="checkout-submit-btn" class="btn btn-primary" style="width:100%;margin-top:20px;padding:16px;font-size:15px;font-weight:800;border-radius:14px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none;letter-spacing:0.5px;">
+            <button type="submit" id="checkout-submit-btn" class="btn btn-primary" style="width:100%;margin-top:16px;padding:16px;font-size:15px;font-weight:800;border-radius:14px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none;letter-spacing:0.5px;">
               Pay ${sanitizeHtml(planPrice)} · Activate ${sanitizeHtml(planName)}
             </button>
+
+            <!-- California Auto-Renewal Law (ARL) & FTC Compliance Disclosure -->
+            <div style="margin-top:12px;font-size:11px;color:var(--muted-foreground);line-height:1.45;text-align:center;">
+              By confirming, you authorize recurring charges of <strong>${sanitizeHtml(planPrice)}</strong> per billing cycle to your selected payment method until you cancel. You may cancel anytime in <strong>Settings &gt; Subscriptions</strong> or by contacting support.
+            </div>
           </form>
         </div>
       </div>

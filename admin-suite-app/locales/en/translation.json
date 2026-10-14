@@ -323,7 +323,12 @@
     "backToSignUp": "← Back to Sign Up",
     "heroTitle": "Manage Smarter.\nGrow Faster.\nScale Anywhere.",
     "heroSub": "A centralized control center to manage your employees, clients, projects, and finances seamlessly in one beautiful platform.",
-    "appName": "AdminSuite"
+    "appName": "AdminSuite",
+    "mustAcceptTerms": "Please confirm you are at least 18 years old and agree to the Terms of Service & Privacy Policy.",
+    "ageAndTermsAgree": "I confirm that I am at least 18 years old and agree to the",
+    "termsOfService": "Terms of Service",
+    "and": "and",
+    "privacyPolicy": "Privacy Policy"
   },
   "forgotPassword": {
     "passwordRecovery": "Password Recovery",

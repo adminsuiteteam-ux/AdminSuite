@@ -196,6 +196,7 @@ export default function RegisterScreen() {
 
   const [showPwd, setShowPwd] = useState(false);
   const [showConfirmPwd, setShowConfirmPwd] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -263,6 +264,10 @@ export default function RegisterScreen() {
     }
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
+      return;
+    }
+    if (!acceptedTerms) {
+      setError(t('register.mustAcceptTerms', 'Please confirm you are at least 18 years old and agree to the Terms of Service & Privacy Policy.'));
       return;
     }
 
@@ -536,6 +541,68 @@ export default function RegisterScreen() {
               </Text>
             </View>
           ) : null}
+
+          {/* ── Age & Legal Terms Agreement (COPPA & Safe Harbor Compliant) ── */}
+          <Pressable
+            onPress={() => setAcceptedTerms((v) => !v)}
+            style={{
+              flexDirection: "row",
+              alignItems: "flex-start",
+              gap: 10,
+              marginTop: 14,
+              marginBottom: 16,
+            }}
+          >
+            <View
+              style={{
+                width: 20,
+                height: 20,
+                borderRadius: 5,
+                borderWidth: 1.5,
+                borderColor: acceptedTerms ? colors.primary : colors.mutedForeground,
+                backgroundColor: acceptedTerms ? colors.primary : "transparent",
+                alignItems: "center",
+                justifyContent: "center",
+                marginTop: 2,
+              }}
+            >
+              {acceptedTerms && <Feather name="check" size={13} color="#fff" />}
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text
+                style={{
+                  fontSize: 12.5,
+                  lineHeight: 18,
+                  color: colors.foreground,
+                  fontFamily: "Inter_400Regular",
+                }}
+              >
+                {t('register.ageAndTermsAgree', 'I confirm that I am at least 18 years old and agree to the')}{" "}
+                <Text
+                  onPress={() => router.push("/settings/terms" as any)}
+                  style={{
+                    color: colors.primary,
+                    fontFamily: "Inter_600SemiBold",
+                    textDecorationLine: "underline",
+                  }}
+                >
+                  {t('register.termsOfService', 'Terms of Service')}
+                </Text>{" "}
+                {t('register.and', 'and')}{" "}
+                <Text
+                  onPress={() => router.push("/settings/terms" as any)}
+                  style={{
+                    color: colors.primary,
+                    fontFamily: "Inter_600SemiBold",
+                    textDecorationLine: "underline",
+                  }}
+                >
+                  {t('register.privacyPolicy', 'Privacy Policy')}
+                </Text>
+                .
+              </Text>
+            </View>
+          </Pressable>
 
           <Pressable
             onPress={handleCreateAccount}

@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@fontsource/inter": "^5.3.0",
     "@gsap/react": "^2.1.2",
     "@radix-ui/react-slot": "^1.2.5",
     "@sentry/react": "^10.58.0",
