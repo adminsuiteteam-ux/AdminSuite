@@ -351,6 +351,7 @@ export default function AdminChatScreen() {
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [editingMsg, setEditingMsg] = useState<ChatMessage | null>(null);
   const [selectedMsg, setSelectedMsg] = useState<ChatMessage | null>(null);
+  const [selectedMessageIds, setSelectedMessageIds] = useState<number[]>([]);
   const [deleteTargetMsg, setDeleteTargetMsg] = useState<ChatMessage | null>(null);
   const [showActionSheet, setShowActionSheet] = useState(false);
   const [groupLocked, setGroupLocked] = useState(false);
@@ -1419,8 +1420,35 @@ export default function AdminChatScreen() {
     }
   };
 
+  const toggleSelectMessage = (msgId: number) => {
+    if (Platform.OS !== "web") Haptics.selectionAsync().catch(() => {});
+    setSelectedMessageIds((prev) =>
+      prev.includes(msgId) ? prev.filter((id) => id !== msgId) : [...prev, msgId]
+    );
+  };
+
+  const copySelectedMessages = () => {
+    const selected = messages.filter((m) => selectedMessageIds.includes(m.id));
+    if (selected.length === 0) return;
+    const combinedText = selected
+      .map((m) => m.text || m.display_text || "")
+      .filter(Boolean)
+      .join("\n\n");
+    Clipboard.setString(combinedText);
+    showToast({
+      title: "Copied",
+      message: `${selected.length} message${selected.length > 1 ? "s" : ""} copied to clipboard.`,
+      type: "success",
+    });
+    setSelectedMessageIds([]);
+  };
+
   // ─── Message long-press ─────────────────────────────────────────────────────
   const openMessageActions = (msg: ChatMessage) => {
+    if (selectedMessageIds.length > 0) {
+      toggleSelectMessage(msg.id);
+      return;
+    }
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     setSelectedMsg(msg);
     setShowActionSheet(true);
@@ -1439,8 +1467,16 @@ export default function AdminChatScreen() {
         Clipboard.setString(selectedMsg.text);
         showToast({ title: "Copied", message: "Message copied.", type: "success" });
         break;
+      case "select":
+        setSelectedMessageIds([selectedMsg.id]);
+        break;
       case "edit":
-        if (selectedMsg.sender_id === user?.id) {
+        if (
+          selectedMsg.sender_id === user?.id &&
+          !selectedMsg.attachment &&
+          selectedMsg.attachment_type !== "audio" &&
+          selectedMsg.text !== "[Voice Note]"
+        ) {
           setEditingMsg(selectedMsg);
           setInputText(selectedMsg.text);
           setReplyTo(null);
@@ -2182,7 +2218,18 @@ export default function AdminChatScreen() {
     if (entries.length === 0) return null;
 
     return (
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 4, marginBottom: 2, alignSelf: isMine ? "flex-end" : "flex-start" }}>
+      <View
+        style={{
+          position: "absolute",
+          bottom: -11,
+          right: isMine ? 12 : undefined,
+          left: !isMine ? 12 : undefined,
+          flexDirection: "row",
+          flexWrap: "wrap",
+          gap: 3,
+          zIndex: 10,
+        }}
+      >
         {entries.map((entry) => (
           <Pressable
             key={entry.emoji}
@@ -2192,28 +2239,33 @@ export default function AdminChatScreen() {
                 flexDirection: "row",
                 alignItems: "center",
                 gap: 3,
-                paddingHorizontal: 7,
-                paddingVertical: 2.5,
+                paddingHorizontal: 6,
+                paddingVertical: 1.5,
                 borderRadius: 12,
-                backgroundColor: entry.mine
-                  ? (isDark ? "rgba(2, 132, 199, 0.3)" : "rgba(2, 132, 199, 0.15)")
-                  : (isDark ? "#27272a" : "#f4f4f5"),
+                backgroundColor: isDark ? "#18181b" : "#ffffff",
                 borderWidth: 1,
-                borderColor: entry.mine ? "#0284c7" : (isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)"),
+                borderColor: entry.mine ? "#0284c7" : (isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.1)"),
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.15,
+                shadowRadius: 2,
+                elevation: 3,
                 opacity: pressed ? 0.75 : 1,
               },
             ]}
           >
-            <Text style={{ fontSize: 13 }}>{entry.emoji}</Text>
-            <Text
-              style={{
-                fontSize: 11,
-                fontFamily: "Inter_600SemiBold",
-                color: entry.mine ? "#0284c7" : colors.mutedForeground,
-              }}
-            >
-              {entry.count}
-            </Text>
+            <Text style={{ fontSize: 12 }}>{entry.emoji}</Text>
+            {entry.count > 1 && (
+              <Text
+                style={{
+                  fontSize: 10,
+                  fontFamily: "Inter_600SemiBold",
+                  color: entry.mine ? "#0284c7" : colors.mutedForeground,
+                }}
+              >
+                {entry.count}
+              </Text>
+            )}
           </Pressable>
         ))}
       </View>
@@ -2223,6 +2275,8 @@ export default function AdminChatScreen() {
   // ─── Render individual message bubble ───────────────────────────────────────
   const renderMessage = ({ item: msg }: { item: ChatMessage }) => {
     const mine = msg.sender_id === myId;
+    const isSelected = selectedMessageIds.includes(msg.id);
+    const hasReactions = Boolean(msg.reactions && msg.reactions.length > 0);
     const isBubbleDark = mine ? true : isDark;
     const bubbleBg = mine ? "#0284c7" : isDark ? "#27272a" : "#e4e4e7";
     const textColor = mine ? "#ffffff" : colors.text;
@@ -2239,9 +2293,21 @@ export default function AdminChatScreen() {
         replyColor={colors.primary}
       >
         <Pressable
+          onPress={() => {
+            if (selectedMessageIds.length > 0) {
+              toggleSelectMessage(msg.id);
+            }
+          }}
           onLongPress={() => !msg.is_deleted && openMessageActions(msg)}
           delayLongPress={350}
-          style={[styles.msgRow, mine ? styles.msgRight : styles.msgLeft]}
+          style={[
+            styles.msgRow,
+            mine ? styles.msgRight : styles.msgLeft,
+            isSelected && {
+              backgroundColor: isDark ? "rgba(2, 132, 199, 0.15)" : "rgba(2, 132, 199, 0.08)",
+              borderRadius: 12,
+            },
+          ]}
         >
           {!mine && (
             <Pressable
@@ -2268,7 +2334,7 @@ export default function AdminChatScreen() {
               />
             </Pressable>
           )}
-          <View style={[styles.msgContent, { maxWidth: "75%" }]}>
+          <View style={[styles.msgContent, { maxWidth: "75%", marginBottom: hasReactions ? 14 : 4 }]}>
             {!mine && (
               <Text style={[styles.senderName, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" }]}>
                 {msg.sender_name}
@@ -2278,14 +2344,15 @@ export default function AdminChatScreen() {
               style={[
                 styles.bubble,
                 {
-                  backgroundColor: bubbleBg,
+                  backgroundColor: isSelected ? (mine ? "#0369a1" : (isDark ? "rgba(2, 132, 199, 0.3)" : "#bae6fd")) : bubbleBg,
                   borderTopRightRadius: mine ? 4 : 18,
                   borderTopLeftRadius: mine ? 18 : 4,
                   borderBottomRightRadius: 18,
                   borderBottomLeftRadius: 18,
-                  borderWidth: isDark ? 1 : 0,
-                  borderColor: isDark ? (mine ? "#0369a1" : "rgba(255,255,255,0.08)") : "transparent",
+                  borderWidth: isSelected ? 2 : (isDark ? 1 : 0),
+                  borderColor: isSelected ? "#0284c7" : (isDark ? (mine ? "#0369a1" : "rgba(255,255,255,0.08)") : "transparent"),
                   padding: msg.attachment && msg.attachment_type === "image" && !msg.reply_to_id ? 4 : 10,
+                  position: "relative",
                 },
               ]}
             >
@@ -3325,188 +3392,251 @@ export default function AdminChatScreen() {
       />
 
       {/* ── Top Bar ── */}
-      <View
-        style={[
-          styles.topBar,
-          {
-            paddingTop: insets.top + 8,
-            backgroundColor: isDark ? "#09090b" : "#fff",
-            borderBottomColor: colors.border,
-          },
-        ]}
-      >
-        <Pressable
-          onPress={() => {
-            if (activeContact) {
-              draftsRef.current[String(activeContact.id)] = inputText;
-            }
-            setActiveContact(null);
-            setInputText("");
-            setReplyTo(null);
-            setEditingMsg(null);
-            setShowInChatSearch(false);
-            setInChatSearchQuery("");
-            setShowEmojiPicker(false);
-          }}
-          style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.6 : 1 }]}
-          hitSlop={8}
+      {selectedMessageIds.length > 0 ? (
+        <View
+          style={[
+            styles.topBar,
+            {
+              paddingTop: insets.top + 8,
+              backgroundColor: isDark ? "#18181b" : "#0284c7",
+              borderBottomColor: colors.border,
+            },
+          ]}
         >
-          <Feather name="arrow-left" size={22} color={colors.foreground} />
-        </Pressable>
+          <Pressable
+            onPress={() => setSelectedMessageIds([])}
+            style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.6 : 1 }]}
+            hitSlop={8}
+            accessibilityLabel="Cancel selection"
+          >
+            <Feather name="x" size={22} color="#ffffff" />
+          </Pressable>
 
-        {/* Tappable header → Contact/Group Profile */}
-        <Pressable
-          onPress={() => {
-            if (isGroupChat) setShowGroupProfile(true);
-            else setShowContactProfile(true);
-          }}
-          style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}
-        >
-          <View
+          <Text
             style={[
-              styles.headerAvatar,
-              {
-                backgroundColor: isGroupChat ? colors.primary : colors.accent,
-                overflow: "hidden",
-              },
+              styles.headerName,
+              { color: "#ffffff", fontFamily: "Inter_700Bold", flex: 1, marginLeft: 8, fontSize: 18 },
             ]}
           >
-            <AvatarImage
-              uri={activeContact.avatar}
-              initials={activeContact.initials}
-              name={activeContact.name}
-              size={38}
-              fallbackBg={isGroupChat ? colors.primary : colors.accent}
-              fallbackTextColor={isGroupChat ? colors.primaryForeground : (colors.accentForeground || "#fff")}
-              priority="high"
-            />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.headerName, { color: colors.foreground, fontFamily: "Inter_700Bold" }]} numberOfLines={1}>
-              {activeContact.name}
-            </Text>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-              {typingStatus ? (
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                  <TypingIndicator color={colors.primary} />
-                  <Text style={[styles.headerSub, { color: colors.primary, fontFamily: "Inter_400Regular" }]} numberOfLines={1}>
-                    {typingStatus}
-                  </Text>
-                </View>
-              ) : (
-                <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]} numberOfLines={1}>
-                  {isGroupChat ? "Tap for group info" : "Tap for contact info"}
-                </Text>
-              )}
-              {isGroupChat && groupLocked && (
-                <View style={[styles.lockBadge, { backgroundColor: (colors.warning ?? "#f59e0b") + "20" }]}>
-                  <Feather name="lock" size={9} color={colors.warning ?? "#f59e0b"} />
-                  <Text style={[styles.lockBadgeTxt, { color: colors.warning ?? "#f59e0b", fontFamily: "Inter_600SemiBold" }]}>
-                    {t("chat.locked")}
-                  </Text>
-                </View>
-              )}
-            </View>
-          </View>
-        </Pressable>
+            {selectedMessageIds.length} selected
+          </Text>
 
-        {/* Call & Action buttons */}
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 2 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
             <Pressable
-              onPress={() => isGroupChat ? handleInitiateGroupCall() : handleInitiateCall("voice")}
+              onPress={copySelectedMessages}
               style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.6 : 1 }]}
               hitSlop={6}
-              accessibilityLabel="Voice Call"
+              accessibilityLabel="Copy selected messages"
             >
-              <Feather name="phone" size={18} color={colors.foreground} />
+              <Feather name="copy" size={20} color="#ffffff" />
             </Pressable>
             <Pressable
-              onPress={() => setShowCallMenu(true)}
-              style={({ pressed }) => [styles.iconBtn, { width: 22, paddingHorizontal: 0, opacity: pressed ? 0.6 : 1 }]}
+              onPress={() => {
+                Alert.alert("Selection Options", undefined, [
+                  {
+                    text: selectedMessageIds.length === messages.length ? "Deselect All" : "Select All",
+                    onPress: () => {
+                      if (selectedMessageIds.length === messages.length) setSelectedMessageIds([]);
+                      else setSelectedMessageIds(messages.map((m) => m.id));
+                    },
+                  },
+                  {
+                    text: "Delete Selected",
+                    style: "destructive",
+                    onPress: () => {
+                      Alert.alert("Delete Messages", `Delete ${selectedMessageIds.length} messages?`, [
+                        { text: "Cancel", style: "cancel" },
+                        {
+                          text: "Delete",
+                          style: "destructive",
+                          onPress: () => {
+                            setMessages((prev) => prev.filter((m) => !selectedMessageIds.includes(m.id)));
+                            setSelectedMessageIds([]);
+                            showToast({ title: "Deleted", message: "Selected messages deleted.", type: "success" });
+                          },
+                        },
+                      ]);
+                    },
+                  },
+                  { text: "Cancel", style: "cancel" },
+                ]);
+              }}
+              style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.6 : 1 }]}
               hitSlop={6}
-              accessibilityLabel="Call options"
             >
-              <Feather name="chevron-down" size={14} color={colors.mutedForeground} />
+              <Feather name="more-vertical" size={20} color="#ffffff" />
             </Pressable>
-            <Modal visible={showCallMenu} transparent animationType="fade" onRequestClose={() => setShowCallMenu(false)}>
-              <Pressable style={{ flex: 1 }} onPress={() => setShowCallMenu(false)}>
-                <View
-                  style={{
-                    position: "absolute",
-                    top: insets.top + 56,
-                    right: 56,
-                    minWidth: 190,
-                    backgroundColor: isDark ? "#18181b" : "#ffffff",
-                    borderRadius: 14,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    paddingVertical: 6,
-                    elevation: 10,
-                    shadowColor: "#000",
-                    shadowOpacity: 0.25,
-                    shadowRadius: 14,
-                    shadowOffset: { width: 0, height: 4 },
-                  }}
-                >
-                  {([
-                    { id: "voice", label: "Voice Call", icon: "phone" },
-                    { id: "video", label: "Video Call", icon: "video" },
-                  ] as const).map((opt) => (
-                    <Pressable
-                      key={opt.id}
-                      onPress={() => {
-                        setShowCallMenu(false);
-                        if (isGroupChat) {
-                          handleInitiateGroupCall();
-                        } else {
-                          handleInitiateCall(opt.id);
-                        }
-                      }}
-                      style={({ pressed }) => ({
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 12,
-                        paddingHorizontal: 16,
-                        paddingVertical: 12,
-                        backgroundColor: pressed ? (isDark ? "#27272a" : "#f4f4f5") : "transparent",
-                      })}
-                    >
-                      <Feather name={opt.icon} size={16} color={colors.foreground} />
-                      <Text style={{ color: colors.foreground, fontFamily: "Inter_500Medium", fontSize: 14 }}>{opt.label}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </Pressable>
-            </Modal>
           </View>
-
-          {/* Search Toggle */}
+        </View>
+      ) : (
+        <View
+          style={[
+            styles.topBar,
+            {
+              paddingTop: insets.top + 8,
+              backgroundColor: isDark ? "#09090b" : "#fff",
+              borderBottomColor: colors.border,
+            },
+          ]}
+        >
           <Pressable
             onPress={() => {
-              setShowInChatSearch((s) => !s);
-              if (showInChatSearch) setInChatSearchQuery("");
+              if (activeContact) {
+                draftsRef.current[String(activeContact.id)] = inputText;
+              }
+              setActiveContact(null);
+              setSelectedMessageIds([]);
+              setInputText("");
+              setReplyTo(null);
+              setEditingMsg(null);
+              setShowInChatSearch(false);
+              setInChatSearchQuery("");
+              setShowEmojiPicker(false);
             }}
             style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.6 : 1 }]}
-            hitSlop={6}
+            hitSlop={8}
           >
-            <Feather
-              name={showInChatSearch ? "x" : "search"}
-              size={18}
-              color={showInChatSearch ? colors.primary : colors.foreground}
-            />
+            <Feather name="arrow-left" size={22} color={colors.foreground} />
           </Pressable>
 
-          {/* Three-dot menu */}
+          {/* Tappable header → Contact/Group Profile */}
           <Pressable
-            onPress={() => setShowHeaderMenu(true)}
-            style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.6 : 1 }]}
-            hitSlop={6}
+            onPress={() => {
+              if (isGroupChat) setShowGroupProfile(true);
+              else setShowContactProfile(true);
+            }}
+            style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}
           >
-            <Feather name="more-vertical" size={20} color={colors.foreground} />
+            <View
+              style={[
+                styles.headerAvatar,
+                {
+                  backgroundColor: isGroupChat ? colors.primary : colors.accent,
+                  overflow: "hidden",
+                },
+              ]}
+            >
+              <AvatarImage
+                uri={activeContact.avatar}
+                initials={activeContact.initials}
+                name={activeContact.name}
+                size={38}
+                fallbackBg={isGroupChat ? colors.primary : colors.accent}
+                fallbackTextColor={isGroupChat ? colors.primaryForeground : (colors.accentForeground || "#fff")}
+                priority="high"
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.headerName, { color: colors.foreground, fontFamily: "Inter_700Bold" }]} numberOfLines={1}>
+                {activeContact.name}
+              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                {typingStatus ? (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                    <TypingIndicator color={colors.primary} />
+                    <Text style={[styles.headerSub, { color: colors.primary, fontFamily: "Inter_400Regular" }]} numberOfLines={1}>
+                      {typingStatus}
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={[styles.headerSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]} numberOfLines={1}>
+                    {isGroupChat ? "Tap for group info" : "Tap for contact info"}
+                  </Text>
+                )}
+                {isGroupChat && groupLocked && (
+                  <View style={[styles.lockBadge, { backgroundColor: (colors.warning ?? "#f59e0b") + "20" }]}>
+                    <Feather name="lock" size={9} color={colors.warning ?? "#f59e0b"} />
+                    <Text style={[styles.lockBadgeTxt, { color: colors.warning ?? "#f59e0b", fontFamily: "Inter_600SemiBold" }]}>
+                      {t("chat.locked")}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
           </Pressable>
+
+          {/* Call & Action buttons */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 2 }}>
+              <Pressable
+                onPress={() => isGroupChat ? handleInitiateGroupCall() : handleInitiateCall("voice")}
+                style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.6 : 1 }]}
+                hitSlop={6}
+                accessibilityLabel="Voice Call"
+              >
+                <Feather name="phone" size={18} color={colors.foreground} />
+              </Pressable>
+              <Pressable
+                onPress={() => setShowCallMenu(true)}
+                style={({ pressed }) => [styles.iconBtn, { width: 22, paddingHorizontal: 0, opacity: pressed ? 0.6 : 1 }]}
+                hitSlop={6}
+                accessibilityLabel="Call options"
+              >
+                <Feather name="chevron-down" size={14} color={colors.mutedForeground} />
+              </Pressable>
+              <Modal visible={showCallMenu} transparent animationType="fade" onRequestClose={() => setShowCallMenu(false)}>
+                <Pressable style={{ flex: 1 }} onPress={() => setShowCallMenu(false)}>
+                  <View
+                    style={{
+                      position: "absolute",
+                      top: insets.top + 56,
+                      right: 56,
+                      minWidth: 190,
+                      backgroundColor: isDark ? "#18181b" : "#ffffff",
+                      borderRadius: 14,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      paddingVertical: 6,
+                      elevation: 10,
+                      shadowColor: "#000",
+                      shadowOpacity: 0.25,
+                      shadowRadius: 14,
+                      shadowOffset: { width: 0, height: 4 },
+                    }}
+                  >
+                    {([
+                      { id: "voice", label: "Voice Call", icon: "phone" },
+                      { id: "video", label: "Video Call", icon: "video" },
+                    ] as const).map((opt) => (
+                      <Pressable
+                        key={opt.id}
+                        onPress={() => {
+                          setShowCallMenu(false);
+                          if (isGroupChat) {
+                            handleInitiateGroupCall();
+                          } else {
+                            handleInitiateCall(opt.id);
+                          }
+                        }}
+                        style={({ pressed }) => ({
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 12,
+                          paddingHorizontal: 16,
+                          paddingVertical: 12,
+                          backgroundColor: pressed ? (isDark ? "#27272a" : "#f4f4f5") : "transparent",
+                        })}
+                      >
+                        <Feather name={opt.icon} size={16} color={colors.foreground} />
+                        <Text style={{ color: colors.foreground, fontFamily: "Inter_500Medium", fontSize: 14 }}>{opt.label}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </Pressable>
+              </Modal>
+            </View>
+
+            {/* Three-dot menu */}
+            <Pressable
+              onPress={() => setShowHeaderMenu(true)}
+              style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.6 : 1 }]}
+              hitSlop={6}
+            >
+              <Feather name="more-vertical" size={20} color={colors.foreground} />
+            </Pressable>
+          </View>
         </View>
-      </View>
+      )}
 
       {/* ── Active In-Chat Search Bar ── */}
       {showInChatSearch && (
@@ -3842,31 +3972,35 @@ export default function AdminChatScreen() {
               </View>
             )}
 
-            {[
-              { id: "reply", icon: "corner-up-left", label: t("chat.actions.reply") },
-              { id: "copy", icon: "copy", label: t("chat.actions.copy") },
-              ...(selectedMsg?.sender_id === myId && !selectedMsg?.is_deleted
-                ? [{ id: "edit", icon: "edit-2", label: t("chat.actions.edit") }]
-                : []),
-              ...(!selectedMsg?.is_deleted
-                ? [{ id: "delete", icon: "trash-2", label: t("chat.actions.delete"), danger: true }]
-                : []),
-              { id: "pin", icon: "bookmark", label: selectedMsg?.is_pinned ? t("chat.actions.unpin") : t("chat.actions.pin") },
-              ...(isGroupChat && selectedMsg?.sender_id !== myId
-                ? [
-                    {
-                      id: "block_sender",
-                      icon: contacts.find((c) => c.id === selectedMsg?.sender_id)?.is_blocked_from_group
-                        ? "user-check"
-                        : "user-x",
-                      label: contacts.find((c) => c.id === selectedMsg?.sender_id)?.is_blocked_from_group
-                        ? t("chat.actions.unblockFromGroup")
-                        : t("chat.actions.blockFromGroup"),
-                      danger: !contacts.find((c) => c.id === selectedMsg?.sender_id)?.is_blocked_from_group,
-                    },
-                  ]
-                : []),
-            ].map((action) => (
+            {(() => {
+              const isTextOnly = selectedMsg?.sender_id === myId && !selectedMsg?.is_deleted && !selectedMsg?.attachment && selectedMsg?.attachment_type !== 'audio' && selectedMsg?.text !== '[Voice Note]' && Boolean(selectedMsg?.text);
+              return [
+                { id: "reply", icon: "corner-up-left", label: t("chat.actions.reply") },
+                { id: "copy", icon: "copy", label: t("chat.actions.copy") },
+                ...(isTextOnly
+                  ? [{ id: "edit", icon: "edit-2", label: t("chat.actions.edit") }]
+                  : []),
+                { id: "select", icon: "check-square", label: "Select Messages" },
+                ...(!selectedMsg?.is_deleted
+                  ? [{ id: "delete", icon: "trash-2", label: t("chat.actions.delete"), danger: true }]
+                  : []),
+                { id: "pin", icon: "bookmark", label: selectedMsg?.is_pinned ? t("chat.actions.unpin") : t("chat.actions.pin") },
+                ...(isGroupChat && selectedMsg?.sender_id !== myId
+                  ? [
+                      {
+                        id: "block_sender",
+                        icon: contacts.find((c) => c.id === selectedMsg?.sender_id)?.is_blocked_from_group
+                          ? "user-check"
+                          : "user-x",
+                        label: contacts.find((c) => c.id === selectedMsg?.sender_id)?.is_blocked_from_group
+                          ? t("chat.actions.unblockFromGroup")
+                          : t("chat.actions.blockFromGroup"),
+                        danger: !contacts.find((c) => c.id === selectedMsg?.sender_id)?.is_blocked_from_group,
+                      },
+                    ]
+                  : []),
+              ];
+            })().map((action) => (
               <Pressable
                 key={action.id}
                 onPress={() => handleAction(action.id)}

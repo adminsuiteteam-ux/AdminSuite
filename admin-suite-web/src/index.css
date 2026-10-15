@@ -1757,8 +1757,11 @@ input, select, textarea { font-family: inherit; }
   height: 18px;
   outline: none;
 }
-.chat-message-bubble:hover .chat-message-options-btn {
-  opacity: 1;
+.chat-message-bubble:hover .chat-message-options-btn,
+.chat-message-bubble:has(.chat-message-dropdown.show) .chat-message-options-btn,
+.chat-message-options-btn.active,
+.chat-message-options-btn:focus {
+  opacity: 1 !important;
 }
 .chat-message-options-btn:hover {
   background: rgba(0, 0, 0, 0.1);
@@ -1778,7 +1781,7 @@ input, select, textarea { font-family: inherit; }
   padding: 4px 0;
 }
 .chat-message-dropdown.show {
-  display: block;
+  display: block !important;
 }
 .chat-message-dropdown-item {
   padding: 6px 12px;
@@ -3345,11 +3348,31 @@ input, select, textarea { font-family: inherit; }
    Emoji Reactions
    -------------------------------------------------------------------------- */
 
+.chat-message-bubble {
+  position: relative;
+}
+.chat-message-bubble.has-reactions {
+  margin-bottom: 14px !important;
+}
+
 .msg-reactions {
+  position: absolute;
+  bottom: -11px;
+  right: 12px;
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 4px;
+  gap: 3px;
+  z-index: 5;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1px 5px;
+  box-shadow: var(--shadow-sm);
+}
+
+.chat-message.incoming .msg-reactions {
+  right: auto;
+  left: 12px;
 }
 
 .reaction-chip {

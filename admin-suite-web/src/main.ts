@@ -3209,8 +3209,11 @@ function drawProfilePage(): string {
               <button class="btn btn-outline" id="profile-toggle-status-btn" style="width:100%; justify-content:center;">
                 ${getIconSvg('activity')} Mark as ${emp.status === 'active' ? 'Inactive' : 'Active'}
               </button>
+              <button class="btn btn-primary" id="profile-send-dm-btn" style="width:100%; justify-content:center;">
+                ${getIconSvg('message-circle')} Send Direct Message
+              </button>
               ${['PRO','PRO_YEARLY'].includes(state.subscriptionLimits?.plan || '') ? `
-                <button class="btn btn-primary" id="profile-edit-finance-btn" style="width:100%; justify-content:center;">
+                <button class="btn btn-outline" id="profile-edit-finance-btn" style="width:100%; justify-content:center;">
                   ${getIconSvg('dollar-sign')} Edit Financials
                 </button>
               ` : `
@@ -3604,6 +3607,20 @@ function bindProfileEvents() {
       } catch (err: any) {
         showToast(err.message || 'Status update failed', 'error');
       }
+    });
+
+    document.getElementById('profile-send-dm-btn')?.addEventListener('click', async () => {
+      state.activeTab = 'chat';
+      state.activeProfile = null;
+      _renderedContactKey = null;
+      const targetUserId = (emp as any).linked_user_id || (emp as any).user_id || (emp as any).user?.id || emp.id;
+      const targetObj = { id: targetUserId, type: 'private', employee_id: emp.id, name: emp.name };
+      try {
+        localStorage.setItem('admin_chat_active_contact', JSON.stringify(targetObj));
+      } catch {}
+      state.chatActiveContact = targetObj;
+      renderApp();
+      await pollChatData();
     });
 
     document.getElementById('profile-edit-finance-btn')?.addEventListener('click', () => {
@@ -8718,10 +8735,26 @@ function bindForgotPasswordEvents() {
 
 let chatSearchQuery = '';
 
+function _isContactMatch(c1: any, c2: any): boolean {
+  if (!c1 || !c2) return false;
+  if (c2.employee_id && (c1.employee_id === c2.employee_id || String(c1.id) === String(c2.employee_id))) return true;
+  if (c1.employee_id && (c2.employee_id === c1.employee_id || String(c2.id) === String(c1.employee_id))) return true;
+  const idMatch = String(c1.id) === String(c2.id);
+  const type1 = (c1.type === 'dm' || c1.type === 'private') ? 'private' : c1.type;
+  const type2 = (c2.type === 'dm' || c2.type === 'private') ? 'private' : c2.type;
+  return idMatch && type1 === type2;
+}
+
 async function pollChatData() {
   if (state.activeTab !== 'chat') return;
   try {
-    const activeContact = state.chatActiveContact;
+    let activeContact = state.chatActiveContact;
+    if (!activeContact) {
+      try {
+        const saved = localStorage.getItem('admin_chat_active_contact');
+        if (saved) activeContact = JSON.parse(saved);
+      } catch {}
+    }
 
     if (activeContact) {
       // Parallelize fetching contacts & messages to load chat twice as fast
@@ -8744,15 +8777,25 @@ async function pollChatData() {
       state.chatContacts = contactsData;
 
       const updated = state.chatContacts.find(
-        (c: any) => c.id === activeContact.id && c.type === activeContact.type
+        (c: any) => _isContactMatch(c, activeContact)
       );
       if (updated) {
         state.chatActiveContact = updated;
+      } else {
+        state.chatActiveContact = activeContact;
       }
 
-      if (activeContact.type === 'group' && activeContact.id !== 'group') {
+      try {
+        localStorage.setItem('admin_chat_active_contact', JSON.stringify({
+          id: state.chatActiveContact.id,
+          type: state.chatActiveContact.type,
+          employee_id: state.chatActiveContact.employee_id
+        }));
+      } catch {}
+
+      if (state.chatActiveContact.type === 'group' && state.chatActiveContact.id !== 'group') {
         try {
-          const channels = await apiRequest(`chat/channels/?group_id=${activeContact.id}`);
+          const channels = await apiRequest(`chat/channels/?group_id=${state.chatActiveContact.id}`);
           state.chatChannels = channels;
           if (channels.length > 0 && !state.chatActiveChannel) {
             state.chatActiveChannel = channels[0];
@@ -8768,39 +8811,58 @@ async function pollChatData() {
 
       state.chatMessages = Array.isArray(messagesData) ? messagesData : (messagesData?.results ?? []);
     } else {
-      // Initial load: no active contact selected yet
+      // Initial load: check localStorage before defaulting to first contact
       const contactsData = await apiRequest('chat/contacts/');
       state.chatContacts = contactsData;
       
-      if (state.chatContacts.length > 0) {
+      let initialContact: any = null;
+      try {
+        const saved = localStorage.getItem('admin_chat_active_contact');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          initialContact = state.chatContacts.find((c: any) => _isContactMatch(c, parsed));
+        }
+      } catch {}
+
+      if (!initialContact && state.chatContacts.length > 0) {
         const isMobile = window.innerWidth <= 768;
         if (!isMobile) {
-          state.chatActiveContact = state.chatContacts[0];
-          
-          let url = 'chat/messages/';
-          const firstContact = state.chatActiveContact;
-          if (firstContact.type === 'private' || firstContact.type === 'dm') {
-            url += `?recipient_id=${firstContact.id}`;
-          } else if (firstContact.type === 'group' && firstContact.id !== 'group') {
-            try {
-              const channels = await apiRequest(`chat/channels/?group_id=${firstContact.id}`);
-              state.chatChannels = channels;
-              if (channels.length > 0) {
-                state.chatActiveChannel = channels[0];
-                url += `?channel_id=${channels[0].id}`;
-              } else {
-                url += `?group_id=${firstContact.id}`;
-              }
-            } catch {
-              state.chatChannels = [];
-              state.chatActiveChannel = null;
-              url += `?group_id=${firstContact.id}`;
-            }
-          }
-          
-          const messagesData = await apiRequest(url);
-          state.chatMessages = Array.isArray(messagesData) ? messagesData : (messagesData?.results ?? []);
+          initialContact = state.chatContacts[0];
         }
+      }
+
+      if (initialContact) {
+        state.chatActiveContact = initialContact;
+        try {
+          localStorage.setItem('admin_chat_active_contact', JSON.stringify({
+            id: initialContact.id,
+            type: initialContact.type,
+            employee_id: initialContact.employee_id
+          }));
+        } catch {}
+        
+        let url = 'chat/messages/';
+        if (initialContact.type === 'private' || initialContact.type === 'dm') {
+          url += `?recipient_id=${initialContact.id}`;
+        } else if (initialContact.type === 'group' && initialContact.id !== 'group') {
+          try {
+            const channels = await apiRequest(`chat/channels/?group_id=${initialContact.id}`);
+            state.chatChannels = channels;
+            if (channels.length > 0) {
+              state.chatActiveChannel = channels[0];
+              url += `?channel_id=${channels[0].id}`;
+            } else {
+              url += `?group_id=${initialContact.id}`;
+            }
+          } catch {
+            state.chatChannels = [];
+            state.chatActiveChannel = null;
+            url += `?group_id=${initialContact.id}`;
+          }
+        }
+        
+        const messagesData = await apiRequest(url);
+        state.chatMessages = Array.isArray(messagesData) ? messagesData : (messagesData?.results ?? []);
       }
     }
     
@@ -8817,7 +8879,8 @@ let _renderedContactKey: string | null = null;
 function _getChatContactKey(c: any): string {
   if (!c) return '';
   const chanId = state.chatActiveChannel ? state.chatActiveChannel.id : '';
-  return `${c.type}:${c.id}:${chanId}`;
+  const normType = (c.type === 'dm' || c.type === 'private') ? 'private' : c.type;
+  return `${normType}:${c.id}:${chanId}`;
 }
 
 // ============================================================
@@ -9575,6 +9638,7 @@ function _buildMessagesHtml(c: any): string {
     }
 
     const isVoice = _isVoiceNote(m);
+    const isTextOnly = isOutgoing && !m.is_deleted && !isVoice && !m.attachment && m.attachment_type !== 'audio' && m.text && m.text !== '[Voice Note]';
     const textToShow = m.is_deleted
       ? '<span style="font-style:italic;opacity:0.5;">This message was deleted</span>'
       : (isVoice ? '' : (m.text === m.attachment_name ? '' : sanitizeHtml(m.text || '')));
@@ -9586,14 +9650,15 @@ function _buildMessagesHtml(c: any): string {
       ? `<span style="font-size:10px; color:#f59e0b; margin-right:4px;" title="Pinned">${getIconSvg('pin')}</span>`
       : '';
 
-    const reactionsHtml = `<div class="msg-reactions" style="display:${(m.reactions && m.reactions.length) ? 'flex' : 'none'}; gap:4px; margin-top:4px; flex-wrap:wrap;">
-      ${renderReactionChips(m)}
-    </div>`;
+    const hasReactions = Boolean(m.reactions && m.reactions.length);
+    const reactionsHtml = hasReactions
+      ? `<div class="msg-reactions">${renderReactionChips(m)}</div>`
+      : '';
 
     const bubbleHtml = `
       <div class="chat-message ${isOutgoing ? 'outgoing' : 'incoming'}" id="chat-msg-${m.id}">
         ${!isOutgoing && c.type === 'group' ? `<div class="chat-contact-avatar" style="width:32px; height:32px; font-size:11px; margin-top:2px; flex-shrink:0;">${sanitizeHtml(initials)}</div>` : ''}
-        <div class="chat-message-bubble" data-msg-id="${m.id}" data-msg-text="${encodeURIComponent(m.text || '')}">
+        <div class="chat-message-bubble ${hasReactions ? 'has-reactions' : ''}" data-msg-id="${m.id}" data-msg-text="${encodeURIComponent(m.text || '')}">
           ${!isOutgoing && c.type === 'group' ? `<div class="chat-message-sender">${senderName}</div>` : ''}
           ${quoteHtml}
           ${attachmentHtml}
@@ -9609,7 +9674,7 @@ function _buildMessagesHtml(c: any): string {
             <div class="chat-message-dropdown-item" data-action="reply" data-msg-id="${m.id}">${getIconSvg('reply')} Reply</div>
             <div class="chat-message-dropdown-item" data-action="copy" data-msg-id="${m.id}">${getIconSvg('copy')} Copy</div>
             <div class="chat-message-dropdown-item" data-action="pin" data-msg-id="${m.id}">${getIconSvg('pin')} ${m.is_pinned ? 'Unpin' : 'Pin'}</div>
-            ${isOutgoing && !m.is_deleted ? `<div class="chat-message-dropdown-item" data-action="edit" data-msg-id="${m.id}">${getIconSvg('edit')} Edit</div>` : ''}
+            ${isTextOnly ? `<div class="chat-message-dropdown-item" data-action="edit" data-msg-id="${m.id}">${getIconSvg('edit')} Edit</div>` : ''}
             <div class="chat-message-dropdown-item text-danger" style="color:var(--danger);" data-action="delete" data-msg-id="${m.id}">${getIconSvg('trash')} Delete</div>
           </div>
           <div class="chat-message-meta">
@@ -9779,6 +9844,9 @@ function refreshChatMessages(): void {
   const c = state.chatActiveContact;
   if (!c) return;
 
+  // Prevent polling from wiping DOM and causing dropdown to shake/flicker and disappear
+  if (document.querySelector('.chat-message-dropdown.show')) return;
+
   const wasAtBottom = scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight < 100;
   scrollEl.innerHTML = DOMPurify.sanitize(_buildMessagesHtml(c));
 
@@ -9811,6 +9879,7 @@ function _bindChatViewportEvents(): void {
     backBtn.addEventListener('click', () => {
       state.chatActiveContact = null;
       _renderedContactKey = null;
+      try { localStorage.removeItem('admin_chat_active_contact'); } catch {}
       const drawer = document.getElementById('chat-profile-drawer');
       if (drawer) drawer.classList.remove('open');
       updateChatDOM();
@@ -10049,14 +10118,22 @@ function _bindChatViewportEvents(): void {
       }
 
       // 6. Message Options Chevron Toggle
-      const optionsBtn = target.closest('.chat-message-options-btn');
+      const optionsBtn = target.closest('.chat-message-options-btn') as HTMLElement;
       if (optionsBtn) {
         e.stopPropagation();
-        document.querySelectorAll('.chat-message-dropdown.show').forEach(el => {
-          if (el !== optionsBtn.nextElementSibling) el.classList.remove('show');
-        });
+        e.preventDefault();
         const dropdown = optionsBtn.nextElementSibling as HTMLElement;
-        if (dropdown) dropdown.classList.toggle('show');
+        const isCurrentlyOpen = dropdown && dropdown.classList.contains('show');
+        document.querySelectorAll('.chat-message-dropdown.show').forEach(el => {
+          el.classList.remove('show');
+        });
+        document.querySelectorAll('.chat-message-options-btn.active').forEach(el => {
+          el.classList.remove('active');
+        });
+        if (!isCurrentlyOpen && dropdown) {
+          dropdown.classList.add('show');
+          optionsBtn.classList.add('active');
+        }
         return;
       }
 
@@ -10064,9 +10141,11 @@ function _bindChatViewportEvents(): void {
       const quickReact = target.closest('[data-action="quick-react"]') as HTMLElement;
       if (quickReact) {
         e.stopPropagation();
+        e.preventDefault();
         const emoji = quickReact.dataset.emoji || '👍';
         const msgId = Number(quickReact.dataset.msgId);
         quickReact.closest('.chat-message-dropdown')?.classList.remove('show');
+        document.querySelectorAll('.chat-message-options-btn.active').forEach(el => el.classList.remove('active'));
         (window as any).toggleReaction(msgId, emoji);
         return;
       }
@@ -10075,9 +10154,11 @@ function _bindChatViewportEvents(): void {
       const dropdownItem = target.closest('.chat-message-dropdown-item') as HTMLElement;
       if (dropdownItem) {
         e.stopPropagation();
+        e.preventDefault();
         const action = dropdownItem.getAttribute('data-action');
         const msgId = Number(dropdownItem.getAttribute('data-msg-id'));
         dropdownItem.closest('.chat-message-dropdown')?.classList.remove('show');
+        document.querySelectorAll('.chat-message-options-btn.active').forEach(el => el.classList.remove('active'));
 
         const msg = state.chatMessages.find((m: any) => m.id === msgId);
         if (!msg) return;
@@ -10099,6 +10180,10 @@ function _bindChatViewportEvents(): void {
             showToast(err.message || 'Failed to update pin', 'error');
           }
         } else if (action === 'edit') {
+          if (_isVoiceNote(msg) || msg.attachment || msg.attachment_type === 'audio' || msg.text === '[Voice Note]') {
+            showToast('Voice notes and attachments cannot be edited.', 'error');
+            return;
+          }
           _editingMessageId = msgId;
           if (inputField) {
             inputField.value = msg.text || '';
@@ -10188,6 +10273,7 @@ function _bindChatViewportEvents(): void {
         } else if (action === 'close') {
           state.chatActiveContact = null;
           _renderedContactKey = null;
+          try { localStorage.removeItem('admin_chat_active_contact'); } catch {}
           const drawer = document.getElementById('chat-profile-drawer');
           if (drawer) drawer.classList.remove('open');
           updateChatDOM();
@@ -10227,6 +10313,7 @@ function _bindChatViewportEvents(): void {
       const parent = el.closest('.chat-message-bubble');
       if (parent && !parent.contains(target)) {
         el.classList.remove('show');
+        parent.querySelector('.chat-message-options-btn')?.classList.remove('active');
       }
     });
   });
@@ -10537,9 +10624,7 @@ function updateChatDOM() {
       contactsHtml = `<div style="text-align:center; padding:20px; color:var(--muted-foreground);">No conversations found.</div>`;
     } else {
       contactsHtml = filteredContacts.map((c: any) => {
-        const isActive = state.chatActiveContact
-          && state.chatActiveContact.id === c.id
-          && state.chatActiveContact.type === c.type;
+        const isActive = state.chatActiveContact && _isContactMatch(state.chatActiveContact, c);
         const avatarHtml = c.avatar
           ? `<img src="${c.avatar}" alt="${sanitizeHtml(c.name)}">`
           : sanitizeHtml(c.initials || c.name.slice(0, 2).toUpperCase());
@@ -10599,11 +10684,18 @@ function updateChatDOM() {
         const chatType = target.dataset.chatType;
         if (chatId && chatType) {
           const id = chatId === 'group' ? 'group' : parseInt(chatId);
-          const contact = state.chatContacts.find((c: any) => c.id === id && c.type === chatType);
+          const contact = state.chatContacts.find((c: any) => _isContactMatch(c, { id, type: chatType }));
           if (contact) {
             state.chatActiveContact = contact;
             state.chatActiveChannel = null;
             _renderedContactKey = null; // force full re-render
+            try {
+              localStorage.setItem('admin_chat_active_contact', JSON.stringify({
+                id: contact.id,
+                type: contact.type,
+                employee_id: contact.employee_id
+              }));
+            } catch {}
             await pollChatData();
           }
         }
