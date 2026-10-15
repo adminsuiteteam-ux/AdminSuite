@@ -1416,7 +1416,7 @@ export function renderApp() {
           ${drawSidebar()}
           <div class="main-content ${state.isSidebarCollapsed ? 'sidebar-collapsed' : ''}">
             ${drawTopbar()}
-            <main class="page-content page-content-animate">
+            <main class="page-content page-content-animate ${state.activeTab === 'chat' ? 'page-content-chat' : ''}">
               ${drawTabContent()}
             </main>
           </div>
@@ -3154,7 +3154,7 @@ function drawProfilePage(): string {
         </div>
       </div>
 
-      <div class="content-grid" style="display:grid; grid-template-columns: 1fr 2fr; gap:20px;">
+      <div class="profile-content-grid">
         <!-- Left Column -->
         <div style="display:flex; flex-direction:column; gap:20px;">
           <div class="card">
@@ -3350,7 +3350,7 @@ function drawProfilePage(): string {
         </div>
       </div>
 
-      <div class="content-grid" style="display:grid; grid-template-columns: 1fr 2fr; gap:20px;">
+      <div class="profile-content-grid">
         <!-- Left Column -->
         <div style="display:flex; flex-direction:column; gap:20px;">
           <div class="card">
@@ -3462,7 +3462,7 @@ function drawProfilePage(): string {
         </div>
       </div>
 
-      <div class="content-grid" style="display:grid; grid-template-columns: 1fr 2.2fr; gap:20px;">
+      <div class="profile-content-grid">
         <!-- Left Column -->
         <div style="display:flex; flex-direction:column; gap:20px;">
           <div class="card">
@@ -5212,22 +5212,26 @@ function drawEmployeesTab(): string {
   `).join('');
 
   const rowsHtml = filtered.map(e => `
-    <tr style="cursor: pointer;" data-employee-id="${e.id}">
-      <td>
+    <tr class="employees-table-row" style="cursor: pointer;" data-employee-id="${e.id}">
+      <td class="emp-cell-profile">
         <div class="user-row">
           ${renderAvatarHtml(e.avatar, e.initials || e.name[0] || 'E', 'avatar blue')}
-          <div>
-            <div class="cell-primary">${sanitizeHtml(e.name)}</div>
-            <div class="cell-muted">${sanitizeHtml(e.email)}</div>
+          <div style="min-width:0;">
+            <div class="cell-primary" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${sanitizeHtml(e.name)}</div>
+            <div class="cell-muted" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${sanitizeHtml(e.email)}</div>
           </div>
         </div>
+        <div class="emp-mobile-meta">
+          <span style="color:var(--muted-foreground);">${sanitizeHtml(e.role)} &bull; ${sanitizeHtml(e.department)}</span>
+          <span class="cell-mono" style="font-weight:600;">${formatCurrency(e.salary)}/mo</span>
+        </div>
       </td>
-      <td>
+      <td class="emp-cell-role">
         <div class="cell-primary">${sanitizeHtml(e.role)}</div>
         <div class="cell-muted">${sanitizeHtml(e.department)}</div>
       </td>
-      <td class="cell-mono">${formatCurrency(e.salary)}/mo</td>
-      <td>
+      <td class="emp-cell-salary cell-mono">${formatCurrency(e.salary)}/mo</td>
+      <td class="emp-cell-status">
         <span class="status-badge ${e.status === 'active' ? 'active' : 'inactive'}">
           ${sanitizeHtml(e.status)}
         </span>
@@ -5250,8 +5254,8 @@ function drawEmployeesTab(): string {
       ${chipsHtml}
     </div>
     
-    <div class="card" style="overflow-x: auto;">
-      <table class="data-table">
+    <div class="card employees-card-wrapper" style="overflow-x: auto; width: 100%; max-width: 100%;">
+      <table class="data-table employees-table">
         <thead>
           <tr>
             <th>Profile</th>
@@ -8769,31 +8773,34 @@ async function pollChatData() {
       state.chatContacts = contactsData;
       
       if (state.chatContacts.length > 0) {
-        state.chatActiveContact = state.chatContacts[0];
-        
-        let url = 'chat/messages/';
-        const firstContact = state.chatActiveContact;
-        if (firstContact.type === 'private' || firstContact.type === 'dm') {
-          url += `?recipient_id=${firstContact.id}`;
-        } else if (firstContact.type === 'group' && firstContact.id !== 'group') {
-          try {
-            const channels = await apiRequest(`chat/channels/?group_id=${firstContact.id}`);
-            state.chatChannels = channels;
-            if (channels.length > 0) {
-              state.chatActiveChannel = channels[0];
-              url += `?channel_id=${channels[0].id}`;
-            } else {
+        const isMobile = window.innerWidth <= 768;
+        if (!isMobile) {
+          state.chatActiveContact = state.chatContacts[0];
+          
+          let url = 'chat/messages/';
+          const firstContact = state.chatActiveContact;
+          if (firstContact.type === 'private' || firstContact.type === 'dm') {
+            url += `?recipient_id=${firstContact.id}`;
+          } else if (firstContact.type === 'group' && firstContact.id !== 'group') {
+            try {
+              const channels = await apiRequest(`chat/channels/?group_id=${firstContact.id}`);
+              state.chatChannels = channels;
+              if (channels.length > 0) {
+                state.chatActiveChannel = channels[0];
+                url += `?channel_id=${channels[0].id}`;
+              } else {
+                url += `?group_id=${firstContact.id}`;
+              }
+            } catch {
+              state.chatChannels = [];
+              state.chatActiveChannel = null;
               url += `?group_id=${firstContact.id}`;
             }
-          } catch {
-            state.chatChannels = [];
-            state.chatActiveChannel = null;
-            url += `?group_id=${firstContact.id}`;
           }
+          
+          const messagesData = await apiRequest(url);
+          state.chatMessages = Array.isArray(messagesData) ? messagesData : (messagesData?.results ?? []);
         }
-        
-        const messagesData = await apiRequest(url);
-        state.chatMessages = Array.isArray(messagesData) ? messagesData : (messagesData?.results ?? []);
       }
     }
     
@@ -9643,7 +9650,7 @@ function renderChatViewport(viewportContainer: HTMLElement) {
   viewportContainer.innerHTML = DOMPurify.sanitize(`
     <div class="chat-header" id="chat-header-bar" style="position:relative; z-index:11;">
       <div class="chat-header-info" id="chat-header-profile-btn" style="cursor:pointer;">
-        <button class="chat-mobile-back-btn" id="chat-mobile-back-btn" style="background:none; border:none; color:inherit; cursor:pointer; display:none; align-items:center; justify-content:center; padding:4px; margin-right:8px;">
+        <button class="chat-mobile-back-btn" id="chat-mobile-back-btn" title="Back to Chats">
           ${getIconSvg('arrow-left')}
         </button>
         <div class="chat-contact-avatar-wrapper">
@@ -10863,6 +10870,14 @@ function bindChatEvents() {
     });
   }
 
+  const exitBtn = document.getElementById('chat-exit-btn');
+  if (exitBtn) {
+    exitBtn.addEventListener('click', () => {
+      state.activeTab = 'dashboard';
+      renderApp();
+    });
+  }
+
   const createGroupBtn = document.getElementById('chat-create-group-btn');
   if (createGroupBtn) {
     createGroupBtn.addEventListener('click', openCreateGroupModal);
@@ -11751,7 +11766,12 @@ function drawChatTab(): string {
       <div class="chat-sidebar">
         <div class="chat-sidebar-header">
           <div style="display:flex; justify-content:space-between; align-items:center;">
-            <h2 style="font-size:18px; font-weight:700; margin:0;">Chats</h2>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <button class="chat-exit-btn" id="chat-exit-btn" title="Exit Chat">
+                ${getIconSvg('arrow-left')}
+              </button>
+              <h2 style="font-size:18px; font-weight:700; margin:0;">Chats</h2>
+            </div>
             <button class="btn btn-outline" id="chat-create-group-btn" style="padding:4px 8px; font-size:12px;">+ Group</button>
           </div>
           <div class="chat-sidebar-search">
@@ -12229,7 +12249,10 @@ function drawProjectsTab(): string {
     return p.status === projectFilterStatus;
   });
 
-  const columns = ['planned', 'active', 'on_hold', 'completed'];
+  const columns = projectFilterStatus === 'all'
+    ? ['planned', 'active', 'on_hold', 'completed']
+    : [projectFilterStatus];
+
   const columnLabels: Record<string, string> = {
     planned: 'Planned',
     active: 'Active',
@@ -12237,8 +12260,20 @@ function drawProjectsTab(): string {
     completed: 'Completed'
   };
 
+  const statusChips = [
+    { id: 'all', label: 'All Projects' },
+    { id: 'planned', label: 'Planned' },
+    { id: 'active', label: 'Active' },
+    { id: 'on_hold', label: 'On Hold' },
+    { id: 'completed', label: 'Completed' }
+  ];
+
+  const chipsHtml = statusChips.map(c => `
+    <button class="chip ${projectFilterStatus === c.id ? 'active' : ''}" data-filter="${c.id}">${c.label}</button>
+  `).join('');
+
   const kanbanHtml = columns.map(col => {
-    const colProjects = filtered.filter(p => p.status === col);
+    const colProjects = (projectFilterStatus === 'all' ? state.projects : filtered).filter(p => p.status === col);
     const cardsHtml = colProjects.map(p => `
       <div class="card" style="margin-bottom:12px; cursor:pointer;" data-project-id="${p.id}">
         <div class="card-body" style="padding:16px;">
@@ -12262,7 +12297,7 @@ function drawProjectsTab(): string {
     `).join('');
 
     return `
-      <div style="flex:1; min-width:240px; background:var(--secondary); padding:12px; border-radius:var(--radius-lg); display:flex; flex-direction:column; gap:8px; border:1px solid var(--border);">
+      <div class="kanban-column" data-status="${col}">
         <div style="display:flex; justify-content:space-between; align-items:center; padding-bottom:8px; border-bottom:1px solid var(--border);">
           <span style="font-weight:700; font-size:13px; text-transform:uppercase; letter-spacing:0.5px;">${sanitizeHtml(safeProp(columnLabels, col as keyof typeof columnLabels) ?? col)}</span>
           <span style="font-size:11px; background:var(--card); padding:2px 8px; border-radius:var(--radius-sm); border:1px solid var(--border); font-weight:700;">${colProjects.length}</span>
@@ -12281,8 +12316,12 @@ function drawProjectsTab(): string {
         ${getIconSvg('plus')} Add Project
       </button>
     </div>
+
+    <div class="filter-chips project-filter-chips">
+      ${chipsHtml}
+    </div>
     
-    <div style="display:flex; gap:16px; overflow-x:auto; padding-bottom:16px; align-items:stretch;">
+    <div class="kanban-board-container">
       ${kanbanHtml}
     </div>
   `;
@@ -12291,6 +12330,13 @@ function drawProjectsTab(): string {
 function bindProjectsEvents() {
   const addBtn = document.getElementById('add-project-btn');
   if (addBtn) addBtn.addEventListener('click', openAddProjectModal);
+
+  document.querySelectorAll('.project-filter-chips .chip').forEach(chip => {
+    chip.addEventListener('click', (e) => {
+      projectFilterStatus = (e.currentTarget as HTMLButtonElement).dataset.filter || 'all';
+      renderApp();
+    });
+  });
 
   document.querySelectorAll('[data-project-id]').forEach(card => {
     card.addEventListener('click', (e) => {
@@ -12608,9 +12654,18 @@ function openAddProjectModal() {
 
 // ── TASKS TAB ──
 let taskPriorityFilter = 'all';
+let taskSearchQuery = '';
 
 function drawTasksTab(): string {
   const filtered = state.tasks.filter(t => {
+    if (taskSearchQuery) {
+      const q = taskSearchQuery.toLowerCase();
+      const matchTitle = t.title.toLowerCase().includes(q);
+      const matchDesc = (t.description || '').toLowerCase().includes(q);
+      const emp = state.employees.find(e => e.id === t.employee);
+      const matchEmp = emp ? emp.name.toLowerCase().includes(q) : false;
+      if (!matchTitle && !matchDesc && !matchEmp) return false;
+    }
     if (taskPriorityFilter === 'all') return true;
     if (taskPriorityFilter === 'completed') return t.status === 'completed';
     if (taskPriorityFilter === 'pending') return t.status !== 'completed';
@@ -12635,25 +12690,30 @@ function drawTasksTab(): string {
     const isCompleted = t.status === 'completed';
     
     return `
-      <tr>
-        <td style="width: 40px; text-align: center;">
-          <input type="checkbox" class="task-checkbox" data-task-id="${t.id}" ${isCompleted ? 'checked' : ''} style="width:16px; height:16px; accent-color:var(--accent);">
+      <tr class="tasks-table-row">
+        <td class="task-cell-checkbox" style="text-align: center;">
+          <input type="checkbox" class="task-checkbox" data-task-id="${t.id}" ${isCompleted ? 'checked' : ''} style="width:16px; height:16px; accent-color:var(--accent); cursor:pointer;">
         </td>
-        <td>
+        <td class="task-cell-main">
           <div class="cell-primary" style="${isCompleted ? 'text-decoration: line-through; opacity: 0.6;' : ''}">${sanitizeHtml(t.title)}</div>
-          <div class="cell-muted">${sanitizeHtml(t.description || '')}</div>
+          ${t.description ? `<div class="cell-muted" style="word-break: break-word; font-size:12px; margin-top:2px;">${sanitizeHtml(t.description)}</div>` : ''}
+          <div class="task-mobile-meta">
+            <span class="status-badge ${t.priority === 'high' ? 'on_hold' : t.priority === 'medium' ? 'pending' : 'inactive'}">${sanitizeHtml(t.priority)}</span>
+            <span style="color:var(--muted-foreground); display:inline-flex; align-items:center; gap:4px;">${getIconSvg('user')} ${sanitizeHtml(empName)}</span>
+            ${t.due_date ? `<span style="color:var(--muted-foreground); display:inline-flex; align-items:center; gap:4px;">${getIconSvg('calendar')} ${sanitizeHtml(t.due_date)}</span>` : ''}
+          </div>
         </td>
-        <td>
+        <td class="task-cell-assignee">
           <div class="cell-primary">${sanitizeHtml(empName)}</div>
         </td>
-        <td>
+        <td class="task-cell-priority">
           <span class="status-badge ${t.priority === 'high' ? 'on_hold' : t.priority === 'medium' ? 'pending' : 'inactive'}">${sanitizeHtml(t.priority)}</span>
         </td>
-        <td>
+        <td class="task-cell-due">
           <div class="cell-mono">${sanitizeHtml(t.due_date || 'N/A')}</div>
         </td>
-        <td style="text-align: right;">
-          <button class="btn btn-ghost btn-sm delete-task-btn" data-task-id="${t.id}" style="color:var(--danger); padding:4px;">
+        <td class="task-cell-actions" style="text-align: right;">
+          <button class="btn btn-ghost btn-sm delete-task-btn" data-task-id="${t.id}" style="color:var(--danger); padding:4px;" title="Delete task">
             ${getIconSvg('trash')}
           </button>
         </td>
@@ -12665,7 +12725,7 @@ function drawTasksTab(): string {
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
       <div class="search-box">
         ${getIconSvg('search')}
-        <input type="text" class="form-input" id="task-search" placeholder="Search tasks...">
+        <input type="text" class="form-input" id="task-search" placeholder="Search tasks..." value="${sanitizeHtml(taskSearchQuery)}">
       </div>
       <button class="btn btn-primary" id="add-task-btn">
         ${getIconSvg('plus')} Add Task
@@ -12676,8 +12736,8 @@ function drawTasksTab(): string {
       ${chipsHtml}
     </div>
     
-    <div class="card" style="overflow-x: auto;">
-      <table class="data-table">
+    <div class="card tasks-card-wrapper" style="overflow-x: auto; width: 100%; max-width: 100%;">
+      <table class="data-table tasks-table">
         <thead>
           <tr>
             <th style="width: 40px;"></th>
@@ -12699,6 +12759,22 @@ function drawTasksTab(): string {
 function bindTasksEvents() {
   const addBtn = document.getElementById('add-task-btn');
   if (addBtn) addBtn.addEventListener('click', openAddTaskModal);
+
+  const searchInput = document.getElementById('task-search') as HTMLInputElement;
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      taskSearchQuery = (e.target as HTMLInputElement).value;
+      clearTimeout((window as any).taskSearchTimeout);
+      (window as any).taskSearchTimeout = setTimeout(() => {
+        renderApp();
+        const next = document.getElementById('task-search') as HTMLInputElement;
+        if (next) {
+          next.focus();
+          next.setSelectionRange(next.value.length, next.value.length);
+        }
+      }, 150);
+    });
+  }
 
   document.querySelectorAll('.filter-chips .chip').forEach(chip => {
     chip.addEventListener('click', (e) => {

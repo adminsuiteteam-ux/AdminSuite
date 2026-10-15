@@ -124,6 +124,9 @@ input, select, textarea { font-family: inherit; }
 .app-layout {
   display: flex;
   min-height: 100vh;
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
 }
 
 .sidebar {
@@ -383,9 +386,13 @@ input, select, textarea { font-family: inherit; }
 /* Main content */
 .main-content {
   flex: 1;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
   margin-left: var(--sidebar-width);
   min-height: 100vh;
   transition: margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow-x: hidden;
 }
 
 .main-content.sidebar-collapsed {
@@ -474,6 +481,9 @@ input, select, textarea { font-family: inherit; }
   padding: 24px;
   max-width: 1400px;
   margin: 0 auto;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .page-content-animate {
@@ -2802,6 +2812,67 @@ input, select, textarea { font-family: inherit; }
   background: rgba(249, 115, 22, 0.10);
 }
 
+/* ---------- Responsive Helpers & Containers ---------- */
+.emp-mobile-meta,
+.task-mobile-meta {
+  display: none;
+}
+
+.profile-content-grid {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 20px;
+}
+
+.kanban-board-container {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding-bottom: 16px;
+  align-items: stretch;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.kanban-column {
+  flex: 1;
+  min-width: 250px;
+  background: var(--secondary);
+  padding: 12px;
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--border);
+  box-sizing: border-box;
+}
+
+.chat-mobile-back-btn,
+.chat-exit-btn {
+  display: none;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+  border: 1px solid var(--border);
+  color: var(--foreground);
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all var(--transition);
+}
+.chat-mobile-back-btn:hover,
+.chat-exit-btn:hover {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+.chat-mobile-back-btn svg,
+.chat-exit-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
 /* ---------- Responsive Breakpoints ---------- */
 @media (max-width: 1200px) {
   .dash-financial-pulse {
@@ -2854,6 +2925,19 @@ input, select, textarea { font-family: inherit; }
 }
 
 @media (max-width: 768px) {
+  .page-content {
+    padding: 16px 12px;
+  }
+  .page-content.page-content-chat,
+  .page-content:has(.chat-wrapper) {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    height: calc(100dvh - 56px) !important;
+    height: calc(100vh - 56px) !important;
+    overflow: hidden !important;
+  }
   .stats-grid {
     grid-template-columns: 1fr 1fr;
   }
@@ -2873,11 +2957,29 @@ input, select, textarea { font-family: inherit; }
     grid-template-columns: 1fr !important;
     gap: 16px !important;
   }
-  /* Mobile-first chat toggle view */
+
+  /* --- Mobile-first Team Chat: Full screen Edge-to-Edge --- */
+  .chat-wrapper {
+    height: calc(100dvh - 56px) !important;
+    height: calc(100vh - 56px) !important;
+    min-height: 0 !important;
+    border-radius: 0 !important;
+    border: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
   .chat-sidebar {
     width: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+    height: 100% !important;
+    border-right: none !important;
+    display: flex !important;
   }
   .chat-content {
+    display: none !important;
+  }
+  .chat-channels-sidebar {
     display: none !important;
   }
   .chat-wrapper.has-active-contact .chat-sidebar {
@@ -2886,10 +2988,190 @@ input, select, textarea { font-family: inherit; }
   .chat-wrapper.has-active-contact .chat-content {
     display: flex !important;
     width: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+    height: 100% !important;
+    position: relative !important;
   }
+  .chat-wrapper.has-active-contact .chat-mobile-back-btn,
   .chat-wrapper.has-active-contact #chat-mobile-back-btn {
-    display: flex !important;
+    display: inline-flex !important;
   }
+  .chat-exit-btn {
+    display: inline-flex !important;
+  }
+  #chat-scroll-bottom-btn {
+    bottom: 74px !important;
+    right: 14px !important;
+  }
+
+  /* --- Responsive Employees Page: Stable Card View on Mobile --- */
+  .employees-card-wrapper {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+  }
+  .employees-table {
+    display: block !important;
+    width: 100% !important;
+  }
+  .employees-table thead {
+    display: none !important;
+  }
+  .employees-table tbody {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    width: 100% !important;
+  }
+  .employees-table-row {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    background: var(--card) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius-lg) !important;
+    padding: 12px 14px !important;
+    box-shadow: var(--shadow-sm) !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    transition: transform var(--transition), box-shadow var(--transition);
+  }
+  .employees-table-row:active {
+    transform: scale(0.99);
+  }
+  .emp-cell-profile {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+    padding: 0 !important;
+    border: none !important;
+    flex: 1 !important;
+    min-width: 0 !important;
+  }
+  .emp-cell-role,
+  .emp-cell-salary {
+    display: none !important;
+  }
+  .emp-cell-status {
+    padding: 0 0 0 10px !important;
+    border: none !important;
+    flex-shrink: 0 !important;
+  }
+  .emp-mobile-meta {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 11.5px;
+    margin-top: 4px;
+    padding-left: 42px;
+  }
+
+  /* --- Responsive Tasks Page: Fluid Task Cards on Mobile --- */
+  .tasks-card-wrapper {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+  }
+  .tasks-table {
+    display: block !important;
+    width: 100% !important;
+  }
+  .tasks-table thead {
+    display: none !important;
+  }
+  .tasks-table tbody {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    width: 100% !important;
+  }
+  .tasks-table-row {
+    display: grid !important;
+    grid-template-columns: 28px 1fr 32px !important;
+    grid-template-areas:
+      "check main action";
+    background: var(--card) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius-lg) !important;
+    padding: 12px 14px !important;
+    gap: 10px !important;
+    align-items: start !important;
+    box-shadow: var(--shadow-sm) !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+  }
+  .task-cell-checkbox {
+    grid-area: check !important;
+    padding: 2px 0 0 0 !important;
+    border: none !important;
+    width: auto !important;
+  }
+  .task-cell-main {
+    grid-area: main !important;
+    padding: 0 !important;
+    border: none !important;
+    min-width: 0 !important;
+  }
+  .task-cell-actions {
+    grid-area: action !important;
+    padding: 0 !important;
+    border: none !important;
+    text-align: right !important;
+  }
+  .task-cell-assignee,
+  .task-cell-priority,
+  .task-cell-due {
+    display: none !important;
+  }
+  .task-mobile-meta {
+    display: flex !important;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-top: 8px;
+    font-size: 11.5px;
+  }
+
+  /* --- Responsive Projects Page: Fluid Stacking Kanban --- */
+  .kanban-board-container {
+    flex-direction: column !important;
+    overflow-x: visible !important;
+    gap: 14px !important;
+    padding-bottom: 0 !important;
+    width: 100% !important;
+  }
+  .kanban-column {
+    min-width: 0 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* --- Responsive Search & Inputs on Mobile --- */
+  .search-box {
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+  .search-box input {
+    width: 100% !important;
+  }
+
+  /* --- Responsive Profile Detail Grids --- */
+  .profile-content-grid,
+  div[style*="grid-template-columns: 1fr 2fr"],
+  div[style*="grid-template-columns:1fr 2fr"],
+  div[style*="grid-template-columns: 1fr 2.2fr"],
+  div[style*="grid-template-columns:1fr 2.2fr"] {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+  .gradient-header h1 {
+    font-size: 22px !important;
+  }
+
   /* Simplify topbar on mobile */
   .topbar-search-icon, .topbar-search, .notification-text, .topbar-item span {
     display: none !important;
