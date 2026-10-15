@@ -1206,6 +1206,7 @@ const FA_ICONS: Record<string, string> = {
   'forward': 'fa-solid fa-share',
   'check-double': 'fa-solid fa-check-double',
   'rotate-right': 'fa-solid fa-rotate-right',
+  'chevrons-down': 'fa-solid fa-angles-down',
 };
 
 function getIconSvg(name: string, _className = ''): string {
@@ -9578,11 +9579,9 @@ function _buildMessagesHtml(c: any): string {
       ? `<span style="font-size:10px; color:#f59e0b; margin-right:4px;" title="Pinned">${getIconSvg('pin')}</span>`
       : '';
 
-    const reactionsHtml = m.reactions && m.reactions.length
-      ? `<div class="msg-reactions" style="display:flex; gap:4px; margin-top:4px; flex-wrap:wrap;">
-          ${renderReactionChips(m)}
-        </div>`
-      : '';
+    const reactionsHtml = `<div class="msg-reactions" style="display:${(m.reactions && m.reactions.length) ? 'flex' : 'none'}; gap:4px; margin-top:4px; flex-wrap:wrap;">
+      ${renderReactionChips(m)}
+    </div>`;
 
     const bubbleHtml = `
       <div class="chat-message ${isOutgoing ? 'outgoing' : 'incoming'}" id="chat-msg-${m.id}">
@@ -9704,6 +9703,11 @@ function renderChatViewport(viewportContainer: HTMLElement) {
     <div class="chat-messages" id="chat-messages-scroll-container">
       ${_buildMessagesHtml(c)}
     </div>
+
+    <!-- Floating Scroll to Bottom Button -->
+    <button id="chat-scroll-to-bottom-btn" class="chat-scroll-bottom-btn" title="Scroll to bottom" style="display:none;" aria-label="Scroll to bottom">
+      ${getIconSvg('chevrons-down')}
+    </button>
 
     <!-- Footer Area -->
     <div class="chat-footer" id="chat-footer-bar" style="position:relative;">
@@ -9941,6 +9945,20 @@ function _bindChatViewportEvents(): void {
         _stageFiles(e.dataTransfer.files);
       }
     });
+
+    const scrollBottomBtn = document.getElementById('chat-scroll-to-bottom-btn');
+    if (scrollBottomBtn) {
+      scrollContainer.addEventListener('scroll', () => {
+        const distanceFromBottom = scrollContainer.scrollHeight - scrollContainer.scrollTop - scrollContainer.clientHeight;
+        scrollBottomBtn.style.display = distanceFromBottom > 240 ? 'flex' : 'none';
+      });
+      scrollBottomBtn.addEventListener('click', () => {
+        scrollContainer.scrollTo({
+          top: scrollContainer.scrollHeight,
+          behavior: 'smooth'
+        });
+      });
+    }
   }
 
   // Clipboard paste (Ctrl+V screenshots)
@@ -11037,6 +11055,8 @@ function handleWsEvent(data: any): void {
           };
           renderApp();
         }
+      } else if (syncEvt === 'chat.reaction' && syncData) {
+        onWsReaction(syncData);
       }
       break;
     }
@@ -11139,19 +11159,61 @@ function onWsTyping(data: any): void {
 }
 
 function onWsReaction(data: any): void {
-  // Update the reaction row below the message bubble
-  const reactionRow = document.querySelector(`[data-msg-id="${data.message_id}"] .msg-reactions`);
-  if (!reactionRow) return;
-
-  // Re-render the reaction chips from the updated counts
-  const counts: Record<string, number> = data.reaction_counts || {};
+  const msgId = Number(data.message_id);
+  const msg = state.chatMessages.find((m: any) => m.id === msgId);
   const me = state.user;
-  reactionRow.innerHTML = Object.entries(counts).map(([emoji, count]) => {
-    const isMine = (data.action === 'add' && data.user_id === me?.id && emoji === data.emoji);
-    return `<button class="reaction-chip${isMine ? ' mine' : ''}" onclick="toggleReaction(${data.message_id},'${emoji}')" title="React with ${emoji}">
-      ${emoji}<span class="reaction-count">${count}</span>
-    </button>`;
-  }).join('');
+
+  // Sync state.chatMessages
+  if (msg) {
+    if (data.reactions && Array.isArray(data.reactions)) {
+      msg.reactions = data.reactions;
+    } else if (data.reaction_counts) {
+      if (!msg.reactions) msg.reactions = [];
+      if (data.action === 'add') {
+        const exists = msg.reactions.find((r: any) => r.user === data.user_id && r.emoji === data.emoji);
+        if (!exists) {
+          msg.reactions.push({
+            id: Date.now(),
+            emoji: data.emoji,
+            user: data.user_id,
+            username: data.username || ''
+          });
+        }
+      } else if (data.action === 'remove') {
+        msg.reactions = msg.reactions.filter((r: any) => !(r.user === data.user_id && r.emoji === data.emoji));
+      }
+    }
+  }
+
+  // Update DOM: find bubble and its .msg-reactions container
+  const bubble = document.querySelector(`[data-msg-id="${msgId}"]`);
+  if (!bubble) return;
+  let reactionRow = bubble.querySelector('.msg-reactions') as HTMLElement;
+  if (!reactionRow) {
+    reactionRow = document.createElement('div');
+    reactionRow.className = 'msg-reactions';
+    reactionRow.style.cssText = 'display:flex; gap:4px; margin-top:4px; flex-wrap:wrap;';
+    const meta = bubble.querySelector('.chat-message-meta');
+    if (meta) {
+      bubble.insertBefore(reactionRow, meta);
+    } else {
+      bubble.appendChild(reactionRow);
+    }
+  }
+
+  if (msg) {
+    reactionRow.innerHTML = renderReactionChips(msg);
+    reactionRow.style.display = (msg.reactions && msg.reactions.length) ? 'flex' : 'none';
+  } else if (data.reaction_counts) {
+    const counts: Record<string, number> = data.reaction_counts || {};
+    reactionRow.innerHTML = Object.entries(counts).map(([emoji, count]) => {
+      const isMine = (data.action === 'add' && data.user_id === me?.id && emoji === data.emoji);
+      return `<button class="reaction-chip${isMine ? ' mine' : ''}" onclick="toggleReaction(${msgId},'${emoji}')" title="React with ${emoji}">
+        ${emoji}<span class="reaction-count">${count}</span>
+      </button>`;
+    }).join('');
+    reactionRow.style.display = Object.keys(counts).length > 0 ? 'flex' : 'none';
+  }
 }
 
 function onWsReadReceipt(messageIds: number[], readerId: number): void {
@@ -11343,20 +11405,70 @@ function escapeHtml(text: string): string {
   return (text || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// Global reaction toggle (called from inline onclick)
-(window as any).toggleReaction = function(msgId: number, emoji: string) {
-  // Check if user already reacted
+// Global reaction toggle (called from inline onclick and action dropdown)
+(window as any).toggleReaction = async function(msgId: number, emoji: string) {
   const msg = state.chatMessages.find((m: any) => m.id === msgId);
   const me = state.user;
-  const alreadyReacted = msg?.reactions?.some((r: any) => r.user === me?.id && r.emoji === emoji);
+  if (!me) return;
+
+  const alreadyReacted = msg?.reactions?.some((r: any) => r.user === me.id && r.emoji === emoji);
   const action = alreadyReacted ? 'remove' : 'add';
 
+  // 1. Optimistic update in memory and DOM
+  if (msg) {
+    if (!msg.reactions) msg.reactions = [];
+    if (action === 'remove') {
+      msg.reactions = msg.reactions.filter((r: any) => !(r.user === me.id && r.emoji === emoji));
+    } else {
+      msg.reactions.push({
+        id: Date.now(),
+        emoji,
+        user: me.id,
+        username: me.name || me.email || 'You'
+      });
+    }
+
+    const bubble = document.querySelector(`[data-msg-id="${msgId}"]`);
+    if (bubble) {
+      let reactionRow = bubble.querySelector('.msg-reactions') as HTMLElement;
+      if (!reactionRow) {
+        reactionRow = document.createElement('div');
+        reactionRow.className = 'msg-reactions';
+        reactionRow.style.cssText = 'display:flex; gap:4px; margin-top:4px; flex-wrap:wrap;';
+        const meta = bubble.querySelector('.chat-message-meta');
+        if (meta) {
+          bubble.insertBefore(reactionRow, meta);
+        } else {
+          bubble.appendChild(reactionRow);
+        }
+      }
+      reactionRow.innerHTML = renderReactionChips(msg);
+      reactionRow.style.display = (msg.reactions && msg.reactions.length) ? 'flex' : 'none';
+    }
+  }
+
+  // 2. Broadcast via WebSocket
   wsSend({ type: 'chat.reaction', message_id: msgId, emoji, action });
 
-  // Also call REST for persistence if WS not connected
-  if (!state.wsSocket || state.wsSocket.readyState !== WebSocket.OPEN) {
-    const method = action === 'add' ? 'POST' : 'DELETE';
-    apiRequest(`chat/messages/${msgId}/react/`, { method, body: JSON.stringify({ emoji }) }).catch(() => {});
+  // 3. Always sync to REST API for reliable persistence & multi-device sync
+  try {
+    const res = await apiRequest(`chat/messages/${msgId}/react/`, {
+      method: 'POST',
+      body: JSON.stringify({ emoji, action })
+    });
+    if (res && res.reactions && msg) {
+      msg.reactions = res.reactions;
+      const bubble = document.querySelector(`[data-msg-id="${msgId}"]`);
+      if (bubble) {
+        const reactionRow = bubble.querySelector('.msg-reactions') as HTMLElement;
+        if (reactionRow) {
+          reactionRow.innerHTML = renderReactionChips(msg);
+          reactionRow.style.display = (msg.reactions && msg.reactions.length) ? 'flex' : 'none';
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to sync reaction via REST:', err);
   }
 };
 

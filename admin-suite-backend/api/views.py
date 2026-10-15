@@ -2582,7 +2582,7 @@ def chat_messages(request):
 
     # Fetch latest 120 messages in reverse order with all relations joined in 1 query
     msgs_list = list(
-        msgs_qs.order_by('-created_at')[:120].select_related(*chat_select)
+        msgs_qs.order_by('-created_at')[:120].select_related(*chat_select).prefetch_related('reactions', 'reactions__user')
     )
     msgs_list.reverse()
 
@@ -3701,11 +3701,16 @@ def chat_react(request, pk):
     except ChatMessage.DoesNotExist:
         return Response({'error': 'Message not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-    emoji = (request.data.get('emoji') or '').strip()
+    emoji = (request.data.get('emoji') or request.query_params.get('emoji') or '').strip()
     if not emoji:
         return Response({'error': 'emoji is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    if request.method == 'POST':
+    action = request.data.get('action')
+    if action == 'add':
+        MessageReaction.objects.get_or_create(message=msg, user=request.user, emoji=emoji)
+    elif action == 'remove':
+        MessageReaction.objects.filter(message=msg, user=request.user, emoji=emoji).delete()
+    elif request.method == 'POST':
         MessageReaction.objects.get_or_create(message=msg, user=request.user, emoji=emoji)
     else:
         MessageReaction.objects.filter(message=msg, user=request.user, emoji=emoji).delete()
@@ -3717,9 +3722,40 @@ def chat_react(request, pk):
         .values('emoji')
         .annotate(count=Count('id'))
     )
+    reaction_counts = {item['emoji']: item['count'] for item in counts}
+
+    reactions_list = [
+        {
+            'id': r.id,
+            'emoji': r.emoji,
+            'user': r.user_id,
+            'username': r.user.username,
+        }
+        for r in msg.reactions.all()
+    ]
+
+    # Broadcast via websocket to all connected clients in the workspace
+    try:
+        from .consumers import broadcast_chat_event_to_workspace, broadcast_workspace_sync
+        payload = {
+            'type': 'chat.reaction',
+            'message_id': msg.id,
+            'emoji': emoji,
+            'action': 'add' if (request.method == 'POST' and action != 'remove') else 'remove',
+            'user_id': request.user.id,
+            'username': request.user.username,
+            'reaction_counts': reaction_counts,
+            'reactions': reactions_list,
+        }
+        broadcast_chat_event_to_workspace(company_user.id, payload)
+        broadcast_workspace_sync(company_user.id, 'chat.reaction', payload)
+    except Exception as e:
+        logger.warning(f"Could not broadcast chat.reaction: {e}")
+
     return Response({
         'message_id': pk,
-        'reactions': {item['emoji']: item['count'] for item in counts},
+        'reactions': reactions_list,
+        'reaction_counts': reaction_counts,
     })
 
 

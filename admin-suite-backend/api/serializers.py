@@ -231,6 +231,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
             user = validated_data.get('user')
             branch_name = validated_data.pop('branch_name', '').strip()
             branch_location = validated_data.pop('branch_location', '').strip()
+            avatar_base64 = validated_data.pop('avatar_base64', None)
             role_display = validated_data.get('role', 'Employee')
 
             # Auto-create or link user account for the employee
@@ -412,14 +413,16 @@ class EmployeeSerializer(serializers.ModelSerializer):
                 validated_data['user'] = user
 
             # Filter finance_data to only valid EmployeeFinance fields
-            valid_finance_fields = {f.name for f in EmployeeFinance._meta.get_fields() if hasattr(f, 'column')} # type: ignore
-            clean_finance = {k: v for k, v in finance_data.items() if k in valid_finance_fields and k != 'id'}
+            valid_finance_fields = {f.name for f in EmployeeFinance._meta.concrete_fields if f.name != 'id'}
+            clean_finance = {k: v for k, v in finance_data.items() if k in valid_finance_fields}
             if 'current_pay' not in clean_finance or clean_finance['current_pay'] in (None, '', 0):
                 clean_finance['current_pay'] = validated_data.get('salary', 0)
             
             # Create finance record and Employee record
             finance = EmployeeFinance.objects.create(user=user, **clean_finance) # type: ignore
-            employee = Employee.objects.create(finance=finance, **validated_data) # type: ignore
+            valid_employee_fields = {f.name for f in Employee._meta.concrete_fields if f.name != 'id'}
+            clean_employee = {k: v for k, v in validated_data.items() if k in valid_employee_fields}
+            employee = Employee.objects.create(finance=finance, **clean_employee) # type: ignore
             
             # Sync avatar to profile now that the uploaded file has been persisted to storage
             if employee.avatar:
@@ -463,28 +466,30 @@ class EmployeeSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         finance_data = validated_data.pop('finance_data', None)
-        if finance_data:
-            try:
-                plan = instance.branch.organization.subscription.plan
-            except Exception:
-                plan = 'BASIC'
-                
-            if plan not in ('PRO', 'PRO_YEARLY'):
-                raise serializers.ValidationError({"error": "Detailed financial modifications are Pro features. Please upgrade your plan."})
+        validated_data.pop('avatar_base64', None)
+        validated_data.pop('branch_name', None)
+        validated_data.pop('branch_location', None)
+        validated_data.pop('temp_password', None)
 
-            from django.utils import timezone
-            from .notifications import send_push_notification
-            valid_finance_fields = {f.name for f in EmployeeFinance._meta.get_fields() if hasattr(f, 'column')} # type: ignore
+        if finance_data and getattr(instance, 'finance', None):
+            valid_finance_fields = {f.name for f in EmployeeFinance._meta.concrete_fields if f.name != 'id'}
             has_changes = False
             for attr, value in finance_data.items():
                 if attr in valid_finance_fields and attr != 'id':
                     old_value = getattr(instance.finance, attr, None)
-                    if str(old_value) != str(value):
-                        setattr(instance.finance, attr, value)
+                    try:
+                        is_diff = float(old_value or 0) != float(value or 0)
+                    except (ValueError, TypeError):
+                        is_diff = str(old_value or '') != str(value or '')
+                    if is_diff:
                         has_changes = True
+                        setattr(instance.finance, attr, value)
+
             if has_changes:
+                from django.utils import timezone
+                from .notifications import send_push_notification
                 instance.finance.last_finance_update = timezone.now()
-                instance.finance.save() # type: ignore
+                instance.finance.save()
                 if instance.linked_user:
                     send_push_notification(
                         user=instance.linked_user,
@@ -504,8 +509,12 @@ class EmployeeSerializer(serializers.ModelSerializer):
             if fields_to_update:
                 emp_u.save(update_fields=fields_to_update)
             profile, _ = UserProfile.objects.get_or_create(user=employee.linked_user)
-            profile.avatar = employee.avatar
-            profile.save()
+            if employee.avatar:
+                try:
+                    profile.avatar = employee.avatar.name
+                except Exception:
+                    profile.avatar = employee.avatar
+                profile.save()
         return employee
 
 class ProjectSerializer(serializers.ModelSerializer):
@@ -734,19 +743,35 @@ class ChatMessageSerializer(serializers.ModelSerializer):
     attachment_size = serializers.IntegerField(read_only=True)
     delivery_status = serializers.SerializerMethodField()
     is_played = serializers.SerializerMethodField()
+    reactions = serializers.SerializerMethodField()
 
     class Meta:
         model = ChatMessage
         fields = [
             'id', 'sender_id', 'sender_name', 'sender_initials', 'sender_avatar',
             'recipient_id', 'group_id', 'text', 'display_text', 'is_pinned', 'is_edited', 'is_deleted',
-            'delivery_status', 'is_played',
+            'delivery_status', 'is_played', 'reactions',
             'reply_to_id', 'reply_to_text', 'reply_to_sender',
             'attachment', 'attachment_type', 'attachment_name', 'attachment_size',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['sender_id', 'sender_name', 'sender_initials', 'sender_avatar',
-                            'recipient_id', 'delivery_status', 'is_edited', 'is_deleted', 'created_at', 'updated_at']
+                            'recipient_id', 'delivery_status', 'is_edited', 'is_deleted', 'reactions', 'created_at', 'updated_at']
+
+    def get_reactions(self, obj):
+        try:
+            return [
+                {
+                    'id': r.id,
+                    'emoji': r.emoji,
+                    'user': r.user_id,
+                    'username': r.user.username,
+                    'created_at': r.created_at.isoformat() if r.created_at else None,
+                }
+                for r in obj.reactions.all()
+            ]
+        except Exception:
+            return []
 
     def get_is_played(self, obj):
         if obj.attachment_type != 'audio':

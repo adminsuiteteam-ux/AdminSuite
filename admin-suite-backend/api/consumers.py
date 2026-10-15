@@ -233,7 +233,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 'action': action,
                 'user_id': self.user.id,
                 'username': self.user.username,
-                'reaction_counts': result,
+                'reaction_counts': result['counts'],
+                'reactions': result['reactions'],
             },
         })
 
@@ -471,7 +472,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         else:
             MessageReaction.objects.filter(message=msg, user=self.user, emoji=emoji).delete()
 
-        # Return aggregated reaction counts
+        # Return aggregated reaction counts and full reactions array
         from django.db.models import Count
         counts = (
             MessageReaction.objects
@@ -479,7 +480,19 @@ class ChatConsumer(AsyncWebsocketConsumer):
             .values('emoji')
             .annotate(count=Count('id'))
         )
-        return {item['emoji']: item['count'] for item in counts}
+        reactions_list = [
+            {
+                'id': r.id,
+                'emoji': r.emoji,
+                'user': r.user_id,
+                'username': r.user.username,
+            }
+            for r in msg.reactions.all()
+        ]
+        return {
+            'counts': {item['emoji']: item['count'] for item in counts},
+            'reactions': reactions_list,
+        }
 
     @database_sync_to_async
     def _mark_read(self, message_ids: list):
@@ -566,3 +579,24 @@ def broadcast_workspace_sync(workspace_id, event_name, data=None):
             )
     except Exception as e:
         logger.warning(f'[WS Broadcast Error] {event_name} for workspace {workspace_id}: {e}')
+
+
+def broadcast_chat_event_to_workspace(workspace_id, payload):
+    """
+    Directly broadcasts chat events (chat.message, chat.reaction, chat.deleted, etc.)
+    to all connected chat websocket clients in the workspace.
+    """
+    try:
+        from channels.layers import get_channel_layer
+        from asgiref.sync import async_to_sync
+        channel_layer = get_channel_layer()
+        if channel_layer and workspace_id:
+            async_to_sync(channel_layer.group_send)(
+                f'workspace_{workspace_id}',
+                {
+                    'type': 'broadcast_chat_event',
+                    'payload': payload,
+                }
+            )
+    except Exception as e:
+        logger.warning(f'[Chat WS Broadcast Error] for workspace {workspace_id}: {e}')

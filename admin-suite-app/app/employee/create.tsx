@@ -502,6 +502,8 @@ export default function CreateEmployeeScreen() {
               bio,
               salary: salary || "0",
               performance: performance.toString(),
+              branch_name: (selectedRole === "Admin" && adminScope === "new_branch") ? branchName : undefined,
+              branch_location: (selectedRole === "Admin" && adminScope === "new_branch") ? branchLocation : undefined,
               socials: selectedRole === "Admin" ? undefined : { whatsapp, facebook, instagram, phone: phoneHandle, linkedin, discord, twitter },
               finance_data: selectedRole === "Admin" ? undefined : {
                 employee_owes_company: parseFloat(employeeOwes) || 0,
@@ -543,6 +545,8 @@ export default function CreateEmployeeScreen() {
               bio,
               salary: salary || "0",
               performance: performance.toString(),
+              branch_name: (selectedRole === "Admin" && adminScope === "new_branch") ? branchName : undefined,
+              branch_location: (selectedRole === "Admin" && adminScope === "new_branch") ? branchLocation : undefined,
               socials: selectedRole === "Admin" ? undefined : { whatsapp, facebook, instagram, phone: phoneHandle, linkedin, discord, twitter },
               finance_data: selectedRole === "Admin" ? undefined : {
                 employee_owes_company: parseFloat(employeeOwes) || 0,
@@ -590,7 +594,7 @@ export default function CreateEmployeeScreen() {
             msg = data;
           }
         } else if (data.error) {
-          msg = Array.isArray(data.error) ? data.error[0] : data.error;
+          msg = Array.isArray(data.error) ? data.error[0] : (typeof data.error === 'object' ? JSON.stringify(data.error) : data.error);
         } else if (data.detail) {
           msg = data.detail;
         } else if (data.message) {
@@ -606,13 +610,15 @@ export default function CreateEmployeeScreen() {
           const firstKey = Object.keys(data)[0];
           if (firstKey) {
             const val = data[firstKey];
-            msg = `${firstKey}: ${Array.isArray(val) ? val[0] : val}`;
+            msg = `${firstKey}: ${Array.isArray(val) ? val[0] : (typeof val === 'object' ? JSON.stringify(val) : val)}`;
           }
         }
       }
       if (!msg) {
         if (err?.message === "Network Error") {
           msg = "Network connection failed. Please check your internet connection.";
+        } else if (err?.response?.status === 500) {
+          msg = "Server error (500). Please check backend logs or try again.";
         } else {
           msg = err?.message || "Failed to save employee data. Please try again.";
         }

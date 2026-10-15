@@ -104,6 +104,7 @@ type ChatMessage = {
   updated_at: string;
   delivery_status?: "sent" | "delivered" | "read";
   is_played?: boolean;
+  reactions?: { id: number; emoji: string; user: number; username: string }[];
 };
 
 type FilterTab = "all" | "unread" | "groups" | "dms";
@@ -364,6 +365,7 @@ export default function AdminChatScreen() {
   const [showSearch, setShowSearch] = useState(false);
   const [showInChatSearch, setShowInChatSearch] = useState(false);
   const [inChatSearchQuery, setInChatSearchQuery] = useState("");
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
 
   // Emoji picker
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -2123,6 +2125,101 @@ export default function AdminChatScreen() {
     }
   };
 
+  const handleToggleReaction = async (msgId: number, emoji: string) => {
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.id !== msgId) return m;
+        const currentReactions = m.reactions ? [...m.reactions] : [];
+        const existingIdx = currentReactions.findIndex(
+          (r) => r.user === myId && r.emoji === emoji
+        );
+        const action = existingIdx !== -1 ? "remove" : "add";
+        if (action === "remove") {
+          currentReactions.splice(existingIdx, 1);
+        } else {
+          currentReactions.push({
+            id: Date.now(),
+            emoji,
+            user: myId || 0,
+            username: user?.username || "",
+          });
+        }
+        return { ...m, reactions: currentReactions };
+      })
+    );
+
+    try {
+      const res = await apiService.reactToChatMessage(msgId, emoji);
+      if (res?.data?.reactions && Array.isArray(res.data.reactions)) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === msgId ? { ...m, reactions: res.data.reactions } : m
+          )
+        );
+      }
+    } catch (e) {
+      console.warn("Failed to react to message:", e);
+    }
+  };
+
+  const renderMessageReactions = (msgReactions: ChatMessage["reactions"], msgId: number, isMine: boolean) => {
+    if (!msgReactions || msgReactions.length === 0) return null;
+    const counts: { [emoji: string]: { count: number; mine: boolean } } = {};
+    for (let i = 0; i < msgReactions.length; i++) {
+      const r = msgReactions[i];
+      if (!r || !r.emoji) continue;
+      if (!counts[r.emoji]) {
+        counts[r.emoji] = { count: 0, mine: false };
+      }
+      counts[r.emoji].count += 1;
+      if (r.user === myId) {
+        counts[r.emoji].mine = true;
+      }
+    }
+    const entries = Object.keys(counts).map((emoji) => ({ emoji, count: counts[emoji].count, mine: counts[emoji].mine }));
+    if (entries.length === 0) return null;
+
+    return (
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 4, marginBottom: 2, alignSelf: isMine ? "flex-end" : "flex-start" }}>
+        {entries.map((entry) => (
+          <Pressable
+            key={entry.emoji}
+            onPress={() => handleToggleReaction(msgId, entry.emoji)}
+            style={({ pressed }) => [
+              {
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 3,
+                paddingHorizontal: 7,
+                paddingVertical: 2.5,
+                borderRadius: 12,
+                backgroundColor: entry.mine
+                  ? (isDark ? "rgba(2, 132, 199, 0.3)" : "rgba(2, 132, 199, 0.15)")
+                  : (isDark ? "#27272a" : "#f4f4f5"),
+                borderWidth: 1,
+                borderColor: entry.mine ? "#0284c7" : (isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)"),
+                opacity: pressed ? 0.75 : 1,
+              },
+            ]}
+          >
+            <Text style={{ fontSize: 13 }}>{entry.emoji}</Text>
+            <Text
+              style={{
+                fontSize: 11,
+                fontFamily: "Inter_600SemiBold",
+                color: entry.mine ? "#0284c7" : colors.mutedForeground,
+              }}
+            >
+              {entry.count}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+    );
+  };
+
   // ─── Render individual message bubble ───────────────────────────────────────
   const renderMessage = ({ item: msg }: { item: ChatMessage }) => {
     const mine = msg.sender_id === myId;
@@ -2350,6 +2447,7 @@ export default function AdminChatScreen() {
                 />
               )}
             </View>
+            {renderMessageReactions(msg.reactions, msg.id, mine)}
             <View style={[styles.metaRow, mine ? { justifyContent: "flex-end" } : {}]}>
               {msg.is_pinned && <Feather name="bookmark" size={10} color={colors.accent} style={{ marginRight: 4 }} />}
               {msg.is_edited && !msg.is_deleted && (
@@ -3453,6 +3551,14 @@ export default function AdminChatScreen() {
             removeClippedSubviews={Platform.OS !== "web"}
             updateCellsBatchingPeriod={30}
             contentContainerStyle={[styles.listContent, { paddingBottom: 16 }]}
+            onScroll={(e) => {
+              const offsetY = e.nativeEvent.contentOffset.y;
+              const contentHeight = e.nativeEvent.contentSize.height;
+              const layoutHeight = e.nativeEvent.layoutMeasurement.height;
+              const distanceFromBottom = contentHeight - layoutHeight - offsetY;
+              setShowScrollBottom(distanceFromBottom > 240);
+            }}
+            scrollEventThrottle={16}
             onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
             showsVerticalScrollIndicator={false}
             refreshing={refreshing}
@@ -3686,6 +3792,47 @@ export default function AdminChatScreen() {
         <Pressable style={styles.backdrop} onPress={() => setShowActionSheet(false)}>
           <View style={[styles.actionSheet, { backgroundColor: isDark ? "#18181b" : "#fff", borderColor: colors.border }]}>
             <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
+
+            {selectedMsg && !selectedMsg.is_deleted && (
+              <View style={{
+                flexDirection: "row",
+                justifyContent: "space-around",
+                alignItems: "center",
+                paddingVertical: 12,
+                paddingHorizontal: 8,
+                borderBottomWidth: 1,
+                borderBottomColor: colors.border,
+              }}>
+                {["👍", "❤️", "😂", "😮", "😢", "🔥"].map((emoji) => {
+                  const isReacted = selectedMsg.reactions?.some((r) => r.user === myId && r.emoji === emoji);
+                  return (
+                    <Pressable
+                      key={emoji}
+                      onPress={() => {
+                        const m = selectedMsg;
+                        setShowActionSheet(false);
+                        if (m) handleToggleReaction(m.id, emoji);
+                      }}
+                      style={({ pressed }) => [
+                        {
+                          paddingVertical: 6,
+                          paddingHorizontal: 10,
+                          borderRadius: 20,
+                          backgroundColor: isReacted
+                            ? (isDark ? "rgba(2, 132, 199, 0.3)" : "rgba(2, 132, 199, 0.15)")
+                            : "transparent",
+                          borderWidth: isReacted ? 1.5 : 0,
+                          borderColor: "#0284c7",
+                          transform: [{ scale: pressed ? 1.25 : 1 }],
+                        },
+                      ]}
+                    >
+                      <Text style={{ fontSize: 24 }}>{emoji}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
 
             {selectedMsg && !selectedMsg.is_deleted && (
               <View style={[styles.sheetPreview, { borderBottomColor: colors.border }]}>

@@ -535,6 +535,8 @@ export const apiService = {
     }),
   pinChatMessage: (id: number) =>
     apiClient.post(`chat/messages/${id}/pin/`),
+  reactToChatMessage: (id: number, emoji: string, action?: 'add' | 'remove') =>
+    apiClient.post(`chat/messages/${id}/react/`, { emoji, action }),
   markChatMessagePlayed: (id: number) =>
     apiClient.post(`chat/messages/${id}/played/`),
   createChatGroup: (data: { name: string; only_admins_can_chat?: boolean; members?: number[] }) =>

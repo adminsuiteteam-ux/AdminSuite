@@ -3142,6 +3142,37 @@ input, select, textarea { font-family: inherit; }
   background: rgba(255,255,255,0.08);
 }
 
+/* Floating Scroll to Bottom Button */
+.chat-scroll-bottom-btn {
+  position: absolute;
+  bottom: 84px;
+  right: 28px;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--card, #1e293b);
+  color: var(--foreground, #f8fafc);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 45;
+  transition: transform 0.15s ease, background 0.15s ease, opacity 0.2s ease;
+  font-size: 16px;
+}
+
+.chat-scroll-bottom-btn:hover {
+  transform: translateY(-2px);
+  background: var(--secondary, #334155);
+  color: var(--primary, #38bdf8);
+}
+
+.chat-scroll-bottom-btn:active {
+  transform: scale(0.95);
+}
+
 /* --------------------------------------------------------------------------
    Message Attachment Preview
    -------------------------------------------------------------------------- */
